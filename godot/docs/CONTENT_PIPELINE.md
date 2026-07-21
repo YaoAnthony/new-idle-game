@@ -78,6 +78,9 @@ Optional Animation 缺失时，Gameplay 必须使用 Documented Fallback，而�
 - Hover、pressed 和 focus-visible 状态不能改变 Control 的最小尺寸、Container separation 或整体 Layout。
 - `v0.1.0` 的临时主题方向为日系柔和自然色：绿色主色、暖橙强调色、浅纸色承托和深色文字。最终 Theme 需在后续 UI/Art Direction Version 中重新确认。
 - UI reference 只能用于抽象 mood、hierarchy、spacing 和 interaction pattern。不得复制商业游戏 Logo、字体造型、按钮图片、Icon、Layout Composition 或可识别素材。
+- 需要可缩放 Panel、Dialog 或 Modal 边框时，优先使用项目内原创生成的 bitmap UI Frame Asset，并通过 `StyleBoxTexture` 或 `NinePatchRect` 做 9-slice；不得直接用临时几何边框冒充最终 UI Frame。
+- IMAGE2 生成的 UI Frame Asset 必须保存到 `godot/assets/ui/` 下合适子目录，并记录 prompt、生成来源、用途、license/provenance 和允许替换方式。
+- 9-slice UI Frame 必须保留清晰四角、可重复或可拉伸边缘、干净中心区域和足够内容 padding；Eval 必须检查不同尺寸下边框不变形。
 
 ## Audio Pipeline
 

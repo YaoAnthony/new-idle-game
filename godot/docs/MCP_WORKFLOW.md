@@ -81,6 +81,9 @@ inspect project/scene
 - Title、Button、Modal 和 spacing constants 是否来自 `GameStyle` token。
 - Title 是否呈现原创的手写木牌/和纸标题方向，且没有外部字体或 Logo Asset。
 - Button 是否呈现原创的柔和纸质菜单牌方向，且没有外部 UI Kit Texture。
+- Placeholder Panel 是否使用 `godot/assets/ui/frames/modal_frame.png`。
+- `modal_frame.png` 是否通过 `StyleBoxTexture` 或 `NinePatchRect` 9-slice 使用，且 patch margin 已记录。
+- IMAGE2 prompt/source 是否记录在 Release Evidence 或 Asset Metadata。
 - 四个 Button 是否 group 到同一个 `VBoxContainer`。
 - `VBoxContainer.theme_override_constants/separation` 是否来自 `GameStyle.BUTTON_SEPARATION`。
 - Menu Button Group 和外层 Layout 是否使用 Fill/Expand size flags 自适应。

@@ -26,6 +26,8 @@ Testing 保护 Game Rule 和 Save Integrity；Eval 保护 Player Experience。�
 
 验证 Reusable Scene 可以 Load、Required Child Capability 存在、Signal 正确连接、Collision/Navigation Configuration 存在，以及 Optional Asset 缺失时安全 Fallback。
 
+UI Scene Tests 还必须覆盖关键 Control 的 test role、Viewport 内位置、Container 类型、spacing、min size、重叠、初始 modal 可见性和 resize 后稳定性。`v0.1.0` 使用 `tests/integration/test_v0_1_initial_screen_layout.gd` 检查 Initial Screen 是否位于预设区域。
+
 ### Integration Tests
 
 测试 Feature Seam：

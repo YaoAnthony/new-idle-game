@@ -1,277 +1,219 @@
 # Development Harness
 
-This document is the operational contract for humans and AI agents building the Godot game. It converts the original game-design README into a repeatable process for planning, implementation, validation, and recovery.
+本文档是人类和 AI Agent 构建 Godot 游戏时必须遵守的执行契约。它把原始 README 中的 Game Design 转换为可重复的 Planning、Implementation、Validation 和 Recovery 流程。
 
-## Product thesis
+## Product Thesis
 
-The player lives in a magical rented home presented as a top-down 2D world. Real-life actions such as study, work, exercise, creation, and rest advance an in-game timer. Completion grants resources. Resources support three outcomes:
+玩家生活在一个以 top-down 2D 呈现的魔法出租屋中。学习、工作、运动、创作和休息等现实 Action 会推进游戏计时，完成后获得 Resource。Resource 服务于三类结果：
 
-1. Survival: food, energy, rest, and day progression.
-2. Relationships: pet needs, memories, affection, growth, and dispatch.
-3. Home growth: furniture, crafting stations, decoration, room expansion, soundscape, and travel.
+1. Survival：Food、Energy、Rest 和 Day Progression。
+2. Relationship：Pet Need、Memory、Affection、Growth 和 Dispatch。
+3. Home Growth：Furniture、Crafting Station、Decoration、Room Expansion、Soundscape 和 Travel。
 
-Every major feature must strengthen this loop. A feature that does not affect the loop needs an explicit product reason and a task-level acceptance test.
+每个主要 Feature 都必须强化这个 Core Loop。无法影响 Core Loop 的 Feature，必须具备明确的 Product Reason 和 Version-level Acceptance Test。
 
-## Current delivery mode
+## 当前 Delivery Mode
 
-- Primary client: Godot.
-- Presentation: top-down 2D.
-- Initial mode: offline-first local single-player.
-- First milestone: a small playable vertical slice, not a broad collection of disconnected systems.
-- Deferred adapters: account login, cloud save, multiplayer, LLM generation, and commerce.
-- Protected project: do not modify `Frontend/`.
+- Primary Client：Godot。
+- Presentation：top-down 2D。
+- Initial Mode：offline-first local single-player。
+- Current Version：`v0.1.0 Initial Screen`，交付最小 Main Menu Shell。
+- First Gameplay Milestone：在 Initial Screen 后构建小而完整的 Playable Vertical Slice，而不是大量互不连通的 Systems。
+- Deferred Adapters：Account Login、Cloud Save、Multiplayer、LLM Generation 和 Commerce。
+- Protected Project：不得修改 `Frontend/`。
 
-Top-down 2D means player movement and interaction occur on a 2D plane; rooms use 2D collision, navigation, depth ordering, and camera rules. It does not imply a specific art style, tile size, camera zoom, or control scheme. Those values belong in data or recorded decisions.
+top-down 2D 表示玩家在 2D 平面中移动和交互，Room 使用 2D Collision、Navigation、Depth Ordering 和 Camera Rule。
 
-## Source-of-truth hierarchy
+## Source of Truth 顺序
 
-When documents disagree, use this order:
+文档冲突时，按以下顺序判断：
 
-1. `docs/DECISIONS.md` for accepted technical and product decisions.
-2. The currently assigned task and its approved acceptance criteria.
-3. `docs/SPEC.md` for product scope and required behavior.
-4. `docs/CONTEXT.md` for domain terminology and ownership.
-5. `docs/ARCHITECTURE.md` and `docs/DATA_MODEL.md` for implementation shape.
-6. The root `README.md` for original intent and long-term ideas.
-7. Existing code, which may be incomplete or transitional.
+1. `docs/DECISIONS.md`：已接受的 Technical 和 Product Decisions。
+2. `docs/versions/` 下当前 Active Version：当前 Release Scope。
+3. `docs/SPEC.md`：Product Scope 和 Required Behavior。
+4. `docs/CONTEXT.md`：Domain Terminology 和 Ownership。
+5. `docs/ARCHITECTURE.md` 与 `docs/data/DATA_MODEL.md`：Implementation Shape。
+6. 根目录 `README.md`：原始意图和长期想法。
+7. Existing Code：可能不完整或处于过渡阶段。
 
-A task cannot silently contradict an accepted decision. A task that intentionally changes one must include review and amendment of `docs/DECISIONS.md` in its acceptance criteria.
+Implementation 不得静默违背 Accepted Decision 或扩展 Active Version Scope。确实需要改变 Decision 或 Scope 时，必须先完成对应 Review 和 Documentation Update。
 
-## Non-negotiable engineering principles
+## 不可妥协的 Engineering Principles
 
-### Build vertical slices
+### 构建 Vertical Slice
 
-Implement complete player outcomes through UI, gameplay state, persistence, and validation. Avoid building many isolated managers before any loop is playable.
+每次实现完整的 Player Outcome，贯通 UI、Gameplay State、Persistence 和 Validation。任何 Core Loop 尚不可玩时，不要提前创建大量孤立的 Manager。
 
-### Keep content data-driven
+### 保持 Content 为 data-driven
 
-Items, recipes, furniture capabilities, action categories, rewards, pet preferences, events, weather outcomes, dialogue references, audio layers, and progression conditions must be defined as content data. Scene scripts implement reusable behavior and interpret definitions.
+Item、Recipe、Furniture Capability、Action Category、Reward、Pet Preference、Event、Weather Outcome、Dialogue Reference、Audio Layer 和 Progression Condition 都必须以 Content Data 定义。Scene Script 只实现可复用 Behavior 并解释 Definition。
 
-Never use a display name as an ID. Never scatter recipe values, item rewards, input keys, file paths, service URLs, or localized text through gameplay scripts.
+Display Name 不得作为 ID。不得把 Recipe Value、Item Reward、Input Key、File Path、Service URL 或 Localized Text 分散在 gameplay scripts 中。
 
-### Separate definitions, runtime state, and presentation
+### 分离 Definition、Runtime State 和 Presentation
 
-- Definitions describe what content can exist.
-- Runtime state describes what exists in the current save.
-- Presentation renders state and gathers player intent.
+- Definition 描述可以存在哪些 Content。
+- Runtime State 描述当前 Save 中实际存在什么。
+- Presentation 渲染 State 并收集 Player Intent。
 
-UI must not become the owner of inventory, crafting, pet, event, or save rules.
+UI 不得成为 Inventory、Crafting、Pet、Event 或 Save Rule 的 Owner。
 
-### Preserve offline play
+### 保证 Offline Play
 
-The core loop must work without an account or network connection. Online adapters add synchronization and social behavior; they do not become required dependencies of local gameplay.
+Core Loop 必须在没有 Account 或 Network Connection 时运行。Online Adapter 添加 Synchronization 和 Social Behavior，但不能成为 Local Gameplay 的必需 Dependency。
 
-### Design persistence from the beginning
+### 从一开始设计 Persistence
 
-Any feature that creates durable player progress must declare:
+任何会产生 Durable Progress 的 Feature 都必须声明：
 
-- What is saved.
-- Which owner holds the state.
-- When it is written.
-- How older saves migrate.
-- What happens when data is missing, invalid, or from a newer version.
+- 保存什么。
+- State Owner 是谁。
+- 何时写入。
+- Older Save 如何 Migration。
+- Data 缺失、无效或来自 Newer Version 时如何处理。
 
-### Make time and randomness controllable
+### Time 和 Randomness 必须可控
 
-Game time, real time, timers, random region selection, random houses, loot, weather, and pet dispatch must be accessed through replaceable interfaces. Tests must be able to provide a fixed clock and seeded random source.
+Game Time、Real Time、Timer、随机 Region/House、Loot、Weather 和 Pet Dispatch 必须通过可替换 Interface 访问。Tests 必须能够提供 Fixed Clock 和 Seeded Random Source。
 
-### Treat external services as adapters
+### External Service 统一视为 Adapter
 
-Local save, cloud save, authentication, multiplayer transport, LLM generation, payments, analytics, and platform APIs live behind explicit seams. Gameplay features depend on stable interfaces, not vendor SDKs or HTTP details.
+Local Save、Cloud Save、Authentication、Multiplayer Transport、LLM Generation、Payment、Analytics 和 Platform API 都位于明确 Seam 后方。Gameplay Feature 依赖稳定 Interface，而不是 Vendor SDK 或 HTTP 细节。
 
-## Agent execution loop
+## Agent Execution Loop
 
 ### 1. Orient
 
-- Read this file, the assigned task, and linked context.
-- Inspect all files named in the task before editing.
-- Identify the player-visible outcome.
-- Identify affected definitions, runtime state, scenes, adapters, saves, tests, and contracts.
+- 阅读本文件、Active Version 和其链接的 Context。
+- 编辑前检查 Version 的 Implementation Boundary 涉及的文件。
+- 确定 Player-visible Outcome。
+- 确定受影响的 Definition、Runtime State、Scene、Adapter、Save、Test 和 Contract。
 
-### 2. Check readiness
+### 2. Check Readiness
 
-A task is ready only when:
+Version 只有满足以下条件才能开始 Implementation：
 
-- Its outcome is observable by a player or test.
-- Dependencies are complete or explicitly stubbed by the task.
-- Acceptance criteria are concrete.
-- Out-of-scope behavior is listed.
-- Required art/audio may use approved placeholders.
-- Save and migration impact is stated.
-- Network or Backend ownership is stated when relevant.
+- Status 为 `active` 或 `frozen`。
+- Outcome 可以被 Player 或 Test 观察。
+- Dependencies 已完成，或 Version 明确声明可接受的 Placeholder/Fallback。
+- Acceptance Criteria 具体明确。
+- Out of Scope 已列出。
+- 所需 Art/Audio 可以使用经过批准的 Placeholder。
+- Save 和 Migration 影响已说明。
+- 涉及 Network 或 Backend 时，Ownership 已说明。
 
-If these are missing, improve the task document before implementation.
+缺少以上内容时，应先完善 Version Document，再开始 Implementation。
 
-### 3. Plan the smallest coherent change
+### 3. 规划最小完整 Change
 
-Prefer one end-to-end path. For example, inventory work should cover one item definition, one runtime stack, one UI rendering path, one interaction, one save/load round trip, and tests. It should not pre-build every item category.
+优先完成一条 end-to-end Path。例如 Inventory Version 应包含一个 Item Definition、一个 Runtime Stack、一个 UI Render Path、一次 Interaction、一次 Save/Load Round Trip 和相关 Tests；不应提前实现所有 Item Category。
 
-### 4. Implement through module interfaces
+### 4. 通过 Module Interface 实现
 
-- Feature modules own their gameplay rules.
-- State modules own serializable state shapes.
-- Infrastructure adapters own files, networking, and external services.
-- UI owns view state only.
-- Signals and explicit method calls communicate intent; do not rely on brittle scene-tree paths or hidden global mutation.
+- Feature Module 拥有自己的 gameplay rules。
+- State Module 拥有可序列化 State Shape。
+- Infrastructure Adapter 拥有 File、Network 和 External Service。
+- UI 只拥有 View State。
+- 使用 Signal 和明确 Method Call 传递 Intent；不要依赖脆弱的 SceneTree Path 或隐藏的 Global Mutation。
 
-### 5. Validate in layers
+### 5. 分层 Validation
 
-Run the narrowest useful checks first:
+先运行范围最小且有价值的检查：
 
-1. Data/schema validation.
-2. Unit tests for deterministic rules.
-3. Integration tests for feature seams and persistence.
-4. Headless project load and scene checks.
-5. Manual or automated player-flow evaluation.
-6. Full validation required by the task.
+1. Data/Schema Validation。
+2. Deterministic Rule 的 Unit Tests。
+3. Feature Seam 与 Persistence 的 Integration Tests。
+4. Headless Project Load 和 Scene Checks。
+5. Manual 或 Automated Player-flow Eval。
+6. Version 要求的 Full Validation。
 
-### 6. Recover deliberately
+### 6. 有意识地 Recovery
 
-When validation fails:
+Validation 失败时：
 
-- Reproduce the failure consistently.
-- Determine whether the defect is in definition data, runtime state, presentation, adapter behavior, or test assumptions.
-- Add a regression test for confirmed defects.
-- Do not weaken acceptance criteria merely to make a test pass.
+- 稳定复现 Failure。
+- 判断 Defect 位于 Definition Data、Runtime State、Presentation、Adapter Behavior 还是 Test Assumption。
+- 对确认的 Defect 添加 Regression Test。
+- 不得为了让 Test 通过而削弱 Acceptance Criteria。
 
 ### 7. Report
 
-Every completion report includes:
+每次 Completion Report 必须包含：
 
-- Player-visible result.
-- Files changed.
-- Tests and evaluations run.
-- Save/schema/API impact.
-- Known limitations.
-- Follow-up tasks that are newly unblocked.
+- Player-visible Result。
+- 所属 Version 及其 Acceptance 影响。
+- Changed Files。
+- 执行过的 Tests 和 Evals。
+- Save、Schema 和 API Impact。
+- Known Limitations。
+- 新解锁的 Follow-up Versions 或 Decisions。
 
-## Required architecture checks
+## 必做 Architecture Checks
 
-Before completing any gameplay task, answer these questions:
+完成任何 Gameplay Implementation 前，回答：
 
-- Is this behavior reusable across more than one content definition?
-- Is content represented in data instead of conditionals tied to specific item names?
-- Does the state have one clear owner?
-- Can the rule be tested without rendering a scene?
-- Can the feature run offline?
-- Does the save contain stable IDs rather than scene node paths or display strings?
-- Can missing assets or unavailable external services fail safely?
-- Does the change preserve input remapping, localization, and accessibility?
-- Are multiplayer authority and synchronization explicitly out of scope or handled?
+- 此 Behavior 是否可供多个 Content Definition 复用？
+- Content 是否位于 Data 中，而不是通过特定 Item Name 的 Conditional 实现？
+- State 是否只有一个明确 Owner？
+- Rule 是否能在不渲染 Scene 的情况下测试？
+- Feature 是否可以 Offline 运行？
+- Save 是否使用 Stable ID，而不是 Scene Node Path 或 Display String？
+- Asset 缺失或 External Service 不可用时，是否能安全失败？
+- 改动是否支持 Input Remapping、Localization 和 Accessibility？
+- Multiplayer Authority 和 Synchronization 是明确 Out of Scope，还是已经处理？
 
-## System ownership
+## 专题规则所有权
 
-| Area | Owner | Must not own |
-| --- | --- | --- |
-| App startup and scene transitions | `app/` | Gameplay rules |
-| Player movement and interaction | `features/player/` | Inventory storage or save files |
-| Home, regions, weather | `features/world/` | Account identity |
-| Inventory and storage queries | `features/inventory/` | Crafting recipes |
-| Furniture placement and capabilities | `features/furniture/` | UI navigation |
-| Crafting eligibility and transactions | `features/workbench/` | Raw file access |
-| Real-life action scheduling and rewards | `features/actions/` | Wall-clock implementation |
-| Cooking process and food quality | `features/cooking/` | Pet preference definitions |
-| Pet needs, memory, affection, dispatch | `features/pets/` | LLM credentials |
-| Dialogue and event sequencing | `features/dialogue/`, `features/events/` | Backend transport |
-| Day progression | `features/day_cycle/` | OS time directly |
-| Serializable active state | `state/` | Rendering and HTTP calls |
-| Local/cloud persistence | `infrastructure/persistence/` | Gameplay decisions |
-| Network/auth/multiplayer transport | `infrastructure/network/` | Offline game rules |
-| Static definitions | `data/` | Mutable save state |
-| Cross-feature presentation | `ui/` | Domain ownership |
+本文件只保留跨领域的执行约束。Agent 必须按 Version 影响范围读取对应专题文档，不得把这些文档的细节复制回 Harness：
 
-## Data-driven requirements
+| 规则类型 | 唯一 Owner |
+| --- | --- |
+| Product Behavior 和长期 Scope | `docs/SPEC.md` |
+| Domain Term 和 State Ownership | `docs/CONTEXT.md` |
+| Module、Dependency Direction 和 External Adapter | `docs/ARCHITECTURE.md` |
+| Content Definition、Runtime State、Persistence 和 Migration | `docs/data/DATA_MODEL.md` |
+| Asset、Localization、Audio 和 Generated Content Workflow | `docs/CONTENT_PIPELINE.md` |
+| Test Strategy 和 Quality Gate | `docs/test/TESTING.md` |
+| Build、Release、Security、Privacy 和 Recovery | `docs/OPERATIONS.md` |
+| Godot MCP Tooling、Scene/Resource 写入方式和 Debug Loop | `docs/MCP_WORKFLOW.md` |
 
-The following must be authorable without editing gameplay scripts:
+冲突或跨文档变更必须先更新 `docs/DECISIONS.md`，再更新受影响的 Owner Document。Version 和 Eval 只引用这些规则，不另建一套 Policy。
 
-- Item IDs, categories, stack limits, tags, expiration behavior, and icons.
-- Recipe inputs, outputs, station requirements, discovery conditions, and quality rules.
-- Furniture footprint, placement rules, interaction capabilities, action unlocks, storage capacity, and audio emitters.
-- Action category, duration limits, energy/hunger costs, furniture requirements, reward tables, and interruption rules.
-- Pet species, preferences, needs, affection thresholds, behaviors, dispatch destinations, and growth rules.
-- Events, prerequisites, mutually exclusive branches, consequences, unlocks, and replay policy.
-- Weather definitions, transitions, audio layers, visual effects, and drop tables.
-- Regions, house variants, spawn anchors, and starting-content pools.
-- Dialogue keys, localization keys, portraits, speaker IDs, and conditional branches.
-- Audio layers and environmental conditions.
+## Quality Dimensions
 
-When a definition format changes, add validators and document migration expectations for both content and saves.
+每个 Milestone 都必须处理相关维度：
 
-## Persistence policy
+- Correctness 和 Save Integrity。
+- Player Comprehension 和 Tutorial Clarity。
+- Input Remapping 和 Controller Readiness。
+- Localization Readiness 和 Text Expansion。
+- Accessibility、Readable Contrast、Motion/Audio Control 和 Non-audio Cue。
+- Target Hardware 上的 Performance。
+- Deterministic Tests 和 Reproducible Random Behavior。
+- Asset Licensing 和 Attribution。
+- Network Loss 和 Service Degradation。
+- Account、LLM 和 Commerce Data 的 Security/Privacy。
 
-Separate three durable concepts:
+具体 Numeric Budget 必须进入 Accepted Decision 或 Active Version，不得散落为 Magic Constant。
 
-- Player profile: identity-neutral preferences, accessibility, account binding, and save-slot metadata.
-- World save: region, house, day/time, inventory, furniture, stations, pets, events, weather, mail, and progression.
-- Session state: temporary UI, local connection, multiplayer membership, and in-progress network messages. Session state is not part of the durable world save unless explicitly promoted.
+## Definition of Done
 
-Use a versioned save envelope, stable entity IDs, atomic writes, backup/recovery behavior, and migrations. Settings use a separate configuration store. Local save is the first adapter; cloud save arrives later behind the same repository interface.
+Feature 只有满足以下条件才算完成：
 
-## Multiplayer policy
+- Acceptance Criteria 和关联 Eval 通过。
+- Feature 位于 Active Version Scope 内，没有加入 Out-of-scope Behavior。
+- Player 能够进入、使用、离开，并在相关情况下 Save、Reload 和从 Error 中 Recovery。
+- Content 为 data-driven，并在 Load 时 Validate。
+- Runtime State 只有一个 Owner。
+- Input 和用户可见文本可配置、可 Localization。
+- Automated Tests 覆盖 Core Rule 和 Regression。
+- Save Migration 与 Network Contract 在受影响时已更新。
+- Placeholder Asset 有明确标记且可替换。
+- Documentation 已反映新 Term 和 Decision。
+- 未修改无关 Module 或 Protected Project。
 
-Multiplayer is deferred until the single-player loop and save model are stable. The intended model is host-owned world play:
+## Active Delivery
 
-- The host selects and uploads a world save to start a session.
-- The server or authoritative host validates durable world mutations.
-- Visitors can perform only explicitly permitted actions.
-- Story events do not advance in multiplayer by default.
-- Furniture placement, shared daily progress, pet interaction, station use, and friendship rewards require explicit authority and conflict rules.
-- Session exit must reconcile or discard temporary changes according to a recorded policy.
+当前 Active Version 是 `docs/versions/v0.1.0-initial-screen.md`。它是当前 Scope、Non-goals 和 Release Acceptance 的唯一 Owner；本文件不重复版本内容。
 
-Never synchronize raw scene nodes. Synchronize stable IDs and domain commands/events.
-
-## LLM and commerce policy
-
-- LLM features generate bounded content for photos and letters; they do not decide inventory, currency, affection, progression, or account state.
-- Prompts use structured game context and versioned templates.
-- Generated content requires timeout, retry, moderation, fallback, caching, and cost controls.
-- Secrets and provider calls stay in Backend.
-- Purchases are verified server-side and granted idempotently.
-- Paid content must not corrupt or block local saves when a service is unavailable.
-
-## Quality dimensions
-
-Every milestone must address the relevant dimensions:
-
-- Correctness and save integrity.
-- Player comprehension and tutorial clarity.
-- Input remapping and controller readiness.
-- Localization readiness and text expansion.
-- Accessibility, readable contrast, motion/audio controls, and non-audio cues.
-- Performance on target hardware.
-- Deterministic tests and reproducible random behavior.
-- Asset licensing and attribution.
-- Network loss and service degradation.
-- Security and privacy for account, LLM, and commerce data.
-
-Specific numeric budgets belong in accepted decisions or milestone tasks, not scattered constants.
-
-## Definition of done
-
-A feature is complete only when:
-
-- The acceptance criteria and linked evaluation pass.
-- The player can enter, use, leave, save, reload, and recover from errors where relevant.
-- Content is data-driven and validates at load time.
-- Runtime state has a single owner.
-- Inputs and user-facing text are configurable/localizable.
-- Automated tests cover core rules and regressions.
-- Save migrations and network contracts are updated when affected.
-- Placeholder assets are clearly marked and replaceable.
-- Documentation reflects new terms and decisions.
-- No unrelated module or protected project was changed.
-
-## Starting vertical slice
-
-The first playable target is deliberately narrow:
-
-1. Start a local game in one fixed test house selected through data.
-2. Move a player in a top-down 2D room and interact through remappable actions.
-3. Open inventory and place a workbench.
-4. Use the workbench to craft one furniture item from one data-defined recipe.
-5. Place that furniture and unlock one data-defined real-life action.
-6. Complete the action through a controllable timer and receive a reward.
-7. Give or consume the reward through one meaningful branch.
-8. Save, quit, reload, and observe the same world state.
-
-Random regions, multiple houses, full first-day story, login, multiplayer, LLM, payments, and production art remain out of scope until this slice passes its evaluation.
+后续 Delivery Order 由 `docs/ROADMAP.md` 描述。Roadmap 和 Product Spec 中的未来内容只有进入状态为 `active` 的独立 Version Document 后，才授权 Implementation。

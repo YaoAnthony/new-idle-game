@@ -1,18 +1,20 @@
 # Evaluation Harness
 
-Evaluations describe complete observable flows. They complement unit and integration tests by checking that a player can understand and finish the intended experience.
+Eval 描述完整且可观察的 Flow。它通过检查 Player 是否能理解并完成目标 Experience，补充 Unit 和 Integration Tests。
 
-An evaluation may be automated, manual, or hybrid. It must specify setup, controls, observations, assertions, failure evidence, and cleanup.
+Eval 可以是 Automated、Manual 或 Hybrid，但必须说明 Setup、Control、Observation、Assertion、Failure Evidence 和 Cleanup。
 
-## Evaluation categories
+每个 Release Eval 必须引用一个 Version，并直接覆盖该 Version 的 Release Acceptance。
 
-- Core loop: action, reward, spending, and progression.
-- Save integrity: save, quit, reload, migration, corruption recovery.
-- Top-down interaction: movement, collision, targeting, placement, camera.
-- First-day onboarding: tutorial clarity and event progression.
-- Accessibility/localization: remapping, text expansion, audio alternatives.
-- Degraded service: offline, timeout, conflict, moderation fallback.
-- Multiplayer: authority, disconnect, duplicate prevention, reconciliation.
-- Performance: representative room/save/network fixtures.
+## Eval Categories
 
-Use `TEMPLATE.md` for each evaluation. A milestone exit should link to one or more evaluation files.
+- Core Loop：Action、Reward、Spending 和 Progression。
+- Save Integrity：Save、Quit、Reload、Migration 和 Corruption Recovery。
+- Top-down Interaction：Movement、Collision、Targeting、Placement 和 Camera。
+- First-day Onboarding：Tutorial Clarity 和 Event Progression。
+- Accessibility/Localization：Remapping、Text Expansion 和 Audio Alternative。
+- Degraded Service：Offline、Timeout、Conflict 和 Moderation Fallback。
+- Multiplayer：Authority、Disconnect、Duplicate Prevention 和 Reconciliation。
+- Performance：Representative Room/Save/Network Fixture。
+
+每个 Eval 使用 `TEMPLATE.md`。Milestone Exit 必须链接一个或多个 Eval File。

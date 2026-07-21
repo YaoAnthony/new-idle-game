@@ -1,96 +1,97 @@
-# Build, Release, Security, and Operations
+# Build、Release、Security 和 Operations
 
-This document defines the concerns every production-bound task must consider. Concrete platform commands are added after target platforms and deployment environments are selected.
+本文档定义所有准备进入 Production 的 Version 必须考虑的事项。Target Platform 和 Deployment Environment 选定后，再添加具体 Platform Command。
 
 ## Environments
 
-Maintain explicit development, test/staging, and production configurations. Service URLs, feature availability, logging, analytics, and credentials are environment-owned configuration, never gameplay constants.
+明确区分 Development、Test/Staging 和 Production Configuration。Service URL、Feature Availability、Logging、Analytics 和 Credential 由 Environment Configuration 管理，不能成为 Gameplay Constant。
 
-The Godot client contains no reusable production secrets. Backend environment files are not committed except documented examples without real values.
+Godot Client 中不存在可复用的 Production Secret。除不含真实值的 Documented Example 外，不提交 Backend Environment File。
 
 ## Versioning
 
-Track independently where needed:
+按需要独立追踪：
 
-- Game/client version.
-- Save format version.
-- Content catalog version.
-- HTTP API version.
-- Multiplayer protocol version.
-- LLM prompt/template version.
+- Game/Client Version。
+- Save Format Version。
+- Content Catalog Version。
+- HTTP API Version。
+- Multiplayer Protocol Version。
+- LLM Prompt/Template Version。
 
-A release records compatibility expectations among these versions.
+每次 Release 记录这些 Version 之间的 Compatibility Expectation。
 
-## Build reproducibility
+## Build Reproducibility
 
-- Pin engine, dependency, and addon versions.
-- Keep export presets and platform requirements documented when introduced.
-- Generate builds from a clean checkout in CI before release.
-- Validate that generated/import/cache directories are not treated as source.
-- Produce checksums and release notes for distributable artifacts.
+- Pin Engine、Dependency 和 Addon Version。
+- 引入 Export Preset 和 Platform Requirement 后保持 Documentation。
+- Release 前从 Clean Checkout 在 CI 中生成 Build。
+- 确认 Generated/Import/Cache Directory 不被视为 Source。
+- 为 Distributable Artifact 生成 Checksum 和 Release Note。
 
-## Release gate
+## Release Gate
 
-A release candidate requires:
+Release Candidate 需要：
 
-- Full automated validation.
-- First-launch, new-game, continue, save, reload, settings, and safe-exit smoke tests.
-- Supported save migration tests.
-- Representative performance checks.
-- Missing-network/external-service checks where relevant.
-- Localization and accessibility smoke tests.
-- License/attribution review for new assets.
-- Privacy/security review for new data collection or external content.
-- Rollback and last-known-good build plan.
+- Active Version Document 的 Release Acceptance 和 Evidence。
+- Full Automated Validation。
+- Active Version 的 Eval 所定义的 Player Flow Smoke Test；未进入该 Version 的 Flow 不得提前成为 Release Gate。
+- Supported Save Migration Tests。
+- Representative Performance Checks。
+- 相关情况下的 Missing-network/External-service Checks。
+- Localization 和 Accessibility Smoke Test。
+- New Asset 的 License/Attribution Review。
+- New Data Collection 或 External Content 的 Privacy/Security Review。
+- Rollback 和 Last-known-good Build Plan。
 
-## Security ownership
+## Security Ownership
 
-Backend is authoritative for authentication, account access, cloud-save authorization, multiplayer permissions, LLM providers, purchases, and entitlements.
+Backend 对 Authentication、Account Access、Cloud-save Authorization、Multiplayer Permission、LLM Provider、Purchase 和 Entitlement 具有 Authority。
 
-Required practices when those features are introduced:
+引入这些 Feature 后必须：
 
-- Validate and rate-limit all untrusted input.
-- Use secure session/token storage appropriate to the platform.
-- Apply least-privilege access to Worlds and generated content.
-- Make purchase and reward operations idempotent.
-- Avoid trusting client timestamps, inventory, currency, or entitlements.
-- Redact secrets and personal content from logs.
-- Define abuse reporting/moderation before public social text features.
+- Validate 并 Rate-limit 所有 Untrusted Input。
+- 使用适合 Platform 的 Secure Session/Token Storage。
+- 对 World 和 Generated Content 使用 Least-privilege Access。
+- Purchase 和 Reward Operation 具备 Idempotency。
+- 不信任 Client Timestamp、Inventory、Currency 或 Entitlement。
+- 从 Log 中 Redact Secret 和 Personal Content。
+- Public Social Text Feature 上线前定义 Abuse Reporting/Moderation。
 
 ## Privacy
 
-Before collecting account data, analytics, crash reports, player-authored letters, photos, prompts, or generated outputs, document:
+收集 Account Data、Analytics、Crash Report、Player-authored Letter、Photo、Prompt 或 Generated Output 前，记录：
 
-- Purpose and lawful/consent basis as applicable.
-- Data fields and whether they are optional.
-- Storage location and retention.
-- Third-party processors.
-- Deletion/export behavior.
-- Age/region restrictions.
-- Logging and support access.
+- Purpose 和适用的 Lawful/Consent Basis。
+- Data Field，以及是否 Optional。
+- Storage Location 和 Retention。
+- Third-party Processor。
+- Deletion/Export Behavior。
+- Age/Region Restriction。
+- Logging 和 Support Access。
 
-Do not upload a complete World save to an LLM provider. Backend must construct the smallest bounded context needed.
+不得把完整 World Save 上传给 LLM Provider。Backend 只构建满足需求的最小有界 Context。
 
-## Telemetry and diagnostics
+## Telemetry 和 Diagnostics
 
-Development diagnostics should support reproduction without collecting unnecessary personal content. Use stable event names, versions, error categories, and correlation IDs. Production telemetry is opt-in/configurable according to future privacy decisions.
+Development Diagnostics 应支持复现，同时避免收集不必要的 Personal Content。使用 Stable Event Name、Version、Error Category 和 Correlation ID。Production Telemetry 根据未来 Privacy Decision 进行 Opt-in/Configuration。
 
-Useful operational signals include:
+有价值的 Operational Signals 包括：
 
-- Crash-free sessions.
-- Save/load/migration failures.
-- Corrupt-save recovery.
-- Scene load and frame-time distributions.
-- Network errors and cloud conflicts.
-- LLM latency/fallback/moderation rates and cost.
-- Purchase verification failures and duplicate prevention.
+- Crash-free Session。
+- Save/Load/Migration Failure。
+- Corrupt-save Recovery。
+- Scene Load 和 Frame-time Distribution。
+- Network Error 和 Cloud Conflict。
+- LLM Latency、Fallback、Moderation Rate 和 Cost。
+- Purchase Verification Failure 和 Duplicate Prevention。
 
-Telemetry does not replace tests and must not silently change gameplay.
+Telemetry 不能替代 Test，也不能静默改变 Gameplay。
 
-## Backup and recovery
+## Backup 和 Recovery
 
-- Local saves preserve a last-known-good copy.
-- Cloud saves retain revision/conflict metadata according to a future retention decision.
-- Migrations never destroy the only readable original.
-- Support tooling must avoid exposing private player content.
-- Recovery instructions are tested before release, not invented after data loss.
+- Local Save 保留 Last-known-good Copy。
+- Cloud Save 根据未来 Retention Decision 保留 Revision/Conflict Metadata。
+- Migration 不得破坏唯一可读的 Original。
+- Support Tool 不得暴露 Private Player Content。
+- Recovery Instruction 必须在 Release 前测试，不能等 Data Loss 后临时设计。

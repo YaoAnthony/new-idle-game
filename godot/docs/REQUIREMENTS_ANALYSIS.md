@@ -1,121 +1,120 @@
 # Requirements Analysis
 
-This analysis translates the original repository README into implementation domains and identifies dependencies that must be resolved before coding each area.
+本文档将仓库原始 README 转换为 Implementation Domain，并识别每个区域在 Coding 前必须解决的 Dependency。
 
-## Product identity
+它是 Traceability 和 Risk Analysis，不是规范性 Product Spec，也不授权 Implementation。已接受的 Product Behavior 由 `SPEC.md` 拥有；当前 Delivery Scope 由 Active Version Document 拥有。
 
-The game is a cozy top-down 2D life simulation with an idle/focus layer. Its distinctive promise is not crafting, pets, or multiplayer in isolation. The distinctive promise is that a real-life Action creates resources and time progression inside a magical home, where the player receives quiet feedback from pets, decoration, food, events, music, and ambience.
+## Product Identity
 
-## Player goals inferred from the design
+这是一款带 Idle/Focus Layer 的温暖 top-down 2D Life Simulation。它真正独特的承诺，并不是孤立的 Crafting、Pet 或 Multiplayer，而是让现实 Action 在魔法 Home 中转化成 Resource 和 Time Progression，并通过 Pet、Decoration、Food、Event、Music 与 Ambience 提供安静反馈。
 
-- Feel accompanied while studying, working, exercising, creating, or resting.
-- See real-life effort transformed into visible, useful game progress.
-- Build a personal home instead of pursuing a competitive optimal build.
-- Develop relationships with pets through care and shared events.
-- Discover systems gradually through narrative events.
-- Optionally share a calm space with friends without losing control of the host's World.
+## 从 Design 推导的 Player Goals
 
-## System requirements derived from the first-day flow
+- 在学习、工作、运动、创作或休息时感到有人陪伴。
+- 看见现实投入转化成可见且有用的 Game Progress。
+- 建造个人 Home，而不是追求竞争性的最优 Build。
+- 通过照顾和共同 Event 与 Pet 建立 Relationship。
+- 通过 Narrative Event 逐步发现 System。
+- 可选地与 Friend 分享安静空间，同时保留 Host 对 World 的控制。
 
-| README behavior | Required systems | Important dependency |
+## 从 First-day Flow 推导的 System Requirements
+
+| README Behavior | Required Systems | Important Dependency |
 | --- | --- | --- |
-| Random region and house | Region/house definitions, seeded selection, World creation | Save model and random seam |
-| Move through the home | Top-down player, collision, camera, depth sorting | Room scene conventions |
-| Open backpack | InputMap, inventory state, inventory UI | Item definitions |
-| Place workbench/furniture | Furniture definitions, preview, placement validation, persistence | Room geometry and stable entity IDs |
-| Press interact near objects | Interaction capabilities and target selection | Player and feature interfaces |
-| Craft furniture | Recipes, station capability, multi-inventory transaction | Inventory atomicity |
-| Encounter pets | Pet definitions, spawn/event system, dialogue | Event sequencing and navigation |
-| Pet requests an item | Needs, preferences, item transfer, memory | Pet state and inventory transaction |
-| Create a timed Action | Action definition/category, user input, timer, availability | Clock seam and furniture capabilities |
-| Receive guaranteed story reward | Reward tables plus progression override | Event/action integration |
-| Cook and eat | Cooking stations, process steps, food state, hunger | Recipe and needs systems |
-| Tutorial diagram | Progress-aware tutorial presentation | Event state and mapped controls |
-| Sleep and start next day | Bed interaction, day cycle, queued events | Save checkpoint and clock |
-| Pet returns with a gift | Dispatch/absence state, event trigger, rewards | Time and pet persistence |
-| Mother's call and daily machine | Dialogue/event unlock, station repair, daily generation | Event and unlock model |
+| Random Region 和 House | Region/House Definition、Seeded Selection、World Creation | Save Model 和 Random Seam |
+| 在 Home 中移动 | Top-down Player、Collision、Camera、Depth Sorting | Room Scene Convention |
+| 打开 Backpack | InputMap、Inventory State、Inventory UI | Item Definition |
+| 放置 Workbench/Furniture | Furniture Definition、Preview、Placement Validation、Persistence | Room Geometry 和 Stable Entity ID |
+| 靠近 Object 交互 | Interaction Capability 和 Target Selection | Player 与 Feature Interface |
+| Craft Furniture | Recipe、Station Capability、Multi-inventory Transaction | Inventory Atomicity |
+| 遇到 Pet | Pet Definition、Spawn/Event System、Dialogue | Event Sequencing 和 Navigation |
+| Pet 请求 Item | Need、Preference、Item Transfer、Memory | Pet State 和 Inventory Transaction |
+| 创建 Timed Action | Action Definition/Category、User Input、Timer、Availability | Clock Seam 和 Furniture Capability |
+| 获得 Guaranteed Story Reward | Reward Table 和 Progression Override | Event/Action Integration |
+| Cooking 和 Eating | Cooking Station、Process Step、Food State、Hunger | Recipe 和 Need System |
+| Tutorial Diagram | Progress-aware Tutorial Presentation | Event State 和 Mapped Control |
+| Sleep 并开始 Next Day | Bed Interaction、Day Cycle、Queued Event | Save Checkpoint 和 Clock |
+| Pet 带 Gift 回来 | Dispatch/Absence State、Event Trigger、Reward | Time 和 Pet Persistence |
+| Mother Call 与 Daily Machine | Dialogue/Event Unlock、Station Repair、Daily Generation | Event 和 Unlock Model |
 
-## Broader gameplay domains
+## 更广泛的 Gameplay Domains
 
-### Resource economy
+### Resource Economy
 
-Inputs come from Actions, pets, daily tasks, events, dispatch, plants, and future social rewards. Sinks include hunger/survival, cooking, crafting, pet care, decoration, fertilizer, travel, photography, and optional cosmetics.
+Resource Source 包括 Action、Pet、Daily Task、Event、Dispatch、Plant 和未来 Social Reward。Resource Sink 包括 Hunger/Survival、Cooking、Crafting、Pet Care、Decoration、Fertilizer、Travel、Photography 和可选 Cosmetic。
 
-The economy needs data-defined sources/sinks, anti-duplication transactions, balance telemetry in development, and migration-safe IDs. No single feature should grant inventory directly through ad hoc code.
+Economy 需要 data-defined Source/Sink、Anti-duplication Transaction、Development Balance Telemetry 和 Migration-safe ID。任何单个 Feature 都不能通过临时代码直接发放 Inventory。
 
 ### Progression
 
-Progression is event/capability based rather than one global level. Furniture unlocks Actions; events unlock stations and travel; pets unlock behaviors; recipes unlock cooking/crafting; house changes unlock space.
+Progression 基于 Event/Capability，而不是单一 Global Level。Furniture 解锁 Action；Event 解锁 Station 和 Travel；Pet 解锁 Behavior；Recipe 解锁 Cooking/Crafting；House Change 解锁 Space。
 
-The implementation therefore needs a general Unlock concept and condition/effect model before content breadth.
+因此，在扩大 Content Breadth 前，Implementation 需要通用 Unlock Concept 和 Condition/Effect Model。
 
-### Feedback loops
+### Feedback Loops
 
-Positive feedback:
+Positive Feedback：
 
-- Action rewards improve survival.
-- Action rewards support pets.
-- Action rewards improve the home.
-- Home capabilities unlock more Actions and reward options.
+- Action Reward 改善 Survival。
+- Action Reward 支持 Pet。
+- Action Reward 改善 Home。
+- Home Capability 解锁更多 Action 和 Reward Option。
 
-Negative pressure:
+Negative Pressure：
 
-- Hunger and fatigue limit Actions.
-- Food may expire.
-- Some stations impose placement constraints.
+- Hunger 和 Fatigue 限制 Action。
+- Food 可能 Expire。
+- 某些 Station 带有 Placement Constraint。
 
-Negative systems must create decisions without punishing players for using the game as a calm focus companion. Exact severity is a future balance decision.
+Negative System 应产生 Decision，但不能惩罚把本游戏当作安静 Focus Companion 的 Player。具体强度属于未来 Balance Decision。
 
-## Technical requirements inferred from future features
+## 从 Future Features 推导的 Technical Requirements
 
-### Save system
+### Save System
 
-Required early because furniture placement, inventory, pets, events, time, and user-authored Actions are durable. It must be versioned before content expands.
+Furniture Placement、Inventory、Pet、Event、Time 和 Player-authored Action 都属于 Durable State，因此 Save System 必须较早实现，并在 Content 扩展前 Versioned。
 
 ### Login UI
 
-Not required for the local core loop. It becomes required with cloud save, friends, multiplayer, purchases, or cross-device identity. A local guest World must be bindable without losing progress.
+Local Core Loop 不需要 Login。Cloud Save、Friend、Multiplayer、Purchase 或 Cross-device Identity 出现后才需要 Login。Local Guest World 必须能够绑定 Account，且不丢失 Progress。
 
 ### Multiplayer
 
-Requires a stable World save, command model, permissions, conflict handling, and authoritative inventory transactions. It must not be implemented as direct Node synchronization.
+需要稳定的 World Save、Command Model、Permission、Conflict Handling 和 Authoritative Inventory Transaction。不得通过直接 Node Synchronization 实现。
 
 ### LLM
 
-Requires Backend mediation, structured context, privacy rules, moderation, fallback, caching, and cost control. It remains cosmetic/narrative rather than authoritative.
+需要 Backend Mediation、Structured Context、Privacy Rule、Moderation、Fallback、Cache 和 Cost Control。它保持 Cosmetic/Narrative，不承担 Authority。
 
 ### Commerce
 
-Requires account identity, server verification, entitlement persistence, restore/refund behavior, and platform decisions. It is independent from the first playable game.
+需要 Account Identity、Server Verification、Entitlement Persistence、Restore/Refund Behavior 和 Platform Decision，与 Initial Screen 和 First Gameplay Vertical Slice 都独立。
 
-## Cross-cutting game-development requirements
+## Cross-cutting Traceability
 
-- Input remapping and future controller support.
-- Localization and text expansion.
-- Accessibility for sound, motion, contrast, and readable feedback.
-- Asset source/licensing records.
-- Audio bus and dynamic soundscape design.
-- Save corruption and migration recovery.
-- Deterministic time/randomness for tests.
-- Headless validation and reproducible builds.
-- Network-offline and external-service fallback.
-- Security/privacy for account, user text, generated content, and payments.
-- Performance budgets based on selected target platforms.
-- Analytics/crash reporting only after privacy and consent decisions.
+这些需求由专题文档维护，本分析只记录它们来自原始 Game Design，避免在这里建立第二套规则：
 
-## Highest-risk unknowns
+| Concern | 规范性 Owner |
+| --- | --- |
+| Input、Localization 和 Accessibility | `SPEC.md`、`CONTENT_PIPELINE.md` |
+| Save Recovery、Migration 和 Deterministic Time/Randomness | `data/DATA_MODEL.md`、`test/TESTING.md` |
+| Asset Licensing、Audio 和 Generated Content | `CONTENT_PIPELINE.md` |
+| Headless Validation、Build 和 Performance Budget | `test/TESTING.md`、`OPERATIONS.md` |
+| Offline Fallback、Security、Privacy 和 Consent | `ARCHITECTURE.md`、`OPERATIONS.md` |
 
-- Offline progression semantics for real-life Actions and dispatch.
-- Furniture placement grid/free-form rules and navigation blocking.
-- How user-created Actions are validated, interrupted, and recovered.
-- Food expiration pressure versus the intended calm experience.
-- Event authoring format and resumability.
-- Guest-to-account cloud merge and save conflicts.
-- Multiplayer authority and final World reconciliation.
-- Privacy/moderation for letters and generated photos.
+## 最高风险的 Unknowns
 
-These unknowns should become decision tasks before their dependent implementation tasks.
+- Real-life Action 和 Dispatch 的 Offline Progression Semantics。
+- Furniture Placement 的 Grid/Free-form Rule 和 Navigation Blocking。
+- Player-authored Action 如何 Validate、Interrupt 和 Recover。
+- Food Expiration Pressure 是否符合 Calm Experience。
+- Event Authoring Format 和 Resumability。
+- Guest-to-account Cloud Merge 和 Save Conflict。
+- Multiplayer Authority 和最终 World Reconciliation。
+- Letter 与 Generated Photo 的 Privacy/Moderation。
 
-## Recommended delivery conclusion
+这些 Unknown 必须在相关 Feature 进入 Active Version 前变成 Accepted Decision。
 
-Start with a top-down 2D vertical slice that proves movement, interaction, one inventory transaction, one furniture placement, one recipe, one Action, one reward use, and save/reload. This validates the core promise and the hardest foundational seams without committing to content breadth or online services.
+## 推荐 Delivery Conclusion
+
+Dependency Analysis 支持先验证最小 Delivery Shell，再构建 top-down 2D Gameplay Vertical Slice。准确的当前 Scope 见 `versions/v0.1.0-initial-screen.md`，后续顺序见 `ROADMAP.md`；本结论本身不创建或激活 Version。

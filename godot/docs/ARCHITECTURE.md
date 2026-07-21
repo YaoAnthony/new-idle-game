@@ -1,39 +1,41 @@
 # Architecture
 
-## System context
+## System Context
 
 ```text
 Player
-  -> Godot client
-       -> local definitions and local save
-       -> Backend adapter when online features are used
-            -> identity and cloud saves
-            -> multiplayer sessions
-            -> LLM generation
-            -> commerce verification
+  -> Godot Client
+       -> Local Definition 和 Local Save
+       -> 使用 Online Feature 时连接 Backend Adapter
+            -> Identity 和 Cloud Save
+            -> Multiplayer Session
+            -> LLM Generation
+            -> Commerce Verification
 ```
 
-The Godot client owns the complete offline gameplay loop. Backend services are optional adapters until a feature explicitly requires identity or shared authority.
+Godot Client 拥有完整 Offline Gameplay Loop。在 Feature 明确需要 Identity 或 Shared Authority 之前，Backend Service 都是 Optional Adapter。
 
-## Dependency direction
+## Dependency Direction
 
 ```text
-Scenes and UI
-  -> feature interfaces
-       -> runtime state and content definitions
-            -> infrastructure interfaces
-                 -> local or remote adapters
+Scene 和 UI
+  -> Feature Interface
+       -> Runtime State 和 Content Definition
+            -> Infrastructure Interface
+                 -> Local 或 Remote Adapter
 ```
 
-Dependencies do not point upward. Static data does not depend on scenes. Runtime state does not call UI. Feature rules do not open files or issue HTTP requests. Infrastructure adapters do not decide rewards, progression, affection, or crafting outcomes.
+Dependency 不得反向。Static Data 不依赖 Scene；Runtime State 不调用 UI；Feature Rule 不直接打开 File 或发送 HTTP Request；Infrastructure Adapter 不决定 Reward、Progression、Affection 或 Crafting Outcome。
 
-## Top-level Godot ownership
+## Top-level Godot Ownership
 
 ### `app/`
 
-Owns bootstrap, the root scene, scene transitions, lifecycle, pause, shutdown, and composition of the active World and UI.
+拥有 Bootstrap、Root Scene、Scene Transition、Lifecycle、Pause、Shutdown，以及 Active World 与 UI 的 Composition。
 
-The intended root SceneTree shape is conceptual rather than a required node-name contract:
+在 `v0.1.0` 中，`app/` 只负责加载 Main Scene。Initial Screen 的 Presentation 放在 `ui/menus/`，由 Main Scene 组合。此 Version 不创建通用 Menu Router、Save-aware Menu State 或 Scene-transition Framework。
+
+目标 Root SceneTree 的形状是 Concept，不是强制 Node-name Contract：
 
 ```text
 Main
@@ -43,13 +45,13 @@ Main
 └── GUI
 ```
 
-Features must not find these nodes through hardcoded absolute NodePaths. Composition provides dependencies or uses explicit signals/interfaces.
+Feature 不得通过 hardcoded Absolute NodePath 寻找这些 Node。Dependency 应由 Composition 提供，或使用明确 Signal/Interface。
 
 ### `features/`
 
-Owns player-visible gameplay behavior. Each feature directory keeps scenes, scripts, local assets, feature tests, and optional feature documentation close together.
+拥有 Player-visible Gameplay Behavior。每个 Feature Directory 将 Scene、Script、Local Asset、Feature Test 和可选 Feature Documentation 放在一起。
 
-A feature may contain:
+Feature 可以包含：
 
 ```text
 feature_name/
@@ -61,174 +63,176 @@ feature_name/
 └── tests/
 ```
 
-Do not create every subdirectory in advance. Add them when a task creates real content.
+不要提前创建每个 Subdirectory。Active Version 创建实际 Content 时再添加。
 
 ### `data/`
 
-Owns immutable content definitions and catalogs. Definitions may be Godot Resources for editor-authored content or validated JSON when sharing/remote delivery is required. A decision must establish the format before a content family is implemented.
+拥有 Immutable Content Definition 和 Catalog。由 Editor 创作的 Content 可以使用 Godot Resource；需要跨项目共享或 Remote Delivery 时，可以使用经过 Validation 的 JSON。实现某类 Content 前，必须通过 Decision 确定 Format。
 
 ### `state/`
 
-Owns serializable runtime state shapes and invariants. State objects are not generic global managers. They contain durable data and focused domain operations, not rendering, file access, or network code.
+拥有 Serializable Runtime State Shape 和 Invariant。State Object 不是通用 Global Manager；它只包含 Durable Data 和 Focused Domain Operation，不包含 Rendering、File Access 或 Network Code。
 
 ### `infrastructure/`
 
-Owns adapters for persistence, Backend calls, authentication, multiplayer transport, audio devices, analytics, and platform services.
+拥有 Persistence、Backend Call、Authentication、Multiplayer Transport、Audio Device、Analytics 和 Platform Service 的 Adapter。
 
 ### `ui/`
 
-Owns cross-feature menus, HUD, dialogs, reusable widgets, focus navigation, accessibility presentation, and view-only state. Feature-specific UI may remain inside its feature when it has no cross-feature reuse.
+拥有 Cross-feature Menu、HUD、Dialog、Reusable Widget、Focus Navigation、Accessibility Presentation 和 View-only State。只被一个 Feature 使用的 UI 可以留在该 Feature 内。
+
+`v0.1.0` 的 Initial Screen 是第一个 Cross-feature Presentation Shell。它只包含 Background Slot 和 Title Slot；Future Asset 替换这些 Slot，而不是创建第二套 Entry Screen。
 
 ### `tests/`
 
-Owns cross-feature integration tests, shared fixtures, save fixtures, and complete flow tests. Feature-local unit tests may live next to the feature.
+拥有 Cross-feature Integration Test、Shared Fixture、Save Fixture 和 Complete Flow Test。Feature-local Unit Test 可以放在 Feature 附近。
 
-## Transitional directories
+## Transitional Directories
 
-The repository currently contains earlier placeholder directories such as `/Core/`, `/TileMap/`, `godot/scene/`, and `godot/scripts/`. They are not part of the accepted feature-first architecture. Do not add new production behavior there and do not delete or move them opportunistically. A focused migration/cleanup task must first identify ownership and preserve any user-created content.
+仓库目前存在较早的 Placeholder Directory，例如 `/Core/`、`/TileMap/`、`godot/scene/` 和 `godot/scripts/`。它们不属于已接受的 feature-first Architecture。不得继续向其中加入 Production Behavior，也不得顺手删除或移动。Focused Migration/Cleanup Version 必须先识别 Ownership，并保留所有 User-created Content。
 
-## Autoload policy
+## Autoload Policy
 
-An Autoload is justified only when all are true:
+只有同时满足以下条件时，Autoload 才合理：
 
-- It must exist across scene transitions.
-- It has one global owner.
-- Its public interface is small and stable.
-- Tests can replace or reset it.
-- It does not become a miscellaneous dependency container.
+- 必须跨 Scene Transition 存活。
+- 只有一个 Global Owner。
+- Public Interface 小而稳定。
+- Test 能够替换或 Reset。
+- 不会演变为 Miscellaneous Dependency Container。
 
-Potential uses include application lifecycle, active-profile/world coordination, save orchestration, audio bus coordination, and scene routing. Inventory, pets, crafting, cooking, events, and furniture are not automatically Autoloads; they should normally belong to the active World or a feature scene.
+潜在用途包括 Application Lifecycle、Active Profile/World Coordination、Save Orchestration、Audio Bus Coordination 和 Scene Routing。Inventory、Pet、Crafting、Cooking、Event 和 Furniture 不应自动变成 Autoload；它们通常属于 Active World 或 Feature Scene。
 
-## Scene and node design
+## Scene 和 Node Design
 
-- Use scenes for reusable visual/physical entities and composed behavior.
-- Use RefCounted/data objects for rules and state that do not need SceneTree lifecycle.
-- Use Resources for immutable editor-authored definitions when appropriate.
-- Prefer composition and capabilities over deep inheritance trees.
-- Signals announce completed facts or requests across a seam; they do not replace clear state ownership.
-- Node names use PascalCase; files and directories use snake_case.
-- Avoid fragile `get_parent()` chains, absolute NodePaths, and string-based method dispatch for core behavior.
+- Reusable Visual/Physical Entity 和 Composed Behavior 使用 Scene。
+- 不需要 SceneTree Lifecycle 的 Rule 和 State 使用 RefCounted/Data Object。
+- 适合 Editor 创作的 Immutable Definition 可以使用 Resource。
+- 优先使用 Composition 和 Capability，避免 Deep Inheritance Tree。
+- Signal 用于跨 Seam 发布已发生的 Fact 或 Request，但不能代替明确的 State Ownership。
+- Node Name 使用 PascalCase；File 和 Directory 使用 snake_case。
+- Core Behavior 避免 Fragile `get_parent()` Chain、Absolute NodePath 和 String-based Method Dispatch。
 
-## Top-down 2D world
+## Top-down 2D World
 
-The world module must account for:
+World Module 必须考虑：
 
-- Movement and collision independent from animation.
-- Interaction detection and deterministic target selection.
-- Y/depth ordering for player, pets, and furniture.
-- Camera constraints, room bounds, transitions, and event cues.
-- Navigation for pets and future visitors.
-- Placement validation against footprint, surfaces, collisions, access paths, and room rules.
-- Spawn anchors and stable placed-entity IDs.
-- Tile-based or free-form map authoring selected by a recorded decision.
+- Movement/Collision 与 Animation 分离。
+- Interaction Detection 和 Deterministic Target Selection。
+- Player、Pet 和 Furniture 的 Y/Depth Ordering。
+- Camera Constraint、Room Bound、Transition 和 Event Cue。
+- Pet 与未来 Visitor 的 Navigation。
+- 根据 Footprint、Surface、Collision、Access Path 和 Room Rule 执行 Placement Validation。
+- Spawn Anchor 和 Stable Placed-entity ID。
+- Tile-based 或 Free-form Map Authoring 由正式 Decision 选择。
 
-Art coordinates, physics layers, navigation layers, tile sizes, interaction ranges, and camera values belong in project configuration, definitions, or exported properties rather than duplicated literals.
+Art Coordinate、Physics Layer、Navigation Layer、Tile Size、Interaction Range 和 Camera Value 必须进入 Project Configuration、Definition 或 Exported Property，不能复制为 Literal。
 
-## Gameplay modules
+## Gameplay Modules
 
 ### Player
 
-Translates mapped input into movement and interaction intent. It owns current controllable-character state but not World inventory, crafting, or save behavior.
+把 Mapped Input 转换为 Movement 和 Interaction Intent。Player 拥有当前 Controllable-character State，但不拥有 World Inventory、Crafting 或 Save Behavior。
 
 ### Interaction
 
-Uses capability queries such as interactable, placeable, storage, crafting station, cooking station, bed, pet, or pickup. New interactable content should not require editing a central switch statement.
+使用 Capability Query，例如 Interactable、Placeable、Storage、Crafting Station、Cooking Station、Bed、Pet 或 Pickup。添加新 Interactable Content 时，不应修改一个 Central Switch Statement。
 
 ### Inventory
 
-Provides atomic transactions over one or more inventories. Crafting and cooking first build a transaction plan, then consume inputs and grant outputs as one operation. Failed operations leave all inventories unchanged.
+对一个或多个 Inventory 提供 Atomic Transaction。Crafting 和 Cooking 先构建 Transaction Plan，再一次性 Consume Input 和 Grant Output。Operation 失败时，所有 Inventory 保持不变。
 
 ### Furniture
 
-Separates a Furniture Definition from a Placed Furniture entity. Placement uses preview, validation, confirmation, cancellation, and persistence. Furniture exposes capabilities rather than content-name checks.
+分离 Furniture Definition 和 Placed Furniture Entity。Placement 包含 Preview、Validation、Confirmation、Cancellation 和 Persistence。Furniture 通过 Capability 暴露 Behavior，不检查 Content Name。
 
-### Workbench and cooking
+### Workbench 和 Cooking
 
-Both are station-process features sharing transaction concepts without forcing identical workflows. A Recipe declares requirements and outputs; each station feature owns timing, quality, interaction, and presentation.
+二者都是 Station Process Feature，可共享 Transaction Concept，但不强制使用相同 Workflow。Recipe 声明 Requirement 和 Output；各 Station Feature 拥有自己的 Timing、Quality、Interaction 和 Presentation。
 
 ### Actions
 
-Owns user-created action metadata, availability, timer semantics, need costs, completion, cancellation, and rewards. A clock seam makes action behavior deterministic and supports a later decision on offline progress.
+拥有 Player-authored Action Metadata、Availability、Timer Semantics、Need Cost、Completion、Cancellation 和 Reward。Clock Seam 使 Action 可 Deterministic Test，并支持未来对 Offline Progress 的 Decision。
 
 ### Pets
 
-Owns individual pet state and behavior policy. Pathfinding/animation render intent, while need, affection, preference, memory, dispatch, and event rules remain deterministic and testable.
+拥有个体 Pet State 和 Behavior Policy。Pathfinding/Animation 渲染 Intent；Need、Affection、Preference、Memory、Dispatch 和 Event Rule 保持 Deterministic、可测试。
 
 ### Events
 
-Evaluates data-defined conditions and applies data-defined effects through registered capabilities. Event progression is resumable and persisted. Long cutscenes must support safe skip/recovery policy before production use.
+评估 data-defined Condition，并通过已注册 Capability 应用 data-defined Effect。Event Progression 必须可 Resume 并进入 Save。Production 使用长 Cutscene 前，必须具备安全 Skip/Recovery Policy。
 
 ### Soundscape
 
-Resolves desired layers from World state and sends mixing intent to the audio adapter. It must avoid every furniture/pet directly controlling global audio buses.
+根据 World State 解析需要的 Audio Layer，并将 Mixing Intent 发送给 Audio Adapter。不能让每件 Furniture 或每只 Pet 直接控制 Global Audio Bus。
 
-## State change model
+## State Change Model
 
-Use explicit commands and resulting domain events conceptually:
+Conceptually 使用 Explicit Command 和对应 Domain Event：
 
 ```text
-Player intent
-  -> validate command
-  -> apply atomic state change
-  -> emit domain event
-  -> update presentation
-  -> schedule autosave when durable
+Player Intent
+  -> Validate Command
+  -> Apply Atomic State Change
+  -> Emit Domain Event
+  -> Update Presentation
+  -> Durable 时 Schedule Autosave
 ```
 
-Examples include `place_furniture`, `craft_recipe`, `start_action`, `complete_action`, `give_item_to_pet`, and `sleep_until_next_day`. Exact types are implementation decisions, but every durable mutation needs a named, testable path.
+例如 `place_furniture`、`craft_recipe`、`start_action`、`complete_action`、`give_item_to_pet` 和 `sleep_until_next_day`。具体 Type 属于 Implementation Decision，但每个 Durable Mutation 都必须拥有命名明确、可测试的 Path。
 
-## Persistence architecture
+## Persistence Architecture
 
 ```text
-Feature state
-  -> Save Snapshot builder
+Feature State
+  -> Save Snapshot Builder
   -> Save Repository
        -> Local Save Adapter
-       -> Cloud Save Adapter later
+       -> Future Cloud Save Adapter
 ```
 
-Requirements:
+Requirements：
 
-- Versioned envelope and content version.
-- Stable IDs for definitions and runtime entities.
-- Atomic write through temporary file and replacement where supported.
-- Last-known-good backup.
-- Schema validation and useful errors.
-- Migration from supported older versions.
-- Rejection or read-only recovery for unsupported newer versions.
-- Separate settings/configuration from World saves.
-- Explicit autosave triggers and debounce policy.
-- Fixtures for migration and corrupted-save tests.
+- Versioned Envelope 和 Content Version。
+- Definition 和 Runtime Entity 使用 Stable ID。
+- 在 Platform 支持时，通过 Temporary File 和 Replace 实现 Atomic Write。
+- Last-known-good Backup。
+- Schema Validation 和有用 Error。
+- 从受支持 Older Version Migration。
+- 对 Unsupported Newer Version 执行 Reject 或 Read-only Recovery。
+- Settings/Configuration 与 World Save 分离。
+- 明确 Autosave Trigger 和 Debounce Policy。
+- 为 Migration 与 Corrupted-save Test 提供 Fixture。
 
-## Backend architecture boundary
+## Backend Architecture Boundary
 
-Godot communicates through versioned contracts under `/contracts/`. Backend owns:
+Godot 通过 `/contracts/` 下 Versioned Contract 通信。Backend 拥有：
 
-- Account identity and secure sessions.
-- Cloud save storage, revisioning, conflict metadata, and quotas.
-- Multiplayer room lifecycle and authoritative mutations as selected later.
-- LLM prompts, safety, generation, caching, and cost controls.
-- Purchase verification and idempotent entitlement grants.
+- Account Identity 和 Secure Session。
+- Cloud Save Storage、Revision、Conflict Metadata 和 Quota。
+- Multiplayer Room Lifecycle 和未来选择的 Authoritative Mutation。
+- LLM Prompt、Safety、Generation、Cache 和 Cost Control。
+- Purchase Verification 和 Idempotent Entitlement Grant。
 
-The Godot client owns optimistic UI and offline behavior but cannot be trusted for currency, purchases, online rewards, or access control.
+Godot Client 可以拥有 Optimistic UI 和 Offline Behavior，但不能被信任去决定 Currency、Purchase、Online Reward 或 Access Control。
 
-## Failure behavior
+## Failure Behavior
 
-Every adapter exposes useful failure categories such as unavailable, timeout, unauthorized, conflict, invalid data, quota, unsupported version, and unknown error. Feature/UI layers translate them into player-safe outcomes.
+每个 Adapter 都应暴露有用 Failure Category，例如 Unavailable、Timeout、Unauthorized、Conflict、Invalid Data、Quota、Unsupported Version 和 Unknown Error。Feature/UI Layer 再将其转换为 Player-safe Outcome。
 
-Required recovery patterns include:
+必须支持的 Recovery Pattern 包括：
 
-- Retry with bounds for transient operations.
-- Cancel and return to a stable state.
-- Offline continuation when valid.
-- Preserve local data during cloud conflict.
-- Fallback text/image for LLM failure.
-- No duplicate grant after retried crafting, rewards, saves, or purchases.
+- 对 Transient Operation 执行有界 Retry。
+- Cancel 并返回 Stable State。
+- 合法情况下继续 Offline。
+- Cloud Conflict 时保留可恢复的 Local Data。
+- LLM Failure 时提供 Fallback Text/Image。
+- Crafting、Reward、Save 或 Purchase Retry 后不重复 Grant。
 
-## Performance and observability
+## Performance 和 Observability
 
-- Avoid per-frame polling when events or timers suffice.
-- Pool or batch repeated visual/audio effects only after measurement.
-- Track scene load time, save/load duration, active nodes, memory, frame time, network latency, and adapter error categories in development builds.
-- Logs use categories and stable event names; do not log secrets, tokens, personal text, or full generated prompts in production.
-- Performance budgets must be defined after target platforms are selected.
+- Event 或 Timer 足够时，不做 Per-frame Polling。
+- 只有经过 Measurement 后，才 Pool 或 Batch 重复 Visual/Audio Effect。
+- Development Build 中记录 Scene Load Time、Save/Load Duration、Active Node、Memory、Frame Time、Network Latency 和 Adapter Error Category。
+- Log 使用 Category 和 Stable Event Name；Production 中不得记录 Secret、Token、Personal Text 或完整 Generated Prompt。
+- Target Platform 确定后再定义 Performance Budget。

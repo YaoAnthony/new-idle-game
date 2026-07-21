@@ -1,213 +1,217 @@
 # Product Specification
 
+本文档拥有长期 Product Behavior 和 Product Boundary。它不拥有当前 Release Scope；当前可实现内容始终以 `versions/` 下的 Active Version 为准。
+
 ## Vision
 
-Create a cozy top-down 2D magical-life game where real-life focus actions create visible in-game progress. The player rents a home, completes timed actions, receives resources, cares for pets, cooks, crafts furniture, decorates, and gradually unlocks a wider world.
+打造一款温暖的 top-down 2D 魔法生活游戏，让现实中的专注 Action 转化为可见的游戏 Progress。Player 租下一间 House，完成计时 Action，获得 Resource，照顾 Pet、Cooking、Crafting Furniture、Decoration，并逐渐解锁更大的 World。
 
-The game should support quiet companionship through music, environmental sound, pets, and optional social play. Progress should feel personal rather than competitive.
+游戏通过 Music、Environmental Sound、Pet 和可选 Social Play 提供安静的陪伴感。Progress 应该是个人化的，而不是竞争性的。
 
-## Core experience pillars
+## Core Experience Pillars
 
-### Real-life action becomes game progress
+### 现实 Action 转化为 Game Progress
 
-The player creates or selects an action in one of four categories:
+Player 在四种 Category 中创建或选择 Action：
 
-- Exercise.
-- Work or study.
-- Creation.
-- Rest.
+- Exercise。
+- Work/Study。
+- Creation。
+- Rest。
 
-Available actions depend on furniture and unlocked capabilities. Completing an action consumes time and relevant needs, then grants data-defined rewards.
+可用 Action 取决于 Furniture 和已解锁 Capability。完成 Action 会消耗 Time 和相关 Need，再发放 data-defined Reward。
 
-### Home grows with the player
+### Home 与 Player 一起成长
 
-Resources can be used to survive, craft furniture, unlock actions, decorate, create soundscapes, grow plants, expand the home, and gain travel options.
+Resource 可以用于 Survival、Crafting Furniture、解锁 Action、Decoration、创建 Soundscape、种植 Plant、扩建 House 和获得 Travel 能力。
 
-### Pets are relationships, not meters
+### Pet 是 Relationship，而不是 Meter
 
-Pets have needs, preferences, memories, affection stages, behaviors, dispatch choices, and growth. Exact affection numbers are not shown to the player; relationship changes are communicated through behavior and events.
+Pet 拥有 Need、Preference、Memory、Affection Stage、Behavior、Dispatch Choice 和 Growth。游戏不向 Player 显示精确 Affection Number，而通过 Behavior 和 Event 表现 Relationship 变化。
 
-### Quiet social presence
+### 安静的 Social Presence
 
-Future multiplayer allows visiting a host-owned world, seeing each other's activities, using permitted stations and furniture, contributing to shared daily progress, and earning friendship rewards. Main story progression is disabled during multiplayer by default.
+未来 Multiplayer 允许 Friend 访问 Host-owned World，观察彼此正在进行的 Action，使用被允许的 Station/Furniture，共同推进 Daily Task，并获得 Friendship Reward。Main Story 默认不在 Multiplayer 中推进。
 
-## Core loop
+## Core Loop
 
 ```text
-Choose an available real-life action
-  -> spend game time, fatigue, and hunger as defined
-  -> receive resources
-  -> spend resources on survival, pets, crafting, or decoration
-  -> unlock new capabilities, relationships, and events
-  -> repeat across days
+选择可用的现实 Action
+  -> 按 Definition 消耗 Game Time、Fatigue 和 Hunger
+  -> 获得 Resource
+  -> 将 Resource 用于 Survival、Pet、Crafting 或 Decoration
+  -> 解锁新的 Capability、Relationship 和 Event
+  -> 在多个 Day 中重复
 ```
 
-## Presentation and controls
+## Presentation 和 Controls
 
-- The initial game is top-down 2D.
-- The player moves through room-scale environments and interacts with nearby objects.
-- Inventory, interaction, placement, and action controls must use Godot InputMap actions and support remapping.
-- Current design references `B`, `F`, left click, and right click as defaults only; gameplay logic must not depend on those physical keys/buttons.
-- Camera behavior, collision, navigation, depth sorting, and interaction range require data/configuration rather than magic values.
+- 初始游戏采用 top-down 2D。
+- Player 在 Room-scale Environment 中移动，并与附近 Object 交互。
+- Inventory、Interaction、Placement 和 Action Control 必须使用 Godot InputMap Action，并支持 Remapping。
+- 当前设计中的 `B`、`F`、Left Click 和 Right Click 只是 Default Binding；Gameplay Logic 不得依赖这些 Physical Input。
+- Camera Behavior、Collision、Navigation、Depth Sorting 和 Interaction Range 必须来自 Data/Configuration，而不是 Magic Value。
 
-## First-day target experience
+## Release Scope
 
-The complete first-day experience is a later milestone built from smaller vertical slices:
+当前 Active Version 是 `versions/v0.1.0-initial-screen.md`。该 Version Document 独占本次 Release 的 Scope、Non-goals 和 Acceptance；本 Product Spec 不重复这些内容，也不直接授权 Implementation。
 
-1. The player receives one of several starting regions and house variants.
-2. The player opens the inventory and places starting furniture.
-3. Placing and interacting with the workbench introduces crafting.
-4. The player encounters a pet and learns its initial need.
-5. Furniture unlocks one or more action categories.
-6. Completing actions grants story-critical and general resources.
-7. A reward can be given to a pet, used for crafting, or consumed.
-8. Cooking introduces food, hunger recovery, utensils, stations, timing, and quality.
-9. The player completes several actions, reaches night, and sleeps on starting bedding.
-10. The next day, the pet returns with a gift and the mother calls about the daily-task machine.
-11. The game enters its repeatable home-life loop.
+## First-day Target Experience
 
-This sequence must be represented as data-driven progression and event definitions, not a single monolithic tutorial script.
+完整 First-day Experience 是由多个小型 Vertical Slice 组成的后续 Milestone：
 
-## Required gameplay systems
+1. Player 获得多个 Starting Region 和 House Variant 中的一种。
+2. Player 打开 Inventory 并放置 Starting Furniture。
+3. 放置并使用 Workbench，开始了解 Crafting。
+4. Player 遇见一只 Pet，并了解它最初的 Need。
+5. Furniture 解锁一个或多个 Action Category。
+6. 完成 Action 后获得 Story-critical Resource 和 General Resource。
+7. Reward 可以赠送给 Pet、用于 Crafting 或由 Player Consume。
+8. Cooking 引入 Food、Hunger Recovery、Utensil、Station、Timing 和 Quality。
+9. Player 完成数个 Action，进入 Night，并在 Starting Bedding 上 Sleep。
+10. 第二天，Pet 带着 Gift 回来，Mother 来电介绍 Daily-task Machine。
+11. 游戏进入可重复的 Home-life Loop。
+
+该 Sequence 必须由 data-driven Progression 和 Event Definition 表示，不能写成一个 Monolithic Tutorial Script。
+
+## Required Gameplay Systems
 
 ### Foundation
 
-- App startup, local new game, continue game, settings, and safe exit.
-- Top-down movement, collision, camera, interaction targeting, and scene transitions.
-- Input mapping, localization, accessibility settings, audio buses, and error presentation.
+- App Startup、Local New Game、Continue、Settings 和 Safe Exit。
+- Top-down Movement、Collision、Camera、Interaction Targeting 和 Scene Transition。
+- Input Mapping、Localization、Accessibility Settings、Audio Bus 和 Error Presentation。
 
-### World and home
+### World 和 Home
 
-- Regions and house variants.
-- Room anchors, placement surfaces, collision, navigation, and valid furniture footprints.
-- Furniture pickup, preview, rotation if supported, placement, interaction, persistence, and storage capability.
-- Future wallpaper, expansion, renovation, weather, and travel unlocks.
+- Region 和 House Variant。
+- Room Anchor、Placement Surface、Collision、Navigation 和 Valid Furniture Footprint。
+- Furniture Pickup、Preview、可选 Rotation、Placement、Interaction、Persistence 和 Storage Capability。
+- 未来 Wallpaper、Expansion、Renovation、Weather 和 Travel Unlock。
 
-### Inventory and crafting
+### Inventory 和 Crafting
 
-- Data-defined items, categories, stacks, tags, quality, expiration, and ownership.
-- Player inventory and world storage containers.
-- Crafting stations query permitted inventories through an explicit inventory interface.
-- Recipes define inputs, outputs, station type/level, visibility, unlocks, and failure reasons.
-- Missing requirements are visible and cannot produce partial or duplicated transactions.
+- data-defined Item、Category、Stack、Tag、Quality、Expiration 和 Ownership。
+- Player Inventory 和 World Storage Container。
+- Crafting Station 通过明确 Inventory Interface 查询被允许的 Inventory。
+- Recipe 定义 Input、Output、Station Type/Level、Visibility、Unlock 和 Failure Reason。
+- Requirement 缺失时必须可见，且不能产生 Partial 或 Duplicate Transaction。
 
-### Real-life actions
+### Real-life Actions
 
-- Four action categories with data-defined requirements and outcomes.
-- User-created action names and durations.
-- Start, pause/interruption policy, completion, cancellation, and recovery after application exit.
-- Furniture-based availability.
-- Fatigue and hunger constraints.
-- Rewards and first-time story guarantees.
+- 四种 Action Category，拥有 data-defined Requirement 和 Outcome。
+- Player 自定义的 Action Name 和 Duration。
+- Start、Pause/Interruption Policy、Completion、Cancellation 和 App Exit 后 Recovery。
+- 基于 Furniture Capability 的 Availability。
+- Fatigue 和 Hunger Constraint。
+- Reward 和 First-time Story Guarantee。
 
-### Time, needs, and sleep
+### Time、Need 和 Sleep
 
-- Game day and time progression.
-- Fatigue consumption and recovery.
-- Hunger consumption, food recovery, and action blocking at minimum hunger.
-- Sleep advances the day and can trigger queued events.
-- Real-time and game-time semantics must be explicit for every timer.
+- Game Day 和 Time Progression。
+- Fatigue Consumption 和 Recovery。
+- Hunger Consumption、Food Recovery，以及最低 Hunger 时阻止 Action。
+- Sleep 推进 Day，并可触发 Queued Event。
+- 每个 Timer 都必须明确 Real-time 和 Game-time Semantics。
 
 ### Pets
 
-- Species and individual identity.
-- Needs, preferences, incompatible foods, weather preferences, and memory.
-- Hidden affection progression expressed through stages and behavior.
-- Dialogue and event interactions.
-- Dispatch destination, provisions, duration, result, and return event.
-- Growth value initially; evolution behavior remains deferred.
+- Species 和 Individual Identity。
+- Need、Preference、Incompatible Food、Weather Preference 和 Memory。
+- 通过 Stage 和 Behavior 表达的 Hidden Affection Progression。
+- Dialogue 和 Event Interaction。
+- Dispatch Destination、Provision、Duration、Result 和 Return Event。
+- 初期只实现 Growth Value；Evolution Behavior 继续 Deferred。
 
-### Cooking and food
+### Cooking 和 Food
 
-- Station capabilities such as stove, cutting board, rice cooker, bread maker, and plate.
-- Ingredient compatibility, recipe discovery, process steps, timing, quality, serving, and consumption.
-- Quality may degrade from poor timing, but rare materials must not be destroyed without an explicit design decision.
-- Food expiration and prepared-meal behavior require a dedicated later decision.
-- Future pet cooking delegation depends on unlocked recipes and pet capability.
+- Stove、Cutting Board、Rice Cooker、Bread Maker 和 Plate 等 Station Capability。
+- Ingredient Compatibility、Recipe Discovery、Process Step、Timing、Quality、Serving 和 Consumption。
+- Timing 不佳可以降低 Quality，但除非有明确 Design Decision，不得摧毁 Rare Material。
+- Food Expiration 和 Prepared-meal Behavior 需要独立 Decision。
+- 未来 Pet Cooking Delegation 依赖已 Unlock Recipe 和 Pet Capability。
 
-### Events and progression
+### Events 和 Progression
 
-- Conditions based on day, weather, inventory, furniture, pet state, prior events, and player choices.
-- Effects such as dialogue, rewards, state changes, unlocks, camera cues, weather, and new capabilities.
-- One-time, repeatable, queued, mutually exclusive, and multiplayer-disabled policies.
-- Initial unlock events include the damaged daily-task machine and rescuing Dahe for travel/social access.
+- 基于 Day、Weather、Inventory、Furniture Capability、Pet State、Prior Event 和 Player Choice 的 Condition。
+- Dialogue、Reward、State Change、Unlock、Camera Cue、Weather 和 New Capability 等 Effect。
+- One-time、Repeatable、Queued、Mutually Exclusive 和 Multiplayer-disabled Policy。
+- 初始 Unlock Event 包括损坏的 Daily-task Machine，以及救助大河后解锁 Travel/Social Access。
 
-### Daily tasks
+### Daily Tasks
 
-- Unlocked through the repaired daily-task machine.
-- Rewards may include address fragments, stamps, weather bottles, film, photo paper, fuel, and travel tickets.
-- Daily reset, generation, completion, and offline recovery semantics require explicit definitions.
+- 通过修复后的 Daily-task Machine 解锁。
+- Reward 可包括 Address Fragment、Stamp、Weather Bottle、Film、Photo Paper、Fuel 和 Travel Ticket。
+- Daily Reset、Generation、Completion 和 Offline Recovery Semantics 必须明确。
 
-### Plants and compost
+### Plant 和 Compost
 
-- Pots, seeds, growth, fertilizer, and environmental conditions.
-- Expired food may become fertilizer through a compost station.
-- Station placement may require a separate area because of smell constraints.
-- Fertilizer and food have data-defined quality/level relationships.
+- Pot、Seed、Growth、Fertilizer 和 Environmental Condition。
+- Expired Food 可以通过 Compost Station 变成 Fertilizer。
+- 因为 Smell Constraint，Station Placement 可能要求独立 Area。
+- Fertilizer 和 Food 拥有 data-defined Quality/Level Relationship。
 
-### Dynamic soundscape
+### Dynamic Soundscape
 
-- Layered ambience depends on weather, furniture, pets, player action, room, and time.
-- Examples include rain, wind, fire, water, chimes, ticking clocks, cooking, pet movement, study, exercise, and creation sounds.
-- Layers must be independently adjustable and respect master, music, ambience, effects, and accessibility settings.
+- Layered Ambience 根据 Weather、Furniture、Pet、Player Action、Room 和 Time 变化。
+- 示例包括 Rain、Wind、Fire、Water、Wind Chime、Clock、Cooking、Pet Movement、Study、Exercise 和 Creation Sound。
+- Layer 必须可独立调节，并遵循 Master、Music、Ambience、Effects 和 Accessibility Settings。
 
-## Deferred online and external systems
+## Deferred Online 和 External Systems
 
-### Account and cloud save
+### Account 和 Cloud Save
 
-Local play comes first. Login is required only for identity-dependent services such as cloud saves, friends, multiplayer, purchases, and cross-device access. Guest-to-account migration must preserve local worlds.
+Local Play 优先。只有 Cloud Save、Friend、Multiplayer、Purchase 和 Cross-device Identity 等 Identity-dependent Service 才需要 Login。Guest-to-account Migration 必须保留 Local World。
 
 ### Multiplayer
 
-- Host-owned world session.
-- Explicit visitor permissions and authority.
-- Shared daily-task contribution and friendship stamps.
-- No main-story progression by default.
-- Disconnect, conflict, rollback, and session-finalization policies are required before implementation.
+- Host-owned World Session。
+- 明确的 Visitor Permission 和 Authority。
+- Shared Daily-task Contribution 和 Friendship Stamp。
+- 默认不推进 Main Story。
+- Implementation 前必须定义 Disconnect、Conflict、Rollback 和 Session Finalization Policy。
 
-### LLM photos and letters
+### LLM Photo 和 Letter
 
-- Photos and letters are generated from bounded event context.
-- Generation is cosmetic/narrative and cannot directly grant authoritative rewards.
-- Backend owns prompts, credentials, moderation, retries, fallback content, caching, and cost controls.
+- Photo 和 Letter 根据有界 Event Context 生成。
+- Generation 属于 Cosmetic/Narrative，不得直接发放 Authoritative Reward。
+- Backend 拥有 Prompt、Credential、Moderation、Retry、Fallback Content、Cache 和 Cost Control。
 
 ### Commerce
 
-- Potential products include magic wands, wallpaper, and cosmetic content.
-- Purchases require authenticated, idempotent server verification and platform-compliant restore behavior.
-- Commerce is not part of the first playable milestones.
+- 潜在 Product 包括 Magic Wand、Wallpaper 和 Cosmetic Content。
+- Purchase 必须经过 Authenticated、Idempotent 的 Server Verification，并支持符合 Platform 规则的 Restore。
+- Commerce 不属于 Initial Screen 或 First Gameplay Vertical Slice。
 
-## Non-functional requirements
+## Non-functional Requirements
 
-- Offline-first core loop.
-- Versioned, recoverable, atomic local saves.
-- Data-driven content and stable IDs.
-- Deterministic tests through injectable time and randomness.
-- Keyboard/mouse initially, with input abstraction ready for controller support.
-- Localization-ready UI and content from the start.
-- Audio controls and non-audio feedback for important states.
-- Clear degraded behavior when Backend, network, LLM, or commerce services are unavailable.
-- No client-side secrets or authoritative purchase logic.
-- Asset attribution and licensing records.
-- Performance budgets recorded per target platform before optimization work.
+- offline-first Core Loop。
+- Versioned、Recoverable、Atomic Local Save。
+- data-driven Content 和 Stable ID。
+- 通过 Injectable Time/Randomness 实现 Deterministic Tests。
+- 初期支持 Keyboard/Mouse，并通过 Input Abstraction 为 Controller 做准备。
+- UI 和 Content 从一开始就 Localization-ready。
+- 提供 Audio Control，并为重要 State 提供 Non-audio Feedback。
+- Backend、Network、LLM 或 Commerce Service 不可用时，有明确 Degraded Behavior。
+- Client 中不包含 Secret 或 Authoritative Purchase Logic。
+- Asset Attribution 和 Licensing Record。
+- Optimization 前先根据 Target Platform 记录 Performance Budget。
 
-## First playable scope
+## Delivery Boundary
 
-The first playable scope includes one data-selected test house, player movement, interaction, inventory, workbench placement, one recipe, one furniture unlock, one timed action, one reward branch, local save, reload, and error handling.
+Milestone 顺序和候选 Vertical Slice 由 `ROADMAP.md` 描述。任何未来 Product Behavior 都必须先进入状态为 `active` 的独立 Version Document，才能获得 Implementation 权限。
 
-It excludes production art, random starting regions, the complete first-day narrative, login, cloud save, multiplayer, LLM, commerce, full cooking, full pets, and all content breadth.
+## Open Product Questions
 
-## Open product questions
+以下问题必须由未来 Version 或 Decision 解决，不得在 Code 中擅自假设：
 
-These require future tasks or decisions rather than assumptions in code:
-
-- Target desktop platforms and minimum hardware.
-- Pixel-art, hand-painted, or other visual direction.
-- Tile/grid size, free placement versus snapped placement, and rotation rules.
-- Whether action timers continue while the app is closed.
-- Pause and cancellation consequences for real-life actions.
-- Exact hunger, fatigue, food expiration, and day-length balance.
-- Save-slot count and guest-to-account merge behavior.
-- Multiplayer authority host versus dedicated server.
-- Moderation, privacy, and retention rules for generated letters/photos.
-- Monetization platform and restore/refund policy.
+- Target Desktop Platform 和 Minimum Hardware。
+- Pixel Art、Hand-painted 或其他 Visual Direction。
+- Tile/Grid Size、Free Placement 或 Snapped Placement，以及 Rotation Rule。
+- App 关闭时 Action Timer 是否继续。
+- Action Pause 和 Cancellation 的 Consequence。
+- Hunger、Fatigue、Food Expiration 和 Day Length 的具体 Balance。
+- Save-slot Count 和 Guest-to-account Merge Behavior。
+- Multiplayer Authority 由 Host 还是 Dedicated Server 负责。
+- Generated Letter/Photo 的 Moderation、Privacy 和 Retention Rule。
+- Monetization Platform 和 Restore/Refund Policy。

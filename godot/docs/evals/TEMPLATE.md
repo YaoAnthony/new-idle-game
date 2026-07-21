@@ -1,45 +1,49 @@
-# Evaluation: Flow name
+# Eval：Flow Name
+
+Version：`../versions/vX.Y.Z-short-name.md`
+
+Status：planned
 
 ## Purpose
 
-State the player experience or system property being evaluated.
+说明要 Evaluation 的 Player Experience 或 System Property。
 
 ## Type
 
-Automated, manual, or hybrid.
+Automated、Manual 或 Hybrid。
 
 ## Preconditions
 
-- Build/configuration.
-- Fixture/save/content catalog.
-- Network/service state.
-- Input device and viewport where relevant.
+- Build/Configuration。
+- Fixture/Save/Content Catalog。
+- Network/Service State。
+- 相关情况下的 Input Device 和 Viewport。
 
 ## Setup
 
-Describe a reproducible starting state. Include fixed clock/random seed when relevant.
+描述可复现的 Starting State。相关时包含 Fixed Clock/Random Seed。
 
 ## Steps
 
-1. Player/system action.
-2. Expected visible response.
-3. Continue through the complete flow.
+1. Player/System Action。
+2. Expected Visible Response。
+3. 继续完成完整 Flow。
 
 ## Assertions
 
-- State and UI assertions.
-- Save/network assertions.
-- Error and recovery assertions.
-- Accessibility/localization assertions where relevant.
+- State 和 UI Assertions。
+- Save/Network Assertions。
+- Error 和 Recovery Assertions。
+- 相关情况下的 Accessibility/Localization Assertions。
 
-## Failure evidence
+## Failure Evidence
 
-Specify logs, screenshots, save fixtures, traces, or state dumps to retain. Do not capture secrets or unnecessary personal content.
+说明需要保留的 Log、Screenshot、Save Fixture、Trace 或 State Dump。不得捕获 Secret 或不必要的 Personal Content。
 
 ## Cleanup
 
-Describe how temporary saves, sessions, generated content, or test accounts are isolated and removed safely.
+说明如何安全隔离和清理 Temporary Save、Session、Generated Content 或 Test Account。
 
 ## Result
 
-Record date, build/version, environment, pass/fail, evidence, and linked defect/task.
+记录 Date、Build/Version、Environment、Pass/Fail、Evidence 和关联 Defect/Decision。

@@ -1,55 +1,57 @@
-# Agent Instructions
+# Godot Agent 指南
 
-This directory contains the primary Godot game client. All implementation agents must follow this file and `HARNESS.md`.
+此目录包含主要的 Godot 游戏客户端。所有实现 Agent 必须遵循本文件和 `HARNESS.md`。
 
-## Required reading order
+## 必须阅读的顺序
 
-1. Read the repository `README.md` for the original game vision.
-2. Read `HARNESS.md` for the execution contract.
-3. Read the assigned file under `docs/tasks/`.
-4. Read only the domain documents linked by that task.
-5. Inspect the existing implementation and tests before proposing changes.
+1. 阅读仓库根目录 `README.md`，了解原始游戏愿景。
+2. 阅读 `HARNESS.md`，了解完整执行契约。
+3. 阅读 `docs/versions/` 下当前 `active` Version。
+4. 涉及 Scene、Resource、Project Setting、运行调试或 Screenshot 时，阅读 `docs/MCP_WORKFLOW.md`。
+5. 只读取该 Version 链接的相关 Domain Documents 和 Eval。
+6. 提出改动前，检查现有 Implementation 和 Tests。
 
-If the task conflicts with `docs/DECISIONS.md`, stop and report the conflict. Do not silently override an accepted decision.
+如果 Active Version 与 `docs/DECISIONS.md` 冲突，停止并报告冲突，不得静默覆盖已接受的 Decision。
 
-## Protected scope
+## 受保护范围
 
-- `Frontend/` is outside the Godot implementation scope and must not be modified.
-- Do not move, delete, or rewrite user-created assets without an explicit task.
-- Do not add Backend behavior unless the task explicitly includes Backend work.
-- Never place secrets, API keys, payment credentials, or LLM credentials in the Godot client.
+- `Frontend/` 不属于 Godot 实现范围，不得修改。
+- Active Version 未明确授权时，不得移动、删除或重写用户创建的 Asset。
+- Active Version 未明确包含 Backend 工作时，不得添加 Backend 行为。
+- Godot Client 中不得保存 Secret、API Key、Payment Credential 或 LLM Credential。
 
-## Work loop
+## Work Loop
 
-For every task:
+每个 Version 的 Implementation 都必须：
 
-1. Confirm the task is ready and its dependencies are complete.
-2. State assumptions and identify affected state, scenes, data, saves, and tests.
-3. Make the smallest coherent vertical slice that satisfies the acceptance criteria.
-4. Keep gameplay rules data-driven. Do not hardcode content, input keys, user-facing text, service URLs, balance values, or save versions inside scene scripts.
-5. Run targeted tests first, then the full validation defined by the task.
-6. Diagnose failures before changing implementation again.
-7. Report changed files, validation results, remaining risks, and any migration impact.
+1. 确认 Version 状态为 `active` 或 `frozen`，且 Dependencies 已完成。
+2. 说明 Assumptions，并识别受影响的 State、Scene、Data、Save 和 Tests。
+3. 实现满足 Acceptance Criteria 的最小完整 Vertical Slice。
+4. 保持 gameplay rules 为 data-driven。不得在 scene scripts 中 hardcode 内容、Input Key、用户可见文本、Service URL、Balance 数值或 Save Version。
+5. 先运行 Targeted Tests，再运行 Version 定义的完整 Validation 和 Required Eval。
+6. Validation 失败时先 Diagnose，再继续修改。
+7. 报告修改文件、Validation 结果、剩余风险和 Migration 影响。
 
-## Architecture rules
+## Architecture 规则
 
-- The game is a top-down 2D game unless `docs/DECISIONS.md` is amended.
-- Organize gameplay by feature under `features/`; keep each scene close to its scripts and feature-specific assets.
-- Put reusable static definitions under `data/`, serializable runtime state under `state/`, and external adapters under `infrastructure/`.
-- UI may request actions and render state, but it must not own gameplay rules, write save files directly, or call Backend endpoints directly.
-- Use stable IDs for content and saved entities. Display names are never identifiers.
-- Keep local single-player functional without login, cloud services, multiplayer, LLM, or payment services.
-- Add an Autoload only when the state must survive scene changes and has clear global ownership.
+- 除非 `docs/DECISIONS.md` 被正式修改，游戏保持 top-down 2D。
+- Gameplay 按 Feature 放在 `features/` 下；Scene、Script 和 Feature-specific Assets 应彼此靠近。
+- 可复用静态 Definitions 放在 `data/`，可序列化 Runtime State 放在 `state/`，外部 Adapters 放在 `infrastructure/`。
+- UI 可以提交 Action Request 和渲染 State，但不能拥有 gameplay rules、直接写 Save File 或直接调用 Backend Endpoint。
+- 内容和 Saved Entity 使用 Stable ID，Display Name 绝不作为 ID。
+- 本地 Single-player 必须在无 Login、Cloud Service、Multiplayer、LLM 或 Payment Service 时运行。
+- 只有 State 必须跨 Scene 存活且拥有明确全局所有权时，才可添加 Autoload。
 
-## Task discipline
+## Version 纪律
 
-- One task must have one primary user-visible outcome.
-- Do not implement future roadmap items merely because a seam exists for them.
-- New gameplay concepts require an update to `docs/CONTEXT.md`.
-- New architectural decisions require an update to `docs/DECISIONS.md`.
-- Save-shape changes require a migration plan and save compatibility tests.
-- Network-contract changes require updates under `/contracts/`.
+- 一个 Version 必须有一个可独立验收的主要 Player-visible Outcome。
+- Implementation 不得扩展 Active Version 的 Scope。
+- 不得因为存在扩展 Seam，就提前实现未来 Roadmap 内容。
+- 新 Gameplay Concept 必须更新 `docs/CONTEXT.md`。
+- 新 Architecture Decision 必须更新 `docs/DECISIONS.md`。
+- Save Shape 变更必须包含 Migration Plan 和 Save Compatibility Tests。
+- Network Contract 变更必须更新 `/contracts/`。
 
-## Definition of done
+## Definition of Done
 
-A task is done only when its acceptance criteria pass, relevant automated tests pass, error states are handled, data is not hardcoded, save compatibility is addressed, documentation is updated, and no unrelated files were changed.
+只有在 Acceptance Criteria 和 Required Eval 通过、相关 Automated Tests 通过、Error State 被处理、内容未被 hardcode、Save Compatibility 已处理、Documentation 已更新，且没有修改无关文件时，Version Implementation 才算完成。

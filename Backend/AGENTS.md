@@ -1,35 +1,35 @@
-# Backend Agent Instructions
+# Backend Agent 指南
 
-Backend exists to support optional online and authoritative capabilities. It does not own the offline gameplay loop.
+Backend 用于支持可选的在线能力和权威操作，不拥有离线 Core Loop。
 
-## Required context
+## 必须阅读的 Context
 
-Read the repository `AGENTS.md`, `godot/HARNESS.md`, relevant sections of `godot/docs/SPEC.md`, `godot/docs/ARCHITECTURE.md`, `godot/docs/DATA_MODEL.md`, `godot/docs/OPERATIONS.md`, and the assigned task.
+阅读仓库根目录的 `AGENTS.md`、`godot/HARNESS.md`、Active Version，以及 `godot/docs/SPEC.md`、`godot/docs/ARCHITECTURE.md`、`godot/docs/data/DATA_MODEL.md`、`godot/docs/OPERATIONS.md` 中与该 Version 相关的部分。
 
-## Ownership
+## Backend 所有权
 
-Backend may own:
+Backend 可以拥有：
 
-- Authentication, authorization, account binding, and secure sessions.
-- Cloud-save storage, revisions, conflicts, quotas, and recovery.
-- Multiplayer rooms, authority, validation, and reconciliation.
-- LLM prompts, provider credentials, moderation, fallback, caching, and cost controls.
-- Purchase verification, entitlements, idempotency, restore, and refund handling.
+- Authentication、Authorization、Account Binding 和安全 Session。
+- Cloud Save 存储、Revision、Conflict、Quota 和 Recovery。
+- Multiplayer Room、Authority、Validation 和 Reconciliation。
+- LLM Prompt、Provider Credential、Moderation、Fallback、Cache 和 Cost Control。
+- Purchase Verification、Entitlement、Idempotency、Restore 和 Refund。
 
-Backend must not duplicate generic item, recipe, pet, event, or progression rules without an explicit server-authority requirement and shared contract.
+除非存在明确的 Server Authority 要求和共享 Contract，否则 Backend 不得复制通用的 Item、Recipe、Pet、Event 或 Progression 规则。
 
-## Work rules
+## 工作规则
 
-- Do not implement an endpoint before its versioned contract and acceptance tests are defined.
-- Validate all client input and authorize access to every player-owned resource.
-- Keep secrets in environment-managed configuration; commit examples only without real values.
-- Make durable grants, purchases, retries, webhooks, and multiplayer commands idempotent.
-- Use migrations for persistent storage changes.
-- Use bounded payloads, timeouts, rate limits, and useful error categories.
-- Do not log tokens, payment details, unrestricted player text, private photos, or full LLM prompts.
-- Preserve offline behavior when Backend is unavailable.
-- Do not modify `Frontend/`.
+- 在版本化 Contract 和 Acceptance Tests 定义完成前，不得实现 Endpoint。
+- 验证所有 Client Input，并对每个玩家拥有的资源执行 Authorization。
+- Secret 必须存放在 Environment 管理的配置中；仅可提交不含真实值的 Example。
+- Durable Grant、Purchase、Retry、Webhook 和 Multiplayer Command 必须具备 Idempotency。
+- Persistent Storage 变更必须使用 Migration。
+- Payload 必须有界，并具备 Timeout、Rate Limit 和明确的 Error Category。
+- 不得记录 Token、支付信息、不受限的玩家文本、私人照片或完整 LLM Prompt。
+- Backend 不可用时，必须保留有效的离线行为。
+- 不得修改 `Frontend/`。
 
 ## Validation
 
-Every Backend task states unit/integration/contract tests, failure and retry cases, migration impact, security/privacy impact, and the Godot fallback behavior.
+每个包含 Backend 工作的 Version 必须说明 Unit、Integration 和 Contract Tests、失败与 Retry 场景、Migration 影响、Security/Privacy 影响，以及 Godot 的 Fallback 行为。

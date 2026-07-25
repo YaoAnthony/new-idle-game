@@ -1,0 +1,295 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://ui/menus/initial_screen.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/background/home/home.png" id="2_background"]
+[ext_resource type="Texture2D" path="res://assets/ui/frames/modal_frame.png" id="3_modal_frame"]
+
+[node name="InitialScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
+fade_in_duration = 0.45
+metadata/ui_test_role = "initial_screen_root"
+
+[node name="HomeBackground" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("2_background")
+expand_mode = 1
+stretch_mode = 6
+metadata/ui_test_role = "home_background"
+
+[node name="BackgroundWash" type="ColorRect" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="MenuCenter" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="MenuReveal" type="VBoxContainer" parent="MenuCenter"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+alignment = 1
+
+[node name="TitleBanner" type="PanelContainer" parent="MenuCenter/MenuReveal"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+
+[node name="GameTitle" type="Label" parent="MenuCenter/MenuReveal/TitleBanner"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "一起做任务吧！"
+horizontal_alignment = 1
+vertical_alignment = 1
+metadata/ui_test_role = "game_title"
+
+[node name="MenuButtonGroup" type="VBoxContainer" parent="MenuCenter/MenuReveal"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+alignment = 1
+metadata/ui_test_role = "menu_button_group"
+
+[node name="NewGameButton" type="Button" parent="MenuCenter/MenuReveal/MenuButtonGroup" groups=["menu_button", "styled_button"]]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_default_cursor_shape = 2
+text = "新建游戏"
+metadata/ui_test_role = "new_game_button"
+
+[node name="ContinueButton" type="Button" parent="MenuCenter/MenuReveal/MenuButtonGroup" groups=["menu_button", "styled_button"]]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_default_cursor_shape = 2
+text = "继续游戏"
+metadata/ui_test_role = "continue_button"
+
+[node name="SettingsButton" type="Button" parent="MenuCenter/MenuReveal/MenuButtonGroup" groups=["menu_button", "styled_button"]]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_default_cursor_shape = 2
+text = "设置"
+metadata/ui_test_role = "settings_button"
+
+[node name="QuitButton" type="Button" parent="MenuCenter/MenuReveal/MenuButtonGroup" groups=["menu_button", "styled_button"]]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_default_cursor_shape = 2
+text = "退出游戏"
+metadata/ui_test_role = "quit_button"
+
+[node name="ModalLayer" type="Control" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 1
+metadata/ui_test_role = "modal_layer"
+
+[node name="ModalBackdrop" type="ColorRect" parent="ModalLayer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+
+[node name="NewGamePanel" type="CenterContainer" parent="ModalLayer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="PanelBody" type="Control" parent="ModalLayer/NewGamePanel" groups=["modal_body"]]
+layout_mode = 2
+
+[node name="Surface" type="ColorRect" parent="ModalLayer/NewGamePanel/PanelBody" groups=["modal_surface"]]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Frame" type="NinePatchRect" parent="ModalLayer/NewGamePanel/PanelBody" groups=["modal_frame"]]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("3_modal_frame")
+
+[node name="Content" type="MarginContainer" parent="ModalLayer/NewGamePanel/PanelBody" groups=["modal_content"]]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Actions" type="VBoxContainer" parent="ModalLayer/NewGamePanel/PanelBody/Content" groups=["modal_actions"]]
+layout_mode = 2
+alignment = 2
+
+[node name="Spacer" type="Control" parent="ModalLayer/NewGamePanel/PanelBody/Content/Actions"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+
+[node name="BackButton" type="Button" parent="ModalLayer/NewGamePanel/PanelBody/Content/Actions" groups=["modal_back_button", "styled_button"]]
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_default_cursor_shape = 2
+text = "返回"
+
+[node name="ContinuePanel" type="CenterContainer" parent="ModalLayer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="PanelBody" type="Control" parent="ModalLayer/ContinuePanel" groups=["modal_body"]]
+layout_mode = 2
+
+[node name="Surface" type="ColorRect" parent="ModalLayer/ContinuePanel/PanelBody" groups=["modal_surface"]]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Frame" type="NinePatchRect" parent="ModalLayer/ContinuePanel/PanelBody" groups=["modal_frame"]]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("3_modal_frame")
+
+[node name="Content" type="MarginContainer" parent="ModalLayer/ContinuePanel/PanelBody" groups=["modal_content"]]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Actions" type="VBoxContainer" parent="ModalLayer/ContinuePanel/PanelBody/Content" groups=["modal_actions"]]
+layout_mode = 2
+alignment = 2
+
+[node name="Spacer" type="Control" parent="ModalLayer/ContinuePanel/PanelBody/Content/Actions"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+
+[node name="BackButton" type="Button" parent="ModalLayer/ContinuePanel/PanelBody/Content/Actions" groups=["modal_back_button", "styled_button"]]
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_default_cursor_shape = 2
+text = "返回"
+
+[node name="SettingsPanel" type="CenterContainer" parent="ModalLayer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="PanelBody" type="Control" parent="ModalLayer/SettingsPanel" groups=["modal_body"]]
+layout_mode = 2
+
+[node name="Surface" type="ColorRect" parent="ModalLayer/SettingsPanel/PanelBody" groups=["modal_surface"]]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Frame" type="NinePatchRect" parent="ModalLayer/SettingsPanel/PanelBody" groups=["modal_frame"]]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("3_modal_frame")
+
+[node name="Content" type="MarginContainer" parent="ModalLayer/SettingsPanel/PanelBody" groups=["modal_content"]]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Actions" type="VBoxContainer" parent="ModalLayer/SettingsPanel/PanelBody/Content" groups=["modal_actions"]]
+layout_mode = 2
+alignment = 2
+
+[node name="Spacer" type="Control" parent="ModalLayer/SettingsPanel/PanelBody/Content/Actions"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+
+[node name="BackButton" type="Button" parent="ModalLayer/SettingsPanel/PanelBody/Content/Actions" groups=["modal_back_button", "styled_button"]]
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_default_cursor_shape = 2
+text = "返回"

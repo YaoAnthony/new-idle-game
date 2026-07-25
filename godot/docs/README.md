@@ -24,7 +24,7 @@
 
 - `versions/README.md`：Version Lifecycle、Naming 和 Scope Rules。
 - `versions/TEMPLATE.md`：Version 必填格式。
-- `versions/v0.1.0-initial-screen.md`：当前 Active Version。
+- `versions/v0.1.0-initial-screen.md`：Initial Screen Release，包含 Native Adaptive Layout 要求。
 - `evals/README.md`：Eval 类型和使用方法。
 - `evals/TEMPLATE.md`：Eval 必填格式。
 

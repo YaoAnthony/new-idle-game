@@ -2,7 +2,7 @@
 
 此目录为每个可交付 Version 保存独立 Markdown。Version Document 同时规定 Release Scope、Implementation Boundary 和 Validation；Eval 规定如何验收。
 
-当前 Active Version：`v0.1.0-initial-screen.md`。
+Latest Released Version：`v0.1.0-initial-screen.md`。Current Active Version：无。
 
 ## Delivery Hierarchy
 

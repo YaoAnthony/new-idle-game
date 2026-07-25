@@ -17,7 +17,8 @@
 - Primary Client：Godot。
 - Presentation：top-down 2D。
 - Initial Mode：offline-first local single-player。
-- Current Version：`v0.1.0 Initial Screen`，交付最小 Main Menu Shell。
+- Latest Released Version：`v0.1.0 Initial Screen`，包含 Main Menu Shell、基础 Button Flow 和 Godot Native Adaptive Layout。
+- Current Active Version：无。
 - First Gameplay Milestone：在 Initial Screen 后构建小而完整的 Playable Vertical Slice，而不是大量互不连通的 Systems。
 - Deferred Adapters：Account Login、Cloud Save、Multiplayer、LLM Generation 和 Commerce。
 - Protected Project：不得修改 `Frontend/`。
@@ -212,8 +213,8 @@ Feature 只有满足以下条件才算完成：
 - Documentation 已反映新 Term 和 Decision。
 - 未修改无关 Module 或 Protected Project。
 
-## Active Delivery
+## Delivery State
 
-当前 Active Version 是 `docs/versions/v0.1.0-initial-screen.md`。它是当前 Scope、Non-goals 和 Release Acceptance 的唯一 Owner；本文件不重复版本内容。
+Current Active Version：无。下一次 Implementation 前，必须先在 `docs/versions/` 创建或激活新的 Version Document。
 
 后续 Delivery Order 由 `docs/ROADMAP.md` 描述。Roadmap 和 Product Spec 中的未来内容只有进入状态为 `active` 的独立 Version Document 后，才授权 Implementation。

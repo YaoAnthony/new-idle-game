@@ -2,7 +2,7 @@
 
 本 Roadmap 描述 Delivery Order，不代表 Calendar Date。每个 Milestone 在 Implementation 前，都必须成为可独立验收的 Version Document。
 
-当前 Active Version：`v0.1.0 Initial Screen`。
+Latest Released Version：`v0.1.0 Initial Screen`。Current Active Version：无。
 
 Roadmap 中的未来 Version Number 都是 Provisional，只有创建独立 Version Document 后才正式生效。
 
@@ -20,7 +20,7 @@ Exit Criteria：Version Document 可以写明具体 Command、Dependency、Imple
 
 ## v0.1.0：Initial Screen
 
-Outcome：Godot Project 启动后显示一个非空、可适配基础 Desktop Viewport 的 Initial Screen/Main Menu Shell。
+Outcome：Godot Project 启动后显示一个非空、可适配 Desktop Window、Fullscreen、HiDPI 和不同 Aspect Ratio 的 Initial Screen/Main Menu Shell。
 
 Delivery Definition：`versions/v0.1.0-initial-screen.md`。本 Roadmap 只记录顺序，不复制 Scope 或 Acceptance。
 

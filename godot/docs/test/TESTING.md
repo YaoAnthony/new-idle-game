@@ -26,7 +26,11 @@ Testing 保护 Game Rule 和 Save Integrity；Eval 保护 Player Experience。�
 
 验证 Reusable Scene 可以 Load、Required Child Capability 存在、Signal 正确连接、Collision/Navigation Configuration 存在，以及 Optional Asset 缺失时安全 Fallback。
 
-UI Scene Tests 还必须覆盖关键 Control 的 test role、Viewport 内位置、Container 类型、spacing、min size、重叠、初始 modal 可见性和 resize 后稳定性。`v0.1.0` 使用 `tests/integration/test_v0_1_initial_screen_layout.gd` 检查 Initial Screen 是否位于预设区域。
+UI Scene Tests 还必须覆盖关键 Control 的 test role、Viewport 内位置、Container 类型、spacing、min size、重叠、初始 modal 可见性和 resize 后稳定性。`v0.1.0` 使用 `tests/integration/test_v0_1_initial_screen_layout.gd` 检查 Initial Screen 是否位于逻辑 Design Viewport 的预设区域。
+
+`v0.1.0` 还使用 `tests/integration/test_v0_1_initial_screen_flow.gd` 验证三个 Placeholder Panel 的打开/返回、集中 Theme state、9-slice Frame、fade-in 和 Quit Intent。`tests/integration/capture_v0_1_initial_screen.gd` 只用于生成可重复的 Viewport Release Evidence，不拥有 Product Rule。
+
+`v0.1.0` 的自适应要求使用 Godot Native Scaling：测试逻辑 Design Viewport 下的 Anchors、Containers 和 Modal fit，并用真实 Window Screenshot Matrix 验证 `canvas_items`、`expand` 和 Fullscreen scaling；测试不得重新实现 Engine 的缩放算法。
 
 ### Integration Tests
 
@@ -86,7 +90,7 @@ Tests 不得等待 Production-duration Timer，也不得依赖 External Service�
 
 ## Version-specific Checks
 
-具体 Viewport、Player Flow、Assertion 和 Evidence 由对应 Eval Document 拥有，不在 Test Strategy 中重复。当前 Version 使用 `evals/000-v0.1.0-initial-screen.md`，Release Gate 以 `versions/v0.1.0-initial-screen.md` 为准。
+具体 Viewport、Player Flow、Assertion 和 Evidence 由对应 Eval Document 拥有，不在 Test Strategy 中重复。当前已发布 Release Gate 以 `versions/v0.1.0-initial-screen.md` 和 `evals/000-v0.1.0-initial-screen.md` 为准。
 
 ## UI 和 Accessibility Checks
 

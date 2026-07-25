@@ -54,7 +54,7 @@ Pet 拥有 Need、Preference、Memory、Affection Stage、Behavior、Dispatch Ch
 
 ## Release Scope
 
-当前 Active Version 是 `versions/v0.1.0-initial-screen.md`。该 Version Document 独占本次 Release 的 Scope、Non-goals 和 Acceptance；本 Product Spec 不重复这些内容，也不直接授权 Implementation。
+Latest Released Version 是 `versions/v0.1.0-initial-screen.md`，包含 Initial Screen、基础 Button Flow 和 Native Adaptive Layout。Current Active Version：无。
 
 ## First-day Target Experience
 

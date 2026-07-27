@@ -1,0 +1,15 @@
+{
+  "asset": "panel-frame",
+  "size": {
+    "width": 64,
+    "height": 64
+  },
+  "nineSlice": {
+    "left": 9,
+    "right": 9,
+    "top": 9,
+    "bottom": 9
+  },
+  "file": "panel-frame.png",
+  "notes": "Pixel menu panel with a flat paper center. Keep the 9px corners fixed and stretch the center and edges."
+}

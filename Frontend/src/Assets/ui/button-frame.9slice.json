@@ -1,0 +1,19 @@
+{
+  "asset": "button-frame",
+  "size": {
+    "width": 96,
+    "height": 32
+  },
+  "nineSlice": {
+    "left": 8,
+    "right": 8,
+    "top": 7,
+    "bottom": 7
+  },
+  "states": {
+    "normal": "button-frame-normal.png",
+    "hover": "button-frame-hover.png",
+    "pressed": "button-frame-pressed.png"
+  },
+  "notes": "Clean nine-slice pixel UI button frame. Center is flat for readable text; no texture/no decorative dots. Keep corners fixed; stretch center and edges."
+}

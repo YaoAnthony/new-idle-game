@@ -1,0 +1,451 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ═══════════════════════════════════════════
+   UNIFIED DARK GAME THEME — 幻星纪元
+   ═══════════════════════════════════════════ */
+
+/* Pixel font "Press Start 2P" loaded via index.html <link> */
+
+:root {
+  --border: rgb(var(--system-line) / 0.18);
+  --layer: rgb(var(--system-panel));
+  --card-height: 45vh;
+  --card-width: calc(var(--card-height) / 1.5);
+
+  /* ── Dark System Palette ── */
+  --system-bg: 14 15 20;
+  --system-shell: 6 9 14;
+  --system-panel: 22 24 32;
+  --system-raised: 32 34 42;
+  --system-line: 238 221 173;
+  --system-text: 245 247 251;
+  --system-muted: 164 169 181;
+  --system-faint: 104 111 128;
+  --system-accent: 241 216 144;
+  --system-action: 74 124 240;
+  --system-success: 76 201 126;
+  --system-danger: 239 87 87;
+  --system-violet: 168 85 247;
+
+  /* ── Legacy px aliases now point at the same dark theme ── */
+  --px-bg:          rgb(var(--system-bg));
+  --px-surface:     rgb(var(--system-shell));
+  --px-surface2:    rgb(var(--system-panel) / 0.88);
+  --px-border:      rgb(var(--system-line) / 0.26);
+  --px-border-gold: rgb(var(--system-line) / 0.58);
+  --px-gold:        rgb(var(--system-accent));
+  --px-gold-dim:    rgb(var(--system-accent) / 0.72);
+  --px-blue:        rgb(var(--system-action));
+  --px-text:        rgb(var(--system-text));
+  --px-muted:       rgb(var(--system-muted));
+  --px-danger:      rgb(var(--system-danger));
+}
+
+html,
+body,
+#root {
+  background: var(--px-bg);
+  color: var(--px-text);
+}
+
+/* ── Pixel Panel — sharp-corner box with inner bevel ── */
+.px-panel {
+  background: var(--px-surface);
+  border: 2px solid var(--px-border);
+  box-shadow:
+    inset 1px 1px 0 rgb(var(--system-line) / 0.08),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.45);
+  border-radius: 0;
+}
+
+/* Gold-accent active panel */
+.px-panel-gold {
+  background: var(--px-surface);
+  border: 2px solid var(--px-border-gold);
+  box-shadow:
+    inset 1px 1px 0 rgb(var(--system-line) / 0.12),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.45),
+    0 0 12px rgb(var(--system-accent) / 0.18);
+}
+
+/* Subtle pixel grid background overlay */
+.px-grid-bg {
+  background-image:
+    linear-gradient(rgb(var(--system-line) / 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--system-line) / 0.045) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* Pixel scanline overlay (subtle CRT effect) */
+.px-scanlines::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255,255,255,0.025) 2px,
+    rgba(255,255,255,0.025) 4px
+  );
+  z-index: 9999;
+}
+
+.markdown-container {
+  word-break: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+.custom-splitter .ant-splitter-bar {
+  background-color: white;
+}
+
+/* 可选：修改拖拽区域 */
+.ant-splitter-bar-dragger::before {
+  background-color: white !important;
+}
+html {
+  scroll-behavior: smooth;
+  user-select: none;
+}
+
+.screen-max-width {
+  /* Full-screen layout — no max-width constraint */
+  position: relative;
+  width: 100%;
+}
+
+/* 在你的全局 CSS 中添加，比如 index.css 或 tailwind.config.js 的 content 部分包含它 */
+.fileCard {
+  position: relative;
+  overflow: hidden;
+}
+
+.fileCard::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  clip-path: polygon(0 0, 100% 10px, 100% 100%, 0% 100%);
+  z-index: -1;
+}
+
+@layer utilities {
+  .flex-center {
+    @apply flex items-center justify-center;
+  }
+
+  .nav-height {
+    @apply h-[calc(100vh-60px)];
+  }
+}
+
+/* 可选：dark style antd modal（放到 css/less/scss） */
+.dark-modal .ant-modal-content {
+  background: var(--px-surface);
+  color: var(--px-text);
+}
+.dark-modal .ant-btn-primary {
+  background-color: #4a90e2;
+  border: none;
+}
+
+.glassmorphism {
+  background: rgb(var(--system-panel) / 0.72);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 10px;
+  border: 1px solid rgb(var(--system-line) / 0.2);
+}
+
+.whiteGlassmorphism {
+  background: rgb(var(--system-shell) / 0.82);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.26);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  border-radius: 10px;
+  border: 1px solid rgb(var(--system-line) / 0.18);
+}
+
+@property --rotate {
+  syntax: "<angle>";
+  initial-value: 132deg;
+  inherits: false;
+}
+
+.cardSize {
+  width: var(--card-width);
+  height: var(--card-height);
+}
+
+.downloadCard {
+  background: #191c29;
+  padding: 3px;
+  position: relative;
+  border-radius: 6px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  color: rgb(88 199 250 / 0%);
+  cursor: pointer;
+  font-family: cursive;
+  transition: color 0.3s;
+  will-change: transform, opacity;
+}
+
+.downloadCard:hover {
+  color: rgb(88 199 250 / 100%);
+}
+
+.downloadCard::before {
+  content: "";
+  width: 104%;
+  height: 102%;
+  border-radius: 8px;
+  background-image: linear-gradient(
+    var(--rotate),
+    #5ddcff,
+    #3c67e3 43%,
+    #4e00c2
+  );
+  position: absolute;
+  z-index: -1;
+  top: -1%;
+  left: -2%;
+  animation: spin 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: transform;
+}
+
+.downloadCard::after {
+  content: "";
+  position: absolute;
+  top: 10px;
+  left: 0;
+  right: 0;
+  height: 100%;
+  width: 100%;
+  margin: 0 auto;
+  transform: scale(0.9);
+  opacity: 0.7;
+  transition: transform 0.5s;
+  will-change: transform;
+}
+
+@layer components {
+  .hero-gradient {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    background:
+      radial-gradient(
+        120% 120% at 0% 0%,
+        rgba(59, 130, 246, 0.35),
+        rgba(59, 130, 246, 0) 60%
+      ),
+      radial-gradient(
+        140% 120% at 100% 0%,
+        rgba(165, 180, 252, 0.3),
+        rgba(165, 180, 252, 0) 65%
+      ),
+      linear-gradient(
+        to bottom,
+        #f8fafc 0%,
+        #eef2ff 40%,
+        #f5eee4 72%,
+        #edecea 90%,
+        #edecea 100%
+      );
+  }
+
+  .hero-gradient::before,
+  .hero-gradient::after {
+    content: "";
+    position: absolute;
+    pointer-events: none;
+    z-index: -1;
+    transition:
+      opacity 0.3s ease,
+      background 0.4s ease;
+  }
+
+  .hero-gradient::before {
+    inset: -25%;
+    opacity: 0.55;
+    filter: blur(60px);
+    background:
+      radial-gradient(
+        circle at 28% 24%,
+        rgba(255, 255, 255, 0.55) 0%,
+        rgba(255, 255, 255, 0.1) 46%,
+        rgba(255, 255, 255, 0) 72%
+      ),
+      radial-gradient(
+        circle at 78% 62%,
+        rgba(251, 191, 36, 0.28) 0%,
+        rgba(251, 191, 36, 0.1) 36%,
+        rgba(251, 191, 36, 0) 60%
+      );
+  }
+
+  .hero-gradient::after {
+    left: -4%;
+    width: 108%;
+    height: 44%;
+    bottom: -20%;
+    opacity: 0.92;
+    background: linear-gradient(
+      to bottom,
+      rgba(237, 236, 234, 0) 0%,
+      rgba(237, 236, 234, 0.55) 52%,
+      #edecea 90%,
+      #edecea 100%
+    );
+    clip-path: ellipse(120% 120% at 50% 0%);
+  }
+}
+
+.dark .hero-gradient {
+  background:
+    radial-gradient(
+      110% 130% at 0% 0%,
+      rgba(56, 189, 248, 0.3),
+      rgba(56, 189, 248, 0) 60%
+    ),
+    radial-gradient(
+      140% 120% at 100% 0%,
+      rgba(129, 140, 248, 0.32),
+      rgba(129, 140, 248, 0) 65%
+    ),
+    linear-gradient(
+      to bottom,
+      #0b1220 0%,
+      #0f172a 38%,
+      #111827 60%,
+      #0c0c0c 78%,
+      #0c0c0c 100%
+    );
+}
+
+.dark .hero-gradient::before {
+  background:
+    radial-gradient(
+      circle at 26% 23%,
+      rgba(59, 130, 246, 0.45) 0%,
+      rgba(59, 130, 246, 0.18) 42%,
+      rgba(59, 130, 246, 0) 68%
+    ),
+    radial-gradient(
+      circle at 76% 60%,
+      rgba(168, 85, 247, 0.45) 0%,
+      rgba(168, 85, 247, 0.2) 40%,
+      rgba(168, 85, 247, 0) 62%
+    );
+  opacity: 0.48;
+}
+
+.dark .hero-gradient::after {
+  background: linear-gradient(
+    to bottom,
+    rgba(12, 12, 12, 0) 0%,
+    rgba(12, 12, 12, 0.6) 58%,
+    #0c0c0c 85%,
+    #0c0c0c 100%
+  );
+  opacity: 0.95;
+}
+
+@keyframes spin {
+  0% {
+    --rotate: 0deg;
+  }
+  100% {
+    --rotate: 360deg;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   PIXEL GAME — Routed content layout
+   Keep this section structural only. Component surfaces own their own visuals.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Height fix: replace h-[85vh] with full flex fill ───────────────────── */
+#px-content {
+  display: flex;
+  flex-direction: column;
+}
+#px-content > * {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Page and modal surfaces should own their visual styling locally. Avoid broad
+   #px-content descendant overrides here; they leak into game overlays. */
+
+/* ── System Management Tabs — Pixel Game Style ── */
+.system-tabs .ant-tabs-nav {
+  margin-bottom: 0;
+  background: var(--px-surface);
+  border-bottom: 2px solid var(--px-border) !important;
+}
+
+.system-tabs .ant-tabs-tab {
+  color: var(--px-muted);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  transition: color 0.15s;
+  margin: 0 !important;
+  padding: 10px 16px !important;
+}
+
+.system-tabs .ant-tabs-tab:hover {
+  color: var(--px-text) !important;
+}
+
+.system-tabs .ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: var(--px-gold) !important;
+}
+
+.system-tabs .ant-tabs-ink-bar {
+  background: var(--px-gold) !important;
+  height: 2px !important;
+}
+
+.system-tabs .ant-tabs-content {
+  height: 100%;
+}
+.system-tabs .ant-tabs-tabpane {
+  height: 100%;
+}
+
+.lottery-detail-modal .ant-modal-content {
+  background: linear-gradient(180deg, rgba(8, 10, 28, 0.98), rgba(15, 23, 42, 0.96)) !important;
+  border: 1px solid rgba(248, 193, 74, 0.28) !important;
+  border-radius: 12px !important;
+  box-shadow:
+    0 28px 80px rgba(0, 0, 0, 0.58),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
+  color: #e2e8f0 !important;
+}
+
+.lottery-detail-modal .ant-modal-header {
+  background: transparent !important;
+  border-bottom: 1px solid rgba(248, 193, 74, 0.16) !important;
+  border-radius: 12px 12px 0 0 !important;
+}
+
+.lottery-detail-modal .ant-modal-title {
+  color: #fef3c7 !important;
+}
+
+.lottery-detail-modal .ant-modal-close {
+  color: #fef3c7 !important;
+}

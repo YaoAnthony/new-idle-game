@@ -1,32 +1,28 @@
-# React + TypeScript + Vite
+# Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+当前主要游戏客户端。技术方向是 React + Vite 外壳，Phaser 负责 top-down 2D 游戏场景、角色移动、家具摆放、碰撞、交互和声景播放。
 
-Currently, two official plugins are available:
+## 目录职责
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- `src/Game/`：Phaser 游戏入口、Scene、地图和 gameplay presentation。
+- `src/Components/`：React UI、菜单、面板和非 Phaser 的界面。
+- `src/Types/`：仅放 Frontend-local 类型；共享类型应放在 `../Core/src/types/`。
+- `public/` 或 `src/Assets/`：网页端实际图片、音频和字体资源。
 
-## React Compiler
+## 共享数据
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+共享结构和内容注册表来自 `Core`：
 
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```ts
+import type { WorldSave, FurnitureDefinition } from "core";
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+`Core` 不依赖 Phaser。Frontend 负责把 `visualId`、`audioProfileId` 等共享 ID 映射到网页端实际资源。
+
+## 开发命令
+
+```bash
+npm run dev
+npm run build
+npm run lint
+```

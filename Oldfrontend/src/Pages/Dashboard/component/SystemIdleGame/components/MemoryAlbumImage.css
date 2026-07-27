@@ -1,0 +1,11 @@
+.system-idle-game-image-preview {
+  z-index: 120000 !important;
+}
+
+.system-idle-game-image-preview .ant-image-preview-mask {
+  z-index: 120000 !important;
+}
+
+.system-idle-game-image-preview .ant-image-preview-wrap {
+  z-index: 120001 !important;
+}

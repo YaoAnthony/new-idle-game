@@ -1,0 +1,3 @@
+.heart-cursor:hover {
+    cursor: url('/heart.svg'), auto;
+}

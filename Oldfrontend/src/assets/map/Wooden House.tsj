@@ -1,0 +1,15 @@
+{
+  "type": "tileset",
+  "version": "1.10",
+  "tiledversion": "1.11.2",
+  "name": "Wooden House",
+  "tilewidth": 16,
+  "tileheight": 16,
+  "spacing": 0,
+  "margin": 0,
+  "tilecount": 35,
+  "columns": 7,
+  "image": "../Sprout-Lands/Tilesets/Wooden House.png",
+  "imagewidth": 112,
+  "imageheight": 80
+}

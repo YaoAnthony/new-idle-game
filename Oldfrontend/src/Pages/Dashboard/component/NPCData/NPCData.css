@@ -1,0 +1,358 @@
+.npc-data-markdown.markdown-body {
+  background: transparent;
+  color: var(--px-text);
+}
+
+.npc-data-markdown.markdown-body h1 {
+  font-size: 1.45em;
+}
+
+.npc-data-markdown.markdown-body h2 {
+  font-size: 1.25em;
+}
+
+.npc-data-markdown.markdown-body h3 {
+  font-size: 1.1em;
+}
+
+.npc-data-markdown.markdown-body p,
+.npc-data-markdown.markdown-body ul,
+.npc-data-markdown.markdown-body ol,
+.npc-data-markdown.markdown-body pre {
+  margin-bottom: 0.75em;
+}
+
+.npc-data-markdown.markdown-body,
+.npc-data-markdown.markdown-body p,
+.npc-data-markdown.markdown-body li,
+.npc-data-markdown.markdown-body blockquote {
+  color: var(--px-text);
+}
+
+.npc-data-markdown.markdown-body h1,
+.npc-data-markdown.markdown-body h2,
+.npc-data-markdown.markdown-body h3,
+.npc-data-markdown.markdown-body h4,
+.npc-data-markdown.markdown-body strong {
+  color: var(--px-gold);
+}
+
+.npc-data-markdown.markdown-body a,
+.npc-data-markdown.markdown-body code {
+  color: #9fd0ff;
+}
+
+.npc-data-markdown.markdown-body pre,
+.npc-data-markdown.markdown-body table tr,
+.npc-data-markdown.markdown-body blockquote {
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.npc-data-markdown.markdown-body pre,
+.npc-data-markdown.markdown-body table,
+.npc-data-markdown.markdown-body blockquote,
+.npc-data-markdown.markdown-body hr {
+  border-color: var(--px-border);
+}
+
+.npc-data-skill-card-grid,
+.npc-skill-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px;
+}
+
+.npc-state-meter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 7px;
+}
+
+.npc-state-meter {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--px-border);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.npc-state-meter__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--px-muted);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.npc-state-meter__head strong {
+  color: var(--npc-meter-color, var(--px-text));
+  text-shadow: 0 0 10px color-mix(in srgb, var(--npc-meter-color, var(--px-text)) 38%, transparent);
+}
+
+.npc-state-meter__track {
+  position: relative;
+  height: 5px;
+  margin-top: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.npc-state-meter__track span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--npc-meter-color, #8fd7a2);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--npc-meter-color, #8fd7a2) 46%, transparent);
+}
+
+.npc-personality-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.npc-personality-bar {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--px-border);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.npc-personality-bar__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--px-muted);
+  font-size: 10.5px;
+  font-weight: 900;
+}
+
+.npc-personality-bar__head strong {
+  color: var(--px-text);
+}
+
+.npc-personality-bar__track {
+  position: relative;
+  height: 7px;
+  margin-top: 8px;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, rgba(108, 140, 255, 0.28), rgba(255, 255, 255, 0.08) 50%, rgba(241, 216, 144, 0.28));
+}
+
+.npc-personality-bar__zero {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  left: 50%;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.34);
+}
+
+.npc-personality-bar__dot {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--px-gold);
+  border-radius: 999px;
+  background: #111722;
+  box-shadow: 0 0 14px rgba(241, 216, 144, 0.42);
+  transform: translate(-50%, -50%);
+}
+
+.npc-capability-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.npc-capability-card {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid var(--px-border);
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.npc-capability-card--locked {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.npc-capability-card__main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-align: left;
+}
+
+.npc-capability-card__main strong {
+  display: block;
+  overflow: hidden;
+  color: var(--px-gold);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.npc-capability-card--locked .npc-capability-card__main strong {
+  color: rgba(255, 255, 255, 0.56);
+}
+
+.npc-capability-card__main small,
+.npc-capability-card__hint {
+  display: block;
+  margin-top: 4px;
+  color: var(--px-muted);
+  font-size: 10.5px;
+  line-height: 1.4;
+}
+
+.npc-capability-card--locked .npc-capability-card__main small,
+.npc-capability-card--locked .npc-capability-card__hint {
+  color: rgba(255, 255, 255, 0.44);
+}
+
+.npc-capability-card__level {
+  color: var(--px-text);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.npc-capability-card--locked .npc-capability-card__level {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.npc-capability-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.npc-capability-card__details {
+  display: grid;
+  gap: 7px;
+  padding-top: 7px;
+  border-top: 1px solid var(--px-border);
+}
+
+.npc-skill-card {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid var(--px-border);
+  border-radius: 7px;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.npc-skill-card--locked {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.12);
+  opacity: 0.46;
+}
+
+.npc-skill-card__title {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-align: left;
+}
+
+.npc-skill-card__title:disabled {
+  cursor: not-allowed;
+}
+
+.npc-skill-card__title strong {
+  overflow: hidden;
+  color: var(--px-gold);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.npc-skill-card__title:disabled strong {
+  color: var(--px-muted);
+}
+
+.npc-skill-card__title span {
+  color: var(--px-muted);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.npc-skill-card p {
+  margin: 0;
+  color: var(--px-muted);
+  font-size: 11.5px;
+  line-height: 1.42;
+}
+
+.npc-skill-card__details {
+  display: grid;
+  gap: 7px;
+  padding-top: 7px;
+  border-top: 1px solid var(--px-border);
+}
+
+.npc-skill-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.npc-skill-card__translation {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 6px;
+}
+
+.npc-skill-card__translation div {
+  min-width: 0;
+  padding: 7px;
+  border: 1px solid var(--px-border);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.npc-skill-card__translation span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--px-muted);
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.npc-skill-card__translation strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--px-text);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.npc-skill-card__translation p {
+  font-size: 10.5px;
+  line-height: 1.45;
+}

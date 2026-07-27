@@ -1,0 +1,113 @@
+.game-btn {
+  --game-btn-frame: url("../../Assets/ui/button-frame-normal.png");
+  --game-btn-text: #3b2519;
+  --game-btn-text-shadow: rgb(255 244 200 / 0.82);
+  --game-btn-font-size: 18px;
+  --game-btn-min-width: 168px;
+  --game-btn-height: 48px;
+  --game-btn-padding-x: 24px;
+
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  min-width: var(--game-btn-min-width);
+  height: var(--game-btn-height);
+  padding: 0 var(--game-btn-padding-x);
+  border: 5px solid transparent;
+  border-width: 5px 6px;
+  border-image-source: var(--game-btn-frame);
+  border-image-slice: 7 8 7 8 fill;
+  border-image-repeat: stretch;
+  background: transparent;
+  color: var(--game-btn-text);
+  cursor: pointer;
+  image-rendering: pixelated;
+  user-select: none;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.game-btn::after {
+  content: "";
+  position: absolute;
+  inset: 5px 6px;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgb(255 255 255 / 0.12),
+    rgb(255 255 255 / 0) 45%,
+    rgb(83 45 24 / 0.12)
+  );
+  mix-blend-mode: soft-light;
+}
+
+.game-btn__label {
+  position: relative;
+  z-index: 1;
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  font-family:
+    "Noto Sans SC", "PingFang SC", "Yu Gothic", "Meiryo", sans-serif;
+  font-size: var(--game-btn-font-size);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow:
+    0 1px 0 var(--game-btn-text-shadow);
+}
+
+.game-btn:hover:not(:disabled) {
+  --game-btn-frame: url("../../Assets/ui/button-frame-hover.png");
+  --game-btn-text: #302016;
+  transform: translateY(-1px);
+}
+
+.game-btn:active:not(:disabled),
+.game-btn--selected {
+  --game-btn-frame: url("../../Assets/ui/button-frame-pressed.png");
+  --game-btn-text: #2b1b13;
+  transform: translateY(1px);
+}
+
+.game-btn:focus-visible {
+  outline: 3px solid #fff0ad;
+  outline-offset: 3px;
+}
+
+.game-btn:disabled {
+  cursor: not-allowed;
+  filter: saturate(0.45) brightness(0.72);
+}
+
+.game-btn:disabled .game-btn__label {
+  color: #75624e;
+}
+
+.game-btn--sm {
+  --game-btn-font-size: 14px;
+  --game-btn-min-width: 124px;
+  --game-btn-height: 36px;
+  --game-btn-padding-x: 18px;
+}
+
+.game-btn--md {
+  --game-btn-font-size: 18px;
+  --game-btn-min-width: 168px;
+  --game-btn-height: 48px;
+  --game-btn-padding-x: 24px;
+}
+
+.game-btn--lg {
+  --game-btn-font-size: 24px;
+  --game-btn-min-width: 224px;
+  --game-btn-height: 64px;
+  --game-btn-padding-x: 32px;
+}
+
+.game-btn--full {
+  width: 100%;
+}

@@ -1,0 +1,307 @@
+.memory-album {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  gap: clamp(8px, 1.5vh, 14px);
+  color: rgba(255, 246, 218, 0.94);
+}
+
+.memory-album--empty {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.memory-album__empty-icon {
+  color: #e6b85f;
+  font-size: 38px;
+  opacity: 0.86;
+}
+
+.memory-album--empty h3 {
+  margin: 8px 0 0;
+  font-size: 22px;
+}
+
+.memory-album--empty p {
+  margin: 0;
+  color: rgba(255, 246, 218, 0.68);
+}
+
+.memory-album--empty button,
+.memory-album__nav {
+  border: 1px solid rgba(230, 184, 95, 0.72);
+  background: rgba(57, 38, 15, 0.78);
+  color: #ffe3a2;
+  cursor: pointer;
+}
+
+.memory-album--empty button {
+  margin-top: 12px;
+  padding: 8px 18px;
+}
+
+.memory-album__viewer {
+  display: grid;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  grid-template-columns: 46px minmax(0, 1fr) 46px;
+  gap: 12px;
+  align-items: center;
+}
+
+.memory-album__nav {
+  display: grid;
+  width: 46px;
+  height: 62px;
+  place-items: center;
+  font-size: 18px;
+}
+
+.memory-album__nav:hover {
+  background: rgba(91, 61, 25, 0.9);
+}
+
+.memory-album__book-wrap {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(230, 184, 95, 0.34);
+  background:
+    linear-gradient(90deg, rgba(35, 20, 8, 0.9), rgba(18, 11, 6, 0.52) 18%, rgba(18, 11, 6, 0.52) 82%, rgba(35, 20, 8, 0.9)),
+    rgba(13, 9, 6, 0.62);
+  padding: clamp(10px, 1.8vh, 18px);
+}
+
+.memory-album__book {
+  max-width: 100%;
+  max-height: 100%;
+  margin: 0 auto;
+  font-family: "Courier New", "Microsoft YaHei", monospace;
+}
+
+.memory-album__page {
+  display: grid;
+  box-sizing: border-box;
+  height: 100%;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: clamp(8px, 1.4vh, 12px);
+  border: 4px solid #c99542;
+  background:
+    linear-gradient(90deg, rgba(94, 62, 31, 0.12), transparent 9%, transparent 91%, rgba(94, 62, 31, 0.12)),
+    #f6e2b3;
+  box-shadow: inset 0 0 0 3px rgba(78, 49, 20, 0.42);
+  color: #4c2d12;
+  overflow: hidden;
+  padding: clamp(12px, 1.8vh, 18px);
+}
+
+.memory-album__page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid rgba(98, 61, 22, 0.26);
+  color: #6c4219;
+  font-weight: 700;
+  padding-bottom: 8px;
+}
+
+.memory-album__photo-grid {
+  display: grid;
+  min-height: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(8px, 1.5vh, 14px);
+  align-content: start;
+}
+
+.memory-album__photo-card {
+  display: grid;
+  min-width: 0;
+  gap: clamp(5px, 1vh, 8px);
+  margin: 0;
+  transform: rotate(var(--photo-tilt, 0deg));
+}
+
+.memory-album__photo-card--0 {
+  --photo-tilt: -1.5deg;
+}
+
+.memory-album__photo-card--1 {
+  --photo-tilt: 1deg;
+}
+
+.memory-album__photo-card--2 {
+  --photo-tilt: 1.4deg;
+}
+
+.memory-album__photo-card--3 {
+  --photo-tilt: -0.8deg;
+}
+
+.memory-album__photo {
+  display: grid !important;
+  width: 100%;
+  aspect-ratio: 1;
+  place-items: center;
+  border: 4px solid #fff2c9;
+  background: #fff7da;
+  box-shadow:
+    0 0 0 2px rgba(87, 53, 18, 0.52),
+    0 7px 0 rgba(86, 55, 24, 0.18);
+  cursor: zoom-in;
+  padding: clamp(4px, 0.8vh, 6px);
+}
+
+.memory-album__photo .memory-album-image__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  image-rendering: auto;
+  background: rgba(255, 231, 178, 0.22);
+}
+
+.memory-album__photo .ant-image-mask {
+  background: rgba(35, 20, 8, 0.62);
+  color: #ffe3a2;
+  font-family: "Courier New", "Microsoft YaHei", monospace;
+}
+
+.memory-album-image-fallback {
+  display: grid;
+  width: 100%;
+  aspect-ratio: 1;
+  min-height: 120px;
+  place-items: center;
+  border: 4px solid #fff2c9;
+  background: rgba(255, 231, 178, 0.52);
+  color: rgba(76, 45, 18, 0.62);
+}
+
+.memory-album__photo-card figcaption {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  border: 1px solid rgba(95, 58, 19, 0.24);
+  background: rgba(255, 246, 218, 0.62);
+  padding: clamp(4px, 0.8vh, 6px) 7px;
+}
+
+.memory-album__photo-card strong,
+.memory-album__photo-card span,
+.memory-album__photo-card em {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memory-album__photo-card strong {
+  color: #4c2d12;
+  font-size: 13px;
+}
+
+.memory-album__photo-card span {
+  color: rgba(76, 45, 18, 0.74);
+  font-size: 11px;
+}
+
+.memory-album__photo-card em {
+  color: rgba(76, 45, 18, 0.64);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.memory-album__footer {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(230, 184, 95, 0.3);
+  background: rgba(24, 15, 8, 0.62);
+  color: rgba(255, 246, 218, 0.72);
+  padding: clamp(6px, 1vh, 8px) 12px;
+  font-family: "Courier New", "Microsoft YaHei", monospace;
+  font-size: clamp(11px, 1.4vh, 13px);
+  line-height: 1.25;
+}
+
+.memory-album__footer span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .memory-album {
+    min-height: min(68vh, 560px);
+  }
+
+  .memory-album__viewer {
+    grid-template-columns: 36px minmax(0, 1fr) 36px;
+    gap: 8px;
+  }
+
+  .memory-album__nav {
+    width: 36px;
+  }
+
+  .memory-album__book-wrap {
+    padding: 10px;
+  }
+
+  .memory-album__page {
+    padding: 12px;
+  }
+
+  .memory-album__photo-grid {
+    gap: 9px;
+  }
+}
+
+@media (max-height: 760px) {
+  .memory-album__viewer {
+    grid-template-columns: 38px minmax(0, 1fr) 38px;
+    gap: 8px;
+  }
+
+  .memory-album__nav {
+    width: 38px;
+    height: 52px;
+    font-size: 16px;
+  }
+
+  .memory-album__page-head {
+    padding-bottom: 6px;
+    font-size: 13px;
+  }
+
+  .memory-album__photo-card strong {
+    font-size: 12px;
+  }
+
+  .memory-album__photo-card span,
+  .memory-album__photo-card em {
+    font-size: 10px;
+  }
+}
+
+@media (max-height: 660px) {
+  .memory-album__footer {
+    display: none;
+  }
+
+  .memory-album__page {
+    border-width: 3px;
+  }
+
+  .memory-album__photo {
+    border-width: 3px;
+  }
+}

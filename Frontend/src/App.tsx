@@ -5,11 +5,11 @@ import {
 import { Game } from "./Game";
 
 function App() {
-  const backgroundColor = "";
+  const backgroundColor = TITLE_SCREEN_CONFIG.presentation.backgroundColor;
 
   return (
     <main
-      className="font-game relative min-h-[100dvh] overflow-hidden"
+      className="font-game relative h-[100dvh] min-h-0 overflow-hidden"
       style={{ backgroundColor }}
     >
       <Game backgroundColor={backgroundColor} />

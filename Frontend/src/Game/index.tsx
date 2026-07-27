@@ -20,7 +20,7 @@ export function Game({ backgroundColor }: GameProps) {
   return (
     <div
       ref={gameContainerRef}
-      className="absolute inset-0 overflow-hidden bg-cover bg-center [&>canvas]:!block [&>canvas]:!h-full [&>canvas]:!w-full [&>canvas]:object-cover [&>canvas]:[image-rendering:pixelated]"
+      className="absolute inset-0 overflow-hidden bg-cover bg-center [&>canvas]:!block [&>canvas]:[image-rendering:pixelated]"
       style={{ backgroundImage: `url(${titleBackground})` }}
       aria-hidden="true"
     />

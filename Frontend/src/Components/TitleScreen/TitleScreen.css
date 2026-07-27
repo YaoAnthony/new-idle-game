@@ -90,3 +90,147 @@
   outline: 3px solid #8d5d34;
   outline-offset: 4px;
 }
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .title-screen-locale {
+    top: 8px;
+    right: 8px;
+  }
+
+  .title-screen-locale-option {
+    min-width: 54px;
+    min-height: 28px;
+    padding-inline: 8px;
+    font-size: 11px;
+  }
+
+  .title-screen-content {
+    padding-top: 32px;
+    padding-bottom: 12px;
+  }
+
+  .title-screen-title {
+    max-height: 24dvh;
+  }
+
+  .title-screen-actions {
+    width: min(260px, 62vw);
+    gap: 4px;
+  }
+
+  .title-screen-primary-button {
+    --game-btn-font-size: 20px;
+    --game-btn-min-width: 200px;
+    --game-btn-height: 52px;
+  }
+
+  .title-screen-secondary-button {
+    --game-btn-font-size: 16px;
+    --game-btn-min-width: 180px;
+    --game-btn-height: 40px;
+  }
+
+  .title-screen-dialog-layer {
+    padding: 8px;
+  }
+
+  .title-screen-start-frame {
+    width: min(660px, 96vw);
+  }
+
+  .title-screen-dialog-panel {
+    max-height: calc(100dvh - 16px);
+  }
+
+  .title-screen-start-content {
+    padding: 12px;
+  }
+
+  .title-screen-close {
+    top: 8px;
+    right: 8px;
+    width: 32px;
+    height: 32px;
+  }
+
+  .title-screen-start-options {
+    gap: 12px;
+    padding-top: 4px;
+  }
+
+  .session-choice {
+    aspect-ratio: 1.45 / 1;
+    gap: 4px;
+    padding: 8px 12px;
+  }
+
+  .session-choice-icon {
+    width: min(64%, 150px);
+  }
+
+  .title-screen-settings-content {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(210px, 0.9fr);
+    grid-template-rows: auto 1fr auto;
+    column-gap: 16px;
+    padding: 12px 16px;
+    align-items: start;
+  }
+
+  .title-screen-settings-title {
+    grid-column: 1 / -1;
+    font-size: 20px;
+  }
+
+  .title-screen-settings-sound,
+  .title-screen-settings-controls {
+    margin-top: 6px;
+  }
+
+  .title-screen-settings-sound h2,
+  .title-screen-settings-controls h2 {
+    margin-bottom: 4px;
+    font-size: 14px;
+  }
+
+  .title-screen-settings-sound label {
+    min-height: 27px;
+    margin-bottom: 0;
+    font-size: 12px;
+  }
+
+  .title-screen-volume-row {
+    grid-template-columns: 64px minmax(74px, 1fr) 34px;
+    gap: 6px;
+  }
+
+  .title-screen-controls-list {
+    margin-bottom: 0;
+    gap: 3px;
+  }
+
+  .title-screen-control-row {
+    min-height: 29px;
+    gap: 6px;
+    padding-bottom: 3px;
+  }
+
+  .title-screen-control-row dt,
+  .title-screen-control-row dd {
+    font-size: 10px;
+  }
+
+  .title-screen-control-row dd {
+    padding: 3px 5px;
+  }
+
+  .title-screen-settings-done {
+    --game-btn-font-size: 12px;
+    --game-btn-min-width: 108px;
+    --game-btn-height: 32px;
+
+    grid-column: 1 / -1;
+    justify-self: center;
+    margin-top: 6px;
+  }
+}

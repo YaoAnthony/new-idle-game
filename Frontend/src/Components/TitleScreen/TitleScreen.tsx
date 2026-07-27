@@ -119,11 +119,11 @@ export function TitleScreen({
 
   return (
     <section
-      className="relative z-[1] grid min-h-[100dvh] place-items-center overflow-hidden text-[#f8edc8] max-sm:place-items-start"
+      className="relative z-[1] grid h-[100dvh] min-h-0 place-items-center overflow-hidden text-[#f8edc8] max-sm:place-items-start"
       aria-label={copy.titleAlt}
     >
       <div
-        className="absolute right-[clamp(14px,2.5vw,30px)] top-[clamp(14px,2.5vw,28px)] z-[2] inline-grid grid-flow-col gap-0.5 border-2 border-[#342218] bg-[rgb(39_29_21_/_0.88)] p-[3px] shadow-[0_4px_0_rgb(15_18_14_/_0.3)] max-sm:right-3 max-sm:top-3"
+        className="title-screen-locale absolute right-[clamp(14px,2.5vw,30px)] top-[clamp(14px,2.5vw,28px)] z-[2] inline-grid grid-flow-col gap-0.5 border-2 border-[#342218] bg-[rgb(39_29_21_/_0.88)] p-[3px] shadow-[0_4px_0_rgb(15_18_14_/_0.3)] max-sm:right-3 max-sm:top-3"
         role="group"
         aria-label={copy.localeLabel}
       >
@@ -135,7 +135,7 @@ export function TitleScreen({
               type="button"
               key={localeOption.id}
               className={[
-                "min-h-8 min-w-[68px] cursor-pointer border-0 px-3 text-[13px] font-bold tracking-normal transition-colors hover:bg-[#59402b] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#fff0ad] max-sm:min-h-[30px] max-sm:min-w-[58px] max-sm:px-2 max-sm:text-xs",
+                "title-screen-locale-option min-h-8 min-w-[68px] cursor-pointer border-0 px-3 text-[13px] font-bold tracking-normal transition-colors hover:bg-[#59402b] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#fff0ad] max-sm:min-h-[30px] max-sm:min-w-[58px] max-sm:px-2 max-sm:text-xs",
                 isActive
                   ? "bg-[#d9ad68] text-[#2c2119]"
                   : "bg-transparent text-[#eadbb5]",
@@ -150,7 +150,7 @@ export function TitleScreen({
       </div>
 
       <motion.div
-        className="flex min-h-[min(700px,92dvh)] w-[min(760px,86vw)] flex-col items-center justify-center px-5 pb-[30px] pt-[clamp(54px,8dvh,92px)] max-sm:min-h-[100dvh] max-sm:pt-[72px] [@media(max-height:620px)]:min-h-[100dvh] [@media(max-height:620px)]:pt-[54px]"
+        className="title-screen-content flex min-h-[min(700px,92dvh)] w-[min(760px,86vw)] flex-col items-center justify-center px-5 pb-[30px] pt-[clamp(54px,8dvh,92px)] max-sm:min-h-[100dvh] max-sm:pt-[72px] [@media(max-height:620px)]:min-h-[100dvh] [@media(max-height:620px)]:pt-[54px]"
         initial={reduceMotion ? false : { opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={
@@ -162,7 +162,7 @@ export function TitleScreen({
         <AnimatePresence mode="wait" initial={false}>
           <motion.img
             key={locale}
-            className="block max-h-[33dvh] w-[min(720px,82vw)] select-none object-contain [filter:drop-shadow(0_6px_0_rgb(36_21_13_/_0.55))] [image-rendering:pixelated] max-sm:max-h-[29dvh] max-sm:w-[92vw] [@media(max-height:620px)]:max-h-[27dvh]"
+            className="title-screen-title block max-h-[33dvh] w-[min(720px,82vw)] select-none object-contain [filter:drop-shadow(0_6px_0_rgb(36_21_13_/_0.55))] [image-rendering:pixelated] max-sm:max-h-[29dvh] max-sm:w-[92vw] [@media(max-height:620px)]:max-h-[27dvh]"
             src={activeLocale.titleImage}
             alt={copy.titleAlt}
             draggable={false}
@@ -173,11 +173,17 @@ export function TitleScreen({
           />
         </AnimatePresence>
 
-        <div className="mt-[clamp(10px,1.8dvh,20px)] grid w-[min(290px,76vw)] gap-2.5 max-sm:w-[min(260px,80vw)] [@media(max-height:620px)]:mt-1 [@media(max-height:620px)]:gap-1.5">
-          <GameBtn size="lg" fullWidth onClick={() => setActiveDialog("start")}>
+        <div className="title-screen-actions mt-[clamp(10px,1.8dvh,20px)] grid w-[min(290px,76vw)] gap-2.5 max-sm:w-[min(260px,80vw)] [@media(max-height:620px)]:mt-1 [@media(max-height:620px)]:gap-1.5">
+          <GameBtn
+            className="title-screen-primary-button"
+            size="lg"
+            fullWidth
+            onClick={() => setActiveDialog("start")}
+          >
             {copy.start}
           </GameBtn>
           <GameBtn
+            className="title-screen-secondary-button"
             size="md"
             fullWidth
             onClick={() => setActiveDialog("settings")}
@@ -204,11 +210,11 @@ export function TitleScreen({
               aria-hidden="true"
             />
 
-            <div className="fixed inset-0 z-20 grid place-items-center overflow-y-auto p-5">
+            <div className="title-screen-dialog-layer fixed inset-0 z-20 grid place-items-center overflow-y-auto p-5">
               <motion.div
                 className={
                   activeDialog === "start"
-                    ? "w-[min(700px,94vw)]"
+                    ? "title-screen-start-frame w-[min(700px,94vw)]"
                     : "w-[min(590px,92vw)]"
                 }
                 initial={
@@ -225,23 +231,23 @@ export function TitleScreen({
                   ease: STANDARD_EASE,
                 }}
               >
-                <DialogPanel className="pixel-panel max-h-[calc(100dvh-40px)] w-full overflow-y-auto bg-[#f0dfad] text-[#3a281d] outline-none shadow-[0_16px_34px_rgb(11_14_11_/_0.44)]">
+                <DialogPanel className="title-screen-dialog-panel pixel-panel max-h-[calc(100dvh-40px)] w-full overflow-y-auto bg-[#f0dfad] text-[#3a281d] outline-none shadow-[0_16px_34px_rgb(11_14_11_/_0.44)]">
                   {activeDialog === "start" ? (
-                    <div className="relative flex flex-col items-center p-[clamp(18px,4vw,32px)]">
+                    <div className="title-screen-start-content relative flex flex-col items-center p-[clamp(18px,4vw,32px)]">
                       <DialogTitle className="sr-only">
                         {copy.startDialogTitle}
                       </DialogTitle>
 
                       <button
                         type="button"
-                        className="absolute right-3 top-3 z-[2] grid size-9 place-items-center border-2 border-[#5b3c29] bg-[#dfc485] text-[#513321] transition-colors hover:bg-[#eed79d] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#8d5d34]"
+                        className="title-screen-close absolute right-3 top-3 z-[2] grid size-9 place-items-center border-2 border-[#5b3c29] bg-[#dfc485] text-[#513321] transition-colors hover:bg-[#eed79d] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#8d5d34]"
                         aria-label={copy.back}
                         onClick={closeDialog}
                       >
                         <XMarkIcon className="size-6" aria-hidden="true" />
                       </button>
 
-                      <div className="grid w-full grid-cols-2 gap-[clamp(10px,2.4vw,22px)] pt-7">
+                      <div className="title-screen-start-options grid w-full grid-cols-2 gap-[clamp(10px,2.4vw,22px)] pt-7">
                         {config.startChoices.map((choice) => (
                           <motion.button
                             type="button"
@@ -257,7 +263,7 @@ export function TitleScreen({
                             transition={{ duration: 0.12 }}
                           >
                             <img
-                              className="min-h-0 w-[min(78%,190px)] flex-1 object-contain [image-rendering:pixelated] [filter:drop-shadow(0_3px_0_rgb(69_42_24_/_0.18))]"
+                              className="session-choice-icon min-h-0 w-[min(78%,190px)] flex-1 object-contain [image-rendering:pixelated] [filter:drop-shadow(0_3px_0_rgb(69_42_24_/_0.18))]"
                               src={choice.icon}
                               alt=""
                               draggable={false}
@@ -287,12 +293,12 @@ export function TitleScreen({
                       </AnimatePresence>
                     </div>
                   ) : (
-                    <div className="flex flex-col items-center p-[clamp(18px,4vw,32px)]">
-                      <DialogTitle className="m-0 text-center text-[clamp(24px,5vw,32px)] font-black leading-tight text-[#352219]">
+                    <div className="title-screen-settings-content flex flex-col items-center p-[clamp(18px,4vw,32px)]">
+                      <DialogTitle className="title-screen-settings-title m-0 text-center text-[clamp(24px,5vw,32px)] font-black leading-tight text-[#352219]">
                         {copy.settingsTitle}
                       </DialogTitle>
 
-                      <div className="mt-[18px] w-full">
+                      <div className="title-screen-settings-sound mt-[18px] w-full">
                         <h2 className="mb-2.5 mt-0 text-[17px] font-black text-[#4d3324]">
                           {copy.soundTitle}
                         </h2>
@@ -322,7 +328,7 @@ export function TitleScreen({
 
                             return (
                               <label
-                                className="grid min-h-[34px] grid-cols-[minmax(88px,1fr)_minmax(130px,2fr)_44px] items-center gap-2.5 text-[13px] font-bold text-[#563c2a] max-sm:grid-cols-[84px_minmax(96px,1fr)_38px] max-sm:gap-[7px]"
+                                className="title-screen-volume-row grid min-h-[34px] grid-cols-[minmax(88px,1fr)_minmax(130px,2fr)_44px] items-center gap-2.5 text-[13px] font-bold text-[#563c2a] max-sm:grid-cols-[84px_minmax(96px,1fr)_38px] max-sm:gap-[7px]"
                                 key={id}
                               >
                                 <span>{label}</span>
@@ -348,14 +354,14 @@ export function TitleScreen({
                         </div>
                       </div>
 
-                      <div className="mt-[18px] w-full">
+                      <div className="title-screen-settings-controls mt-[18px] w-full">
                         <h2 className="mb-2.5 mt-0 text-[17px] font-black text-[#4d3324]">
                           {copy.controlsTitle}
                         </h2>
-                        <dl className="mb-[22px] grid gap-1.5">
+                        <dl className="title-screen-controls-list mb-[22px] grid gap-1.5">
                           {config.controls.map((control) => (
                             <div
-                              className="grid min-h-[34px] grid-cols-[1fr_auto] items-center gap-4 border-b border-[rgb(85_58_39_/_0.24)] pb-1.5"
+                              className="title-screen-control-row grid min-h-[34px] grid-cols-[1fr_auto] items-center gap-4 border-b border-[rgb(85_58_39_/_0.24)] pb-1.5"
                               key={control.id}
                             >
                               <dt className="text-[13px] font-extrabold">
@@ -369,7 +375,11 @@ export function TitleScreen({
                         </dl>
                       </div>
 
-                      <GameBtn size="sm" onClick={closeDialog}>
+                      <GameBtn
+                        className="title-screen-settings-done"
+                        size="sm"
+                        onClick={closeDialog}
+                      >
                         {copy.done}
                       </GameBtn>
                     </div>

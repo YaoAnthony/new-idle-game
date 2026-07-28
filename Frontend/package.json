@@ -12,6 +12,8 @@
   "dependencies": {
     "@ant-design/icons": "^5.6.1",
     "@ant-design/v5-patch-for-react-19": "^1.0.3",
+    "@fontsource/fusion-pixel-12px-proportional-jp": "^5.3.0",
+    "@fontsource/fusion-pixel-12px-proportional-sc": "^5.3.0",
     "@headlessui/react": "^2.2.10",
     "@heroicons/react": "^2.2.0",
     "@paypal/react-paypal-js": "^8.9.2",
@@ -32,6 +34,7 @@
     "motion": "^11.18.2",
     "phaser": "^3.90.0",
     "phaser-raycaster": "^0.10.11",
+    "pngjs": "^7.0.0",
     "prismjs": "^1.30.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

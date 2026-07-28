@@ -1,7 +1,7 @@
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { XMarkIcon } from "@heroicons/react/24/solid";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { GameBtn } from "../GameBtn";
 import {
   type AudioChannel,
@@ -57,6 +57,8 @@ export function TitleScreen({
     readStoredSettings(config),
   );
   const [notice, setNotice] = useState<string | null>(null);
+  const startButtonRef = useRef<HTMLButtonElement>(null);
+  const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const copy = TITLE_SCREEN_COPY[locale];
 
   const activeLocale = useMemo(
@@ -80,6 +82,12 @@ export function TitleScreen({
     localStorage.setItem(config.persistence.localeKey, locale);
     document.documentElement.lang = activeLocale.htmlLanguage;
   }, [activeLocale, config.persistence.localeKey, locale]);
+
+  useEffect(() => {
+    if (activeDialog === null) {
+      startButtonRef.current?.focus({ preventScroll: true });
+    }
+  }, [activeDialog]);
 
   const closeDialog = () => {
     setActiveDialog(null);
@@ -115,15 +123,116 @@ export function TitleScreen({
     setNotice(copy[choice.noticeCopyKey]);
   };
 
+  const handleMenuKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+
+    event.preventDefault();
+    const order = [startButtonRef.current, settingsButtonRef.current].filter(
+      (button): button is HTMLButtonElement => button !== null,
+    );
+    if (order.length === 0) return;
+
+    const index = order.indexOf(document.activeElement as HTMLButtonElement);
+    const step = event.key === "ArrowDown" ? 1 : -1;
+    const next = (index + step + order.length) % order.length;
+    order[next].focus({ preventScroll: true });
+  };
+
   if (!activeLocale) return null;
 
   return (
     <section
-      className="relative z-[1] grid h-[100dvh] min-h-0 place-items-center overflow-hidden text-[#f8edc8] max-sm:place-items-start"
+      className="relative z-[1] h-[100dvh] min-h-0 overflow-hidden text-[#f8edc8]"
       aria-label={copy.titleAlt}
     >
       <div
-        className="title-screen-locale absolute right-[clamp(14px,2.5vw,30px)] top-[clamp(14px,2.5vw,28px)] z-[2] inline-grid grid-flow-col gap-0.5 border-2 border-[#342218] bg-[rgb(39_29_21_/_0.88)] p-[3px] shadow-[0_4px_0_rgb(15_18_14_/_0.3)] max-sm:right-3 max-sm:top-3"
+        className="pointer-events-none absolute inset-0 z-[1]"
+        style={{
+          background:
+            "radial-gradient(115% 92% at 50% 40%, transparent 50%, rgb(12 8 5 / 0.46) 100%), linear-gradient(to top, rgb(12 8 5 / 0.5), transparent 24%)",
+        }}
+        aria-hidden="true"
+      />
+
+      <motion.div
+        className="title-screen-hero absolute left-1/2 top-[clamp(28px,7dvh,72px)] z-[2] w-[min(560px,76vw)] -translate-x-1/2 max-sm:top-[7dvh] max-sm:w-[88vw] [@media(max-height:620px)]:top-4 [@media(max-height:620px)]:w-[min(420px,60vw)]"
+        initial={reduceMotion ? false : { opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={
+          reduceMotion
+            ? { duration: 0 }
+            : { duration: 0.7, ease: STANDARD_EASE }
+        }
+      >
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.img
+            key={locale}
+            className="block w-full select-none object-contain [filter:drop-shadow(0_6px_0_rgb(24_14_9_/_0.5))] [image-rendering:pixelated]"
+            src={activeLocale.titleImage}
+            alt={copy.titleAlt}
+            draggable={false}
+            initial={reduceMotion ? false : { opacity: 0 }}
+            animate={
+              reduceMotion
+                ? { opacity: 1 }
+                : { opacity: 1, y: [0, -6, 0] }
+            }
+            exit={reduceMotion ? undefined : { opacity: 0 }}
+            transition={
+              reduceMotion
+                ? { duration: 0 }
+                : {
+                    opacity: { duration: 0.18 },
+                    y: {
+                      duration: 5.6,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                    },
+                  }
+            }
+          />
+        </AnimatePresence>
+      </motion.div>
+
+      <motion.nav
+        className="title-menu absolute bottom-[clamp(44px,11dvh,104px)] left-1/2 z-[2] grid w-[min(264px,72vw)] -translate-x-1/2 gap-3 [@media(max-height:620px)]:bottom-6 [@media(max-height:620px)]:gap-2"
+        aria-label={copy.titleAlt}
+        onKeyDown={handleMenuKeyDown}
+        initial={reduceMotion ? false : { opacity: 0, y: 14 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={
+          reduceMotion
+            ? { duration: 0 }
+            : { duration: 0.7, delay: 0.12, ease: STANDARD_EASE }
+        }
+      >
+        <GameBtn
+          ref={startButtonRef}
+          size="lg"
+          fullWidth
+          onClick={() => setActiveDialog("start")}
+        >
+          {copy.start}
+        </GameBtn>
+        <GameBtn
+          ref={settingsButtonRef}
+          size="md"
+          fullWidth
+          onClick={() => setActiveDialog("settings")}
+        >
+          {copy.settings}
+        </GameBtn>
+      </motion.nav>
+
+      <p
+        className="pointer-events-none absolute bottom-2.5 left-3 z-[2] m-0 text-[12px] tracking-wider text-[rgb(248_237_200_/_0.5)]"
+        aria-hidden="true"
+      >
+        ver 0.1
+      </p>
+
+      <div
+        className="title-screen-locale absolute bottom-2.5 right-3 z-[2] flex gap-1.5"
         role="group"
         aria-label={copy.localeLabel}
       >
@@ -135,10 +244,8 @@ export function TitleScreen({
               type="button"
               key={localeOption.id}
               className={[
-                "title-screen-locale-option min-h-8 min-w-[68px] cursor-pointer border-0 px-3 text-[13px] font-bold tracking-normal transition-colors hover:bg-[#59402b] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#fff0ad] max-sm:min-h-[30px] max-sm:min-w-[58px] max-sm:px-2 max-sm:text-xs",
-                isActive
-                  ? "bg-[#d9ad68] text-[#2c2119]"
-                  : "bg-transparent text-[#eadbb5]",
+                "title-locale-tab",
+                isActive ? "title-locale-tab--active" : "",
               ].join(" ")}
               aria-pressed={isActive}
               onClick={() => selectLocale(localeOption.id)}
@@ -148,50 +255,6 @@ export function TitleScreen({
           );
         })}
       </div>
-
-      <motion.div
-        className="title-screen-content flex min-h-[min(700px,92dvh)] w-[min(760px,86vw)] flex-col items-center justify-center px-5 pb-[30px] pt-[clamp(54px,8dvh,92px)] max-sm:min-h-[100dvh] max-sm:pt-[72px] [@media(max-height:620px)]:min-h-[100dvh] [@media(max-height:620px)]:pt-[54px]"
-        initial={reduceMotion ? false : { opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={
-          reduceMotion
-            ? { duration: 0 }
-            : { duration: 0.62, ease: STANDARD_EASE }
-        }
-      >
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.img
-            key={locale}
-            className="title-screen-title block max-h-[33dvh] w-[min(720px,82vw)] select-none object-contain [filter:drop-shadow(0_6px_0_rgb(36_21_13_/_0.55))] [image-rendering:pixelated] max-sm:max-h-[29dvh] max-sm:w-[92vw] [@media(max-height:620px)]:max-h-[27dvh]"
-            src={activeLocale.titleImage}
-            alt={copy.titleAlt}
-            draggable={false}
-            initial={reduceMotion ? false : { opacity: 0, y: 5 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={reduceMotion ? undefined : { opacity: 0, y: -5 }}
-            transition={{ duration: reduceMotion ? 0 : 0.18 }}
-          />
-        </AnimatePresence>
-
-        <div className="title-screen-actions mt-[clamp(10px,1.8dvh,20px)] grid w-[min(290px,76vw)] gap-2.5 max-sm:w-[min(260px,80vw)] [@media(max-height:620px)]:mt-1 [@media(max-height:620px)]:gap-1.5">
-          <GameBtn
-            className="title-screen-primary-button"
-            size="lg"
-            fullWidth
-            onClick={() => setActiveDialog("start")}
-          >
-            {copy.start}
-          </GameBtn>
-          <GameBtn
-            className="title-screen-secondary-button"
-            size="md"
-            fullWidth
-            onClick={() => setActiveDialog("settings")}
-          >
-            {copy.settings}
-          </GameBtn>
-        </div>
-      </motion.div>
 
       <AnimatePresence>
         {activeDialog ? (
@@ -214,44 +277,44 @@ export function TitleScreen({
               <motion.div
                 className={
                   activeDialog === "start"
-                    ? "title-screen-start-frame w-[min(700px,94vw)]"
-                    : "w-[min(590px,92vw)]"
+                    ? "title-screen-start-frame w-[min(640px,94vw)]"
+                    : "w-[min(560px,92vw)]"
                 }
                 initial={
-                  reduceMotion ? false : { opacity: 0, y: 8, scale: 0.99 }
+                  reduceMotion ? false : { opacity: 0, y: 10, scale: 0.97 }
                 }
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={
                   reduceMotion
                     ? { opacity: 0 }
-                    : { opacity: 0, y: 8, scale: 0.99 }
+                    : { opacity: 0, y: 10, scale: 0.97 }
                 }
                 transition={{
-                  duration: reduceMotion ? 0 : 0.18,
+                  duration: reduceMotion ? 0 : 0.2,
                   ease: STANDARD_EASE,
                 }}
               >
-                <DialogPanel className="title-screen-dialog-panel pixel-panel max-h-[calc(100dvh-40px)] w-full overflow-y-auto bg-[#f0dfad] text-[#3a281d] outline-none shadow-[0_16px_34px_rgb(11_14_11_/_0.44)]">
+                <DialogPanel className="title-screen-dialog-panel pixel-panel max-h-[calc(100dvh-40px)] w-full overflow-y-auto text-[#3a281d] outline-none [filter:drop-shadow(0_14px_0_rgb(11_14_11_/_0.35))]">
                   {activeDialog === "start" ? (
-                    <div className="title-screen-start-content relative flex flex-col items-center p-[clamp(18px,4vw,32px)]">
-                      <DialogTitle className="sr-only">
+                    <div className="title-screen-start-content relative flex flex-col items-center pb-1 pt-2">
+                      <DialogTitle className="m-0 mb-4 text-center text-[24px] font-normal leading-tight tracking-wide text-[#4a3122]">
                         {copy.startDialogTitle}
                       </DialogTitle>
 
                       <button
                         type="button"
-                        className="title-screen-close absolute right-3 top-3 z-[2] grid size-9 place-items-center border-2 border-[#5b3c29] bg-[#dfc485] text-[#513321] transition-colors hover:bg-[#eed79d] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#8d5d34]"
+                        className="title-screen-close absolute -right-2 -top-2 z-[2] grid size-9 place-items-center border-[3px] border-[#5b3c29] bg-[#dfc485] text-[#513321] transition-colors hover:bg-[#eed79d] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#8d5d34]"
                         aria-label={copy.back}
                         onClick={closeDialog}
                       >
                         <XMarkIcon className="size-6" aria-hidden="true" />
                       </button>
 
-                      <div className="title-screen-start-options grid w-full grid-cols-2 gap-[clamp(10px,2.4vw,22px)] pt-7">
+                      <div className="title-screen-start-options grid w-full grid-cols-2 gap-[clamp(12px,2.4vw,22px)]">
                         {config.startChoices.map((choice) => (
                           <motion.button
                             type="button"
-                            className="session-choice group relative flex aspect-square min-w-0 cursor-pointer flex-col items-center justify-center gap-2 px-[clamp(8px,2vw,18px)] pb-[clamp(12px,2vw,20px)] pt-[clamp(14px,2vw,22px)] text-[#3b2519] outline-none"
+                            className="session-choice group relative flex aspect-square min-w-0 cursor-pointer flex-col items-center justify-center gap-2 px-[clamp(8px,2vw,18px)] pb-[clamp(12px,2vw,18px)] pt-[clamp(12px,2vw,18px)] text-[#3b2519] outline-none"
                             key={choice.id}
                             onClick={() => selectStartChoice(choice)}
                             whileHover={
@@ -263,12 +326,12 @@ export function TitleScreen({
                             transition={{ duration: 0.12 }}
                           >
                             <img
-                              className="session-choice-icon min-h-0 w-[min(78%,190px)] flex-1 object-contain [image-rendering:pixelated] [filter:drop-shadow(0_3px_0_rgb(69_42_24_/_0.18))]"
+                              className="session-choice-icon min-h-0 w-[min(74%,180px)] flex-1 object-contain [image-rendering:pixelated] [filter:drop-shadow(0_3px_0_rgb(69_42_24_/_0.18))]"
                               src={choice.icon}
                               alt=""
                               draggable={false}
                             />
-                            <span className="relative z-[1] text-[clamp(15px,2.2vw,20px)] font-black leading-none">
+                            <span className="relative z-[1] text-[clamp(16px,2.4vw,24px)] leading-none tracking-wide">
                               {copy[choice.copyKey]}
                             </span>
                           </motion.button>
@@ -278,7 +341,7 @@ export function TitleScreen({
                       <AnimatePresence initial={false}>
                         {notice ? (
                           <motion.p
-                            className="mb-0 mt-3 border-2 border-[#7a5235] bg-[#e3c98e] px-3 py-1 text-xs font-extrabold leading-normal text-[#4b3324]"
+                            className="mb-0 mt-4 border-2 border-[#7a5235] bg-[#e3c98e] px-3 py-1.5 text-[12px] leading-normal text-[#4b3324]"
                             role="status"
                             initial={
                               reduceMotion ? false : { opacity: 0, y: -4 }
@@ -293,17 +356,17 @@ export function TitleScreen({
                       </AnimatePresence>
                     </div>
                   ) : (
-                    <div className="title-screen-settings-content flex flex-col items-center p-[clamp(18px,4vw,32px)]">
-                      <DialogTitle className="title-screen-settings-title m-0 text-center text-[clamp(24px,5vw,32px)] font-black leading-tight text-[#352219]">
+                    <div className="title-screen-settings-content flex flex-col items-center pt-1">
+                      <DialogTitle className="title-screen-settings-title m-0 text-center text-[24px] font-normal leading-tight tracking-[3px] text-[#4a3122]">
                         {copy.settingsTitle}
                       </DialogTitle>
 
-                      <div className="title-screen-settings-sound mt-[18px] w-full">
-                        <h2 className="mb-2.5 mt-0 text-[17px] font-black text-[#4d3324]">
+                      <div className="title-screen-settings-sound mt-4 w-full">
+                        <h2 className="pixel-section-title">
                           {copy.soundTitle}
                         </h2>
 
-                        <label className="mb-2 flex min-h-[38px] cursor-pointer items-center justify-between gap-3.5 text-sm font-extrabold text-[#513927]">
+                        <label className="mb-2 flex min-h-[38px] cursor-pointer items-center justify-between gap-3.5 text-[12px] text-[#513927]">
                           <span>{copy.muteAll}</span>
                           <input
                             className="peer sr-only"
@@ -322,13 +385,13 @@ export function TitleScreen({
                           />
                         </label>
 
-                        <div className="grid gap-2">
+                        <div className="grid gap-2.5">
                           {config.audio.channels.map(({ id, copyKey }) => {
                             const label = copy[copyKey];
 
                             return (
                               <label
-                                className="title-screen-volume-row grid min-h-[34px] grid-cols-[minmax(88px,1fr)_minmax(130px,2fr)_44px] items-center gap-2.5 text-[13px] font-bold text-[#563c2a] max-sm:grid-cols-[84px_minmax(96px,1fr)_38px] max-sm:gap-[7px]"
+                                className="title-screen-volume-row grid min-h-[34px] grid-cols-[minmax(88px,1fr)_minmax(130px,2fr)_44px] items-center gap-2.5 text-[12px] text-[#563c2a] max-sm:grid-cols-[84px_minmax(96px,1fr)_38px] max-sm:gap-[7px]"
                                 key={id}
                               >
                                 <span>{label}</span>
@@ -344,7 +407,7 @@ export function TitleScreen({
                                     updateVolume(id, Number(event.target.value))
                                   }
                                 />
-                                <output className="text-right">
+                                <output className="text-right text-[12px]">
                                   {audioSettings[id]}
                                   {config.audio.range.unit}
                                 </output>
@@ -354,20 +417,20 @@ export function TitleScreen({
                         </div>
                       </div>
 
-                      <div className="title-screen-settings-controls mt-[18px] w-full">
-                        <h2 className="mb-2.5 mt-0 text-[17px] font-black text-[#4d3324]">
+                      <div className="title-screen-settings-controls mt-4 w-full">
+                        <h2 className="pixel-section-title">
                           {copy.controlsTitle}
                         </h2>
-                        <dl className="title-screen-controls-list mb-[22px] grid gap-1.5">
+                        <dl className="title-screen-controls-list mb-5 grid gap-1.5">
                           {config.controls.map((control) => (
                             <div
-                              className="title-screen-control-row grid min-h-[34px] grid-cols-[1fr_auto] items-center gap-4 border-b border-[rgb(85_58_39_/_0.24)] pb-1.5"
+                              className="title-screen-control-row grid min-h-[34px] grid-cols-[1fr_auto] items-center gap-4 border-b-2 border-dashed border-[rgb(85_58_39_/_0.28)] pb-1.5"
                               key={control.id}
                             >
-                              <dt className="text-[13px] font-extrabold">
+                              <dt className="text-[12px]">
                                 {copy[control.copyKey]}
                               </dt>
-                              <dd className="m-0 border-2 border-[#65452f] bg-[#e5cc93] px-2 py-1 font-mono text-xs font-extrabold text-[#3e2b20]">
+                              <dd className="pixel-keycap m-0">
                                 {control.binding}
                               </dd>
                             </div>

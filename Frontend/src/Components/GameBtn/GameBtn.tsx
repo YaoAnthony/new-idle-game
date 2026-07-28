@@ -1,9 +1,9 @@
-import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from "react";
+import type { ComponentPropsWithRef, CSSProperties, ReactNode } from "react";
 import "./GameBtn.css";
 
 type GameBtnSize = "sm" | "md" | "lg";
 
-export type GameBtnProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+export type GameBtnProps = ComponentPropsWithRef<"button"> & {
   children: ReactNode;
   size?: GameBtnSize;
   selected?: boolean;

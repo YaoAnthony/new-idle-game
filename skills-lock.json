@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "typescript": {
+      "source": "dalestudy/skills",
+      "sourceType": "github",
+      "skillPath": "skills/typescript/SKILL.md",
+      "computedHash": "e761d32c35e23cf6a62f848d4cc4cd3bd5893f36926026701b87f09a8d0cd91c"
+    }
+  }
+}

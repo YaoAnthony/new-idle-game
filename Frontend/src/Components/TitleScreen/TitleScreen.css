@@ -1,7 +1,67 @@
 .pixel-panel {
-  border: 9px solid transparent;
-  border-image: url("../../Assets/ui/panel-frame.png") 9 fill stretch;
+  padding: clamp(20px, 4vw, 30px);
+  border: 20px solid transparent;
+  border-image: url("../../Assets/ui/panel-frame.png") 10 fill stretch;
   image-rendering: pixelated;
+}
+
+/* 菜单按钮左侧的像素箭头（悬停 / 键盘焦点时出现） */
+.title-menu .game-btn:hover::before,
+.title-menu .game-btn:focus-visible::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -30px;
+  width: 16px;
+  height: 24px;
+  background: url("../../Assets/ui/menu-arrow.png") center / contain no-repeat;
+  image-rendering: pixelated;
+  transform: translateY(-50%);
+}
+
+.title-menu .game-btn:focus-visible {
+  outline: none;
+}
+
+.title-locale-tab {
+  min-width: 64px;
+  min-height: 30px;
+  padding: 4px 10px 6px;
+  border: 3px solid #342218;
+  background: rgb(52 36 24 / 0.85);
+  color: rgb(234 219 181 / 0.85);
+  font-size: 12px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  image-rendering: pixelated;
+  box-shadow: inset 0 -3px 0 rgb(15 10 6 / 0.35);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.title-locale-tab:hover {
+  background: #59402b;
+  color: #f4e5bd;
+}
+
+.title-locale-tab--active {
+  background: #d9ad68;
+  color: #2c2119;
+  box-shadow: inset 0 3px 0 rgb(255 240 190 / 0.6);
+}
+
+.title-locale-tab:focus-visible {
+  outline: 3px solid #fff0ad;
+  outline-offset: 2px;
+}
+
+.pixel-section-title {
+  margin: 0 0 10px;
+  padding-bottom: 4px;
+  border-bottom: 3px solid rgb(90 56 37 / 0.4);
+  color: #6b4a30;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 3px;
 }
 
 .session-choice {
@@ -32,58 +92,75 @@
   outline-offset: 4px;
 }
 
+.pixel-keycap {
+  padding: 5px 8px 7px;
+  border: 3px solid #65452f;
+  background: #e5cc93;
+  box-shadow:
+    inset 0 -3px 0 rgb(101 69 47 / 0.35),
+    inset 0 2px 0 rgb(255 244 205 / 0.7);
+  color: #3e2b20;
+  font-size: 12px;
+  letter-spacing: 1px;
+}
+
 .pixel-switch {
   position: relative;
-  width: 46px;
-  height: 24px;
+  width: 48px;
+  height: 26px;
   flex: 0 0 auto;
   border: 3px solid #4b3122;
   background: #826344;
+  box-shadow: inset 0 3px 0 rgb(43 27 16 / 0.35);
 }
 
 .pixel-switch::after {
   content: "";
   position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 12px;
-  height: 12px;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
   background: #f5e3ad;
-  box-shadow: 2px 2px 0 #4a3021;
-  transition: transform 120ms ease-out;
+  border: 2px solid #4a3021;
+  box-shadow: 2px 2px 0 rgb(43 27 16 / 0.45);
+  transition: transform 120ms steps(3, end);
 }
 
 .peer:checked + .pixel-switch::after {
-  transform: translateX(20px);
+  transform: translateX(22px);
 }
 
 .pixel-range {
   width: 100%;
-  height: 6px;
-  border: 2px solid #3d291e;
+  height: 12px;
+  border: 3px solid #3d291e;
   border-radius: 0;
   appearance: none;
-  background: #a47c4f;
+  background:
+    linear-gradient(180deg, rgb(43 26 15 / 0.4), transparent 40%),
+    #a47c4f;
   cursor: pointer;
 }
 
 .pixel-range::-webkit-slider-thumb {
-  width: 16px;
-  height: 22px;
-  border: 3px solid #3c291e;
+  width: 20px;
+  height: 28px;
+  border: 0;
   border-radius: 0;
   appearance: none;
-  background: #f1dda6;
-  box-shadow: 2px 2px 0 rgb(59 38 27 / 0.35);
+  background: url("../../Assets/ui/range-knob.png") center / contain no-repeat;
+  image-rendering: pixelated;
+  filter: drop-shadow(2px 2px 0 rgb(59 38 27 / 0.35));
 }
 
 .pixel-range::-moz-range-thumb {
-  width: 12px;
-  height: 18px;
-  border: 3px solid #3c291e;
+  width: 20px;
+  height: 28px;
+  border: 0;
   border-radius: 0;
-  background: #f1dda6;
-  box-shadow: 2px 2px 0 rgb(59 38 27 / 0.35);
+  background: url("../../Assets/ui/range-knob.png") center / contain no-repeat;
+  filter: drop-shadow(2px 2px 0 rgb(59 38 27 / 0.35));
 }
 
 .pixel-range:focus-visible {
@@ -92,41 +169,24 @@
 }
 
 @media (orientation: landscape) and (max-height: 500px) {
-  .title-screen-locale {
-    top: 8px;
-    right: 8px;
+  .title-screen-hero {
+    top: 10px;
+    width: min(360px, 46vw);
   }
 
-  .title-screen-locale-option {
-    min-width: 54px;
-    min-height: 28px;
-    padding-inline: 8px;
-    font-size: 11px;
+  .title-menu {
+    bottom: 16px;
+    width: min(232px, 52vw);
+    gap: 6px;
   }
 
-  .title-screen-content {
-    padding-top: 32px;
-    padding-bottom: 12px;
+  .title-menu .game-btn--lg {
+    --game-btn-font-size: 24px;
+    --game-btn-height: 56px;
   }
 
-  .title-screen-title {
-    max-height: 24dvh;
-  }
-
-  .title-screen-actions {
-    width: min(260px, 62vw);
-    gap: 4px;
-  }
-
-  .title-screen-primary-button {
-    --game-btn-font-size: 20px;
-    --game-btn-min-width: 200px;
-    --game-btn-height: 52px;
-  }
-
-  .title-screen-secondary-button {
-    --game-btn-font-size: 16px;
-    --game-btn-min-width: 180px;
+  .title-menu .game-btn--md {
+    --game-btn-font-size: 12px;
     --game-btn-height: 40px;
   }
 
@@ -135,27 +195,20 @@
   }
 
   .title-screen-start-frame {
-    width: min(660px, 96vw);
+    width: min(600px, 96vw);
   }
 
   .title-screen-dialog-panel {
     max-height: calc(100dvh - 16px);
   }
 
-  .title-screen-start-content {
-    padding: 12px;
-  }
-
-  .title-screen-close {
-    top: 8px;
-    right: 8px;
-    width: 32px;
-    height: 32px;
+  .pixel-panel {
+    padding: 10px 14px;
+    border-width: 14px;
   }
 
   .title-screen-start-options {
     gap: 12px;
-    padding-top: 4px;
   }
 
   .session-choice {
@@ -165,7 +218,7 @@
   }
 
   .session-choice-icon {
-    width: min(64%, 150px);
+    width: min(58%, 130px);
   }
 
   .title-screen-settings-content {
@@ -173,13 +226,11 @@
     grid-template-columns: minmax(0, 1.2fr) minmax(210px, 0.9fr);
     grid-template-rows: auto 1fr auto;
     column-gap: 16px;
-    padding: 12px 16px;
     align-items: start;
   }
 
   .title-screen-settings-title {
     grid-column: 1 / -1;
-    font-size: 20px;
   }
 
   .title-screen-settings-sound,
@@ -187,21 +238,15 @@
     margin-top: 6px;
   }
 
-  .title-screen-settings-sound h2,
-  .title-screen-settings-controls h2 {
-    margin-bottom: 4px;
-    font-size: 14px;
-  }
-
   .title-screen-settings-sound label {
     min-height: 27px;
     margin-bottom: 0;
-    font-size: 12px;
   }
 
   .title-screen-volume-row {
     grid-template-columns: 64px minmax(74px, 1fr) 34px;
     gap: 6px;
+    min-height: 28px;
   }
 
   .title-screen-controls-list {
@@ -215,20 +260,12 @@
     padding-bottom: 3px;
   }
 
-  .title-screen-control-row dt,
-  .title-screen-control-row dd {
+  .pixel-keycap {
+    padding: 3px 5px 5px;
     font-size: 10px;
   }
 
-  .title-screen-control-row dd {
-    padding: 3px 5px;
-  }
-
   .title-screen-settings-done {
-    --game-btn-font-size: 12px;
-    --game-btn-min-width: 108px;
-    --game-btn-height: 32px;
-
     grid-column: 1 / -1;
     justify-self: center;
     margin-top: 6px;

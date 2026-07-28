@@ -5,6 +5,8 @@ export default {
     extend: {
       fontFamily: {
         game: [
+          '"Fusion Pixel 12px Proportional SC"',
+          '"Fusion Pixel 12px Proportional JP"',
           '"Noto Sans SC"',
           '"PingFang SC"',
           '"Hiragino Sans GB"',

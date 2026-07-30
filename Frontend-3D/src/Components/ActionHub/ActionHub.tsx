@@ -9,6 +9,7 @@ import {
 } from "core";
 import { useEffect, useState } from "react";
 import { on } from "../../Game/EventBus";
+import { nowMs } from "../../Game/State/clock";
 import {
   addActionEntry,
   canAfford,
@@ -105,7 +106,7 @@ export function ActionHub() {
   useEffect(() => {
     if (!active) return;
     const timer = setInterval(() => {
-      setRemaining(Math.max(0, active.startedAtMs + active.durationMs - Date.now()));
+      setRemaining(Math.max(0, active.startedAtMs + active.durationMs - nowMs()));
     }, 500);
     return () => clearInterval(timer);
   }, [active]);
@@ -143,7 +144,8 @@ export function ActionHub() {
     <>
       <button
         type="button"
-        className="ui-wood-btn absolute right-4 top-4 z-10 px-4 py-2 text-[14px] font-bold"
+        // right-16 而不是 right-4：右上角最外侧留给设置齿轮
+        className="ui-wood-btn absolute right-16 top-4 z-10 px-4 py-2 text-[14px] font-bold"
         onClick={() => setOpen((value) => !value)}
       >
         {t("ui.action.title")}

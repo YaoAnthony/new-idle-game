@@ -389,6 +389,42 @@ const ZH: Record<string, string> = {
   "ui.craft.into_hotbar": "做好了，放进了下方快捷栏",
   "ui.craft.into_backpack": "做好了，放进了背包（按 B 查看）",
 
+  // ---- 设置侧边栏 ----
+  "ui.settings.title": "设置",
+  "ui.settings.sound": "声音",
+  "ui.settings.mute": "全部静音",
+  "ui.settings.master": "主音量",
+  "ui.settings.music": "音乐",
+  "ui.settings.ambience": "环境音",
+  "ui.settings.effects": "音效",
+  "ui.settings.controls": "键位",
+  "ui.settings.key_move": "移动",
+  "ui.settings.key_interact": "交互",
+  "ui.settings.key_backpack": "背包",
+  "ui.settings.key_dump": "倒掉锅里的",
+  "ui.settings.key_rotate": "旋转镜头 / 家具",
+  "ui.settings.close": "关闭",
+
+  // ---- 世界时钟与天气 ----
+  "clock.phase.dawn": "清晨",
+  "clock.phase.day": "白天",
+  "clock.phase.dusk": "傍晚",
+  "clock.phase.night": "夜里",
+
+  "weather.sunny": "晴",
+  "weather.cloudy": "阴",
+  "weather.rain": "雨",
+  "weather.wind": "风",
+  "weather.storm": "暴雨",
+
+  // 音频（注册表里的 localizationKey，将来做音量面板分组用）
+  "audio.ambience_forest": "森林",
+  "audio.ambience_sea": "海边",
+  "audio.weather_rain": "雨声",
+  "audio.weather_storm": "暴雨",
+  "audio.thunder": "雷声",
+  "audio.eat": "进食",
+
   // 坐 / 躺。站着时用家具自己的提示文案，这里只补状态变了之后的那两句
   "hint.stand": "起来",
   "hint.sleep_now": "睡吧",

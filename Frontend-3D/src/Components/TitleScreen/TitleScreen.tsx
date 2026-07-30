@@ -2,6 +2,8 @@ import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { XMarkIcon } from "@heroicons/react/24/solid";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
+import { unlockAudio } from "../../Game3D/Engine/AudioEngine";
+import { applyAudioSettings } from "../../Game3D/Engine/audioSettings";
 import { GameBtn } from "../GameBtn";
 import {
   type AudioChannel,
@@ -77,6 +79,12 @@ export function TitleScreen({
       config.persistence.settingsKey,
       JSON.stringify(audioSettings),
     );
+
+    /**
+     * 光写存储不够——还得真的作用到音频总线上，否则拖滑块没反应。
+     * 在标题页就应用是刻意的：这里能一边拖一边听（标题页有音乐）。
+     */
+    applyAudioSettings(audioSettings);
   }, [audioSettings, config.persistence.settingsKey]);
 
   useEffect(() => {
@@ -97,6 +105,8 @@ export function TitleScreen({
   };
 
   const updateVolume = (key: AudioChannel, value: number) => {
+    // 拖滑块是真实手势，正好用来解锁音频上下文（浏览器要求）
+    unlockAudio();
     setAudioSettings((current) => ({ ...current, [key]: value }));
   };
 
@@ -324,12 +334,15 @@ export function TitleScreen({
                             className="peer sr-only"
                             type="checkbox"
                             checked={audioSettings.muted}
-                            onChange={(event) =>
+                            onChange={(event) => {
+                              // 取消静音可能是玩家的第一个手势，顺便解锁音频
+                              unlockAudio();
+                              const { checked } = event.target;
                               setAudioSettings((current) => ({
                                 ...current,
-                                muted: event.target.checked,
-                              }))
-                            }
+                                muted: checked,
+                              }));
+                            }}
                           />
                           <span
                             className="pixel-switch peer-checked:bg-[#608052] peer-focus-visible:outline peer-focus-visible:outline-[3px] peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[#8d5d34]"

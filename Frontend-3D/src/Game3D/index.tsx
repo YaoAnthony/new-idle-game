@@ -13,17 +13,32 @@ import { Hotbar } from "../Components/Hotbar/Hotbar";
 import { InteractBubble } from "../Components/InteractBubble/InteractBubble";
 import { InteractHint } from "../Components/InteractHint/InteractHint";
 import { NeedsHud } from "../Components/NeedsHud/NeedsHud";
+import { SettingsDrawer } from "../Components/SettingsDrawer/SettingsDrawer";
 import { SleepOverlay } from "../Components/SleepOverlay/SleepOverlay";
 import { StoryToast } from "../Components/StoryToast/StoryToast";
 import { StationPanel } from "../Components/StationPanel/StationPanel";
 import { TutorialGuide } from "../Components/TutorialGuide/TutorialGuide";
+import { WorldClock } from "../Components/WorldClock/WorldClock";
 import {
   parseEnum,
   registerCommand,
   type CommandResult,
 } from "../Game/CommandLine/commands";
 import { saveNow, startAutosave } from "../Data/Save";
+import {
+  debugAdvanceHours,
+  debugJumpToPhase,
+  formatLocalTime,
+  getClock,
+  startClock,
+} from "../Game/State/clock";
 import { getHeld } from "../Game/State/heldItem";
+import {
+  debugClearWeather,
+  debugForceWeather,
+  getWeather,
+  startWeather,
+} from "../Game/State/weather";
 import {
   addItem,
   getBackpack,
@@ -42,6 +57,9 @@ import {
   signal,
   startStorySystem,
 } from "../Game/Systems/story";
+import { unlockAudio } from "./Engine/AudioEngine";
+import { initAudioSettings } from "./Engine/audioSettings";
+import { describeSoundscape, startSoundscape } from "./Engine/Soundscape";
 import { RoomScene } from "./World/RoomScene";
 
 /** /signal 的可选值。和 Core 的 StorySignalKind 一一对应 */
@@ -96,6 +114,21 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
     // 读档进来时行李和屋里的东西都已经在存档里了，再铺一遍会凭空多出物品
     if (!loadedFromSave) seedInitialInventory();
 
+    // 时钟必须最先起：天气要读世界日，剧情与行动要读时间
+    const stopClock = startClock();
+    const stopWeather = startWeather();
+    // 音量偏好在标题页设过，进游戏要真的作用到总线上
+    initAudioSettings();
+    const stopSoundscape = startSoundscape();
+
+    /**
+     * 浏览器要求首次用户交互之后才能出声。这里挂一次性监听，
+     * 玩家第一次点击/按键就解锁，之后音景会自己补播。
+     */
+    const onFirstGesture = (): void => unlockAudio();
+    window.addEventListener("pointerdown", onFirstGesture, { once: true });
+    window.addEventListener("keydown", onFirstGesture, { once: true });
+
     const stopStory = startStorySystem(!loadedFromSave);
     const stopAutosave = startAutosave();
 
@@ -111,22 +144,57 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       registerCommand({
         name: "time",
         usage: "time <dawn|day|dusk|night>",
-        description: "切换昼夜阶段",
+        description: "把世界时钟拨到某个时段（光照/天空/音景一起跟着变）",
         handler: (args) => {
           const phase = parseEnum(args[0], PHASES, "时段");
-          scene.setPhase(phase);
-          return ok(`时段已切到 ${phase}`);
+          // 拨的是时钟偏移而不是"当前时段"这个结果——
+          // 于是调试和正式路径走同一套推导
+          if (!debugJumpToPhase(phase)) {
+            return { ok: false, message: `拨不到 ${phase}` };
+          }
+          const clock = getClock();
+          return ok(
+            `已拨到 ${phase}（世界日 ${clock.worldDayId} 本地 ${formatLocalTime(clock)}）`,
+          );
+        },
+      }),
+      registerCommand({
+        name: "advance",
+        usage: "advance <小时数>",
+        description: "把世界时钟往前推若干小时，用来看跨天与天气重掷",
+        handler: (args) => {
+          const hours = Number(args[0]);
+          if (!Number.isFinite(hours)) {
+            return { ok: false, message: "小时数得是个数字" };
+          }
+          debugAdvanceHours(hours);
+          const clock = getClock();
+          return ok(
+            `已前推 ${hours} 小时 → 世界日 ${clock.worldDayId} 本地 ${formatLocalTime(clock)} ${clock.phase}`,
+          );
         },
       }),
       registerCommand({
         name: "weather",
-        usage: "weather <sunny|cloudy|rain|wind|storm>",
-        description: "切换天气",
+        usage: "weather <sunny|cloudy|rain|wind|storm|auto>",
+        description: "按住某种天气（auto 恢复自然天气）",
         handler: (args) => {
+          if (args[0] === "auto") {
+            debugClearWeather();
+            return ok(`已恢复自然天气：${getWeather().id}`);
+          }
+
           const weather = parseEnum(args[0], WEATHERS, "天气");
-          scene.setWeather(weather);
-          return ok(`天气已切到 ${weather}`);
+          // 写一条 debug 覆盖，而不是直接改结果
+          debugForceWeather(weather);
+          return ok(`天气已按住为 ${weather}`);
         },
+      }),
+      registerCommand({
+        name: "sound",
+        usage: "sound",
+        description: "打印音景状态：解锁了吗、在播什么、该播什么",
+        handler: () => ok(JSON.stringify(describeSoundscape(), null, 1)),
       }),
       registerCommand({
         name: "outline",
@@ -257,8 +325,14 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       window.removeEventListener("resize", onResize);
       for (const remove of unregister) remove();
       // 离开前先把当前进度写下去，再摘掉自动存档
+      window.removeEventListener("pointerdown", onFirstGesture);
+      window.removeEventListener("keydown", onFirstGesture);
+
       void saveNow().then(stopAutosave);
       stopStory();
+      stopSoundscape();
+      stopWeather();
+      stopClock();
       scene.dispose();
       setScene(null);
       delete (window as unknown as { __scene?: RoomScene }).__scene;
@@ -277,6 +351,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       <DialoguePanel />
       <ActionHub />
       <NeedsHud />
+      <WorldClock />
+      <SettingsDrawer />
       <TutorialGuide />
       <SleepOverlay />
       <StoryToast />

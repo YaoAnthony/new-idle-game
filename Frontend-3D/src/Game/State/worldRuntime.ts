@@ -32,9 +32,16 @@ export type WorldRuntime = {
 
 let instanceCounter = 0;
 
+/**
+ * 当前屋子风格。**RoomSave 里只存生成结果不存风格 id**（"存结果不存配方"，
+ * 联机时访客直接用房主的几何），所以风格本身要单独记一份——
+ * 环境音要按 `regionId` 选（森林 / 海边），装修系统以后也要读它。
+ */
+let roomStyle = roomStyleDefinitions[0];
+
 let room = generateRoom({
   roomId: "living",
-  style: roomStyleDefinitions[0],
+  style: roomStyle,
 });
 
 let placedFurniture: PlacedFurniture[] = [];
@@ -51,6 +58,16 @@ function nextInstanceId(furnitureId: string): string {
 
 export function getWorld(): WorldRuntime {
   return { room, placedFurniture, occupancy };
+}
+
+/** 当前屋子风格（环境音按 regionId 选，装修系统以后也读它） */
+export function getRoomStyle(): (typeof roomStyleDefinitions)[number] {
+  return roomStyle;
+}
+
+export function setRoomStyleId(styleId: string): void {
+  const next = roomStyleDefinitions.find((style) => style.id === styleId);
+  if (next) roomStyle = next;
 }
 
 export function getDefinition(

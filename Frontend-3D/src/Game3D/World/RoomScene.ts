@@ -44,7 +44,9 @@ import {
   standUp,
 } from "../../Game/Systems/resting";
 import { startSleep } from "../../Game/Systems/sleep";
+import { getClock } from "../../Game/State/clock";
 import { getResting, isResting } from "../../Game/State/posture";
+import { getWeather } from "../../Game/State/weather";
 import {
   DEFAULT_POSTURE,
   defaultPoseFor,
@@ -229,6 +231,27 @@ export class RoomScene {
     this.offEventListeners.push(
       on("posture_changed", () => this.applyResting()),
     );
+
+    /**
+     * 昼夜与天气不再由调试命令手动设，而是订阅世界时钟与天气系统。
+     * Lighting 与 WindowView 本来就吃 DayPhaseId / WeatherKind，一行都不用改。
+     */
+    this.offEventListeners.push(
+      on("day_phase_changed", ({ phase }) => {
+        this.phase = phase;
+        this.applyEnvironment();
+      }),
+    );
+    this.offEventListeners.push(
+      on("weather_changed", ({ kind }) => {
+        this.weather = kind;
+        this.applyEnvironment();
+      }),
+    );
+
+    // 首帧直接读当前值：事件只在"变化时"发，进场景时得主动同步一次
+    this.phase = getClock().phase;
+    this.weather = getWeather().kind;
 
     const aspect = container.clientWidth / Math.max(container.clientHeight, 1);
     this.rig = new CameraRig(aspect);
@@ -865,6 +888,9 @@ export class RoomScene {
     if (this.interactCheckTimer > 0.15) {
       this.interactCheckTimer = 0;
       this.refreshInteractTarget();
+      // 日月位置跟着走。时钟读数本身是 5 秒缓存的，这里跟着交互检查
+      // 的节奏刷就够——天体一分钟移动的距离肉眼看不出来
+      this.applyCelestial();
     }
 
     for (const view of this.windowViews) view.update(deltaSeconds);
@@ -884,6 +910,18 @@ export class RoomScene {
   private applyEnvironment(): void {
     this.lighting.apply(this.phase, this.weather);
     for (const view of this.windowViews) view.apply(this.phase, this.weather);
+    this.applyCelestial();
+  }
+
+  /**
+   * 把日月摆到窗外。
+   *
+   * 单独一个方法而不是塞进 applyEnvironment：天体位置是**连续变化**的
+   * （每分钟都在动），而 applyEnvironment 只在跨时段/换天气时才跑一次。
+   */
+  private applyCelestial(): void {
+    const { body, progress } = getClock().celestial;
+    for (const view of this.windowViews) view.setCelestial(body, progress);
   }
 
   beginPlacement(furnitureId: string): void {
@@ -894,15 +932,11 @@ export class RoomScene {
     this.rig.rotateStep(direction);
   }
 
-  setPhase(phase: DayPhaseId): void {
-    this.phase = phase;
-    this.applyEnvironment();
-  }
-
-  setWeather(weather: WeatherKind): void {
-    this.weather = weather;
-    this.applyEnvironment();
-  }
+  /**
+   * 昼夜与天气由世界时钟 / 天气系统推导，**没有对外的 setter**。
+   * 想改就去拨时钟（debugJumpToPhase）或写天气覆盖（debugForceWeather），
+   * 让调试和正式走同一条路。
+   */
 
   setOutlineEnabled(enabled: boolean): void {
     this.outlineEnabled = enabled;

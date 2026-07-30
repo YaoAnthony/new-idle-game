@@ -10,6 +10,7 @@ import {
   type PlayerActionEntry,
 } from "core";
 import { emit } from "../EventBus";
+import { nowMs, nowUtc } from "../State/clock";
 import { signal } from "./story";
 import { addItem } from "../State/inventory";
 import { getNeeds, restoreFatigue, spendFatigue } from "../State/needs";
@@ -126,7 +127,7 @@ export function startAction(
     category: definition.category,
     customName: customName.trim() || "专注",
     priority,
-    startedAtMs: Date.now(),
+    startedAtMs: nowMs(),
     durationMs: durationSeconds * 1000,
     furnitureInstanceId,
   };
@@ -217,7 +218,7 @@ export function addActionEntry(input: {
     customName: input.customName.trim() || "专注",
     durationMinutes: input.durationMinutes,
     priority: input.priority,
-    createdAtUtc: new Date().toISOString(),
+    createdAtUtc: nowUtc(),
   };
 
   entries = [...entries, entry];
@@ -300,7 +301,7 @@ export function restoreAction(saved: ActionProcessSave | undefined): void {
     furnitureInstanceId: saved.furnitureInstanceId ?? "",
   };
 
-  const remainingMs = startedAtMs + durationMs - Date.now();
+  const remainingMs = startedAtMs + durationMs - nowMs();
   if (remainingMs <= 0) {
     finish(true);
     return;

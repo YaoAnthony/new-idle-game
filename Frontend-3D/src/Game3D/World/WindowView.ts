@@ -86,6 +86,9 @@ const STAR_OPACITY: Record<DayPhaseId, number> = {
   [DayPhaseId.Night]: 0.95,
 };
 
+const SUN_COLOR = "#ffe9a8";
+const MOON_COLOR = "#e6ecff";
+
 /** 尘埃只在"阳光照得进来"的时段可见 */
 const DUST_OPACITY: Record<DayPhaseId, number> = {
   [DayPhaseId.Dawn]: 0.26,
@@ -102,6 +105,11 @@ const DUST_OPACITY: Record<DayPhaseId, number> = {
  */
 const SKY_DISTANCE = 0.215;
 const STAR_DISTANCE = 0.205;
+/**
+ * 日月夹在星星和云之间：星星在它后面（月亮该挡住星星），
+ * 云在它前面（云要能飘过日月）。
+ */
+const CELESTIAL_DISTANCE = 0.195;
 const CLOUD_DISTANCE = 0.18;
 const HILL_FAR_DISTANCE = 0.155;
 const HILL_NEAR_DISTANCE = 0.135;
@@ -134,6 +142,15 @@ export class WindowView {
   private readonly clouds: { node: Object3D; speed: number }[] = [];
   private readonly starMaterial: PointsMaterial;
   private starBaseOpacity = 0;
+
+  /** 日月：一个节点，换材质颜色和大小就在太阳/月亮之间切 */
+  private readonly celestial: Object3D;
+  private readonly celestialDisc: Mesh;
+  private readonly celestialDiscMaterial: MeshBasicMaterial;
+  private readonly celestialHalo: Mesh;
+  private readonly celestialHaloMaterial: MeshBasicMaterial;
+  private celestialBody: "sun" | "moon" = "sun";
+  private celestialDimming = 1;
 
   private readonly rain: Points;
   private readonly rainVelocities: Float32Array;
@@ -194,6 +211,38 @@ export class WindowView {
       depthWrite: false,
     });
     this.root.add(this.buildStars());
+
+    // ---- 日月 ----
+    this.celestialHaloMaterial = new MeshBasicMaterial({
+      color: SUN_COLOR,
+      transparent: true,
+      opacity: 0.28,
+      blending: AdditiveBlending,
+      depthWrite: false,
+    });
+    this.celestialDiscMaterial = new MeshBasicMaterial({
+      color: SUN_COLOR,
+      transparent: true,
+      opacity: 1,
+      depthWrite: false,
+    });
+
+    const discRadius = this.boxHeight * 0.075;
+    this.celestialHalo = new Mesh(
+      new CircleGeometry(discRadius * 2.6, 20),
+      this.celestialHaloMaterial,
+    );
+    this.celestialDisc = new Mesh(
+      new CircleGeometry(discRadius, 20),
+      this.celestialDiscMaterial,
+    );
+
+    this.celestial = new Object3D();
+    this.celestial.name = "celestial";
+    this.celestial.position.z = -CELESTIAL_DISTANCE;
+    this.celestial.add(this.celestialHalo);
+    this.celestial.add(this.celestialDisc);
+    this.root.add(this.celestial);
 
     // ---- 云朵 ----
     this.cloudMaterial = new MeshBasicMaterial({
@@ -523,6 +572,44 @@ export class WindowView {
         : 0;
     this.dust.visible = this.dustBaseOpacity > 0;
     (this.dust.material as PointsMaterial).opacity = this.dustBaseOpacity;
+
+    // 阴雨天日月被云遮住：不是藏起来，是压暗，隐约还能看出个亮斑
+    this.celestialDimming = raining ? 0.22 : overcast ? 0.5 : 1;
+  }
+
+  /**
+   * 把日月摆到天上。
+   *
+   * 轨迹是一条抛物线弧：progress 0 从东边地平线升起、0.5 到最高点、
+   * 1 从西边落下。所以清早和傍晚它贴着窗框下沿，正午高悬——
+   * 这才是"看一眼窗户就知道几点了"。
+   */
+  setCelestial(body: "sun" | "moon", progress: number): void {
+    if (body !== this.celestialBody) {
+      this.celestialBody = body;
+      const color = body === "sun" ? SUN_COLOR : MOON_COLOR;
+      this.celestialDiscMaterial.color.set(color);
+      this.celestialHaloMaterial.color.set(color);
+      // 月亮小一点、冷一点，光晕也收一些
+      const scale = body === "sun" ? 1 : 0.78;
+      this.celestialDisc.scale.setScalar(scale);
+      this.celestialHalo.scale.setScalar(body === "sun" ? 1 : 0.72);
+    }
+
+    const t = Math.max(0, Math.min(1, progress));
+
+    // 东→西横穿；留一点余量，别正好贴在窗框边缘
+    this.celestial.position.x = (t - 0.5) * this.boxWidth * 0.78;
+    // sin 弧：两端贴近地平线，中间最高
+    const arc = Math.sin(t * Math.PI);
+    this.celestial.position.y =
+      -this.boxHeight * 0.12 + arc * this.boxHeight * 0.42;
+
+    // 贴近地平线时压暗（大气衰减的廉价近似），正午最亮
+    const altitude = 0.35 + 0.65 * arc;
+    this.celestialDiscMaterial.opacity = altitude * this.celestialDimming;
+    this.celestialHaloMaterial.opacity = 0.3 * altitude * this.celestialDimming;
+    this.celestial.visible = this.celestialDiscMaterial.opacity > 0.02;
   }
 
   update(deltaSeconds: number): void {

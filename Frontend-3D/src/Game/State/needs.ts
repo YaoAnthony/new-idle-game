@@ -56,5 +56,7 @@ export function applyFoodEffect(itemId: string): boolean {
   if (food.fatigueRestore) fatigue = clamp(fatigue + food.fatigueRestore);
 
   emit("needs_changed", {});
+  // 音效由表现层接这条事件来放——Game/ 不直接驱动 AudioEngine
+  emit("food_eaten", { itemId });
   return true;
 }

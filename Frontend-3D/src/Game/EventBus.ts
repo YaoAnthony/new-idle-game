@@ -65,6 +65,22 @@ export type GameEvents = {
   sleep_changed: { phase: "start" | "end" };
   /** 饥饿 / 疲劳变化 */
   needs_changed: Record<string, never>;
+  /**
+   * 跨过世界日（凌晨 4 点 rollover）。
+   * 天气据此重掷当天日程，每日限额据此刷新。
+   */
+  world_day_changed: { worldDayId: string; previousWorldDayId: string };
+  /** 跨过时段（晨/昼/暮/夜）。光照、窗外天空、环境音音量吃这条 */
+  day_phase_changed: { phase: import("core").DayPhaseId };
+  /** 当前天气变了（跨天重掷、或事件/道具/调试写了 override） */
+  weather_changed: { weatherId: string; kind: import("core").WeatherKind };
+  /**
+   * 音频拿到播放许可了。
+   * 浏览器要求首次用户交互之后才能出声，所以音景要等这条才能补播。
+   */
+  audio_unlocked: Record<string, never>;
+  /** 吃下了一份食物。表现层接这条放音效，Game/ 不直接驱动 AudioEngine */
+  food_eaten: { itemId: string };
   /** 背包面板被打开（教程用） */
   ui_backpack_opened: Record<string, never>;
   /** 玩法信号：剧情解释器与教程系统监听（内容在 Core storyRules） */

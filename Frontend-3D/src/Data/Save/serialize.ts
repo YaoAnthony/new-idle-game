@@ -3,8 +3,10 @@ import {
   roomStyleDefinitions,
   type GameSave,
 } from "core";
+import { restoreClock, snapshotClock } from "../../Game/State/clock";
 import { restoreHeld, snapshotHeld } from "../../Game/State/heldItem";
 import { restoreResting, snapshotResting } from "../../Game/State/posture";
+import { restoreWeather, snapshotWeather } from "../../Game/State/weather";
 import {
   restoreInventory,
   snapshotInventory,
@@ -64,9 +66,6 @@ function nowUtc(): string {
   return new Date().toISOString();
 }
 
-function worldDayId(): string {
-  return nowUtc().slice(0, 10);
-}
 
 export function serializeGameSave(previous?: GameSave): GameSave {
   const world = snapshotWorld();
@@ -105,21 +104,8 @@ export function serializeGameSave(previous?: GameSave): GameSave {
         styleId: roomStyleDefinitions[0].id,
       },
 
-      // 时钟与天气系统还没实现，先存一份结构合法的占位，
-      // 接 Time / Weather 系统时替换成真实状态（届时需要一条迁移）
-      clock: previous?.ownWorld.clock ?? {
-        timeZoneId: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        timePolicyId: "default",
-        lastObservedUtc: timestamp,
-        lastObservedSource: "device",
-        lastObservedWorldDayId: worldDayId(),
-      },
-      weather: previous?.ownWorld.weather ?? {
-        seed: 1,
-        lastResolvedWorldDayId: worldDayId(),
-        schedule: [],
-        overrides: [],
-      },
+      clock: snapshotClock(),
+      weather: snapshotWeather(),
 
       maps: { [MAIN_MAP_ID]: createSingleRoomMap(MAIN_MAP_ID, world.room) },
       pets: snapshotPets(),
@@ -149,6 +135,10 @@ export function hydrateGameSave(save: GameSave): void {
     room: firstRoom,
     placedFurniture: save.ownWorld.placedFurniture,
   });
+
+  // 时钟与天气最先恢复：其他系统（离线结算、每日限额）要读时间
+  restoreClock(save.ownWorld.clock);
+  restoreWeather(save.ownWorld.weather);
 
   restoreInventory(save.player.character.inventory);
   restoreHeld(save.player.character.heldItem);

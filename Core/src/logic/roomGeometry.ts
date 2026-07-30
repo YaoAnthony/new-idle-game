@@ -86,19 +86,32 @@ function northWindows(
   style: RoomStyleDefinition,
   wallWidth: number,
 ): WallOpening[] {
-  // 2x2（墙高 4 时代的比例）：窗台 1 格、窗顶留 1 行墙。
-  // 镜头锁进屋内后窗户成了主光源，进光面要够大；窗帘（2×2）正好整扇盖住
-  const size: GridFootprint = { width: 2, height: 2 };
-  const left = Math.max(1, Math.floor(wallWidth * 0.25) - 1);
-  const right = Math.min(wallWidth - 3, Math.floor(wallWidth * 0.7));
-
-  return [left, right].map((x, index) => ({
-    openingId: `north-window-${index + 1}`,
+  // 左：2×2 小窗（窗台 1 格、窗顶留 1 行墙）
+  const left: WallOpening = {
+    openingId: "north-window-1",
     kind: WallOpeningKind.Window,
-    gridPosition: { x, y: 1 },
-    size,
+    gridPosition: { x: Math.max(1, Math.floor(wallWidth * 0.25) - 1), y: 1 },
+    size: { width: 2, height: 2 },
     visualId: style.visual.windowVisualId,
-  }));
+  };
+
+  /**
+   * 右：5×3 贴地落地窗（2026-07-30 定稿）。
+   *
+   * 它是"日式庭院画框"：庭院、樱花树、河、远林的整个窗景构图
+   * 都是对着这扇窗设计的。贴地是关键——默认镜头是俯视的，
+   * 只有开口下到地面，视线才能平着出去看到中景和天际线。
+   * 顶上留 1 行墙保住小屋的结构感。固定玻璃，不推拉（定稿）。
+   */
+  const floorWindow: WallOpening = {
+    openingId: "north-floor-window",
+    kind: WallOpeningKind.Window,
+    gridPosition: { x: wallWidth - 7, y: 0 },
+    size: { width: 5, height: 3 },
+    visualId: style.visual.windowVisualId,
+  };
+
+  return [left, floorWindow];
 }
 
 function westDoor(

@@ -1,6 +1,7 @@
 import { WallOpeningKind, type RoomSave, type WallOpening, type WallSave } from "core";
 import { Object3D } from "three";
 import { PALETTE, jitterShade } from "../Visual/palette.js";
+import { box } from "../Visual/primitives.js";
 import { createQuadMesh, type Quad } from "./quadMesh.js";
 
 /**
@@ -258,6 +259,124 @@ function buildWall(
   };
 }
 
+/**
+ * 日式木构架（真壁造）：柱、长押、踢脚。
+ *
+ * 低多边形想提精细度，最划算的一招不是加曲面，是加**细木条**——
+ * 参考图（京都式庭院落地窗）里让画面"高级"的正是木框架把白墙
+ * 裁成一块块：四角立柱、门窗两侧的边柱、一圈齐窗顶的长押横梁、
+ * 贴地的踢脚线。面数全是盒子，几乎白送。
+ *
+ * 长押高度取 3.02：所有开口（小窗顶 3、落地窗顶 3、门顶 2）都在它
+ * 之下，所以四面墙可以一根通到底，不用断。踢脚要绕开贴地的开口
+ * （门、落地窗）。
+ */
+function buildTimberFrame(room: RoomSave, wallHeight: number): Object3D {
+  const frame = new Object3D();
+  frame.name = "timber-frame";
+
+  const halfW = room.floorGrid.width / 2;
+  const halfD = room.floorGrid.height / 2;
+  const WOOD = PALETTE.wallTrim;
+  /** 构件离墙面的凸出量 */
+  const PROUD = 0.09;
+
+  // ---- 四角立柱 ----
+  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+    frame.add(
+      box([0.18, wallHeight, 0.18], {
+        color: WOOD,
+        position: [sx * (halfW - 0.1), wallHeight / 2, sz * (halfD - 0.1)],
+      }),
+    );
+  }
+
+  // ---- 长押：四面墙各一根，通长 ----
+  const NAGESHI_Y = 3.1;
+  frame.add(
+    box([room.floorGrid.width - 0.3, 0.16, 0.1], {
+      color: WOOD,
+      position: [0, NAGESHI_Y, -(halfD - PROUD)],
+    }),
+  );
+  frame.add(
+    box([room.floorGrid.width - 0.3, 0.16, 0.1], {
+      color: WOOD,
+      position: [0, NAGESHI_Y, halfD - PROUD],
+    }),
+  );
+  frame.add(
+    box([0.1, 0.16, room.floorGrid.height - 0.3], {
+      color: WOOD,
+      position: [-(halfW - PROUD), NAGESHI_Y, 0],
+    }),
+  );
+  frame.add(
+    box([0.1, 0.16, room.floorGrid.height - 0.3], {
+      color: WOOD,
+      position: [halfW - PROUD, NAGESHI_Y, 0],
+    }),
+  );
+
+  // ---- 开口两侧的边柱 + 分段踢脚 ----
+  //
+  // 每面墙：开口把墙分成若干段，踢脚只铺没有贴地开口的段；
+  // 每个开口两侧立一根到长押的边柱，把开口"装裱"起来。
+  for (const wall of Object.values(room.walls)) {
+    const along = wall.wallId === "north" || wall.wallId === "south"
+      ? room.floorGrid.width
+      : room.floorGrid.height;
+
+    /** 墙面网格 x → 世界轴向坐标（north/south 是 x 轴，west/east 是 z 轴） */
+    const toAxis = (gx: number): number => gx - along / 2;
+
+    /** 沿墙轴向的世界位置 → 三维坐标 */
+    const place = (axis: number, y: number, sizeAlong: number, sizeY: number) => {
+      if (wall.wallId === "north" || wall.wallId === "south") {
+        const z = wall.wallId === "north" ? -(halfD - PROUD) : halfD - PROUD;
+        return box([sizeAlong, sizeY, 0.12], { color: WOOD, position: [axis, y, z] });
+      }
+      const x = wall.wallId === "west" ? -(halfW - PROUD) : halfW - PROUD;
+      return box([0.12, sizeY, sizeAlong], { color: WOOD, position: [x, y, axis] });
+    };
+
+    // 开口的轴向区间，排序后算分段
+    const spans = wall.openings
+      .map((o) => ({
+        from: toAxis(o.gridPosition.x),
+        to: toAxis(o.gridPosition.x + o.size.width),
+        floorLevel: o.gridPosition.y === 0,
+        top: o.gridPosition.y + o.size.height,
+      }))
+      .sort((a, b) => a.from - b.from);
+
+    // 边柱：开口两侧各一根，从地面到长押
+    for (const span of spans) {
+      const POST_H = NAGESHI_Y;
+      frame.add(place(span.from - 0.08, POST_H / 2, 0.14, POST_H));
+      frame.add(place(span.to + 0.08, POST_H / 2, 0.14, POST_H));
+    }
+
+    // 踢脚：跳过贴地开口的区间
+    const BASE_H = 0.12;
+    let cursor = -along / 2 + 0.15;
+    const floorSpans = spans.filter((s) => s.floorLevel);
+    for (const span of floorSpans) {
+      if (span.from - cursor > 0.3) {
+        const width = span.from - cursor;
+        frame.add(place(cursor + width / 2, BASE_H / 2, width, BASE_H));
+      }
+      cursor = span.to;
+    }
+    const tail = along / 2 - 0.15 - cursor;
+    if (tail > 0.3) {
+      frame.add(place(cursor + tail / 2, BASE_H / 2, tail, BASE_H));
+    }
+  }
+
+  return frame;
+}
+
 export function buildRoom(room: RoomSave): BuiltRoom {
   const width = room.floorGrid.width;
   const depth = room.floorGrid.height;
@@ -274,6 +393,8 @@ export function buildRoom(room: RoomSave): BuiltRoom {
 
   const ceiling = buildCeiling(width, depth, wallHeight);
   root.add(ceiling);
+
+  root.add(buildTimberFrame(room, wallHeight));
 
   const walls = new Map<string, Object3D>();
   const windows: WindowAnchor[] = [];

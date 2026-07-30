@@ -10,6 +10,8 @@ import {
   Points,
   PointsMaterial,
 } from "three";
+import { PALETTE } from "../Visual/palette.js";
+import { box } from "../Visual/primitives.js";
 import type { WindowAnchor } from "./RoomBuilder.js";
 
 /**
@@ -71,6 +73,8 @@ export class WindowView {
 
     this.boxWidth = anchor.width + 0.8;
 
+    this.buildFrame(anchor);
+
     // ---- 玻璃：极淡的蓝白片 + 一道斜高光 ----
     const glass = new Mesh(
       new PlaneGeometry(anchor.width * 0.98, anchor.height * 0.98),
@@ -129,6 +133,72 @@ export class WindowView {
     this.dust = dustBuilt.points;
     this.dustVelocities = dustBuilt.velocities;
     this.root.add(this.dust);
+  }
+
+  /**
+   * 日式木窗框。参考：京都町屋的落地窗——粗外框把玻璃裁成一幅画，
+   * 竖梃分成等宽的几扇，底下一条**深窗台**（缘侧的木沿）。
+   * 局部坐标：原点在窗洞中心，+Z 朝屋内。
+   *
+   * 落地窗（高 ≥2.5 且贴地）和小窗共用外框，差别在里面：
+   * 落地窗是两根竖梃 + 深窗台，小窗是十字格。
+   */
+  private buildFrame(anchor: WindowAnchor): void {
+    const w = anchor.width;
+    const h = anchor.height;
+    const WOOD = PALETTE.woodMid;
+    const WOOD_DARK = PALETTE.wallTrim;
+    const isFloorWindow = h >= 2.5 && anchor.center[1] - h / 2 < 0.3;
+
+    const frame = new Object3D();
+    frame.name = "frame";
+
+    // 外框：上下横梁 + 左右立梃，截面 0.12，骑在墙面上（±Z 各凸一点）
+    frame.add(box([w + 0.26, 0.13, 0.16], {
+      color: WOOD_DARK,
+      position: [0, h / 2 + 0.05, 0],
+    }));
+    frame.add(box([w + 0.26, 0.13, 0.16], {
+      color: WOOD_DARK,
+      position: [0, -h / 2 - 0.05, 0],
+    }));
+    for (const side of [-1, 1]) {
+      frame.add(box([0.13, h + 0.26, 0.16], {
+        color: WOOD_DARK,
+        position: [side * (w / 2 + 0.05), 0, 0],
+      }));
+    }
+
+    if (isFloorWindow) {
+      // 竖梃：分三扇。截面细，玻璃的"画"不能被切碎
+      for (const third of [-1, 1]) {
+        frame.add(box([0.07, h - 0.05, 0.08], {
+          color: WOOD,
+          position: [third * (w / 6), 0, 0.02],
+        }));
+      }
+      // 中横档：日式窗常见的低位横木，也是"坐在窗边"的视觉暗示
+      frame.add(box([w - 0.06, 0.06, 0.07], {
+        color: WOOD,
+        position: [0, -h / 2 + 0.85, 0.02],
+      }));
+      // 深窗台：往屋内探出的木沿，缘侧的那一条
+      frame.add(box([w + 0.4, 0.09, 0.5], {
+        color: WOOD,
+        position: [0, -h / 2 + 0.02, 0.24],
+      }));
+    } else {
+      // 小窗：十字格
+      frame.add(box([0.06, h, 0.07], { color: WOOD, position: [0, 0, 0.02] }));
+      frame.add(box([w, 0.06, 0.07], { color: WOOD, position: [0, 0, 0.02] }));
+      // 小窗台
+      frame.add(box([w + 0.3, 0.08, 0.3], {
+        color: WOOD,
+        position: [0, -h / 2 - 0.1, 0.12],
+      }));
+    }
+
+    this.root.add(frame);
   }
 
   private buildDust(): { points: Points; velocities: Float32Array } {

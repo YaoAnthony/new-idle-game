@@ -1,4 +1,10 @@
-import { WallOpeningKind, type GameSave } from "core";
+import {
+  PlacementSurface,
+  WallOpeningKind,
+  findFurnitureDefinition,
+  findItemByFurnitureId,
+  type GameSave,
+} from "core";
 import { SAVE_SCHEMA_VERSION } from "./types";
 
 /**
@@ -96,6 +102,85 @@ export const migrations: Migration[] = [
         });
 
       save.player.character.heldItem ??= null;
+      return save;
+    },
+  },
+
+  // v6（2026-07-30 落地窗）：北墙右侧的 2×2 小窗换成 5×3 贴地落地窗。
+  // 房间几何是实存的（联机一致性要求，不在加载时重新生成），所以老存档
+  // 要在这里动墙。两件事：
+  // 1. 右侧小窗删掉、加落地窗（位置和 roomGeometry.northWindows 一致）
+  // 2. 北墙上与新窗洞重叠的墙饰（比如挂在旧窗上的窗帘）撤下退回背包——
+  //    不能凭空消失，那是玩家的东西
+  {
+    to: 6,
+    migrate: (save) => {
+      for (const map of Object.values(save.ownWorld.maps ?? {})) {
+        for (const room of Object.values(map.rooms ?? {})) {
+          const north = room.walls?.north;
+          if (!north) continue;
+          if (north.openings.some((o) => o.openingId === "north-floor-window")) {
+            continue;
+          }
+
+          const style = north.openings.find(
+            (o) => o.kind === WallOpeningKind.Window,
+          )?.visualId;
+
+          // 右半墙的窗都算"旧右窗"（老存档只有一扇，条件宽松点更稳）
+          north.openings = north.openings.filter(
+            (o) =>
+              !(
+                o.kind === WallOpeningKind.Window &&
+                o.gridPosition.x >= Math.floor(north.grid.width / 2)
+              ),
+          );
+
+          north.openings.push({
+            openingId: "north-floor-window",
+            kind: WallOpeningKind.Window,
+            gridPosition: { x: north.grid.width - 7, y: 0 },
+            size: { width: 5, height: 3 },
+            visualId: style ?? "window_round_wood",
+          });
+
+          // 新窗洞的矩形（墙面网格坐标）
+          const zone = {
+            minX: north.grid.width - 7,
+            maxX: north.grid.width - 3,
+            minY: 0,
+            maxY: 2,
+          };
+
+          save.ownWorld.placedFurniture = (
+            save.ownWorld.placedFurniture ?? []
+          ).filter((placed) => {
+            if (placed.placement.kind !== PlacementSurface.Wall) return true;
+            if (placed.placement.wallId !== "north") return true;
+
+            const definition = findFurnitureDefinition(placed.furnitureId);
+            const w = definition?.footprint.width ?? 1;
+            const h = definition?.footprint.height ?? 1;
+            const { x, y } = placed.placement.gridPosition;
+            const overlaps =
+              x <= zone.maxX && x + w - 1 >= zone.minX &&
+              y <= zone.maxY && y + h - 1 >= zone.minY;
+            if (!overlaps) return true;
+
+            // 撤下的墙饰退回背包（找不到对应物品就只能丢，但记在心里：
+            // 家具都该有 findItemByFurnitureId 的映射）
+            const item = findItemByFurnitureId(placed.furnitureId);
+            if (item) {
+              save.player.character.inventory.push({
+                stackId: `migrated-${placed.instanceId}`,
+                itemId: item.id,
+                quantity: 1,
+              });
+            }
+            return false;
+          });
+        }
+      }
       return save;
     },
   },

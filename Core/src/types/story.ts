@@ -19,7 +19,31 @@ export type StorySignalKind =
   | "craft_completed"
   | "cook_completed"
   | "dialogue_ended"
-  | "gift_accepted"
+  /**
+   * 对话节点上的 `emitEventId` 到达。subject 是那个 EventId。
+   *
+   * 对话本身不写效果——节点只负责"报告我到了这里"，
+   * 接什么后果由 storyRules 按 subject 声明。
+   */
+  | "dialogue_event"
+  /**
+   * 递出去了。**不分档位**，subject 是 ItemId。
+   *
+   * 主线推进挂这一条而不是挂 `gift_loved`：第一天送礼那一段的题眼是
+   * "你递上的是它连见都没见过的东西"，和好不好吃无关。
+   * 挂了档位就会出现"玩家递了它不爱吃的，剧情卡死"——那正是本作
+   * 「不制造焦虑」要避免的。
+   */
+  | "gift_given"
+  /**
+   * 送礼四档。判定只发信号，各档接什么后果由 storyRules 声明——
+   * 「送错不扣好感」是设计定案，所以这四个信号地位平等，
+   * disliked / inedible 同样可以接后果（试错本身是了解对方的一部分）。
+   */
+  | "gift_loved"
+  | "gift_liked"
+  | "gift_disliked"
+  | "gift_inedible"
   | "action_started"
   | "action_completed"
   | "sleep_ended"

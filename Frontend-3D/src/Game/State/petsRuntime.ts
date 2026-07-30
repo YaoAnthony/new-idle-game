@@ -26,6 +26,8 @@ export type PetRuntime = {
   affectionStage: AffectionStage;
   /** 玩家改过的昵称。没改过就是 undefined，显示物种的 defaultNicknameKey */
   nickname?: string;
+  /** 上次收礼的世界日。每天一次的节流用，见 Systems/gifting.ts */
+  lastGiftWorldDayId?: string;
 
   path: GridPosition[];
   pathIndex: number;
@@ -51,6 +53,14 @@ export function setPetAffection(petId: string, stage: AffectionStage): void {
   if (!pet) return;
   pet.affectionStage = stage;
   emit("pet_changed", { petId, reason: "affection" });
+}
+
+/** 记下"今天收过礼了"。节流的判定在 Core，这里只负责存 */
+export function markPetGifted(petId: string, worldDayId: string): void {
+  const pet = pets.get(petId);
+  if (!pet) return;
+  pet.lastGiftWorldDayId = worldDayId;
+  emit("pet_changed", { petId, reason: "gifted" });
 }
 
 function gridToWorldXZ(cell: GridPosition): [number, number] {
@@ -166,6 +176,7 @@ export function snapshotPets(): Record<string, PetSave> {
       growth: 0,
       needs: {},
       nickname: pet.nickname,
+      lastGiftWorldDayId: pet.lastGiftWorldDayId,
     };
   }
 
@@ -186,6 +197,7 @@ export function restorePets(saved: Record<string, PetSave>): void {
       heading: FACING_HEADING[entry.position.facing] ?? 0,
       affectionStage: entry.affectionStage,
       nickname: entry.nickname,
+      lastGiftWorldDayId: entry.lastGiftWorldDayId,
       path: [],
       pathIndex: 0,
       idleTimer: 1 + Math.random() * 3,

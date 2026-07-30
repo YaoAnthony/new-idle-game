@@ -111,10 +111,22 @@ input {
   box-shadow: none;
 }
 
-.ui-dialogue-choice--gift {
-  background: linear-gradient(180deg, #ffe6a5 0%, #f5cc79 100%);
-  border-color: #d8a94f;
-  box-shadow: 0 2px 0 #d8a94f;
+/* 送礼的放入框：**就是一个放大的物品格**。
+   不另造一套矢量虚线框——它紧挨着 32 个像素缝线格，
+   混两套渲染语言会像两个人做的东西拼在一起。
+   拖拽中直接复用格子既有的"选中"皮，落点比新造的高亮更好认。 */
+.ui-gift-slot {
+  background-image: url("/ui/slot.png");
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+  color: #8a6a48;
+  transition: filter 120ms ease-out, transform 120ms ease-out;
+}
+
+.ui-gift-slot--active {
+  background-image: url("/ui/slot_selected.png");
+  filter: drop-shadow(0 0 8px rgb(233 168 60 / 0.75));
+  transform: scale(1.04);
 }
 
 /* 继续三角：轻轻上下跳，提示可以点 */

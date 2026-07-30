@@ -5,9 +5,10 @@ import {
   type DialogueNode,
 } from "core";
 import { emit } from "../EventBus";
-import { getCount, removeItem } from "../State/inventory";
+import { getCount, type SlotRef } from "../State/inventory";
 import { getPet } from "../State/petsRuntime";
 import { getEventStage } from "./events";
+import { offerGift, type GiftResult } from "./gifting";
 import { signal } from "./story";
 
 /**
@@ -82,7 +83,7 @@ function enterNode(nodeId: string): void {
   }
 
   active = { ...active, nodeId };
-  if (node.emitEventId) signal("gift_accepted", node.emitEventId);
+  if (node.emitEventId) signal("dialogue_event", node.emitEventId);
   emit("dialogue_changed", { open: true });
 }
 
@@ -92,7 +93,7 @@ export function startDialogue(dialogueId: string, petId: string | null): boolean
 
   active = { dialogueId, nodeId: definition.entryNodeId, petId };
   const entry = definition.nodes[definition.entryNodeId];
-  if (entry?.emitEventId) signal("gift_accepted", entry.emitEventId);
+  if (entry?.emitEventId) signal("dialogue_event", entry.emitEventId);
   emit("dialogue_changed", { open: true });
   return true;
 }
@@ -111,34 +112,33 @@ export function choose(choiceId: string): void {
   const choice = node?.choices?.find((item) => item.choiceId === choiceId);
   if (!choice) return;
 
-  if (choice.emitEventId) signal("gift_accepted", choice.emitEventId);
+  if (choice.emitEventId) signal("dialogue_event", choice.emitEventId);
   if (choice.nextNodeId) enterNode(choice.nextNodeId);
   else end();
 }
 
-/** 送礼：从背包选一件递过去 */
-export function giveItem(itemId: string): void {
+/**
+ * 送礼：把某一格的东西递过去。
+ *
+ * 这里**不判断该不该收**——判定在 `Systems/gifting.ts`（规则在 Core）。
+ * 对话只负责按算出来的档位走到对应的回应节点。
+ * 传 SlotRef 是因为菜的品质是那一格的属性，过火要降一档。
+ */
+export function giveItem(ref: SlotRef): GiftResult | null {
   const node = getCurrentNode();
   const request = node?.itemRequest;
-  if (!request) return;
+  if (!request || !active?.petId) return null;
 
-  const accepted =
-    (request.acceptedItemIds?.includes(itemId) ?? false) &&
-    getCount(itemId) > 0;
-
-  if (accepted) {
-    if (request.consumeItem) removeItem(itemId, 1);
-    enterNode(request.onAcceptNodeId);
-  } else if (request.onRejectNodeId) {
-    enterNode(request.onRejectNodeId);
-  }
+  const result = offerGift(active.petId, ref);
+  if (result.ok) enterNode(request.onTierNodeId[result.tier]);
+  return result;
 }
 
-/** 拒绝送礼（"现在没有吃的"） */
+/** 什么都不递就关掉（"现在没有吃的"） */
 export function declineGift(): void {
   const node = getCurrentNode();
-  if (node?.itemRequest?.onRejectNodeId) {
-    enterNode(node.itemRequest.onRejectNodeId);
+  if (node?.itemRequest?.onDeclineNodeId) {
+    enterNode(node.itemRequest.onDeclineNodeId);
   } else {
     end();
   }

@@ -2,6 +2,7 @@ export * from "./anchors.js";
 export * from "./clock.js";
 export * from "./cookingRules.js";
 export * from "./crafting.js";
+export * from "./giftRules.js";
 export * from "./grid.js";
 export * from "./needs.js";
 export * from "./occupancy.js";

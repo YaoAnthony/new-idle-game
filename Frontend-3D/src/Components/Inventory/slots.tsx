@@ -74,6 +74,23 @@ export function useDragState(): DragState | null {
   return state;
 }
 
+/**
+ * 非槽位的落点（送礼的放入框这类）。
+ *
+ * 拖拽本身不认识送礼——落点自己登记一个 id，拖到 `data-dropzone="<id>"`
+ * 上就把来源槽位交给它。这样以后加"扔进壁炉""喂给宠物"都不用回来改拖拽。
+ */
+export type DropZoneHandler = (from: SlotRef) => void;
+
+const dropZones = new Map<string, DropZoneHandler>();
+
+export function registerDropZone(id: string, handler: DropZoneHandler): () => void {
+  dropZones.set(id, handler);
+  return () => {
+    if (dropZones.get(id) === handler) dropZones.delete(id);
+  };
+}
+
 export function beginDrag(event: ReactPointerEvent, from: SlotRef): void {
   const stack = getStackAt(from);
   if (!stack) return;
@@ -89,11 +106,15 @@ export function beginDrag(event: ReactPointerEvent, from: SlotRef): void {
     window.removeEventListener("pointermove", onMove);
     window.removeEventListener("pointerup", onUp);
 
-    const dropTarget = document
-      .elementFromPoint(up.clientX, up.clientY)
-      ?.closest("[data-slot]");
-    if (dropTarget && current) {
-      const [container, index] = (dropTarget as HTMLElement).dataset.slot!.split(":");
+    const under = document.elementFromPoint(up.clientX, up.clientY);
+    // 自定义落点优先：放入框是压在格子上方的，先问它要不要
+    const zone = under?.closest<HTMLElement>("[data-dropzone]");
+    const dropTarget = under?.closest<HTMLElement>("[data-slot]");
+
+    if (zone && current) {
+      dropZones.get(zone.dataset.dropzone!)?.(current.from);
+    } else if (dropTarget && current) {
+      const [container, index] = dropTarget.dataset.slot!.split(":");
       moveStack(current.from, {
         container: container as SlotRef["container"],
         index: Number(index),

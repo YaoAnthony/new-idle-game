@@ -184,6 +184,23 @@ export function removeItem(itemId: string, quantity = 1): boolean {
   return true;
 }
 
+/**
+ * 从**指定的那一格**扣除。送礼用这个而不是 removeItem——
+ * 玩家拖进放入框的是某一格具体的东西，品质已经参与过判定了，
+ * 按 itemId 去扣有可能扣掉另一格同名但品质不同的那一堆。
+ */
+export function removeFromSlot(ref: SlotRef, quantity = 1): boolean {
+  const list = slots(ref.container);
+  const stack = list[ref.index];
+  if (!stack || stack.count < quantity) return false;
+
+  stack.count -= quantity;
+  if (stack.count <= 0) list[ref.index] = null;
+
+  emit("inventory_changed", { reason: "remove" });
+  return true;
+}
+
 /** 批量替换（制作消耗+产出）。把差值落到槽位上 */
 export function replaceCounts(next: ItemCounts): void {
   const current = getCounts();

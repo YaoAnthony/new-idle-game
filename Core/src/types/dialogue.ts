@@ -1,7 +1,7 @@
 import type { FeatureId, LocalizationKey } from "./base.js";
 import type { EventId, EventStageId } from "./events.js";
 import type { ItemId } from "./items.js";
-import type { AffectionStage } from "./pets.js";
+import type { AffectionStage, GiftTier } from "./pets.js";
 import type { WeatherId } from "./weather.js";
 
 export type DialogueId = string;
@@ -29,13 +29,20 @@ export type DialogueChoice = {
   emitEventId?: EventId;
 };
 
-/** 送礼：把背包里的物品递给对方 */
+/**
+ * 送礼：把背包里的**任何**东西递给对方。
+ *
+ * 这里刻意**没有**"接受什么"的白名单——玩家能送错是设计要求，
+ * 送错本身是了解对方的一部分。收不收、消不消耗由 `resolveGiftTier`
+ * 查喜好表算出来，不是内容作者在对话节点里点名的。
+ *
+ * 四档回应节点**一个都不能少**：设计定案是「四档的差别全部体现在反应上」，
+ * 少写一档就等于那一档没反应，所以用 Record 逼出穷尽性。
+ */
 export type DialogueItemRequest = {
-  acceptedItemIds?: ItemId[];
-  acceptedTags?: string[];
-  consumeItem: boolean;
-  onAcceptNodeId: DialogueNodeId;
-  onRejectNodeId?: DialogueNodeId;
+  onTierNodeId: Record<GiftTier, DialogueNodeId>;
+  /** 玩家什么都不递就关掉。不填则直接结束对话 */
+  onDeclineNodeId?: DialogueNodeId;
 };
 
 export type DialogueNode = {

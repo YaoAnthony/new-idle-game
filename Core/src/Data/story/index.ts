@@ -36,10 +36,13 @@ export const storyRules: StoryRule[] = [
     ],
   },
 
-  // 苔苔收下礼物 → 好感度晋级 + 承诺出门带东西回来
+  // 苔苔见过了你递来的东西 → 好感度晋级 + 承诺出门带东西回来
+  //
+  // 挂 gift_given 而不是 gift_loved：推进主线的是"你递上了它没见过的东西"
+  // 这件事本身，不是它爱不爱吃。挂档位的话，玩家第一次递错就永久卡在这里。
   {
     id: "pet_gift_accepted",
-    triggers: [{ signal: "gift_accepted" }],
+    triggers: [{ signal: "gift_given" }],
     effects: [
       {
         kind: "set_event_stage",
@@ -122,7 +125,7 @@ export const tutorialDefinition: TutorialDefinition = {
     {
       stepId: "gift",
       localizationKey: "tutorial.gift",
-      completedBy: { signal: "gift_accepted" },
+      completedBy: { signal: "gift_given" },
     },
     {
       stepId: "action",

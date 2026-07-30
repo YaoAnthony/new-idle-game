@@ -1,19 +1,17 @@
-import { findDialogueDefinition, findItemDefinition } from "core";
+import { findDialogueDefinition } from "core";
 import { useEffect, useState } from "react";
 import { on } from "../../Game/EventBus";
-import { getCount } from "../../Game/State/inventory";
 import {
   advance,
   choose,
-  declineGift,
   end,
   getActiveDialogue,
   getCurrentNode,
-  giveItem,
   visibleChoices,
 } from "../../Game/Systems/dialogue";
 import { petNickname } from "../../i18n/petName";
 import { t } from "../../i18n/t";
+import { GiftBox } from "./GiftBox";
 
 /**
  * 对话 id → 头像图。生成的头像放 public/portraits/。
@@ -51,12 +49,11 @@ export function DialoguePanel() {
 
   const choices = visibleChoices();
   const request = node.itemRequest;
-  const giftable = (request?.acceptedItemIds ?? []).filter(
-    (itemId) => getCount(itemId) > 0,
-  );
 
   return (
     <div className="absolute bottom-10 left-1/2 z-30 w-[min(880px,88vw)] -translate-x-1/2">
+      {/* 送礼节点浮在气泡上方：递东西是对话里的一个动作，不是另开一块面板 */}
+      {request && <GiftBox petId={active.petId} />}
       {/* 名字药丸：浮在气泡左上角，压住气泡边缘（动森式） */}
       <div className="ui-name-tag relative z-10 ml-6 inline-flex items-center gap-2 rounded-full py-1.5 pl-1.5 pr-5">
         {portraitOk && (
@@ -79,7 +76,7 @@ export function DialoguePanel() {
           </div>
         </div>
 
-        {(choices.length > 0 || request) && (
+        {choices.length > 0 && (
           <div className="mt-4 flex flex-wrap justify-end gap-2.5">
             {choices.map((choice) => (
               <button
@@ -91,33 +88,6 @@ export function DialoguePanel() {
                 {t(choice.localizationKey)}
               </button>
             ))}
-
-            {request && (
-              <>
-                {giftable.map((itemId) => {
-                  const item = findItemDefinition(itemId);
-                  return (
-                    <button
-                      key={itemId}
-                      type="button"
-                      className="ui-dialogue-choice ui-dialogue-choice--gift rounded-full px-5 py-2 text-[16px]"
-                      onClick={() => giveItem(itemId)}
-                    >
-                      {t("ui.give")}
-                      {item ? t(item.localizationKey) : itemId} ×
-                      {getCount(itemId)}
-                    </button>
-                  );
-                })}
-                <button
-                  type="button"
-                  className="ui-dialogue-choice rounded-full px-5 py-2 text-[16px]"
-                  onClick={declineGift}
-                >
-                  {t("ui.no_food")}
-                </button>
-              </>
-            )}
           </div>
         )}
       </div>

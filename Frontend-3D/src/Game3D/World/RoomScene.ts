@@ -46,6 +46,7 @@ import {
 import { startSleep } from "../../Game/Systems/sleep";
 import { getClock } from "../../Game/State/clock";
 import { getResting, isResting } from "../../Game/State/posture";
+import { pruneOrphanStorages } from "../../Game/State/storage";
 import { getWeather } from "../../Game/State/weather";
 import {
   DEFAULT_POSTURE,
@@ -224,6 +225,10 @@ export class RoomScene {
         this.applyEnvironment();
         // 坐着的那把椅子被搬走了 / 房间被清空了 → 自动起身
         reconcileResting();
+        // 家具没了它的箱子也该没，否则存档会带着永远打不开的幽灵库存
+        pruneOrphanStorages(
+          getWorld().placedFurniture.map((item) => item.instanceId),
+        );
       }),
     );
 
@@ -322,6 +327,15 @@ export class RoomScene {
           if (this.interactTarget.capability === "sleep") {
             // 床先躺下，躺着再按 F 才睡觉（睡觉是躺着之后的第二步）
             this.restAtTarget(BodyPosture.Lie);
+          } else if (this.interactTarget.capability === "storage") {
+            const { instanceId } = this.interactTarget;
+            emit("storage_open_requested", {
+              instanceId,
+              furnitureId:
+                getWorld().placedFurniture.find(
+                  (item) => item.instanceId === instanceId,
+                )?.furnitureId ?? "",
+            });
           } else if (this.interactTarget.capability === "sitting") {
             this.restAtTarget(BodyPosture.Sit);
           } else if (this.interactTarget.capability === "cooking") {
@@ -558,12 +572,14 @@ export class RoomScene {
         ? ("crafting" as const)
         : definition.capabilities.includes(FurnitureCapability.Cooking)
           ? ("cooking" as const)
-          : // 床优先当"躺"处理；沙发这类只有 Sitting 的落到坐
-            definition.capabilities.includes(FurnitureCapability.Sleep)
-            ? ("sleep" as const)
-            : definition.capabilities.includes(FurnitureCapability.Sitting)
-              ? ("sitting" as const)
-              : null;
+          : definition.capabilities.includes(FurnitureCapability.Storage)
+            ? ("storage" as const)
+            : // 床优先当"躺"处理；沙发这类只有 Sitting 的落到坐
+              definition.capabilities.includes(FurnitureCapability.Sleep)
+              ? ("sleep" as const)
+              : definition.capabilities.includes(FurnitureCapability.Sitting)
+                ? ("sitting" as const)
+                : null;
       if (!capability) continue;
 
       // 坐具坐满了就别再抢交互目标，否则走近沙发按 F 毫无反应还不知道为什么

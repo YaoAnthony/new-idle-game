@@ -5,6 +5,7 @@ export * from "./dialogues/index.js";
 export * from "./events/index.js";
 export * from "./furniture/index.js";
 export * from "./items/index.js";
+export * from "./needs/index.js";
 export * from "./pets/index.js";
 export * from "./recipes/index.js";
 export * from "./roomStyles/index.js";

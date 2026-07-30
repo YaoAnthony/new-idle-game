@@ -3,6 +3,7 @@ export * from "./clock.js";
 export * from "./cookingRules.js";
 export * from "./crafting.js";
 export * from "./grid.js";
+export * from "./needs.js";
 export * from "./occupancy.js";
 export * from "./pathfinding.js";
 export * from "./placement.js";

@@ -6,6 +6,11 @@ import {
 import { restoreClock, snapshotClock } from "../../Game/State/clock";
 import { restoreHeld, snapshotHeld } from "../../Game/State/heldItem";
 import { restoreResting, snapshotResting } from "../../Game/State/posture";
+import {
+  pruneOrphanStorages,
+  restoreStorages,
+  snapshotStorages,
+} from "../../Game/State/storage";
 import { restoreWeather, snapshotWeather } from "../../Game/State/weather";
 import {
   restoreInventory,
@@ -110,7 +115,7 @@ export function serializeGameSave(previous?: GameSave): GameSave {
       maps: { [MAIN_MAP_ID]: createSingleRoomMap(MAIN_MAP_ID, world.room) },
       pets: snapshotPets(),
       placedFurniture: world.placedFurniture,
-      inventories: previous?.ownWorld.inventories ?? {},
+      inventories: snapshotStorages(),
 
       progression: {
         unlockedFeatureIds: getUnlockedFeatures(),
@@ -139,13 +144,21 @@ export function hydrateGameSave(save: GameSave): void {
   // 时钟与天气最先恢复：其他系统（离线结算、每日限额）要读时间
   restoreClock(save.ownWorld.clock);
   restoreWeather(save.ownWorld.weather);
+  // 储物家具的内容属于世界，跟着房间一起恢复。
+  // 恢复完立刻清一次幽灵库存——老存档里可能存着已经不在屋里的家具的箱子，
+  // 不清的话它会一直占着 WorldSave.inventories 且永远打不开
+  restoreStorages(save.ownWorld.inventories);
+  pruneOrphanStorages(
+    save.ownWorld.placedFurniture.map((item) => item.instanceId),
+  );
 
   restoreInventory(save.player.character.inventory);
   restoreHeld(save.player.character.heldItem);
   restoreDiscoveredRecipes(save.player.discoveredRecipeIds ?? []);
   // 坐姿最后恢复：它要查家具锚点，房间必须已经就位
   restoreResting(save.player.character.restingOn);
-  restoreNeeds(save.player.character.needs);
+  // 带上上次存盘的时刻，startNeeds 的首次 tick 才能补算离线期间的衰减
+  restoreNeeds(save.player.character.needs, save.meta?.updatedAtUtc);
   restorePets(save.ownWorld.pets);
 
   restoreProgression({

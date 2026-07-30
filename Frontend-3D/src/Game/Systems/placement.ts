@@ -6,6 +6,7 @@ import {
   removeFurniture,
   type PlacementTarget,
 } from "../State/worldRuntime";
+import { isStorageEmpty, storageIdFor } from "../State/storage";
 
 /**
  * 家具物品 ↔ 世界放置 的双向动作。
@@ -34,7 +35,10 @@ export function placeFromItem(
 
 export type PickupResult =
   | { ok: true; itemId: string }
-  | { ok: false; reason: "not_found" | "not_portable" | "busy" };
+  | {
+      ok: false;
+      reason: "not_found" | "not_portable" | "busy" | "not_empty";
+    };
 
 /**
  * 拿起已放置的家具。没有对应物品的家具（房东的灶台）搬不走；
@@ -52,6 +56,11 @@ export function pickupFurniture(instanceId: string): PickupResult {
   const slotContents = placed.state.slotContents ?? {};
   if (Object.keys(slotContents).length > 0) {
     return { ok: false, reason: "busy" };
+  }
+
+  // 装着东西的箱子搬走会把里面的东西一起吞掉，先让玩家清空
+  if (!isStorageEmpty(storageIdFor(instanceId))) {
+    return { ok: false, reason: "not_empty" };
   }
 
   if (!removeFurniture(instanceId)) return { ok: false, reason: "not_found" };

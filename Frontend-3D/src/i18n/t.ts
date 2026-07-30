@@ -389,6 +389,12 @@ const ZH: Record<string, string> = {
   "ui.craft.into_hotbar": "做好了，放进了下方快捷栏",
   "ui.craft.into_backpack": "做好了，放进了背包（按 B 查看）",
 
+  "ui.food_spoiled": "有些吃的放太久了，不太新鲜了",
+
+  // 储物（hint.chest / hint.bookshelf 前面已经有了，不重复定义）
+  "ui.storage.chest": "箱子里",
+  "ui.storage.hint": "点一下就在箱子和背包之间搬 · Esc 关闭",
+
   // ---- 设置侧边栏 ----
   "ui.settings.title": "设置",
   "ui.settings.sound": "声音",

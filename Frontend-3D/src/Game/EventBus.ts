@@ -9,7 +9,12 @@
  * 不是 FurnitureCapability 的别名——一件家具可能同时带好几个 capability
  * （坐垫既能坐又能做运动行动），这里是**交互分派时取的那一个**，按优先级选出来。
  */
-export type StationCapability = "crafting" | "cooking" | "sleep" | "sitting";
+export type StationCapability =
+  | "crafting"
+  | "cooking"
+  | "sleep"
+  | "sitting"
+  | "storage";
 
 export type GameEvents = {
   /** 世界数据变化（家具增删等），渲染层据此同步场景图 */
@@ -81,6 +86,10 @@ export type GameEvents = {
   audio_unlocked: Record<string, never>;
   /** 吃下了一份食物。表现层接这条放音效，Game/ 不直接驱动 AudioEngine */
   food_eaten: { itemId: string };
+  /** 某个储物家具的内容变了 */
+  storage_changed: { inventoryId: string };
+  /** 玩家按 F 请求打开某个储物家具 */
+  storage_open_requested: { instanceId: string; furnitureId: string };
   /** 背包面板被打开（教程用） */
   ui_backpack_opened: Record<string, never>;
   /** 玩法信号：剧情解释器与教程系统监听（内容在 Core storyRules） */

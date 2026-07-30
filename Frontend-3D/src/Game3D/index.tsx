@@ -17,6 +17,7 @@ import { SettingsDrawer } from "../Components/SettingsDrawer/SettingsDrawer";
 import { SleepOverlay } from "../Components/SleepOverlay/SleepOverlay";
 import { StoryToast } from "../Components/StoryToast/StoryToast";
 import { StationPanel } from "../Components/StationPanel/StationPanel";
+import { StoragePanel } from "../Components/StoragePanel/StoragePanel";
 import { TutorialGuide } from "../Components/TutorialGuide/TutorialGuide";
 import { WorldClock } from "../Components/WorldClock/WorldClock";
 import {
@@ -25,6 +26,7 @@ import {
   type CommandResult,
 } from "../Game/CommandLine/commands";
 import { saveNow, startAutosave } from "../Data/Save";
+import { emit, on } from "../Game/EventBus";
 import {
   debugAdvanceHours,
   debugJumpToPhase,
@@ -45,7 +47,9 @@ import {
   getCounts,
   getHotbar,
   seedInitialInventory,
+  spoilExpiredFood,
 } from "../Game/State/inventory";
+import { startNeeds, tickNeeds } from "../Game/State/needs";
 import { listKitchenSlots } from "../Game/Systems/kitchen";
 import { setupTestRoom } from "../Game/Systems/testRoom";
 import {
@@ -117,6 +121,19 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
     // 时钟必须最先起：天气要读世界日，剧情与行动要读时间
     const stopClock = startClock();
     const stopWeather = startWeather();
+    // 饱食/精力的自然衰减。首次 tick 就是"离线补算"
+    const stopNeeds = startNeeds();
+
+    // 跨天让过期食物变得不新鲜（只降品质，不删除）
+    const offSpoil = on("world_day_changed", ({ worldDayId }) => {
+      const spoiled = spoilExpiredFood(worldDayId);
+      if (spoiled > 0) {
+        emit("story_toast", {
+          localizationKey: "ui.food_spoiled",
+          durationMs: 2600,
+        });
+      }
+    });
     // 音量偏好在标题页设过，进游戏要真的作用到总线上
     initAudioSettings();
     const stopSoundscape = startSoundscape();
@@ -168,6 +185,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
             return { ok: false, message: "小时数得是个数字" };
           }
           debugAdvanceHours(hours);
+          // 饱食/精力平时每分钟才结算一次，拨完时钟立刻补一次才看得到效果
+          tickNeeds();
           const clock = getClock();
           return ok(
             `已前推 ${hours} 小时 → 世界日 ${clock.worldDayId} 本地 ${formatLocalTime(clock)} ${clock.phase}`,
@@ -329,8 +348,10 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       window.removeEventListener("keydown", onFirstGesture);
 
       void saveNow().then(stopAutosave);
+      offSpoil();
       stopStory();
       stopSoundscape();
+      stopNeeds();
       stopWeather();
       stopClock();
       scene.dispose();
@@ -348,6 +369,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       <InteractHint />
       <Backpack />
       <StationPanel />
+      <StoragePanel />
       <DialoguePanel />
       <ActionHub />
       <NeedsHud />

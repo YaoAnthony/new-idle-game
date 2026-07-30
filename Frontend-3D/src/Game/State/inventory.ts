@@ -1,10 +1,13 @@
 import {
+  ItemQuality,
   findItemDefinition,
+  isExpired,
+  resolveExpiry,
   type InventoryStack,
   type ItemCounts,
-  type ItemQuality,
 } from "core";
 import { emit } from "../EventBus";
+import { getClock } from "./clock";
 
 /**
  * 槽位式背包（MC / 泰拉瑞亚式）：8 格快捷栏 + 24 格背包。
@@ -23,11 +26,21 @@ export type SlotStack = {
   itemId: string;
   count: number;
   quality?: ItemQuality;
+  /**
+   * 保质期限，**已对齐到世界日的末尾**（见 Core 的 resolveExpiry）。
+   * 对齐是为了合堆：存精确到秒的话，前后隔几分钟做的两盘同样的菜
+   * 就永远合不到一起，背包会被碎片塞满。
+   */
+  expiresAtUtc?: string;
 } | null;
 
-/** 两堆东西能不能合并 */
+/** 两堆东西能不能合并。同物、同品质、同保质期才算一类 */
 function sameKind(a: NonNullable<SlotStack>, b: NonNullable<SlotStack>): boolean {
-  return a.itemId === b.itemId && a.quality === b.quality;
+  return (
+    a.itemId === b.itemId &&
+    a.quality === b.quality &&
+    a.expiresAtUtc === b.expiresAtUtc
+  );
 }
 
 export const HOTBAR_SIZE = 8;
@@ -76,11 +89,18 @@ export function addItem(
   quantity = 1,
   quality?: ItemQuality,
 ): void {
-  if (!findItemDefinition(itemId) || quantity <= 0) return;
+  const definition = findItemDefinition(itemId);
+  if (!definition || quantity <= 0) return;
 
   let remaining = quantity;
   const limit = stackLimit(itemId);
-  const incoming = { itemId, count: 0, quality };
+
+  // 食物进背包时就把保质期算好。对齐到世界日末尾，所以同一天做的能合堆
+  const expiresAtUtc = resolveExpiry(
+    definition.food?.shelfLifeSeconds,
+    getClock().worldDayId,
+  );
+  const incoming = { itemId, count: 0, quality, expiresAtUtc };
 
   for (const list of [hotbar, backpack]) {
     for (const stack of list) {
@@ -96,12 +116,52 @@ export function addItem(
     for (let i = 0; i < list.length && remaining > 0; i += 1) {
       if (list[i]) continue;
       const take = Math.min(limit, remaining);
-      list[i] = { itemId, count: take, quality };
+      list[i] = { itemId, count: take, quality, expiresAtUtc };
       remaining -= take;
     }
   }
 
   emit("inventory_changed", { reason: "add" });
+}
+
+/**
+ * 跨天时把过期食物降成"不新鲜"。
+ *
+ * **不删除**——和厨房那条"火候只影响品质，不会烧毁稀有材料"是同一条原则：
+ * 让玩家攒的东西凭空消失会制造焦虑。过期只是变难吃（恢复量按品质缩放），
+ * 小动物也会更不爱吃。
+ */
+export function spoilExpiredFood(worldDayId: string): number {
+  let spoiled = 0;
+
+  for (const list of [hotbar, backpack]) {
+    for (const stack of list) {
+      if (!stack || !isExpired(stack.expiresAtUtc, worldDayId)) continue;
+
+      spoiled += stack.count;
+      stack.quality = ItemQuality.Poor;
+      // 清掉期限，避免每天重复触发
+      stack.expiresAtUtc = undefined;
+    }
+  }
+
+  if (spoiled > 0) emit("inventory_changed", { reason: "spoiled" });
+  return spoiled;
+}
+
+/**
+ * 下一次 removeItem 会先吃掉哪一堆的品质。
+ *
+ * 必须和 removeItem 的遍历顺序一致（背包优先），否则会出现
+ * "吃的是那盘焦的、算的却是这盘上乘的"。
+ */
+export function peekConsumeQuality(itemId: string): ItemQuality | undefined {
+  for (const list of [backpack, hotbar]) {
+    for (const stack of list) {
+      if (stack?.itemId === itemId) return stack.quality;
+    }
+  }
+  return undefined;
 }
 
 /** 从背包侧优先扣除（把快捷栏留给玩家的常用摆放） */
@@ -228,7 +288,10 @@ export function snapshotInventory(): InventoryStack[] {
         stackId: SLOT_ID(container, index),
         itemId: stack.itemId,
         quantity: stack.count,
-        state: stack.quality ? { quality: stack.quality } : undefined,
+        state:
+          stack.quality || stack.expiresAtUtc
+            ? { quality: stack.quality, expiresAtUtc: stack.expiresAtUtc }
+            : undefined,
       });
     });
   }
@@ -253,6 +316,7 @@ export function restoreInventory(stacks: InventoryStack[]): void {
       itemId: stack.itemId,
       count: stack.quantity,
       quality: stack.state?.quality,
+      expiresAtUtc: stack.state?.expiresAtUtc,
     };
   }
 

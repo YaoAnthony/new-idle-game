@@ -316,7 +316,8 @@ export function eatFromHand(): string | null {
   if (index < 0) return null;
 
   const portion = container.items[index];
-  applyFoodEffect(portion.itemId);
+  // 盘子里的菜带着起锅那一刻定下的品质，恢复量按它缩放
+  applyFoodEffect(portion.itemId, portion.quality);
 
   const items = container.items
     .map((item, i) =>

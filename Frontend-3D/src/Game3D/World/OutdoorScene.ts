@@ -15,6 +15,7 @@ import {
   Scene,
   SphereGeometry,
 } from "three";
+import { PALETTE } from "../Visual/palette.js";
 import { blob, box, cylinder, ownMaterial } from "../Visual/primitives.js";
 
 /**
@@ -65,13 +66,17 @@ const STAR_OPACITY: Record<DayPhaseId, number> = {
 const SUN_COLOR = "#ffe9a8";
 const MOON_COLOR = "#e6ecff";
 
-/** 外景地面与树的基础色。受光材质，昼夜明暗交给灯光，不在这里做 */
+/**
+ * 外景地面与树的基础色。受光材质，昼夜明暗交给灯光，不在这里做。
+ * 和室内共用的色值直接取 PALETTE，别抄数值——色板改了外景要跟着变。
+ * 森林专用的深绿是新配的，野地本来就该比室内盆栽沉一个调。
+ */
 const GROUND_GREEN = "#7fa063";
 const GROUND_GREEN_DARK = "#6d8c55";
 const TREE_GREEN = "#5e7d4f";
-const TREE_GREEN_LIGHT = "#7d9c5b";
-const TRUNK_BROWN = "#6b4a30";
-const RIVER_BLUE = "#7fb2c4";
+const TREE_GREEN_LIGHT = PALETTE.leafGreen;
+const TRUNK_BROWN = PALETTE.wallTrim;
+const RIVER_BLUE = PALETTE.waterBlue;
 const RIVER_FOAM = "#dcedf4";
 
 /**
@@ -101,6 +106,8 @@ function hash01(seed: number): number {
 }
 
 const RAIN_MAX = 420;
+/** 小雨的粒子数。外景比旧窗贴画大得多，密度按面积等比放大 */
+const RAIN_COUNT_LIGHT = 190;
 
 export class OutdoorScene {
   readonly root = new Object3D();
@@ -333,7 +340,8 @@ export class OutdoorScene {
       [46, -46, 20, 8],
     ];
     for (const [hx, hz, hr, hh] of hills) {
-      const hill = blob(hr, hx, {
+      // blob 第二参数是细分级别不是随机种子——传坐标进去要么几百万面要么直接空掉
+      const hill = blob(hr, 1, {
         color: "#54724a",
         position: [hx, 0, hz],
         castShadow: false,
@@ -356,7 +364,8 @@ export class OutdoorScene {
       tree.add(trunk);
 
       const crownColor = hash01(i * 11.3) < 0.4 ? TREE_GREEN_LIGHT : TREE_GREEN;
-      const crown = blob(0.85 * scale, i, {
+      // 细分固定 0：低多边形树冠要的就是那股棱角。形态差异靠 scale 和旋转
+      const crown = blob(0.85 * scale, 0, {
         color: crownColor,
         position: [0, trunkHeight + 0.55 * scale, 0],
         castShadow: false,
@@ -364,7 +373,7 @@ export class OutdoorScene {
       tree.add(crown);
 
       if (hash01(i * 6.3) > 0.55) {
-        const side = blob(0.5 * scale, i * 3 + 1, {
+        const side = blob(0.5 * scale, 0, {
           color: crownColor,
           position: [0.55 * scale, trunkHeight + 0.25 * scale, 0.1],
           castShadow: false,
@@ -443,7 +452,8 @@ export class OutdoorScene {
     for (let i = 0; i < RAIN_MAX; i += 1) {
       positions[i * 3] = (Math.random() - 0.5) * 70;
       positions[i * 3 + 1] = Math.random() * 20;
-      positions[i * 3 + 2] = -4 - Math.random() * 36;
+      // 近界必须退到北墙（z=-6）之外，否则有一撮雨会悬在客厅中央下个不停
+      positions[i * 3 + 2] = -7.5 - Math.random() * 32;
       velocities[i] = 9 + Math.random() * 7;
     }
 
@@ -494,7 +504,12 @@ export class OutdoorScene {
     this.starBaseOpacity = overcast ? 0 : STAR_OPACITY[phase];
     this.starMaterial.opacity = this.starBaseOpacity;
 
+    // 密度分级不能丢：小雨和暴雨的差别主要靠粒子数，只调透明度会让小雨也像暴雨
     this.rain.visible = raining;
+    this.rain.geometry.setDrawRange(
+      0,
+      weather === WeatherKind.Storm ? RAIN_MAX : RAIN_COUNT_LIGHT,
+    );
     this.stormWind = weather === WeatherKind.Storm;
     (this.rain.material as PointsMaterial).opacity =
       weather === WeatherKind.Storm ? 0.85 : 0.6;
@@ -571,5 +586,11 @@ export class OutdoorScene {
   dispose(): void {
     if (this.scene.fog === this.fog) this.scene.fog = null;
     this.root.removeFromParent();
+    // 外景的几何体量远大于家具，不能只靠 renderer.dispose() 兜底
+    this.root.traverse((node) => {
+      if (node instanceof Mesh || node instanceof Points) {
+        node.geometry.dispose();
+      }
+    });
   }
 }

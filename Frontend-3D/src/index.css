@@ -1,0 +1,376 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100%;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+#root {
+  min-height: 100dvh;
+}
+
+/* ---- 游戏 UI 皮肤（图片由 Codex 生成，缺图时退化为纯色） ---- */
+
+/* 物品格子：像素缝线格（slot.png 自带边框，不再叠 CSS 边框） */
+.ui-slot {
+  position: relative;
+  display: grid;
+  place-items: center;
+  background-color: transparent;
+  background-image: url("/ui/slot.png");
+  background-size: 100% 100%;
+  image-rendering: pixelated;
+  cursor: pointer;
+  user-select: none;
+  touch-action: none;
+}
+
+.ui-slot--selected {
+  background-image: url("/ui/slot_selected.png");
+  filter: drop-shadow(0 0 6px rgb(233 168 60 / 0.7));
+}
+
+/* 快捷栏 / 面板的皮革底 */
+.ui-bar {
+  border: 3px solid #6b4426;
+  background-color: #8a5f3a;
+  background-image: url("/ui/panel.png");
+  background-size: 100% 100%;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.45);
+}
+
+/* 背包：像素书包造型整图（backpack_bg.png） */
+.ui-satchel {
+  background-color: transparent;
+  background-image: url("/ui/backpack_bg.png");
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 10px 24px rgb(0 0 0 / 0.5));
+}
+
+/* 工作台：皮面笔记本整图（book_bg.png，1536x1024） */
+.ui-book {
+  aspect-ratio: 1536 / 1024;
+  background-image: url("/ui/book_bg.png");
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 12px 28px rgb(0 0 0 / 0.5));
+}
+
+/* ---- 对话框（动森式：奶油圆角气泡 + 名字药丸 + 继续三角） ---- */
+
+.ui-dialogue {
+  background: linear-gradient(180deg, #fdf8ec 0%, #f4ead2 100%);
+  border: 3px solid #d8c8a6;
+  box-shadow:
+    0 10px 30px rgb(40 25 12 / 0.45),
+    inset 0 2px 0 rgb(255 255 255 / 0.9);
+  animation: dialogue-rise 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ui-name-tag {
+  background: linear-gradient(180deg, #ffe9a8 0%, #f3d183 100%);
+  border: 3px solid #d8b25f;
+  box-shadow: 0 4px 10px rgb(40 25 12 / 0.35);
+}
+
+.ui-dialogue-choice {
+  background: linear-gradient(180deg, #fffaf0 0%, #f0e4c8 100%);
+  border: 2px solid #c9b58c;
+  color: #4a3b2a;
+  box-shadow: 0 2px 0 #c9b58c;
+  transition: transform 90ms ease-out, filter 90ms ease-out;
+}
+
+.ui-dialogue-choice:hover {
+  filter: brightness(1.04);
+  transform: translateY(-1px);
+}
+
+.ui-dialogue-choice:active {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+
+.ui-dialogue-choice--gift {
+  background: linear-gradient(180deg, #ffe6a5 0%, #f5cc79 100%);
+  border-color: #d8a94f;
+  box-shadow: 0 2px 0 #d8a94f;
+}
+
+/* 继续三角：轻轻上下跳，提示可以点 */
+.ui-dialogue-arrow {
+  width: 0;
+  height: 0;
+  border-left: 11px solid transparent;
+  border-right: 11px solid transparent;
+  border-top: 13px solid #e0a94a;
+  filter: drop-shadow(0 2px 1px rgb(40 25 12 / 0.4));
+  animation: arrow-bounce 900ms ease-in-out infinite;
+}
+
+@keyframes dialogue-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+@keyframes arrow-bounce {
+  0%,
+  100% {
+    transform: translate(-50%, 0);
+  }
+  50% {
+    transform: translate(-50%, 4px);
+  }
+}
+
+/* 家具交互气泡：羊皮纸小卡 + 指向家具的尖角 */
+.ui-bubble {
+  border: 2px solid #8a6239;
+  background-color: #f6ecd0;
+  box-shadow: 0 4px 10px rgb(0 0 0 / 0.35);
+  animation: bubble-pop 140ms ease-out;
+}
+
+.ui-bubble-tail {
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: 8px solid #8a6239;
+  filter: drop-shadow(0 2px 2px rgb(0 0 0 / 0.25));
+}
+
+@keyframes bubble-pop {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.92);
+  }
+}
+
+/* 面板内的细滚动条 */
+.ui-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #8a5f3a transparent;
+}
+
+.ui-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.ui-scroll::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: #8a5f3a;
+}
+
+.ui-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 悬浮介绍：小羊皮纸卡 */
+.ui-tooltip {
+  border: 2px solid #8a6239;
+  background-color: #f6ecd0;
+  box-shadow: 0 6px 16px rgb(0 0 0 / 0.4);
+}
+
+/* ---- 行动面板（对照 版本期望/figures 的四张像素稿）----
+ *
+ * 木框 + 羊皮纸内胆 + 木牌匾标题。现在用渐变和描边逼近，
+ * 等 Codex 出了整张 9-slice 木框素材可以直接换成 background-image，
+ * 结构不用动（和 .ui-book 换 book_bg.png 是同一套路子）。
+ */
+
+.ui-action-panel {
+  background:
+    linear-gradient(180deg, #f6e3b8 0%, #efd8a6 55%, #e8cd97 100%);
+  border: 5px solid #a9773f;
+  outline: 4px solid #6d4824;
+  border-radius: 16px;
+  box-shadow:
+    0 18px 48px rgb(20 12 4 / 0.6),
+    inset 0 3px 0 rgb(255 255 255 / 0.5);
+}
+
+/* 木牌匾：压在面板上边缘的标题条 */
+.ui-plaque {
+  background: linear-gradient(180deg, #f2dcaf 0%, #e7c98e 100%);
+  border: 4px solid #8a5a30;
+  outline: 3px solid #5c3a1d;
+  border-radius: 999px;
+  box-shadow:
+    0 5px 0 rgb(92 58 29 / 0.35),
+    inset 0 2px 0 rgb(255 255 255 / 0.6);
+}
+
+/* 分类卡：可用态暖底 + 金边发光 */
+.ui-action-card {
+  background: linear-gradient(180deg, #fbeec7 0%, #f2ddab 100%);
+  border: 3px solid #d9a94e;
+  border-radius: 14px;
+  box-shadow:
+    0 0 0 2px rgb(255 236 190 / 0.7),
+    0 6px 16px rgb(70 45 15 / 0.28),
+    inset 0 2px 0 rgb(255 255 255 / 0.65);
+  transition: transform 110ms ease-out, filter 110ms ease-out;
+}
+
+.ui-action-card:hover {
+  transform: translateY(-3px);
+  filter: brightness(1.04);
+}
+
+/* 锁定态：整卡去色压暗，配挂锁和「缺少对应家具」 */
+.ui-action-card--locked {
+  background: linear-gradient(180deg, #cfcabf 0%, #bdb7ab 100%);
+  border-color: #9b948a;
+  box-shadow: inset 0 2px 0 rgb(255 255 255 / 0.35);
+  cursor: not-allowed;
+}
+
+.ui-action-card--locked:hover {
+  transform: none;
+  filter: none;
+}
+
+/* 数字角标：卡片右上角的深色小方牌 */
+.ui-badge {
+  background: linear-gradient(180deg, #6d4824 0%, #55381c 100%);
+  border: 2px solid #3f2914;
+  border-radius: 8px;
+  color: #f6e3b8;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.25);
+}
+
+/* 信纸区：虚线框 + 浅色横线，空着时也不显得秃 */
+.ui-paper {
+  background-color: #f8ecc9;
+  background-image: repeating-linear-gradient(
+    180deg,
+    transparent 0,
+    transparent 43px,
+    #e2cb9c 43px,
+    #e2cb9c 44px
+  );
+  border: 2px dashed #cdb488;
+  border-radius: 12px;
+  box-shadow: inset 0 2px 8px rgb(140 105 60 / 0.18);
+}
+
+/* 木质小方钮（返回箭头、关闭 X） */
+.ui-wood-btn {
+  background: linear-gradient(180deg, #b98a4e 0%, #9a6f3a 100%);
+  border: 3px solid #6d4824;
+  border-radius: 10px;
+  color: #f6e3b8;
+  box-shadow: 0 3px 0 #5c3a1d;
+  transition: transform 90ms ease-out;
+}
+
+.ui-wood-btn:hover {
+  filter: brightness(1.08);
+}
+
+.ui-wood-btn:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+
+/* 绿钮（添加行动 / 保存 / 开始） */
+.ui-green-btn {
+  background: linear-gradient(180deg, #7d9c4e 0%, #63803a 100%);
+  border: 3px solid #465b28;
+  border-radius: 10px;
+  color: #f7f2df;
+  text-shadow: 0 1px 0 rgb(0 0 0 / 0.35);
+  box-shadow: 0 3px 0 #3a4c21;
+  transition: transform 90ms ease-out, filter 90ms ease-out;
+}
+
+.ui-green-btn:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.ui-green-btn:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+
+.ui-green-btn:disabled {
+  background: linear-gradient(180deg, #b3b0a6 0%, #9b988e 100%);
+  border-color: #7d7a71;
+  box-shadow: 0 3px 0 #6b6860;
+  cursor: not-allowed;
+}
+
+/* 时长预设 / 重要级分档：未选中是浅色，选中是金色 */
+.ui-chip {
+  background: linear-gradient(180deg, #f6ecd2 0%, #ebdcb6 100%);
+  border: 2px solid #cdb488;
+  border-radius: 9px;
+  color: #6b4a2a;
+  transition: filter 90ms ease-out;
+}
+
+.ui-chip:hover {
+  filter: brightness(1.05);
+}
+
+.ui-chip--on {
+  background: linear-gradient(180deg, #ffdf95 0%, #f4c661 100%);
+  border-color: #c9922f;
+  color: #4a3211;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.7);
+}
+
+/* 重要级里"重要"那一档：选中时用深木色，视觉分量最重 */
+.ui-chip--strong {
+  background: linear-gradient(180deg, #9a6f3a 0%, #7d5628 100%);
+  border-color: #5c3a1d;
+  color: #ffe9b8;
+}
+
+/* 只读行（使用家具：自动选中，不给改） */
+.ui-readonly-row {
+  background: rgb(120 100 70 / 0.18);
+  border: 2px solid #cdb488;
+  border-radius: 10px;
+  color: #6b4a2a;
+}
+
+/* 输入框 */
+.ui-input {
+  background: linear-gradient(180deg, #fdf6e2 0%, #f7eed6 100%);
+  border: 3px solid #cdb488;
+  border-radius: 10px;
+  color: #4a3b2a;
+  box-shadow: inset 0 2px 5px rgb(140 105 60 / 0.2);
+}
+
+.ui-input:focus {
+  outline: none;
+  border-color: #d9a94e;
+}
+
+.ui-input::placeholder {
+  color: #b09a72;
+}

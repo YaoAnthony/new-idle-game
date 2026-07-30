@@ -1,0 +1,285 @@
+import {
+  DayPhaseId,
+  WeatherKind,
+  findItemDefinition,
+  type StorySignalKind,
+} from "core";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ActionHub } from "../Components/ActionHub/ActionHub";
+import { Backpack } from "../Components/Backpack/Backpack";
+import { DialoguePanel } from "../Components/Dialogue/DialoguePanel";
+import { HeldItem } from "../Components/HeldItem/HeldItem";
+import { Hotbar } from "../Components/Hotbar/Hotbar";
+import { InteractBubble } from "../Components/InteractBubble/InteractBubble";
+import { InteractHint } from "../Components/InteractHint/InteractHint";
+import { NeedsHud } from "../Components/NeedsHud/NeedsHud";
+import { SleepOverlay } from "../Components/SleepOverlay/SleepOverlay";
+import { StoryToast } from "../Components/StoryToast/StoryToast";
+import { StationPanel } from "../Components/StationPanel/StationPanel";
+import { TutorialGuide } from "../Components/TutorialGuide/TutorialGuide";
+import {
+  parseEnum,
+  registerCommand,
+  type CommandResult,
+} from "../Game/CommandLine/commands";
+import { saveNow, startAutosave } from "../Data/Save";
+import { getHeld } from "../Game/State/heldItem";
+import {
+  addItem,
+  getBackpack,
+  getCounts,
+  getHotbar,
+  seedInitialInventory,
+} from "../Game/State/inventory";
+import { listKitchenSlots } from "../Game/Systems/kitchen";
+import { setupTestRoom } from "../Game/Systems/testRoom";
+import {
+  getEventProgress,
+  getUnlockedFeatures,
+} from "../Game/Systems/events";
+import {
+  getFiredStoryRuleIds,
+  signal,
+  startStorySystem,
+} from "../Game/Systems/story";
+import { RoomScene } from "./World/RoomScene";
+
+/** /signal 的可选值。和 Core 的 StorySignalKind 一一对应 */
+const STORY_SIGNALS = [
+  "game_started",
+  "backpack_opened",
+  "furniture_placed",
+  "craft_completed",
+  "cook_completed",
+  "dialogue_ended",
+  "gift_accepted",
+  "action_started",
+  "action_completed",
+  "sleep_ended",
+  "pet_spawned",
+  "pet_entered",
+] as const satisfies readonly StorySignalKind[];
+
+const PHASES = [
+  DayPhaseId.Dawn,
+  DayPhaseId.Day,
+  DayPhaseId.Dusk,
+  DayPhaseId.Night,
+] as const;
+
+const WEATHERS = [
+  WeatherKind.Sunny,
+  WeatherKind.Cloudy,
+  WeatherKind.Rain,
+  WeatherKind.Wind,
+  WeatherKind.Storm,
+] as const;
+
+type GameViewProps = {
+  /** 存档已经灌进运行时：跳过开局行李/摆设，也不重播开场剧情 */
+  loadedFromSave?: boolean;
+};
+
+export function GameView({ loadedFromSave = false }: GameViewProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scene, setScene] = useState<RoomScene | null>(null);
+
+  const handleSelect = useCallback(
+    (furnitureId: string) => scene?.beginPlacement(furnitureId),
+    [scene],
+  );
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    // 读档进来时行李和屋里的东西都已经在存档里了，再铺一遍会凭空多出物品
+    if (!loadedFromSave) seedInitialInventory();
+
+    const stopStory = startStorySystem(!loadedFromSave);
+    const stopAutosave = startAutosave();
+
+    const scene = new RoomScene(container, { seedFurniture: !loadedFromSave });
+    setScene(scene);
+
+    const onResize = () => scene.resize();
+    window.addEventListener("resize", onResize);
+
+    const ok = (message: string): CommandResult => ({ ok: true, message });
+
+    const unregister = [
+      registerCommand({
+        name: "time",
+        usage: "time <dawn|day|dusk|night>",
+        description: "切换昼夜阶段",
+        handler: (args) => {
+          const phase = parseEnum(args[0], PHASES, "时段");
+          scene.setPhase(phase);
+          return ok(`时段已切到 ${phase}`);
+        },
+      }),
+      registerCommand({
+        name: "weather",
+        usage: "weather <sunny|cloudy|rain|wind|storm>",
+        description: "切换天气",
+        handler: (args) => {
+          const weather = parseEnum(args[0], WEATHERS, "天气");
+          scene.setWeather(weather);
+          return ok(`天气已切到 ${weather}`);
+        },
+      }),
+      registerCommand({
+        name: "outline",
+        usage: "outline <on|off>",
+        description: "开关浅色描边",
+        handler: (args) => {
+          const value = parseEnum(args[0], ["on", "off"] as const, "描边");
+          scene.setOutlineEnabled(value === "on");
+          return ok(`描边已${value === "on" ? "开启" : "关闭"}`);
+        },
+      }),
+      registerCommand({
+        name: "rotate",
+        usage: "rotate <cw|ccw>",
+        description: "相机档位旋转（也可以按 Q / E）",
+        handler: (args) => {
+          const value = parseEnum(args[0], ["cw", "ccw"] as const, "方向");
+          scene.rotate(value === "cw" ? 1 : -1);
+          return ok(`相机已旋转 45°，当前朝向 ${Math.round(scene.rig.azimuthDegrees)}°`);
+        },
+      }),
+      registerCommand({
+        name: "zoomfit",
+        usage: "zoomfit",
+        description: "缩到最远，一眼看全整个房间",
+        handler: () => {
+          scene.zoomToFit();
+          return ok("已缩到最远");
+        },
+      }),
+      registerCommand({
+        name: "state",
+        usage: "state",
+        description: "打印当前场景状态",
+        handler: () => ok(JSON.stringify(scene.getDebugState(), null, 1)),
+      }),
+      registerCommand({
+        name: "signal",
+        usage: "signal <信号名> [subject]",
+        description: "手动发一个剧情信号，用来验证 storyRules 的触发条件",
+        handler: (args) => {
+          const kind = parseEnum(args[0], STORY_SIGNALS, "信号");
+          signal(kind, args[1]);
+          return ok(`已发出信号 ${kind}${args[1] ? ` (${args[1]})` : ""}`);
+        },
+      }),
+      registerCommand({
+        name: "story",
+        usage: "story",
+        description: "打印剧情进度：已触发的规则、事件阶段、解锁的功能",
+        handler: () =>
+          ok(
+            JSON.stringify(
+              {
+                firedRules: getFiredStoryRuleIds(),
+                events: getEventProgress(),
+                features: getUnlockedFeatures(),
+              },
+              null,
+              1,
+            ),
+          ),
+      }),
+      registerCommand({
+        name: "give",
+        usage: "give <itemId> [数量]",
+        description: "调试发放物品",
+        handler: (args) => {
+          const itemId = args[0] ?? "";
+          if (!findItemDefinition(itemId)) {
+            return { ok: false, message: `未知物品：${itemId}` };
+          }
+          const quantity = Math.max(1, Number(args[1] ?? 1) || 1);
+          addItem(itemId, quantity);
+          return ok(`已发放 ${itemId} ×${quantity}`);
+        },
+      }),
+      registerCommand({
+        name: "testroom",
+        usage: "testroom",
+        description:
+          "测试房间：清掉纸箱杂物，把每件家具各摆一件（互不重叠），并备齐测试库存",
+        handler: () => {
+          const report = setupTestRoom();
+          const lines = [`已摆好 ${report.placed.length} 件家具`];
+
+          if (report.skipped.length > 0) {
+            lines.push(
+              `放不下（${report.skipped.length}）：${report.skipped.join(", ")}`,
+            );
+          }
+          lines.push(`空地 ${report.walkableCells} 格`);
+          // 连通区域大于 1 = 有家具把某块地圈死了，角色走不进去
+          lines.push(
+            report.walkableRegions === 1
+              ? "全屋连通，没有走不到的角落"
+              : `⚠ 空地被切成 ${report.walkableRegions} 块，有走不进去的角落`,
+          );
+
+          return ok(lines.join("\n"));
+        },
+      }),
+    ];
+
+    // 供自动化验证读取，不参与玩法
+    (window as unknown as { __scene?: RoomScene }).__scene = scene;
+    // 厨房状态（锅里装着什么、煮到几分、手上端着什么）是纯数据，
+    // 光看画面验证不了品质这类字段，所以开一个只读窗口
+    (
+      window as unknown as {
+        __kitchen?: {
+          slots: typeof listKitchenSlots;
+          held: typeof getHeld;
+          counts: typeof getCounts;
+          hotbar: typeof getHotbar;
+          backpack: typeof getBackpack;
+        };
+      }
+    ).__kitchen = {
+      slots: listKitchenSlots,
+      held: getHeld,
+      counts: getCounts,
+      hotbar: getHotbar,
+      backpack: getBackpack,
+    };
+
+    return () => {
+      window.removeEventListener("resize", onResize);
+      for (const remove of unregister) remove();
+      // 离开前先把当前进度写下去，再摘掉自动存档
+      void saveNow().then(stopAutosave);
+      stopStory();
+      scene.dispose();
+      setScene(null);
+      delete (window as unknown as { __scene?: RoomScene }).__scene;
+    };
+  }, [loadedFromSave]);
+
+  return (
+    <>
+      <div ref={containerRef} className="absolute inset-0 overflow-hidden" />
+      <Hotbar onSelectFurniture={handleSelect} />
+      <HeldItem />
+      <InteractBubble scene={scene} />
+      <InteractHint />
+      <Backpack />
+      <StationPanel />
+      <DialoguePanel />
+      <ActionHub />
+      <NeedsHud />
+      <TutorialGuide />
+      <SleepOverlay />
+      <StoryToast />
+    </>
+  );
+}

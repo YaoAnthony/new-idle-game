@@ -7,6 +7,20 @@
       "runtimeArgs": ["run", "dev"],
       "cwd": "Frontend",
       "port": 5173
+    },
+    {
+      "name": "frontend-3d",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5174"],
+      "cwd": "Frontend-3D",
+      "port": 5174
+    },
+    {
+      "name": "frontend-3d-alt",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5178"],
+      "cwd": "Frontend-3D",
+      "port": 5178
     }
   ]
 }

@@ -5,13 +5,20 @@ import { Color } from "three";
  * 所以颜色集中管理，避免各处硬编码出一堆不协调的色值。
  */
 export const PALETTE = {
-  floorWood: "#8a5f3c",
-  floorWoodAlt: "#7d5433",
-  floorWoodWarm: "#946741",
+  // ---- 房间外壳（2026-07-30 明度大改） ----
+  //
+  // 原来整张色板挤在中暗棕一条窄带里，棕墙配棕地配棕家具，
+  // 形状之间没有明度差，看什么都糊成一团。参考做法（樱花道口那类
+  // 低多边形日系场景）：**六成画面是高明度低饱和**，饱和色只当点缀。
+  // 所以墙提到奶白、地板提到蜂蜜色，深棕从"底色"降级成"点缀"——
+  // 梁、踢脚、家具的深色因此才开始起"勾形"的作用。
+  floorWood: "#c09a6a",
+  floorWoodAlt: "#b48f5f",
+  floorWoodWarm: "#c9a271",
 
-  wall: "#c8a878",
-  wallAlt: "#bf9f6f",
-  wallShade: "#a9895e",
+  wall: "#ece1cb",
+  wallAlt: "#e4d8bf",
+  wallShade: "#cdbda0",
   wallTrim: "#6b4a30",
 
   woodDark: "#5f4127",
@@ -49,7 +56,12 @@ export const PALETTE = {
   emberCrack: "#ff8a45",
   emberGlow: "#ffc98a",
 
-  outline: "#fdf6e8",
+  /**
+   * 描边色。原来是暖白粗边（#fdf6e8 + 放大 1.045），在暗棕房间里
+   * 整屋像发光线框。底色提亮之后描边反转：**深棕细线**，
+   * 轮廓像插画的勾线，而不是霓虹灯。粗细在 Outline.ts。
+   */
+  outline: "#5b4332",
 
   // ---- 家具扩充用的低饱和暖色 ----
   fabricCream: "#ede1c4",
@@ -81,9 +93,10 @@ export const PALETTE = {
   sandPale: "#dcc79a",
   fishOrange: "#e08a4e",
 
-  // ---- 天花板（镜头锁进屋内后可见） ----
-  ceilingWood: "#a1794f",
-  ceilingWoodAlt: "#967049",
+  // ---- 天花板（镜头锁进屋内后可见）。跟着墙一起提亮，
+  //      深色只留给横梁——梁在浅顶上才勾得出屋子的结构感 ----
+  ceilingWood: "#d9c8a8",
+  ceilingWoodAlt: "#d0be9d",
   ceilingBeam: "#6b4a30",
 
   // ---- 铺地扩充：地毯与大件家具 ----

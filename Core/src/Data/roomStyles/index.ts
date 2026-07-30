@@ -14,10 +14,13 @@ export const roomStyleDefinitions = [
       wallVisualId: "wall_timber",
       doorVisualId: "door_arched_wood",
       windowVisualId: "window_round_wood",
+      // 2026-07-30 明度大改：墙提到奶白、地板提到蜂蜜色，
+      // 和渲染层 palette.ts 保持一致（RoomBuilder 接上这份数据之前，
+      // 两处都要改，否则装修换风格落地那天会拿到旧色）
       palette: {
-        floor: "#8a5f3c",
-        floorAlt: "#7a5233",
-        wall: "#c8a878",
+        floor: "#c09a6a",
+        floorAlt: "#b48f5f",
+        wall: "#ece1cb",
         wallTrim: "#6b4a30",
         accent: "#6f8f4a",
       },

@@ -19,12 +19,14 @@ const outlineMaterial = new MeshBasicMaterial({
 });
 
 export type OutlineOptions = {
-  /** 放大比例，1.04 约等于视觉上 1-2 像素 */
+  /** 放大比例，1.02 约等于视觉上 1 像素细线 */
   scale?: number;
 };
 
 export function addOutline(target: Object3D, options: OutlineOptions = {}): void {
-  const scale = options.scale ?? 1.045;
+  // 描边改成深色之后必须变细：深色粗边是"块"，深色细边才是"线"。
+  // 白边时代的 1.045 套在深色上会让每件家具都像描了眼线
+  const scale = options.scale ?? 1.022;
 
   const meshes: Mesh[] = [];
   target.traverse((node) => {

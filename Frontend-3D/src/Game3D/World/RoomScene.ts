@@ -95,6 +95,7 @@ import {
 } from "./FurnitureView.js";
 import { buildRoom, type BuiltRoom } from "./RoomBuilder.js";
 import { DoorView } from "./DoorView.js";
+import { OutdoorScene } from "./OutdoorScene.js";
 import { WindowView } from "./WindowView.js";
 
 export type SceneDebugState = {
@@ -114,6 +115,7 @@ export class RoomScene {
   private readonly lighting: Lighting;
   private readonly built: BuiltRoom;
   private readonly windowViews: WindowView[] = [];
+  private readonly outdoor: OutdoorScene;
   private readonly doorViews: DoorView[] = [];
   private readonly furnitureView: FurnitureView;
   private readonly cookwareView: CookwareView;
@@ -181,6 +183,9 @@ export class RoomScene {
       this.windowViews.push(view);
       this.scene.add(view.root);
     }
+
+    // 屋外的真实世界：森林、河、天穹、真日月。窗户只是画框
+    this.outdoor = new OutdoorScene(this.scene);
 
     this.furnitureView = new FurnitureView(this.built.size);
     this.scene.add(this.furnitureView.root);
@@ -1000,6 +1005,7 @@ export class RoomScene {
     }
 
     for (const view of this.windowViews) view.update(deltaSeconds);
+    this.outdoor.update(deltaSeconds);
 
     // 宠物走到门口 1.2 格内时门自动打开（派遣出门的仪式感）
     for (const door of this.doorViews) {
@@ -1015,6 +1021,7 @@ export class RoomScene {
 
   private applyEnvironment(): void {
     this.lighting.apply(this.phase, this.weather);
+    this.outdoor.apply(this.phase, this.weather);
     for (const view of this.windowViews) view.apply(this.phase, this.weather);
     this.applyCelestial();
   }
@@ -1027,7 +1034,7 @@ export class RoomScene {
    */
   private applyCelestial(): void {
     const { body, progress } = getClock().celestial;
-    for (const view of this.windowViews) view.setCelestial(body, progress);
+    this.outdoor.setCelestial(body, progress);
   }
 
   beginPlacement(furnitureId: string): void {
@@ -1081,6 +1088,7 @@ export class RoomScene {
     for (const off of this.offEventListeners) off();
     this.placement.cancel();
     this.furnitureView.dispose();
+    this.outdoor.dispose();
     this.cookwareView.dispose();
     this.renderer.stop();
     this.renderer.dispose();

@@ -10,6 +10,26 @@ import {
 import type { InteractHint } from "core";
 import { Raycaster, Scene, Vector2, Vector3 } from "three";
 
+/**
+ * 遮挡检测的采样点：沿身体取四个高度，再在肩线左右各加一条。
+ *
+ * 高度全部从 `CharacterView` 的真实体型算出来，**不要写死数字**——
+ * 之前写 1.6 当"头顶"，其实头顶只有 1.42，那条射线打的是头上方的空气；
+ * 而腿（地面到胯高 0.34）一条都没覆盖，只挡住下半身的矮家具
+ * （脚凳、茶几、边几，摆满时到处都是）就永远不会让开。
+ *
+ * 横向偏移是因为角色比一条射线宽：只挡住一侧肩膀的柜子，
+ * 中心线三条全都打不到。偏移方向按屏幕右方算，不是世界 X。
+ */
+const OCCLUSION_SAMPLES: Array<{ height: number; lateral: number }> = [
+  { height: HEAD_TOP_HEIGHT - 0.15, lateral: 0 },
+  { height: SHOULDER_HEIGHT - 0.08, lateral: 0 },
+  { height: SHOULDER_HEIGHT - 0.08, lateral: -BODY_HALF_WIDTH },
+  { height: SHOULDER_HEIGHT - 0.08, lateral: BODY_HALF_WIDTH },
+  { height: HIP_HEIGHT + 0.12, lateral: 0 },
+  { height: HIP_HEIGHT * 0.45, lateral: 0 },
+];
+
 /** 提示气泡的附着目标：家具实例 + 提示数据 + 世界锚点 */
 type HintTarget = {
   instanceId: string;
@@ -54,7 +74,12 @@ import {
   findPosture,
 } from "../Visual/poses.js";
 import { CookwareView } from "./CookwareView.js";
-import { HIP_HEIGHT } from "./CharacterView.js";
+import {
+  BODY_HALF_WIDTH,
+  HEAD_TOP_HEIGHT,
+  HIP_HEIGHT,
+  SHOULDER_HEIGHT,
+} from "./CharacterView.js";
 import { PetView } from "./PetView.js";
 import { CameraRig } from "../Engine/CameraRig.js";
 import { Lighting } from "../Engine/Lighting.js";
@@ -115,6 +140,11 @@ export class RoomScene {
     | { kind: "pet"; petId: string }
     | null = null;
   private interactCheckTimer = 0;
+  /** 遮挡检测的限流计时。射线不必每帧打，镜头转得再快也跟得上 */
+  private occlusionCheckTimer = 0;
+  private readonly occlusionRaycaster = new Raycaster();
+  private readonly occlusionOrigin = new Vector3();
+  private readonly occlusionDirection = new Vector3();
 
   private readonly pickRaycaster = new Raycaster();
   private readonly pickPointer = new Vector2();
@@ -872,6 +902,58 @@ export class RoomScene {
     };
   }
 
+  /**
+   * 从相机往角色身上的若干采样点打射线，挡在中间的家具要让开。
+   *
+   * 只取"比角色近"的命中——角色背后的家具没挡着任何东西，
+   * 淡掉它们只会让屋子平白空一块。采样点的取法见 `OCCLUSION_SAMPLES`。
+   */
+  private refreshOccluders(): void {
+    const camera = this.rig.camera.position;
+
+    // 屏幕右方（水平面内、垂直于相机→角色的方向），横向采样沿它偏移
+    const flatX = this.controller.x - camera.x;
+    const flatZ = this.controller.z - camera.z;
+    const flatLength = Math.hypot(flatX, flatZ);
+    if (flatLength < 0.001) return;
+    const rightX = -flatZ / flatLength;
+    const rightZ = flatX / flatLength;
+
+    const next = new Set<string>();
+
+    for (const sample of OCCLUSION_SAMPLES) {
+      this.occlusionOrigin.copy(camera);
+      this.occlusionDirection
+        .set(
+          this.controller.x + rightX * sample.lateral,
+          sample.height,
+          this.controller.z + rightZ * sample.lateral,
+        )
+        .sub(this.occlusionOrigin);
+
+      const toCharacter = this.occlusionDirection.length();
+      if (toCharacter < 0.001) continue;
+      this.occlusionDirection.divideScalar(toCharacter);
+
+      this.occlusionRaycaster.set(this.occlusionOrigin, this.occlusionDirection);
+      // 留一点余量，免得贴着角色的桌沿被判成遮挡物反复闪
+      this.occlusionRaycaster.far = Math.max(toCharacter - 0.35, 0.01);
+
+      for (const hit of this.occlusionRaycaster.intersectObject(
+        this.furnitureView.root,
+        true,
+      )) {
+        let node: typeof hit.object | null = hit.object;
+        while (node && !node.userData.instanceId) node = node.parent;
+        if (node?.userData.instanceId) {
+          next.add(node.userData.instanceId as string);
+        }
+      }
+    }
+
+    this.furnitureView.setOccluders(next);
+  }
+
   private update(deltaSeconds: number): void {
     this.controller.update(deltaSeconds, this.rig.azimuthDegrees);
     tickPets(deltaSeconds, { x: this.controller.x, z: this.controller.z });
@@ -899,6 +981,14 @@ export class RoomScene {
       }
     }
     this.rig.update(deltaSeconds);
+
+    // 遮挡检测限流，淡入淡出本身每帧走——否则透明度会一跳一跳的
+    this.occlusionCheckTimer += deltaSeconds;
+    if (this.occlusionCheckTimer > 0.1) {
+      this.occlusionCheckTimer = 0;
+      this.refreshOccluders();
+    }
+    this.furnitureView.tickFade(deltaSeconds);
 
     this.interactCheckTimer += deltaSeconds;
     if (this.interactCheckTimer > 0.15) {

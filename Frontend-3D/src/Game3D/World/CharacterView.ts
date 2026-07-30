@@ -63,6 +63,18 @@ const BODY_HEIGHT = 0.52;
  */
 export const HIP_HEIGHT = LEG_HEIGHT;
 
+/**
+ * 体型量度，给"要瞄准角色"的系统用（目前是遮挡淡出的射线采样）。
+ *
+ * **不要各自拍脑袋估一个数**——这里改了体型，那边的采样点要跟着走。
+ * 头顶高度是躯干顶再加发包的半径（sphere(0.32) × scale.y 0.82 ≈ 0.26，
+ * 加上发包中心离头节点的 0.30），实测约 1.42。
+ */
+export const SHOULDER_HEIGHT = LEG_HEIGHT + BODY_HEIGHT;
+export const HEAD_TOP_HEIGHT = SHOULDER_HEIGHT + 0.56;
+/** 手臂展开的半宽。横向采样用 */
+export const BODY_HALF_WIDTH = 0.28;
+
 export function buildCharacter(avatar: AvatarConfig = DEFAULT_AVATAR): CharacterRig {
   const skin = ownMaterial(avatar.colors.skin ?? "#f2c9a4");
   const hairColor = avatar.colors.hair ?? "#4a3226";

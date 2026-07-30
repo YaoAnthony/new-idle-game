@@ -4,8 +4,29 @@ import {
   findFurnitureDefinition,
   findItemByFurnitureId,
   type GameSave,
+  type InventoryStack,
 } from "core";
+import {
+  BACKPACK_SIZE,
+  HOTBAR_SIZE,
+} from "../../Game/State/inventory";
 import { SAVE_SCHEMA_VERSION } from "./types";
+
+/**
+ * 在槽位式背包的序列化数组里找一个空格，返回 "backpack:N" / "hotbar:N"。
+ * 背包优先（快捷栏留给玩家的常用摆放），全满返回 null——
+ * 32 格全满的概率极低，真发生也宁可少还一件，不能写坏格式带崩整份存档。
+ */
+function firstFreeSlot(inventory: InventoryStack[]): string | null {
+  const used = new Set(inventory.map((stack) => stack.stackId));
+  for (let i = 0; i < BACKPACK_SIZE; i += 1) {
+    if (!used.has(`backpack:${i}`)) return `backpack:${i}`;
+  }
+  for (let i = 0; i < HOTBAR_SIZE; i += 1) {
+    if (!used.has(`hotbar:${i}`)) return `hotbar:${i}`;
+  }
+  return null;
+}
 
 /**
  * 迁移链。加载时从存档记录的版本一路升到当前版本。
@@ -167,15 +188,19 @@ export const migrations: Migration[] = [
               y <= zone.maxY && y + h - 1 >= zone.minY;
             if (!overlaps) return true;
 
-            // 撤下的墙饰退回背包（找不到对应物品就只能丢，但记在心里：
-            // 家具都该有 findItemByFurnitureId 的映射）
+            // 撤下的墙饰退回背包。**stackId 必须是 "backpack:N" 槽位编码**——
+            // restoreInventory 靠它定位格子，写别的格式会被当坏记录静默丢弃，
+            // 东西就真的凭空消失了（审查抓出来的教训）。
             const item = findItemByFurnitureId(placed.furnitureId);
             if (item) {
-              save.player.character.inventory.push({
-                stackId: `migrated-${placed.instanceId}`,
-                itemId: item.id,
-                quantity: 1,
-              });
+              const slot = firstFreeSlot(save.player.character.inventory);
+              if (slot) {
+                save.player.character.inventory.push({
+                  stackId: slot,
+                  itemId: item.id,
+                  quantity: 1,
+                });
+              }
             }
             return false;
           });

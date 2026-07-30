@@ -248,8 +248,10 @@ export function removeFurniture(instanceId: string): boolean {
  * 房东留下的旧书架和旧储物箱歪靠着墙。整齐是玩家自己布置出来的，
  * 开局只需要"还没收拾完"的样子。
  *
- * 房间 16×12：北墙 y=0（x=3~4、x=11~12 两扇窗），西墙 x=0（y=5~6 是门），
+ * 房间 16×12：北墙 x=3~4 小窗、x=9~13 贴地落地窗，西墙 x=0（y=5~6 是门），
  * 角色出生在房间正中 (8, 6) 附近，所以中央必须留空。
+ * **落地窗前那五格永远不摆开局家具**——那是整个庭院构图的画框，
+ * 新档第一眼不能被自家灶台挡住（玩家自己想堵是他的自由）。
  */
 export function seedInitialFurniture(): void {
   if (placedFurniture.length > 0) return;
@@ -259,8 +261,9 @@ export function seedInitialFurniture(): void {
     gridPosition: GridPosition;
     facing: Facing;
   }> = [
-    // 房子自带的灶台，靠北墙右侧
-    { furnitureId: "stove", gridPosition: { x: 12, y: 1 }, facing: Facing.North },
+    // 房子自带的灶台，挪到北墙西端——原来的 x12 正好怼在落地窗前。
+    // 这个角落也是将来 2LDK 布局里开放厨房的位置
+    { furnitureId: "stove", gridPosition: { x: 1, y: 0 }, facing: Facing.North },
 
     // 房东留下的旧家具：书架卡在两扇窗中间，储物箱塞在东墙边
     { furnitureId: "bookshelf", gridPosition: { x: 6, y: 0 }, facing: Facing.North },

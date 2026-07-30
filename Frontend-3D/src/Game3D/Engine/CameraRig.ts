@@ -98,13 +98,29 @@ export class CameraRig {
     wallHeight: number,
     margin = 0.35,
   ): void {
+    this.setBoundsRect(-width / 2, width / 2, -depth / 2, depth / 2, wallHeight, margin);
+  }
+
+  /**
+   * 任意矩形的内壁盒（2LDK 多房间用）：玩家在哪个分区，
+   * 相机就锁进哪个分区的凸盒——回缩逻辑对"凸盒"的假设因此继续成立，
+   * 内墙不需要进碰撞。
+   */
+  setBoundsRect(
+    minX: number,
+    maxX: number,
+    minZ: number,
+    maxZ: number,
+    wallHeight: number,
+    margin = 0.35,
+  ): void {
     this.bounds = {
-      minX: -width / 2 + margin,
-      maxX: width / 2 - margin,
+      minX: minX + margin,
+      maxX: maxX - margin,
       minY: 0.25,
       maxY: wallHeight - margin,
-      minZ: -depth / 2 + margin,
-      maxZ: depth / 2 - margin,
+      minZ: minZ + margin,
+      maxZ: maxZ - margin,
     };
   }
 

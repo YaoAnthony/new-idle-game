@@ -3,6 +3,9 @@ import {
   WallOpeningKind,
   findFurnitureDefinition,
   findItemByFurnitureId,
+  findItemDefinition,
+  generateHouse,
+  roomStyleDefinitions,
   type GameSave,
   type InventoryStack,
 } from "core";
@@ -206,6 +209,60 @@ export const migrations: Migration[] = [
           });
         }
       }
+      return save;
+    },
+  },
+
+  // v7（2026-07-30 房子扩建成 2LDK）：单间 16×12 换成 24×16 的两房一厅。
+  // 房间几何整个重生成（迁移是唯一被允许"重算几何"的地方）；
+  // 所有已放置家具打包回背包——旧坐标在新户型里毫无意义，与其算一套
+  // "尽量原位"的映射不如让玩家重新布置，搬新家本身就是玩法（定案）。
+  // 同类家具先合堆再入槽（受 stackLimit），槽位不够的极端情况宁可少还。
+  {
+    to: 7,
+    migrate: (save) => {
+      const style =
+        roomStyleDefinitions.find(
+          (item) => item.id === save.ownWorld.house?.styleId,
+        ) ?? roomStyleDefinitions[0];
+
+      for (const map of Object.values(save.ownWorld.maps ?? {})) {
+        for (const roomId of Object.keys(map.rooms ?? {})) {
+          map.rooms[roomId] = generateHouse({ roomId, style });
+        }
+      }
+
+      // 家具 → 物品数量统计
+      const counts = new Map<string, number>();
+      for (const placed of save.ownWorld.placedFurniture ?? []) {
+        const item = findItemByFurnitureId(placed.furnitureId);
+        if (item) counts.set(item.id, (counts.get(item.id) ?? 0) + 1);
+      }
+      save.ownWorld.placedFurniture = [];
+
+      for (const [itemId, total] of counts) {
+        const limit = findItemDefinition(itemId)?.stackLimit ?? 1;
+        let remaining = total;
+        while (remaining > 0) {
+          const slot = firstFreeSlot(save.player.character.inventory);
+          if (!slot) break;
+          const take = Math.min(limit, remaining);
+          save.player.character.inventory.push({
+            stackId: slot,
+            itemId,
+            quantity: take,
+          });
+          remaining -= take;
+        }
+      }
+
+      // 宠物的旧坐标可能落进新内墙里，全部归到客厅中央附近
+      let offset = 0;
+      for (const pet of Object.values(save.ownWorld.pets ?? {})) {
+        pet.position = { ...pet.position, x: 2 + offset, y: -3 };
+        offset += 1;
+      }
+
       return save;
     },
   },

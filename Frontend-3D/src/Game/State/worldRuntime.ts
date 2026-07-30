@@ -4,7 +4,7 @@ import {
   buildRoomOccupancy,
   checkPlacement,
   findFurnitureDefinition,
-  generateRoom,
+  generateHouse,
   roomStyleDefinitions,
   type FurnitureDefinition,
   type GridPosition,
@@ -39,7 +39,7 @@ let instanceCounter = 0;
  */
 let roomStyle = roomStyleDefinitions[0];
 
-let room = generateRoom({
+let room = generateHouse({
   roomId: "living",
   style: roomStyle,
 });
@@ -248,8 +248,8 @@ export function removeFurniture(instanceId: string): boolean {
  * 房东留下的旧书架和旧储物箱歪靠着墙。整齐是玩家自己布置出来的，
  * 开局只需要"还没收拾完"的样子。
  *
- * 房间 16×12：北墙 x=3~4 小窗、x=9~13 贴地落地窗，西墙 x=0（y=5~6 是门），
- * 角色出生在房间正中 (8, 6) 附近，所以中央必须留空。
+ * 2LDK 24×16：北墙 x5~6 厨房小窗、x17~21 贴地落地窗（客厅），
+ * 西墙 z1~2 门（进玄关），z=8 内墙带三个门洞。
  * **落地窗前那五格永远不摆开局家具**——那是整个庭院构图的画框，
  * 新档第一眼不能被自家灶台挡住（玩家自己想堵是他的自由）。
  */
@@ -261,25 +261,24 @@ export function seedInitialFurniture(): void {
     gridPosition: GridPosition;
     facing: Facing;
   }> = [
-    // 房子自带的灶台，挪到北墙西端——原来的 x12 正好怼在落地窗前。
-    // 这个角落也是将来 2LDK 布局里开放厨房的位置
-    { furnitureId: "stove", gridPosition: { x: 1, y: 0 }, facing: Facing.North },
+    // 房子自带的灶台：开放厨房区（北墙西段、小窗旁）
+    { furnitureId: "stove", gridPosition: { x: 8, y: 0 }, facing: Facing.North },
 
-    // 房东留下的旧家具：书架卡在两扇窗中间，储物箱塞在东墙边
-    { furnitureId: "bookshelf", gridPosition: { x: 6, y: 0 }, facing: Facing.North },
-    { furnitureId: "storage_chest", gridPosition: { x: 14, y: 4 }, facing: Facing.West },
+    // 房东留下的旧家具：书架在客厅侧墙，储物箱塞在东墙边
+    { furnitureId: "bookshelf", gridPosition: { x: 12, y: 0 }, facing: Facing.North },
+    { furnitureId: "storage_chest", gridPosition: { x: 22, y: 4 }, facing: Facing.West },
 
-    // 第一堆：西南角，刚搬进门先卸在这儿的
-    { furnitureId: "cardboard_stack", gridPosition: { x: 2, y: 8 }, facing: Facing.North },
-    { furnitureId: "cardboard_box", gridPosition: { x: 3, y: 9 }, facing: Facing.East },
-    { furnitureId: "cardboard_box", gridPosition: { x: 1, y: 10 }, facing: Facing.South },
+    // 行李堆在玄关进门处——刚搬进来，先卸在落脚的地方才合理
+    { furnitureId: "cardboard_stack", gridPosition: { x: 2, y: 4 }, facing: Facing.North },
+    { furnitureId: "cardboard_box", gridPosition: { x: 4, y: 5 }, facing: Facing.East },
+    { furnitureId: "cardboard_box", gridPosition: { x: 1, y: 6 }, facing: Facing.South },
 
-    // 第二堆：南边靠中间，搬到一半没力气了
-    { furnitureId: "cardboard_stack", gridPosition: { x: 9, y: 9 }, facing: Facing.West },
-    { furnitureId: "cardboard_box", gridPosition: { x: 10, y: 8 }, facing: Facing.South },
+    // 搬到一半没力气的第二堆：客厅中部偏南
+    { furnitureId: "cardboard_stack", gridPosition: { x: 11, y: 6 }, facing: Facing.West },
+    { furnitureId: "cardboard_box", gridPosition: { x: 12, y: 5 }, facing: Facing.South },
 
-    // 第三堆：东南角孤零零一个
-    { furnitureId: "cardboard_box", gridPosition: { x: 13, y: 7 }, facing: Facing.East },
+    // 孤零零一个滚进了主卧门口
+    { furnitureId: "cardboard_box", gridPosition: { x: 4, y: 10 }, facing: Facing.East },
   ];
 
   for (const item of initial) {

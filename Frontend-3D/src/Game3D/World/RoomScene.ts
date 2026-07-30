@@ -83,6 +83,7 @@ import {
 import { PetView } from "./PetView.js";
 import { CameraRig } from "../Engine/CameraRig.js";
 import { Lighting } from "../Engine/Lighting.js";
+import { stepFade } from "../Engine/Fade.js";
 import { setOutlineVisible } from "../Engine/Outline.js";
 import { createRenderer, type RendererHandle } from "../Engine/Renderer.js";
 import { CharacterController } from "../Interaction/CharacterController.js";
@@ -147,6 +148,8 @@ export class RoomScene {
   private readonly occlusionRaycaster = new Raycaster();
   private readonly occlusionOrigin = new Vector3();
   private readonly occlusionDirection = new Vector3();
+  /** 内墙段的滞回计数（>0 表示"正被挡住/刚被放开还没到淡回时机"） */
+  private readonly wallReleaseTicks = new Map<string, number>();
 
   private readonly pickRaycaster = new Raycaster();
   private readonly pickPointer = new Vector2();
@@ -185,7 +188,7 @@ export class RoomScene {
     }
 
     // 屋外的真实世界：森林、河、天穹、真日月。窗户只是画框
-    this.outdoor = new OutdoorScene(this.scene);
+    this.outdoor = new OutdoorScene(this.scene, this.built.size);
 
     this.furnitureView = new FurnitureView(this.built.size);
     this.scene.add(this.furnitureView.root);
@@ -295,7 +298,9 @@ export class RoomScene {
 
     const aspect = container.clientWidth / Math.max(container.clientHeight, 1);
     this.rig = new CameraRig(aspect);
-    // 镜头锁定屋内：把内壁盒交给相机做视线回缩
+    // 镜头锁定屋内：边界盒是**整栋房子**。多房间后镜头不锁分区——
+    // 客厅进深只有 8 格，锁进去镜头会被顶成俯视。挡视线的内墙
+    // 走和家具同一套遮挡淡出（动森的切妻做法），见 refreshOccluders
     this.rig.setRoomBounds(
       this.built.size.width,
       this.built.size.depth,
@@ -957,6 +962,43 @@ export class RoomScene {
     }
 
     this.furnitureView.setOccluders(next);
+
+    // 内墙同理：挡在镜头和角色之间就整段让开（动森切妻）。
+    // 命中即淡出，放开要等几拍——和家具的滞回一个道理
+    const hitWalls = new Set<import("three").Object3D>();
+    for (const sample of OCCLUSION_SAMPLES) {
+      this.occlusionOrigin.copy(this.rig.camera.position);
+      this.occlusionDirection
+        .set(
+          this.controller.x,
+          sample.height,
+          this.controller.z,
+        )
+        .sub(this.occlusionOrigin);
+      const distance = this.occlusionDirection.length();
+      if (distance < 0.001) continue;
+      this.occlusionDirection.divideScalar(distance);
+      this.occlusionRaycaster.set(this.occlusionOrigin, this.occlusionDirection);
+      this.occlusionRaycaster.far = Math.max(distance - 0.35, 0.01);
+      for (const hit of this.occlusionRaycaster.intersectObject(
+        this.built.interiorWalls,
+        true,
+      )) {
+        let node: import("three").Object3D | null = hit.object;
+        while (node && node.parent !== this.built.interiorWalls) node = node.parent;
+        if (node) hitWalls.add(node);
+      }
+    }
+
+    for (const segment of this.built.interiorWalls.children) {
+      if (hitWalls.has(segment)) {
+        this.wallReleaseTicks.set(segment.uuid, 3);
+      } else {
+        const left = (this.wallReleaseTicks.get(segment.uuid) ?? 0) - 1;
+        if (left > 0) this.wallReleaseTicks.set(segment.uuid, left);
+        else this.wallReleaseTicks.delete(segment.uuid);
+      }
+    }
   }
 
   private update(deltaSeconds: number): void {
@@ -994,6 +1036,11 @@ export class RoomScene {
       this.refreshOccluders();
     }
     this.furnitureView.tickFade(deltaSeconds);
+    // 内墙的淡出淡回每帧推进，检测在 refreshOccluders 里限流
+    for (const segment of this.built.interiorWalls.children) {
+      const hidden = this.wallReleaseTicks.has(segment.uuid);
+      stepFade(segment, hidden ? 0.25 : 1, deltaSeconds, hidden ? 6 : 3);
+    }
 
     this.interactCheckTimer += deltaSeconds;
     if (this.interactCheckTimer > 0.15) {

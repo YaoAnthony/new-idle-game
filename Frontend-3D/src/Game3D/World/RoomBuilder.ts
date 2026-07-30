@@ -1,4 +1,10 @@
-import { WallOpeningKind, type RoomSave, type WallOpening, type WallSave } from "core";
+import {
+  WallOpeningKind,
+  type InteriorWall,
+  type RoomSave,
+  type WallOpening,
+  type WallSave,
+} from "core";
 import { Object3D } from "three";
 import { PALETTE, jitterShade } from "../Visual/palette.js";
 import { box } from "../Visual/primitives.js";
@@ -25,6 +31,8 @@ export type BuiltRoom = {
   walls: Map<string, Object3D>;
   /** 每扇窗在世界坐标中的位置与朝向，供景深盒和环境音使用 */
   windows: WindowAnchor[];
+  /** 内墙组。镜头被挡时按段淡出（和家具同一套 Fade），所以要单独暴露 */
+  interiorWalls: Object3D;
   doors: WindowAnchor[];
   size: { width: number; depth: number };
   /** 墙高（来自存档的墙格，不再有硬编码常量） */
@@ -377,6 +385,87 @@ function buildTimberFrame(room: RoomSave, wallHeight: number): Object3D {
   return frame;
 }
 
+/**
+ * 内墙与门楣。内墙是占一格厚的实心体（和占用图同一份 interiorWalls 数据，
+ * 渲染和寻路不可能对不上）；门洞上方补一块门楣，让洞是"门"而不是
+ * 通到天花板的槽。内墙也投影——房间之间的光照隔断靠它。
+ */
+function buildInteriorWalls(room: RoomSave, wallHeight: number): Object3D {
+  const container = new Object3D();
+  container.name = "interior-walls";
+
+  const halfW = room.floorGrid.width / 2;
+  const halfD = room.floorGrid.height / 2;
+  const DOOR_HEIGHT = 2;
+
+  const wallsOf = (axis: InteriorWall["axis"]) =>
+    (room.interiorWalls ?? []).filter((wall) => wall.axis === axis);
+
+  for (const wall of room.interiorWalls ?? []) {
+    const [w, d] =
+      wall.axis === "x" ? [wall.length, 1] : [1, wall.length];
+    const centerX = wall.from.x + w / 2 - halfW;
+    const centerZ = wall.from.y + d / 2 - halfD;
+
+    const body = box([w - 0.02, wallHeight, d - 0.02], {
+      color: PALETTE.wall,
+      position: [centerX, wallHeight / 2, centerZ],
+    });
+    body.receiveShadow = true;
+    container.add(body);
+  }
+
+  // 同一行里相邻墙段之间的空隙就是门洞，补门楣（2 格以内的缝才算门）
+  const rows = new Map<number, InteriorWall[]>();
+  for (const wall of wallsOf("x")) {
+    const list = rows.get(wall.from.y) ?? [];
+    list.push(wall);
+    rows.set(wall.from.y, list);
+  }
+
+  for (const [row, segments] of rows) {
+    const sorted = [...segments].sort((a, b) => a.from.x - b.from.x);
+    for (let i = 0; i < sorted.length - 1; i += 1) {
+      const gapStart = sorted[i].from.x + sorted[i].length;
+      const gapEnd = sorted[i + 1].from.x;
+      const gap = gapEnd - gapStart;
+      if (gap <= 0 || gap > 3) continue;
+
+      const lintel = box(
+        [gap - 0.02, wallHeight - DOOR_HEIGHT, 0.98],
+        {
+          color: PALETTE.wall,
+          position: [
+            gapStart + gap / 2 - halfW,
+            DOOR_HEIGHT + (wallHeight - DOOR_HEIGHT) / 2,
+            row + 0.5 - halfD,
+          ],
+        },
+      );
+      lintel.receiveShadow = true;
+      container.add(lintel);
+
+      // 门洞两侧包一圈深木边框（日式内门的框）
+      for (const side of [gapStart, gapEnd]) {
+        container.add(
+          box([0.12, DOOR_HEIGHT + 0.1, 1.04], {
+            color: PALETTE.wallTrim,
+            position: [side - halfW + (side === gapStart ? -0.05 : 0.05), (DOOR_HEIGHT + 0.1) / 2, row + 0.5 - halfD],
+          }),
+        );
+      }
+      container.add(
+        box([gap + 0.1, 0.12, 1.04], {
+          color: PALETTE.wallTrim,
+          position: [gapStart + gap / 2 - halfW, DOOR_HEIGHT + 0.05, row + 0.5 - halfD],
+        }),
+      );
+    }
+  }
+
+  return container;
+}
+
 export function buildRoom(room: RoomSave): BuiltRoom {
   const width = room.floorGrid.width;
   const depth = room.floorGrid.height;
@@ -396,6 +485,9 @@ export function buildRoom(room: RoomSave): BuiltRoom {
 
   root.add(buildTimberFrame(room, wallHeight));
 
+  const interiorWalls = buildInteriorWalls(room, wallHeight);
+  root.add(interiorWalls);
+
   const walls = new Map<string, Object3D>();
   const windows: WindowAnchor[] = [];
   const doors: WindowAnchor[] = [];
@@ -412,7 +504,17 @@ export function buildRoom(room: RoomSave): BuiltRoom {
     }
   }
 
-  return { root, floor, ceiling, walls, windows, doors, size: { width, depth }, wallHeight };
+  return {
+    root,
+    floor,
+    ceiling,
+    walls,
+    windows,
+    doors,
+    interiorWalls,
+    size: { width, depth },
+    wallHeight,
+  };
 }
 
 /** 网格坐标 → 世界坐标（格子中心） */

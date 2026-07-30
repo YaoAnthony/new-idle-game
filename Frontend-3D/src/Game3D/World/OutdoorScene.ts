@@ -89,15 +89,11 @@ const FOG_FAR = 78;
 /**
  * 河的走向：z(x) 的缓波。中景横穿（定稿），庭院和远林之间。
  *
- * 离房子的距离是算出来的：默认镜头俯角下，视线穿过窗洞落在
- * z -8 ~ -21 一带的地面上——河必须躺在这条**视线走廊**里才看得见，
- * 放远了整扇窗就只剩草地。
+ * 所有"离房子多远"的量都从北墙位置推导（房子尺寸改过一次 16×12→24×16，
+ * 写死距离的教训只吃一次）：默认镜头俯角下，视线穿过窗洞落在
+ * 北墙外 2~15 一带的地面上——河必须躺在这条**视线走廊**里才看得见。
  */
-const RIVER_CENTER_Z = -17;
 const RIVER_WIDTH = 2.8;
-function riverCenter(x: number): number {
-  return RIVER_CENTER_Z + Math.sin(x * 0.11) * 1.4;
-}
 
 /** 确定性伪随机：森林每次加载长得一样 */
 function hash01(seed: number): number {
@@ -138,7 +134,14 @@ export class OutdoorScene {
 
   private elapsed = 0;
 
-  constructor(scene: Scene) {
+  /** 北墙的世界 z（负数）。所有外景距离从它推导 */
+  private readonly northZ: number;
+  private readonly riverCenter: (x: number) => number;
+
+  constructor(scene: Scene, roomSize: { width: number; depth: number }) {
+    this.northZ = -roomSize.depth / 2;
+    const riverZ = this.northZ - 11;
+    this.riverCenter = (x: number) => riverZ + Math.sin(x * 0.11) * 1.4;
     this.scene = scene;
     this.root.name = "outdoor";
 
@@ -288,7 +291,7 @@ export class OutdoorScene {
     // 用扁盒子的话，窗里以掠射角看过去侧面会露出来，像浮空的台阶
     for (let i = 0; i < 9; i += 1) {
       const px = (hash01(i * 3.1) - 0.5) * 90;
-      const pz = -8 - hash01(i * 5.7) * 40;
+      const pz = this.northZ - 2 - hash01(i * 5.7) * 40;
       const size = 3 + hash01(i * 9.3) * 6;
       const patch = new Mesh(
         new CircleGeometry(size / 2, 10),
@@ -311,24 +314,28 @@ export class OutdoorScene {
   private buildForest(): void {
     const trees: Array<[number, number, number]> = [];
 
+    // 庭院预留区：落地窗正外（窗世界 x 由 wallWidth-7 推出，24 宽时是 5..10）
+    const gardenMinX = 3.5;
+    const gardenMaxX = 11.5;
+
     for (let i = 0; i < 34; i += 1) {
       // 河对岸的主林墙：高大、紧密，是窗景的"绿色背景板"
       const x = (hash01(i * 3.3) - 0.5) * 96;
-      const z = -20.5 - hash01(i * 7.1) * 13;
+      const z = this.northZ - 12.5 - hash01(i * 7.1) * 13;
       trees.push([x, z, 1.5 + hash01(i * 17.7) * 1.1]);
     }
 
     for (let i = 40; i < 52; i += 1) {
-      // 河这一侧的近树：给左边小窗当画框前景，避开庭院预留区
+      // 河这一侧的近树：给厨房小窗当画框前景，避开庭院预留区
       const pick = hash01(i * 3.9);
-      const x = pick < 0.45 ? -1 - hash01(i * 5.1) * 24 : 11 + hash01(i * 5.3) * 22;
-      if (x > 0 && x < 10.5) continue;
-      trees.push([x, -8.5 - hash01(i * 6.7) * 5, 0.9 + hash01(i * 9.1) * 0.5]);
+      const x = pick < 0.45 ? -3 - hash01(i * 5.1) * 24 : 12 + hash01(i * 5.3) * 22;
+      if (x > gardenMinX && x < gardenMaxX) continue;
+      trees.push([x, this.northZ - 2.5 - hash01(i * 6.7) * 5, 0.9 + hash01(i * 9.1) * 0.5]);
     }
 
     for (let i = 60; i < 70; i += 1) {
       // 东西两翼（门口方向也要有树可看）
-      const x = (hash01(i * 4.7) < 0.5 ? -1 : 1) * (15 + hash01(i * 8.9) * 26);
+      const x = (hash01(i * 4.7) < 0.5 ? -1 : 1) * (16 + hash01(i * 8.9) * 26);
       trees.push([x, 6 - hash01(i * 6.1) * 16, 0.9 + hash01(i * 13.9) * 0.7]);
     }
 
@@ -399,7 +406,7 @@ export class OutdoorScene {
 
       for (let i = 0; i <= SEGMENTS; i += 1) {
         const x = X_MIN + ((X_MAX - X_MIN) * i) / SEGMENTS;
-        const center = riverCenter(x);
+        const center = this.riverCenter(x);
         const offset = i * 6;
         positions[offset] = x;
         positions[offset + 1] = y;
@@ -452,8 +459,8 @@ export class OutdoorScene {
     for (let i = 0; i < RAIN_MAX; i += 1) {
       positions[i * 3] = (Math.random() - 0.5) * 70;
       positions[i * 3 + 1] = Math.random() * 20;
-      // 近界必须退到北墙（z=-6）之外，否则有一撮雨会悬在客厅中央下个不停
-      positions[i * 3 + 2] = -7.5 - Math.random() * 32;
+      // 近界必须退到北墙之外，否则有一撮雨会悬在客厅中央下个不停
+      positions[i * 3 + 2] = this.northZ - 1.5 - Math.random() * 32;
       velocities[i] = 9 + Math.random() * 7;
     }
 
@@ -564,7 +571,7 @@ export class OutdoorScene {
       const streak = this.streaks[i];
       streak.position.x += (0.9 + hash01(i * 7.7) * 0.5) * deltaSeconds;
       if (streak.position.x > 70) streak.position.x = -70;
-      streak.position.z = riverCenter(streak.position.x) + (hash01(i * 3.7) - 0.5) * 1.6;
+      streak.position.z = this.riverCenter(streak.position.x) + (hash01(i * 3.7) - 0.5) * 1.6;
     }
 
     if (!this.rain.visible) return;

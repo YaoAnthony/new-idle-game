@@ -10,6 +10,7 @@ import {
 } from "../types/furniture.js";
 import type { RoomSave } from "../types/map.js";
 import { cellKey, footprintCells, type CellKey } from "./grid.js";
+import { interiorWallCells } from "./roomGeometry.js";
 
 export type FurnitureLookup = (
   furnitureId: FurnitureId,
@@ -65,6 +66,15 @@ export function buildRoomOccupancy(
   lookup: FurnitureLookup,
 ): RoomOccupancy {
   const occupancy = createEmptyOccupancy(room.roomId);
+
+  // 内墙占整格：既挡通行（玩家/宠物寻路）也占放置层（家具不能放进墙里）。
+  // 门洞就是没有墙段的格子，自然可通行，不需要任何特判
+  for (const cell of interiorWallCells(room)) {
+    const key = cellKey(cell);
+    occupancy.blocked.add(key);
+    occupancy.occupied[FloorLayer.Object].add(key);
+    occupancy.occupied[FloorLayer.Covering].add(key);
+  }
 
   for (const placed of placedFurniture) {
     if (placed.placement.roomId !== room.roomId) continue;

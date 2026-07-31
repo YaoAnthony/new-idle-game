@@ -90,6 +90,20 @@ export const itemDefinitions = [
 
   // ---- 可放置家具 ----
   {
+    /**
+     * L 形整体橱柜。以前灶台是"房子自带、拿不起来"的设施、没有对应物品——
+     * 结果开局布局一改，灶台从地图上消失，玩家永远拿不回来，做饭链路直接断。
+     * 现在厨房和别的家具一样是可放置物品，装在搬家的工具箱里（见 Data/loot）。
+     */
+    id: "furniture_kitchen_counter",
+    localizationKey: "item.furniture_kitchen_counter",
+    category: ItemCategory.Furniture,
+    stackLimit: 4,
+    rarity: Rarity.Uncommon,
+    origin: ItemOrigin.Real,
+    placeableFurnitureId: "kitchen_counter_l",
+  },
+  {
     id: "furniture_workbench",
     localizationKey: "item.furniture_workbench",
     category: ItemCategory.Furniture,

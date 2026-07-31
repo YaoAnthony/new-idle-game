@@ -35,6 +35,7 @@ export const lootTableDefinitions: LootTableDefinition[] = [
     id: "moving_tools",
     localizationKey: "loot.moving_tools",
     entries: [
+      { itemId: "furniture_kitchen_counter", quantity: 1 },
       { itemId: "furniture_workbench", quantity: 1 },
       { itemId: "wok", quantity: 1 },
       { itemId: "plate", quantity: 1 },

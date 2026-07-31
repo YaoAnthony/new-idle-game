@@ -16,6 +16,7 @@ const ZH: Record<string, string> = {
   "item.root": "木根",
   "item.notebook": "牛皮本子",
   "item.pencil": "铅笔",
+  "item.furniture_kitchen_counter": "整体橱柜",
   "item.furniture_workbench": "普通工作台",
   "item.furniture_table": "木桌",
   "item.furniture_chair": "木椅",
@@ -37,6 +38,7 @@ const ZH: Record<string, string> = {
   "item.root.desc": "弯弯曲曲的木根，握起来意外顺手。",
   "item.notebook.desc": "牛皮封面的本子，适合记录生活。",
   "item.pencil.desc": "一支铅笔。写下今天想做的事吧。",
+  "item.furniture_kitchen_counter.desc": "L 形整体橱柜，三个灶眼加一个水槽。摆好就是一间开放式厨房。",
   "item.furniture_workbench.desc": "普通的工作台，能打造简单的家具。",
   "item.furniture_table.desc": "一张木桌。有了桌子就能学习了。",
   "item.furniture_chair.desc": "一把木椅，坐上去吱呀作响。",
@@ -48,6 +50,7 @@ const ZH: Record<string, string> = {
 
   // 家具
   "furniture.stove": "灶台",
+  "furniture.kitchen_counter_l": "整体橱柜",
   "furniture.stove.burner": "灶眼",
   "furniture.cardboard_box": "纸箱",
   "furniture.cardboard_stack": "纸箱堆",

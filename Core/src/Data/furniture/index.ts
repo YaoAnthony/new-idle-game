@@ -45,6 +45,52 @@ export const furnitureDefinitions = [
     ],
   },
   {
+    /**
+     * L 形整体橱柜（2026-07-30）。开放式厨房的主体：
+     * 长边贴北墙带三个灶眼和水槽，短边往南折成半岛。
+     *
+     * 做成**一件**而不是几件拼：玩家摆一次就是完整的厨房，
+     * 不用自己对齐台面接缝。旧的 2×1 灶台保留在注册表里
+     * （老存档还引用着它），但新流程一律用这件。
+     */
+    id: "kitchen_counter_l",
+    visualId: "kitchen_counter_l",
+    footprint: { width: 6, height: 4 },
+    placementSurface: PlacementSurface.Floor,
+    localizationKey: "furniture.kitchen_counter_l",
+    category: FurnitureCategory.Station,
+    capabilities: [FurnitureCapability.Cooking],
+    audioProfileId: null,
+    floorLayer: FloorLayer.Object,
+    blocksMovement: true,
+    interactHint: {
+      localizationKey: "hint.stove",
+      action: "interact",
+      anchorHeight: 1.35,
+    },
+    // 三个灶眼。offset 是家具本地坐标，和 recipes/kitchen.ts 里画的圈一一对应
+    slots: [
+      {
+        slotId: "burner_1",
+        localizationKey: "furniture.stove.burner",
+        acceptedTags: ["cookware"],
+        offset: [-2.3, 0.98, -1.5],
+      },
+      {
+        slotId: "burner_2",
+        localizationKey: "furniture.stove.burner",
+        acceptedTags: ["cookware"],
+        offset: [-1.5, 0.98, -1.5],
+      },
+      {
+        slotId: "burner_3",
+        localizationKey: "furniture.stove.burner",
+        acceptedTags: ["cookware"],
+        offset: [-0.7, 0.98, -1.5],
+      },
+    ],
+  },
+  {
     id: "cardboard_box",
     visualId: "cardboard_box",
     footprint: { width: 1, height: 1 },

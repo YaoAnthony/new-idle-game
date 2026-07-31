@@ -316,6 +316,91 @@ export const migrations: Migration[] = [
       return save;
     },
   },
+
+  // v8（2026-07-30 房子加深 + 开放式厨房）：
+  // 1. 24×16 → 24×20。卡住的从来不是宽度是进深——L 形厨房的台面+中岛
+  //    加两条走道就吃掉 4 格，原来 LDK 只有 8 格深，客厅只剩 2.5 米。
+  // 2. 灶台换成 L 形整体橱柜。老存档里地上的灶台和背包里的灶台物品
+  //    都折算成橱柜——玩家不该因为我们换了家具就丢东西。
+  // 几何又要重生成，所以家具照旧打包回背包（连同箱内与槽位内容）。
+  {
+    to: 8,
+    migrate: (save) => {
+      const style =
+        roomStyleDefinitions.find(
+          (item) => item.id === save.ownWorld.house?.styleId,
+        ) ?? roomStyleDefinitions[0];
+
+      for (const map of Object.values(save.ownWorld.maps ?? {})) {
+        for (const roomId of Object.keys(map.rooms ?? {})) {
+          map.rooms[roomId] = generateHouse({ roomId, style });
+        }
+      }
+
+      const counts = new Map<string, number>();
+      const collect = (itemId: string, quantity: number) => {
+        counts.set(itemId, (counts.get(itemId) ?? 0) + quantity);
+      };
+
+      for (const placed of save.ownWorld.placedFurniture ?? []) {
+        // 地上的灶台折算成橱柜（旧灶台没有物品映射，不折算就人间蒸发）
+        if (placed.furnitureId === "stove") {
+          collect("furniture_kitchen_counter", 1);
+        } else {
+          const item = findItemByFurnitureId(placed.furnitureId);
+          if (item) collect(item.id, 1);
+        }
+
+        for (const stack of Object.values(placed.state?.slotContents ?? {})) {
+          if (!stack) continue;
+          collect(stack.itemId, stack.quantity);
+          for (const inner of stack.state?.container?.items ?? []) {
+            collect(inner.itemId, inner.quantity);
+          }
+        }
+
+        const storageId = placed.state?.storageInventoryId;
+        if (storageId && save.ownWorld.inventories?.[storageId]) {
+          for (const stack of save.ownWorld.inventories[storageId].stacks) {
+            collect(stack.itemId, stack.quantity);
+          }
+          delete save.ownWorld.inventories[storageId];
+        }
+      }
+      save.ownWorld.placedFurniture = [];
+
+      // 背包里的旧灶台物品同样折算
+      save.player.character.inventory = save.player.character.inventory.map(
+        (stack) =>
+          stack.itemId === "furniture_stove"
+            ? { ...stack, itemId: "furniture_kitchen_counter" }
+            : stack,
+      );
+
+      for (const [itemId, total] of counts) {
+        const limit = findItemDefinition(itemId)?.stackLimit ?? 1;
+        let remaining = total;
+        while (remaining > 0) {
+          const slot = firstFreeSlot(save.player.character.inventory);
+          if (!slot) break;
+          const take = Math.min(limit, remaining);
+          save.player.character.inventory.push({
+            stackId: slot,
+            itemId,
+            quantity: take,
+          });
+          remaining -= take;
+        }
+      }
+
+      // 宠物和角色的旧坐标可能落进新内墙里，归到客厅
+      for (const pet of Object.values(save.ownWorld.pets ?? {})) {
+        pet.position = { ...pet.position, x: 2, y: -3 };
+      }
+
+      return save;
+    },
+  },
 ];
 
 export type MigrationResult =

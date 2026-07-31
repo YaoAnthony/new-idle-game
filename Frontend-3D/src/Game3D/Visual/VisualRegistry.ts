@@ -33,6 +33,7 @@ import {
 } from "./recipes/livingRoom.js";
 import { buildBookshelf, buildStorageChest } from "./recipes/storageFurniture.js";
 import { buildStove } from "./recipes/stove.js";
+import { buildKitchenCounter } from "./recipes/kitchen.js";
 import {
   buildBedroll,
   buildRoundRug,
@@ -59,6 +60,7 @@ export type VisualEntry =
 
 const REGISTRY: Record<string, VisualEntry> = {
   stove_default: { kind: "procedural", build: buildStove },
+  kitchen_counter_l: { kind: "procedural", build: buildKitchenCounter },
   cardboard_box: { kind: "procedural", build: buildCardboardBox },
   cardboard_stack: { kind: "procedural", build: buildCardboardStack },
   wooden_table: { kind: "procedural", build: buildWoodenTable },

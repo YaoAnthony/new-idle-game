@@ -20,9 +20,13 @@ export const DEFAULT_ROOM_SIZE: GridFootprint = { width: 16, height: 12 };
 
 /**
  * 2LDK 户型的整体尺寸（2026-07-30 定稿）。
- * 1 格 = 0.625 米，24×16 格 = 15m × 10m = 150㎡——"150 平米那样"落到数字。
+ * 1 格 = 0.625 米，24×20 格 = 15m × 12.5m = 187㎡。
+ *
+ * 2026-07-30 加深：**卡住的从来不是宽度是进深**。L 形厨房的台面 + 中岛
+ * 加两条走道就吃掉 4 格，原来 LDK 只有 8 格深，客厅只剩 2.5 米——
+ * 沙发一摆就顶到内墙，落地窗的景深完全出不来。加到 12 格才摆得开。
  */
-export const HOUSE_SIZE: GridFootprint = { width: 24, height: 16 };
+export const HOUSE_SIZE: GridFootprint = { width: 24, height: 20 };
 /**
  * 墙高 4 格（2026-07-29 定稿）：镜头改为严格锁在屋内之后，
  * 俯角 32° 的相机需要头顶空间，3 格高拉远一点就贴到天花板。
@@ -144,10 +148,10 @@ function westDoor(
 /**
  * 2LDK 平屋（方案 A，2026-07-30 定稿）。
  *
- * 北带（z0..7）是 LDK 一体空间：西北角玄关（开放式，不砌墙，靠土间
+ * 北带（z0..11）是 LDK 一体空间：西北角玄关（开放式，不砌墙，靠土间
  * 地材和一步台阶区分）、北墙西段开放厨房 + 小窗、东段客厅 + 5×3 落地窗
- * （庭院画框构图原样保留）。南带（z9..15）两卧夹一卫：主卧 10×7、
- * 洗手间 4×7、次卧 8×7。中间 z=8 一整行内墙，三个 2 格宽门洞全开向 LDK。
+ * （庭院画框构图原样保留）。南带（z13..19）两卧夹一卫：主卧 10×7、
+ * 洗手间 4×7、次卧 8×7。中间 z=12 一整行内墙，三个 2 格宽门洞全开向 LDK。
  *
  * 内墙占一格厚：寻路和放置把墙格当阻挡，A* 不用改。
  */
@@ -218,29 +222,29 @@ export function generateHouse(params: {
       facing: Facing.East,
       grid: alongY,
       origin: { x: 0, y: 0 },
-      openings: [windowOf("east-window-b", 11, 1, 2, 2)],
+      openings: [windowOf("east-window-b", 15, 1, 2, 2)],
     },
   };
 
-  const WALL_ROW = 8;
+  const WALL_ROW = 12;
   const interiorWalls: InteriorWall[] = [
-    // z=8 横墙，三个 2 格门洞：主卧 x4..5、洗手间 x12..13、次卧 x19..20
+    // z=12 横墙，三个 2 格门洞：主卧 x4..5、洗手间 x12..13、次卧 x19..20
     { from: { x: 0, y: WALL_ROW }, axis: "x", length: 4 },
     { from: { x: 6, y: WALL_ROW }, axis: "x", length: 6 },
     { from: { x: 14, y: WALL_ROW }, axis: "x", length: 5 },
     { from: { x: 21, y: WALL_ROW }, axis: "x", length: 3 },
     // 南带两道竖墙：主卧|洗手间、洗手间|次卧
-    { from: { x: 10, y: 9 }, axis: "y", length: 7 },
-    { from: { x: 15, y: 9 }, axis: "y", length: 7 },
+    { from: { x: 10, y: 13 }, axis: "y", length: 7 },
+    { from: { x: 15, y: 13 }, axis: "y", length: 7 },
   ];
 
   const zones: HouseZone[] = [
     // 顺序即解析优先级：具体分区在前，LDK 兜底（玄关叠在 LDK 里）
     { zoneId: "genkan", kind: HouseZoneKind.Genkan, rect: { x: 0, y: 0, width: 6, height: 4 } },
-    { zoneId: "bedroom-a", kind: HouseZoneKind.Bedroom, rect: { x: 0, y: 9, width: 10, height: 7 } },
-    { zoneId: "bath", kind: HouseZoneKind.Bath, rect: { x: 11, y: 9, width: 4, height: 7 } },
-    { zoneId: "bedroom-b", kind: HouseZoneKind.Bedroom, rect: { x: 16, y: 9, width: 8, height: 7 } },
-    { zoneId: "ldk", kind: HouseZoneKind.Ldk, rect: { x: 0, y: 0, width: 24, height: 8 } },
+    { zoneId: "bedroom-a", kind: HouseZoneKind.Bedroom, rect: { x: 0, y: 13, width: 10, height: 7 } },
+    { zoneId: "bath", kind: HouseZoneKind.Bath, rect: { x: 11, y: 13, width: 4, height: 7 } },
+    { zoneId: "bedroom-b", kind: HouseZoneKind.Bedroom, rect: { x: 16, y: 13, width: 8, height: 7 } },
+    { zoneId: "ldk", kind: HouseZoneKind.Ldk, rect: { x: 0, y: 0, width: 24, height: 12 } },
   ];
 
   return { roomId, floorGrid: size, walls, interiorWalls, zones, floor: 0 };

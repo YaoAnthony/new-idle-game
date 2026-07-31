@@ -389,6 +389,11 @@ function buildTimberFrame(room: RoomSave, wallHeight: number): Object3D {
  * 内墙与门楣。内墙是占一格厚的实心体（和占用图同一份 interiorWalls 数据，
  * 渲染和寻路不可能对不上）；门洞上方补一块门楣，让洞是"门"而不是
  * 通到天花板的槽。内墙也投影——房间之间的光照隔断靠它。
+ *
+ * **分组即淡出单位**：container 的每个直接子节点是"一整面隔断"
+ * （同一行的墙段 + 门楣 + 门框，或一道竖墙）。遮挡淡出按直接子节点
+ * 整体处理——按散件淡的话，射线只打得中墙体，淡完门框还实心地
+ * 立在原地，像鬼影（审查发现）。
  */
 function buildInteriorWalls(room: RoomSave, wallHeight: number): Object3D {
   const container = new Object3D();
@@ -398,8 +403,17 @@ function buildInteriorWalls(room: RoomSave, wallHeight: number): Object3D {
   const halfD = room.floorGrid.height / 2;
   const DOOR_HEIGHT = 2;
 
-  const wallsOf = (axis: InteriorWall["axis"]) =>
-    (room.interiorWalls ?? []).filter((wall) => wall.axis === axis);
+  // 同一行的横墙合成一面隔断；竖墙各自成组
+  const rowGroups = new Map<number, Object3D>();
+  const groupForRow = (row: number): Object3D => {
+    const existing = rowGroups.get(row);
+    if (existing) return existing;
+    const group = new Object3D();
+    group.name = `partition-row-${row}`;
+    rowGroups.set(row, group);
+    container.add(group);
+    return group;
+  };
 
   for (const wall of room.interiorWalls ?? []) {
     const [w, d] =
@@ -412,18 +426,27 @@ function buildInteriorWalls(room: RoomSave, wallHeight: number): Object3D {
       position: [centerX, wallHeight / 2, centerZ],
     });
     body.receiveShadow = true;
-    container.add(body);
+
+    if (wall.axis === "x") {
+      groupForRow(wall.from.y).add(body);
+    } else {
+      const group = new Object3D();
+      group.name = `partition-col-${wall.from.x}`;
+      group.add(body);
+      container.add(group);
+    }
   }
 
   // 同一行里相邻墙段之间的空隙就是门洞，补门楣（2 格以内的缝才算门）
   const rows = new Map<number, InteriorWall[]>();
-  for (const wall of wallsOf("x")) {
+  for (const wall of (room.interiorWalls ?? []).filter((w) => w.axis === "x")) {
     const list = rows.get(wall.from.y) ?? [];
     list.push(wall);
     rows.set(wall.from.y, list);
   }
 
   for (const [row, segments] of rows) {
+    const group = groupForRow(row);
     const sorted = [...segments].sort((a, b) => a.from.x - b.from.x);
     for (let i = 0; i < sorted.length - 1; i += 1) {
       const gapStart = sorted[i].from.x + sorted[i].length;
@@ -443,18 +466,18 @@ function buildInteriorWalls(room: RoomSave, wallHeight: number): Object3D {
         },
       );
       lintel.receiveShadow = true;
-      container.add(lintel);
+      group.add(lintel);
 
       // 门洞两侧包一圈深木边框（日式内门的框）
       for (const side of [gapStart, gapEnd]) {
-        container.add(
+        group.add(
           box([0.12, DOOR_HEIGHT + 0.1, 1.04], {
             color: PALETTE.wallTrim,
             position: [side - halfW + (side === gapStart ? -0.05 : 0.05), (DOOR_HEIGHT + 0.1) / 2, row + 0.5 - halfD],
           }),
         );
       }
-      container.add(
+      group.add(
         box([gap + 0.1, 0.12, 1.04], {
           color: PALETTE.wallTrim,
           position: [gapStart + gap / 2 - halfW, DOOR_HEIGHT + 0.05, row + 0.5 - halfD],

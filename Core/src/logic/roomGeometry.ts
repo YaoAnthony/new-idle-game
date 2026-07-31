@@ -246,7 +246,12 @@ export function generateHouse(params: {
   return { roomId, floorGrid: size, walls, interiorWalls, zones, floor: 0 };
 }
 
-/** 玩家格子落在哪个分区。墙格上（门洞穿行中）返回 undefined，让消费方沿用上一次 */
+/**
+ * 玩家格子落在哪个分区。墙格上（门洞穿行中）返回 undefined，让消费方沿用上一次。
+ *
+ * 目前还没有调用方——留给 H2 的分区地板材质和音景。
+ * （最初为"相机锁分区"写的，那个方案已放弃，函数本身仍是正确的查询。）
+ */
 export function zoneAt(
   room: RoomSave,
   cell: { x: number; y: number },

@@ -1,4 +1,5 @@
 import {
+  Facing,
   PlacementSurface,
   WallOpeningKind,
   findFurnitureDefinition,
@@ -232,13 +233,62 @@ export const migrations: Migration[] = [
         }
       }
 
-      // 家具 → 物品数量统计
+      // 家具 → 物品数量统计。**家具不是孤立的物**：储物箱里存着东西
+      // （ownWorld.inventories）、灶台槽位上架着锅、锅里还有食材
+      // （slotContents 及其 state.container）。只打包外层家具的话，
+      // 读档时 pruneOrphanStorages 会把箱内物品当孤儿库存整体删掉，
+      // 锅和菜则直接蒸发——全部要清点进背包（审查抓出来的两条丢货路径）。
       const counts = new Map<string, number>();
+      const collect = (itemId: string, quantity: number) => {
+        counts.set(itemId, (counts.get(itemId) ?? 0) + quantity);
+      };
+
       for (const placed of save.ownWorld.placedFurniture ?? []) {
         const item = findItemByFurnitureId(placed.furnitureId);
-        if (item) counts.set(item.id, (counts.get(item.id) ?? 0) + 1);
+        if (item) collect(item.id, 1);
+
+        // 槽位内容：锅本身 + 锅里的食材（生食材照收，做到一半的过程丢弃）
+        for (const stack of Object.values(placed.state?.slotContents ?? {})) {
+          if (!stack) continue;
+          collect(stack.itemId, stack.quantity);
+          for (const inner of stack.state?.container?.items ?? []) {
+            collect(inner.itemId, inner.quantity);
+          }
+        }
+
+        // 储物箱内容：把对应库存整个倒出来，再删掉库存条目本身
+        const storageId = placed.state?.storageInventoryId;
+        if (storageId && save.ownWorld.inventories?.[storageId]) {
+          for (const stack of save.ownWorld.inventories[storageId].stacks) {
+            collect(stack.itemId, stack.quantity);
+          }
+          delete save.ownWorld.inventories[storageId];
+        }
       }
-      save.ownWorld.placedFurniture = [];
+      /**
+       * 清空后重放灶台：它是房子自带设施、没有物品映射（不能被拾起），
+       * 打包流程会让它静默消失——而读档路径不跑 seedInitialFurniture，
+       * 不重放的话老档迁移后厨房永久废掉。位置和新档的 seed 一致
+       * （开放厨房区，北墙西段小窗旁）。
+       */
+      const firstRoomId = Object.keys(
+        Object.values(save.ownWorld.maps ?? {})[0]?.rooms ?? {},
+      )[0];
+      save.ownWorld.placedFurniture = firstRoomId
+        ? [
+            {
+              instanceId: "stove#v7",
+              furnitureId: "stove",
+              placement: {
+                kind: PlacementSurface.Floor,
+                roomId: firstRoomId,
+                gridPosition: { x: 8, y: 0 },
+                facing: Facing.North,
+              },
+              state: {},
+            },
+          ]
+        : [];
 
       for (const [itemId, total] of counts) {
         const limit = findItemDefinition(itemId)?.stackLimit ?? 1;

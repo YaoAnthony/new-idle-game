@@ -1109,7 +1109,7 @@ export class RoomScene {
 
     // 火候：只有架在灶眼上、且内容匹配到配方的锅才会走进度
     tickKitchen(deltaSeconds);
-    this.cookwareView.update(this.rig.camera);
+    this.cookwareView.update(this.rig.camera, deltaSeconds);
 
     // 过场：镜头跟拍进屋的宠物；平时跟随角色
     if (this.cutscenePetId) {

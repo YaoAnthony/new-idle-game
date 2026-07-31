@@ -2,6 +2,7 @@ import {
   AudioBusId,
   AudioTriggerKind,
   DayPhaseId,
+  PlacementSurface,
   WeatherKind,
   defaultZoneAudioProfile,
   findActionDefinition,
@@ -11,6 +12,7 @@ import {
   zoneAt,
   zoneAudioProfiles,
   zoneFootstepProfileIds,
+  type FurnitureDefinition,
   type PlacedFurniture,
 } from "core";
 import { on } from "../../Game/EventBus";
@@ -19,7 +21,10 @@ import { getDefinition, getRoomStyle, getWorld } from "../../Game/State/worldRun
 import { getWeather } from "../../Game/State/weather";
 import { getActiveAction } from "../../Game/Systems/actions";
 import { isSlotCooking, listKitchenSlots } from "../../Game/Systems/kitchen";
-import { furnitureWorldCenter } from "../World/FurnitureView.js";
+import {
+  furnitureWorldCenter,
+  slotWorldPosition,
+} from "../World/FurnitureView.js";
 import {
   activeLoops,
   getBusVolume,
@@ -149,11 +154,9 @@ function furnitureVolume(
   const radius = profile.audibleRadius;
   if (!radius || !hasListener) return 0;
 
-  const center = furnitureWorldCenter(placed, definition, size);
-
   // 只比平面距离：挂钟挂在 1.8 米高，但"走到钟底下"就该听见，
   // 把高度算进去会让墙上的东西永远差一截
-  const distance = Math.hypot(center.x - listenerX, center.z - listenerZ);
+  const distance = distanceToFurniture(placed, definition, size);
   if (distance >= radius) return 0;
 
   const falloff = 1 - distance / radius;
@@ -170,6 +173,40 @@ type DesiredLoop = {
    */
   positional?: boolean;
 };
+
+/**
+ * 玩家离这件家具**发声的地方**有多远。
+ *
+ * 有槽位的家具按**最近的那个槽位**算，不按占地中心：L 形橱柜占地 6×4，
+ * 站在灶眼跟前离中心还有两米多，按中心算出来的音量只有该有的三分之一——
+ * 人贴着锅站着，炒菜声却像从隔壁传来。声源在灶眼上，不在家具的几何中心。
+ *
+ * 没槽位的（壁炉、挂钟）仍然按中心，它们本来就是整件在响。
+ */
+function distanceToFurniture(
+  placed: PlacedFurniture,
+  definition: FurnitureDefinition,
+  size: { width: number; depth: number },
+): number {
+  const flat = (point: { x: number; z: number }): number =>
+    Math.hypot(point.x - listenerX, point.z - listenerZ);
+
+  if (
+    definition.slots?.length &&
+    placed.placement.kind === PlacementSurface.Floor
+  ) {
+    const placement = placed.placement;
+    return Math.min(
+      ...definition.slots.map((slot) =>
+        flat(
+          slotWorldPosition(placement, definition.footprint, slot.offset, size),
+        ),
+      ),
+    );
+  }
+
+  return flat(furnitureWorldCenter(placed, definition, size));
+}
 
 /** 现在应该在播的持续音：tag → 目标 */
 function desiredLoops(): Map<string, DesiredLoop> {

@@ -1,18 +1,25 @@
 import { HeatBand, PlacementSurface } from "core";
-import { Object3D, type Camera, type Mesh, type MeshLambertMaterial } from "three";
+import {
+  Object3D,
+  PointLight,
+  type Camera,
+  type Mesh,
+  type MeshLambertMaterial,
+} from "three";
 import { on } from "../../Game/EventBus";
 import {
   getSlotHeat,
+  isSlotCooking,
   listKitchenSlots,
   type KitchenSlotRef,
 } from "../../Game/Systems/kitchen";
 import { getDefinition, getWorld } from "../../Game/State/worldRuntime";
 import { PALETTE, color } from "../Visual/palette.js";
-import { blob, box } from "../Visual/primitives.js";
+import { box, cylinder } from "../Visual/primitives.js";
 import {
   COOKWARE_CONTENT_ANCHOR,
   COOKWARE_CONTENT_RADIUS,
-  ingredientColor,
+  buildIngredient,
 } from "../Visual/recipes/cookware.js";
 import { buildVisual } from "../Visual/VisualRegistry.js";
 import { slotWorldPosition } from "./FurnitureView.js";
@@ -35,6 +42,13 @@ const BAND_COLOR: Record<HeatBand, string> = {
 const BAR_WIDTH = 0.62;
 const BAR_HEIGHT = 0.075;
 
+/** 火苗抖动的快慢。太快像电流，太慢像在呼吸 */
+const FLAME_SPEED = 9;
+/** 一颗火星从生到灭走完一轮要多久（每秒几轮） */
+const SPARK_SPEED = 0.55;
+/** 火星飘多高就消失 */
+const SPARK_RISE = 0.42;
+
 type SlotView = {
   root: Object3D;
   bar: Object3D;
@@ -43,6 +57,13 @@ type SlotView = {
   material: MeshLambertMaterial;
   /** 上一次画的内容摘要，变了才重建模型 */
   signature: string;
+  /** 灶火整体。只在这个槽位真的在加热时显示 */
+  flame: Object3D;
+  /** 火苗本体，每帧抖动 */
+  tongues: Mesh[];
+  /** 上升的火星。每颗自己走一个 0→1 的循环 */
+  sparks: Mesh[];
+  light: PointLight;
 };
 
 export class CookwareView {
@@ -50,6 +71,8 @@ export class CookwareView {
 
   private readonly views = new Map<string, SlotView>();
   private readonly unsubscribe: () => void;
+  /** 火苗和火星的动画时钟。全局一份，几个灶眼靠各自的相位错开 */
+  private elapsed = 0;
 
   constructor(private readonly size: { width: number; depth: number }) {
     this.root.name = "cookware";
@@ -137,7 +160,90 @@ export class CookwareView {
     const { bar, fill, material } = this.buildHeatBar(ref);
     root.add(bar);
 
-    return { root, bar, fill, material, signature: this.signatureOf(ref) };
+    const { flame, tongues, sparks, light } = this.buildFlame();
+    root.add(flame);
+
+    return {
+      root,
+      bar,
+      fill,
+      material,
+      signature: this.signatureOf(ref),
+      flame,
+      tongues,
+      sparks,
+      light,
+    };
+  }
+
+  /**
+   * 灶火。锅底下一圈火苗 + 往上飘的火星 + 一盏暖光。
+   *
+   * 建在**槽位**上而不是锅上：火是灶眼给的，锅端走了火也该还在
+   * （虽然现在没锅就不建这个视图，但语义上别搞反）。
+   *
+   * 火苗不用粒子系统：这里最多同时烧三个灶眼，几个小锥体每帧改
+   * scale 和 position 就够了，上一套粒子系统的代价远大于收益。
+   */
+  private buildFlame(): {
+    flame: Object3D;
+    tongues: Mesh[];
+    sparks: Mesh[];
+    light: PointLight;
+  } {
+    const flame = new Object3D();
+    flame.name = "burner-flame";
+    flame.visible = false;
+    // 锅底略往下：火苗从锅沿外侧舔上来，正好露出来一截
+    flame.position.y = -0.02;
+
+    // 一圈火苗。内圈偏黄、外圈偏橙，两层叠出层次
+    const tongues = [0, 1, 2, 3, 4, 5].map((index) => {
+      const angle = (index / 6) * Math.PI * 2;
+      const outer = index % 2 === 0;
+      const radius = outer ? 0.2 : 0.13;
+
+      const tongue = cylinder(0.001, outer ? 0.055 : 0.042, outer ? 0.17 : 0.13, 5, {
+        color: color(outer ? PALETTE.emberOrange : PALETTE.heatPerfect),
+        position: [
+          Math.cos(angle) * radius,
+          (outer ? 0.17 : 0.13) / 2,
+          Math.sin(angle) * radius,
+        ],
+        castShadow: false,
+        receiveShadow: false,
+      });
+      const material = tongue.material as MeshLambertMaterial;
+      material.emissive.set(outer ? PALETTE.emberOrange : PALETTE.heatPerfect);
+      material.emissiveIntensity = 1;
+      material.transparent = true;
+      material.opacity = 0.88;
+      flame.add(tongue);
+      return tongue;
+    });
+
+    // 火星：小方块，从火里往上飘，到顶就回到起点
+    const sparks = [0, 1, 2, 3, 4].map((index) => {
+      const spark = box([0.025, 0.025, 0.025], {
+        color: color(PALETTE.emberOrange),
+        castShadow: false,
+        receiveShadow: false,
+      });
+      const material = spark.material as MeshLambertMaterial;
+      material.emissive.set(PALETTE.emberOrange);
+      material.transparent = true;
+      spark.userData.phase = index / 5;
+      spark.userData.angle = index * 1.9;
+      flame.add(spark);
+      return spark;
+    });
+
+    // 一盏小暖光：夜里灶台该把周围照亮一圈，光才是"真的在烧"
+    const light = new PointLight(PALETTE.emberOrange, 0, 2.4, 2);
+    light.position.y = 0.18;
+    flame.add(light);
+
+    return { flame, tongues, sparks, light };
   }
 
   /** 锅里的内容：一坨一坨的低面数团子，按份数在锅口内错开摆 */
@@ -157,14 +263,17 @@ export class CookwareView {
       // 螺旋排布：第一颗在正中，之后绕着中心散开，不会全堆在一点
       const angle = index * 2.4;
       const spread = portions.length === 1 ? 0 : radius * 0.6;
-      return blob(0.085, 0, {
-        color: ingredientColor(itemId),
-        position: [
-          Math.cos(angle) * spread,
-          anchor + 0.04 + Math.floor(index / 3) * 0.05,
-          Math.sin(angle) * spread,
-        ],
-      });
+
+      // 按物品查形状：放了鸡蛋锅里就是个蛋，不再是一色一个球
+      const portion = buildIngredient(itemId);
+      portion.position.set(
+        Math.cos(angle) * spread,
+        anchor + Math.floor(index / 3) * 0.05,
+        Math.sin(angle) * spread,
+      );
+      // 同一份食材每次朝向不同，几颗堆在一起才不像复制粘贴
+      portion.rotation.y = angle;
+      return portion;
     });
   }
 
@@ -206,11 +315,17 @@ export class CookwareView {
     return { bar, fill, material: fill.material as MeshLambertMaterial };
   }
 
-  /** 每帧：刷新火候条的长度、颜色和朝向（始终正对镜头） */
-  update(camera: Camera): void {
+  /** 每帧：刷新火候条和灶火。火候条始终正对镜头 */
+  update(camera: Camera, deltaSeconds: number): void {
+    this.elapsed += deltaSeconds;
+
     for (const ref of listKitchenSlots()) {
       const view = this.views.get(this.key(ref));
       if (!view) continue;
+
+      // 火跟的是"这个灶眼在不在加热"，和火候条是两回事：
+      // 端到普通台面上的锅仍然有火候条（进度停着），但不该有火
+      this.updateFlame(view, isSlotCooking(ref));
 
       const heat = getSlotHeat(ref);
       view.bar.visible = heat !== null;
@@ -220,6 +335,42 @@ export class CookwareView {
       view.fill.scale.x = Math.max(0.001, heat.fill);
       view.material.color.set(BAND_COLOR[heat.band]);
     }
+  }
+
+  private updateFlame(view: SlotView, burning: boolean): void {
+    view.flame.visible = burning;
+    if (!burning) {
+      view.light.intensity = 0;
+      return;
+    }
+
+    const t = this.elapsed;
+
+    // 火苗抖动：每根自己一个相位，否则六根一起缩放像在呼吸
+    view.tongues.forEach((tongue, index) => {
+      const wobble = Math.sin(t * FLAME_SPEED + index * 1.7);
+      tongue.scale.y = 1 + wobble * 0.28;
+      tongue.scale.x = tongue.scale.z = 1 + wobble * -0.1;
+    });
+
+    // 火星：0→1 往上走，越高越淡，到顶回到底部重新来
+    view.sparks.forEach((spark) => {
+      const phase = ((t * SPARK_SPEED + spark.userData.phase) % 1 + 1) % 1;
+      const angle = spark.userData.angle + phase * 1.2;
+      const radius = 0.06 + phase * 0.09;
+
+      spark.position.set(
+        Math.cos(angle) * radius,
+        0.1 + phase * SPARK_RISE,
+        Math.sin(angle) * radius,
+      );
+      const material = spark.material as MeshLambertMaterial;
+      material.opacity = 1 - phase;
+      spark.scale.setScalar(1 - phase * 0.55);
+    });
+
+    // 光跟着火苗一起忽明忽暗，幅度小一点，不然整屋灯在闪
+    view.light.intensity = 0.9 + Math.sin(t * FLAME_SPEED * 0.7) * 0.25;
   }
 
   dispose(): void {

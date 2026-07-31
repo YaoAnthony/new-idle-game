@@ -1,11 +1,10 @@
 import { Object3D } from "three";
 import { on } from "../../Game/EventBus";
 import { getHeld } from "../../Game/State/heldItem";
-import { blob } from "../Visual/primitives.js";
 import {
   COOKWARE_CONTENT_ANCHOR,
   COOKWARE_CONTENT_RADIUS,
-  ingredientColor,
+  buildIngredient,
 } from "../Visual/recipes/cookware.js";
 import { buildVisual } from "../Visual/VisualRegistry.js";
 
@@ -90,15 +89,15 @@ export class HeldItemView {
     return portions.map((portionId, index) => {
       const angle = index * 2.4;
       const spread = portions.length === 1 ? 0 : radius * 0.6;
-      return blob(0.085, 0, {
-        color: ingredientColor(portionId),
-        position: [
-          Math.cos(angle) * spread,
-          anchor + 0.04 + Math.floor(index / 3) * 0.05,
-          Math.sin(angle) * spread,
-        ],
-        castShadow: false,
-      });
+
+      const portion = buildIngredient(portionId);
+      portion.position.set(
+        Math.cos(angle) * spread,
+        anchor + Math.floor(index / 3) * 0.05,
+        Math.sin(angle) * spread,
+      );
+      portion.rotation.y = angle;
+      return portion;
     });
   }
 

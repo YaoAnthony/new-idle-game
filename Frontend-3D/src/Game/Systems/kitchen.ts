@@ -245,6 +245,28 @@ export function debugPutInSlot(ref: KitchenSlotRef, itemId: string): boolean {
   return true;
 }
 
+/**
+ * 调试用：直接往槽位里的锅投一份料，跳过"拿到手上 → 走过去 → 按 F"。
+ *
+ * **走的是和正式路径同一个 addToContainer**，配方匹配、投料顺序的规则
+ * 一条都不绕开——否则用它验出来的火候和声音都不作数。
+ */
+export function debugAddIngredient(
+  ref: KitchenSlotRef,
+  itemId: string,
+): boolean {
+  if (!ref.content) return false;
+  if (!findItemDefinition(itemId)) return false;
+
+  const next = addToContainer(
+    ref.content.itemId,
+    ref.content.container ?? emptyContainer(),
+    itemId,
+  );
+  setSlotContent(ref.instanceId, ref.slotId, { ...ref.content, container: next });
+  return true;
+}
+
 export function dumpKitchenSlot(ref: KitchenSlotRef): boolean {
   if (!ref.content?.container || ref.content.container.items.length === 0) {
     return false;

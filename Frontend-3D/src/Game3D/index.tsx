@@ -51,7 +51,11 @@ import {
   spoilExpiredFood,
 } from "../Game/State/inventory";
 import { startNeeds, tickNeeds } from "../Game/State/needs";
-import { debugPutInSlot, listKitchenSlots } from "../Game/Systems/kitchen";
+import {
+  debugAddIngredient,
+  debugPutInSlot,
+  listKitchenSlots,
+} from "../Game/Systems/kitchen";
 import { setupTestRoom } from "../Game/Systems/testRoom";
 import {
   getEventProgress,
@@ -284,16 +288,28 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
           if (!ref) {
             return { ok: false, message: `没有序号 ${args[0]} 的槽位（0~${slots.length - 1}）` };
           }
+          const itemId = args[1] ?? "wok";
+          const definition = findItemDefinition(itemId);
+          if (!definition) {
+            return { ok: false, message: `没有这个物品：${itemId}` };
+          }
+
+          // 不是厨具就当投料：槽位里已经有锅时往锅里加，方便直接验火候/灶火/声音
+          if (!definition.cookware) {
+            if (!ref.content) {
+              return { ok: false, message: `${ref.slotId} 上没有锅，先放一口` };
+            }
+            if (!debugAddIngredient(ref, itemId)) {
+              return { ok: false, message: `${itemId} 投不进去` };
+            }
+            return ok(`已往 ${ref.instanceId} / ${ref.slotId} 的锅里投了 ${itemId}`);
+          }
+
           if (ref.content) {
             return { ok: false, message: `${ref.slotId} 已经放着 ${ref.content.itemId} 了` };
           }
-
-          const itemId = args[1] ?? "wok";
-          if (!findItemDefinition(itemId)) {
-            return { ok: false, message: `没有这个物品：${itemId}` };
-          }
           if (!debugPutInSlot(ref, itemId)) {
-            return { ok: false, message: `${itemId} 放不进这个槽位（要带 cookware 能力）` };
+            return { ok: false, message: `${itemId} 放不进这个槽位` };
           }
           return ok(`已把 ${itemId} 放到 ${ref.instanceId} / ${ref.slotId}`);
         },

@@ -1,6 +1,8 @@
 import {
   BoxGeometry,
   CylinderGeometry,
+  DoubleSide,
+  FrontSide,
   IcosahedronGeometry,
   Mesh,
   MeshLambertMaterial,
@@ -17,19 +19,35 @@ import {
 
 const materialCache = new Map<string, MeshLambertMaterial>();
 
-export function flatMaterial(value: ColorRepresentation): MeshLambertMaterial {
-  const key = typeof value === "string" ? value : String(value);
+export function flatMaterial(
+  value: ColorRepresentation,
+  doubleSide = false,
+): MeshLambertMaterial {
+  // 缓存键要带上单双面：同一个颜色的单面和双面是两种材质，
+  // 只按颜色缓存会让先创建的那种把另一种顶掉
+  const key = `${typeof value === "string" ? value : String(value)}|${doubleSide}`;
   const existing = materialCache.get(key);
   if (existing) return existing;
 
-  const material = new MeshLambertMaterial({ color: value, flatShading: true });
+  const material = new MeshLambertMaterial({
+    color: value,
+    flatShading: true,
+    side: doubleSide ? DoubleSide : FrontSide,
+  });
   materialCache.set(key, material);
   return material;
 }
 
 /** 每个实例独立的材质，用于需要单独染色或调透明度的对象 */
-export function ownMaterial(value: ColorRepresentation | Color): MeshLambertMaterial {
-  return new MeshLambertMaterial({ color: value, flatShading: true });
+export function ownMaterial(
+  value: ColorRepresentation | Color,
+  doubleSide = false,
+): MeshLambertMaterial {
+  return new MeshLambertMaterial({
+    color: value,
+    flatShading: true,
+    side: doubleSide ? DoubleSide : FrontSide,
+  });
 }
 
 export type Vec3 = [number, number, number];
@@ -40,6 +58,14 @@ type ShapeOptions = {
   color: ColorRepresentation | Color;
   castShadow?: boolean;
   receiveShadow?: boolean;
+  /**
+   * 去掉圆柱的顶底盖。做**容器**必须开口——
+   * CylinderGeometry 默认带顶盖，锅从上往下看就是一块盖板，
+   * 不管里面画了什么都被盖住。
+   */
+  openEnded?: boolean;
+  /** 双面渲染。开了口的容器要靠它才看得见远侧内壁，否则里面是空的 */
+  doubleSide?: boolean;
 };
 
 function applyCommon(mesh: Mesh, options: ShapeOptions): Mesh {
@@ -69,10 +95,17 @@ export function cylinder(
   options: ShapeOptions,
 ): Mesh {
   const mesh = new Mesh(
-    new CylinderGeometry(radiusTop, radiusBottom, height, segments),
+    new CylinderGeometry(
+      radiusTop,
+      radiusBottom,
+      height,
+      segments,
+      1,
+      options.openEnded ?? false,
+    ),
     typeof options.color === "string"
-      ? flatMaterial(options.color)
-      : ownMaterial(options.color),
+      ? flatMaterial(options.color, options.doubleSide)
+      : ownMaterial(options.color, options.doubleSide),
   );
   return applyCommon(mesh, options);
 }

@@ -260,15 +260,21 @@ export function dumpKitchenSlot(ref: KitchenSlotRef): boolean {
 // ---- 加热 ----
 
 /**
- * 每帧推进火候。只有"放在能提供热源的槽位上、且内容匹配到配方"的锅才走进度：
- * - 端到普通台面 → 暂停（这不是压力，是给玩家的调度权）
- * - 配错了组合 → recipeId 为空 → 停止加热
+ * 这个槽位此刻是不是真的在加热：锅架在能提供热源的槽位上，且内容匹配到了配方。
+ * - 端到普通台面 → 不加热（这不是压力，是给玩家的调度权）
+ * - 配错了组合 → recipeId 为空 → 不加热
  */
+export function isSlotCooking(ref: KitchenSlotRef): boolean {
+  const container = ref.content?.container;
+  if (!ref.content || !container?.recipeId) return false;
+  return slotHeatsCookware(ref.capabilities, ref.content.itemId);
+}
+
+/** 每帧推进火候。只有正在加热的槽位才走进度 */
 export function tickKitchen(deltaSeconds: number): void {
   for (const ref of listKitchenSlots()) {
     const container = ref.content?.container;
-    if (!ref.content || !container?.recipeId) continue;
-    if (!slotHeatsCookware(ref.capabilities, ref.content.itemId)) continue;
+    if (!container?.recipeId || !isSlotCooking(ref)) continue;
 
     const recipe = findCookingRecipeDefinition(container.recipeId);
     if (!recipe) continue;

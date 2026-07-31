@@ -52,6 +52,44 @@ export function placeOnWall(
   visual.rotation.y = WALL_ROTATION[wallId] ?? 0;
 }
 
+/**
+ * 一件已放置家具的占地中心（世界坐标）。
+ *
+ * 地面和墙面两套坐标系在这里收口——提示气泡、音景的距离衰减都要问
+ * "这件家具在哪儿"，各自算一份的话迟早会走散（挂钟是墙饰，
+ * 按地面公式算会落到屋子中间去）。
+ */
+export function furnitureWorldCenter(
+  placed: PlacedFurniture,
+  definition: { footprint: { width: number; height: number } },
+  size: { width: number; depth: number },
+): { x: number; y: number; z: number } {
+  const { footprint } = definition;
+
+  if (placed.placement.kind === PlacementSurface.Wall) {
+    const { wallId, gridPosition } = placed.placement;
+    const [x, y, z] = wallCellToWorld(
+      wallId,
+      gridPosition.x + (footprint.width - 1) / 2,
+      gridPosition.y + (footprint.height - 1) / 2,
+      size,
+    );
+    return { x, y, z };
+  }
+
+  const { gridPosition, facing } = placed.placement;
+  // 朝东/朝西时占地的宽高互换
+  const rotated = facing === Facing.East || facing === Facing.West;
+  const w = rotated ? footprint.height : footprint.width;
+  const h = rotated ? footprint.width : footprint.height;
+
+  return {
+    x: gridPosition.x - size.width / 2 + w / 2,
+    y: 0,
+    z: gridPosition.y - size.depth / 2 + h / 2,
+  };
+}
+
 export const FACING_ROTATION: Record<Facing, number> = {
   [Facing.North]: 0,
   [Facing.East]: -Math.PI / 2,

@@ -90,8 +90,6 @@ export const PALETTE = {
   lampGlow: "#ffe6b0",
 
   waterBlue: "#7fb2c4",
-  sandPale: "#dcc79a",
-  fishOrange: "#e08a4e",
 
   // ---- 分区地板（2LDK）。玄关是土间的青灰瓦——踩进屋第一脚
   //      和木地板拉开材质差，"进了门再上一步台阶"的日式秩序感靠它；

@@ -1,22 +1,36 @@
 import {
   AudioBusId,
+  AudioTriggerKind,
   DayPhaseId,
   WeatherKind,
+  defaultZoneAudioProfile,
+  findActionDefinition,
+  findAudioProfileDefinition,
   regionAmbienceProfileIds,
+  weatherDefinitions,
+  zoneAt,
+  zoneAudioProfiles,
+  zoneFootstepProfileIds,
+  type PlacedFurniture,
 } from "core";
 import { on } from "../../Game/EventBus";
 import { getClock } from "../../Game/State/clock";
-import { getRoomStyle } from "../../Game/State/worldRuntime";
+import { getDefinition, getRoomStyle, getWorld } from "../../Game/State/worldRuntime";
 import { getWeather } from "../../Game/State/weather";
+import { getActiveAction } from "../../Game/Systems/actions";
+import { isSlotCooking, listKitchenSlots } from "../../Game/Systems/kitchen";
+import { furnitureWorldCenter } from "../World/FurnitureView.js";
 import {
   activeLoops,
   getBusVolume,
   audioContextState,
+  describeLoading,
   describeLoops,
   isAudioUnlocked,
   playLoop,
   playOneShot,
-  setLoopVolume,
+  preloadProfiles,
+  setTaggedVolume,
   stopAllAudio,
   stopLoop,
 } from "./AudioEngine.js";
@@ -29,6 +43,10 @@ import {
  *
  * 放在 Game3D 而不是 Game/Systems：声音是纯表现，而且它要驱动
  * AudioEngine（同层）。反过来让 Game/ 依赖 Game3D 会把单向依赖弄反。
+ *
+ * **所有"什么时候响"都集中在这个文件**：玩法系统（kitchen、unpack、
+ * placement…）只发它们本来就在发的事件，一行音频调用都没有。
+ * 散出去的话，加一件会响的家具就得改代码——那正是这套设计要避免的。
  */
 
 /** 夜里环境音压低一些，屋里才显得安静 */
@@ -46,45 +64,239 @@ const WEATHER_VOLUME = 0.9;
 const THUNDER_MIN_MS = 9000;
 const THUNDER_MAX_MS = 26000;
 
+/**
+ * 位置相关的音量多久重算一次。
+ *
+ * 不每帧算：距离衰减本身还要走 2.2 秒的淡入淡出，每帧重排斜坡
+ * 反而让音量永远到不了目标值。120ms 比人耳能分辨的音量变化快得多。
+ */
+const POSITIONAL_INTERVAL_MS = 120;
+
+/**
+ * 距离衰减的音量用多长的斜坡跟过去。
+ *
+ * 比更新间隔略长一点，前后两条斜坡首尾搭上，听不出台阶；又短到
+ * 音量能真的跟住玩家的脚步。**不能用层次切换那对 2.2/3.4 秒**——
+ * 那样每 120ms 重排一次只走完 5%，等于给距离套了个两秒多的低通，
+ * 人走到壁炉跟前了声音还在爬坡。
+ */
+const POSITIONAL_RAMP_SECONDS = 0.18;
+
+/** 走多远算一步。角色速度 3.1，约合每 0.5 秒一步 */
+const FOOTSTEP_STRIDE = 1.5;
+
+/**
+ * 一帧内位移超过这个距离就不算"走"。
+ * 传送、坐下起身、读档归位都会让坐标瞬移，不能算成迈了一大步。
+ */
+const TELEPORT_THRESHOLD = 1;
+
 let thunderTimer: ReturnType<typeof setTimeout> | null = null;
 let offListeners: Array<() => void> = [];
 
-/** 现在应该在播的循环 → 目标音量 */
-function desiredLoops(): Map<string, number> {
-  const desired = new Map<string, number>();
+/** 玩家当前位置。距离衰减和脚步声都靠它，由 RoomScene 每帧喂进来 */
+let listenerX = 0;
+let listenerZ = 0;
+let hasListener = false;
+let positionalTimer = 0;
+let strideAccumulator = 0;
+
+/** 玩家所在分区的声音档案：屋里听外面该有多闷 */
+function currentZoneProfile(): { weatherVolumeScale: number; ambienceVolumeScale: number } {
+  if (!hasListener) return defaultZoneAudioProfile;
+
+  const { room } = getWorld();
+  const zone = zoneAt(room, worldToCell(listenerX, listenerZ));
+  // 站在墙格上（正穿门洞）查不到分区，用兜底而不是让音量抖一下
+  return zone ? zoneAudioProfiles[zone.kind] : defaultZoneAudioProfile;
+}
+
+function worldToCell(x: number, z: number): { x: number; y: number } {
+  const { floorGrid } = getWorld().room;
+  return {
+    x: Math.floor(x + floorGrid.width / 2),
+    y: Math.floor(z + floorGrid.height / 2),
+  };
+}
+
+/**
+ * 一件家具此刻该有多响（0 = 不该响）。
+ *
+ * 距离衰减手算 `(1 - d/r)²` 而不是上 PannerNode：治愈系游戏不需要方位感
+ * （左耳右耳），只需要"走近了听得见"。手算不用维护听者朝向、不用管声道旋转，
+ * 音量曲线还完全可控。
+ */
+function furnitureVolume(
+  placed: PlacedFurniture,
+  cookingInstances: Set<string>,
+  size: { width: number; depth: number },
+): number {
+  const definition = getDefinition(placed.furnitureId);
+  const profileId = definition?.audioProfileId;
+  if (!definition || !profileId) return 0;
+
+  const profile = findAudioProfileDefinition(profileId);
+  if (!profile?.loop) return 0;
+
+  // 触发条件写在声音上，家具那边只填一个 audioProfileId
+  if (
+    profile.trigger === AudioTriggerKind.Active &&
+    !cookingInstances.has(placed.instanceId)
+  ) {
+    return 0;
+  }
+
+  const radius = profile.audibleRadius;
+  if (!radius || !hasListener) return 0;
+
+  const center = furnitureWorldCenter(placed, definition, size);
+
+  // 只比平面距离：挂钟挂在 1.8 米高，但"走到钟底下"就该听见，
+  // 把高度算进去会让墙上的东西永远差一截
+  const distance = Math.hypot(center.x - listenerX, center.z - listenerZ);
+  if (distance >= radius) return 0;
+
+  const falloff = 1 - distance / radius;
+  return falloff * falloff;
+}
+
+type DesiredLoop = {
+  profileId: string;
+  volume: number;
+  /**
+   * 音量是不是由距离**连续**算出来的。位置类的音量每 120ms 就是一个
+   * 新目标，得用短斜坡跟踪；层次类（底噪、天气、行动）一次跳变一个值，
+   * 该用 2.2/3.4 秒慢慢淡。见 AudioEngine.setTaggedVolume。
+   */
+  positional?: boolean;
+};
+
+/** 现在应该在播的持续音：tag → 目标 */
+function desiredLoops(): Map<string, DesiredLoop> {
+  const desired = new Map<string, DesiredLoop>();
+  const zone = currentZoneProfile();
 
   const phase = getClock().phase;
-  const ambienceVolume = AMBIENCE_VOLUME_BY_PHASE[phase] ?? 1;
+  const ambienceVolume =
+    (AMBIENCE_VOLUME_BY_PHASE[phase] ?? 1) * zone.ambienceVolumeScale;
 
   // 地区底噪。stone 地区没素材 → 查不到就没有这一层，静音而不是报错
   const regionProfile = regionAmbienceProfileIds[getRoomStyle().regionId];
-  if (regionProfile) desired.set(regionProfile, ambienceVolume);
+  if (regionProfile) {
+    desired.set(regionProfile, { profileId: regionProfile, volume: ambienceVolume });
+  }
 
   // 天气音层。天气定义里的 audioProfileId 查不到条目就没有这一层
   const weather = getWeather();
   const weatherProfile = weather.audioProfileId;
   if (weatherProfile && weatherProfile !== "weather_audio_none") {
-    desired.set(weatherProfile, WEATHER_VOLUME);
+    desired.set(weatherProfile, {
+      profileId: weatherProfile,
+      volume: WEATHER_VOLUME * zone.weatherVolumeScale,
+    });
+  }
+
+  // 家具环境音。每件家具一个 tag，所以屋里放两个壁炉是两条独立的循环
+  //
+  // 分区档案**不缩放**家具音：它表达的是"隔着墙听外面"，
+  // 而壁炉本来就和玩家在同一个屋里，卧室里的壁炉不该因为你在卧室就变小声
+  const cookingInstances = activeCookingInstances();
+  const { floorGrid } = getWorld().room;
+  const size = { width: floorGrid.width, depth: floorGrid.height };
+
+  for (const placed of getWorld().placedFurniture) {
+    const volume = furnitureVolume(placed, cookingInstances, size);
+    if (volume <= 0) continue;
+
+    const profileId = getDefinition(placed.furnitureId)?.audioProfileId;
+    if (!profileId) continue;
+
+    desired.set(`furniture:${placed.instanceId}`, {
+      profileId,
+      volume,
+      positional: true,
+    });
+  }
+
+  // 行动进行中的声音（写字）。行动定义里没填 audioProfileId 就是这件事没声音
+  const action = getActiveAction();
+  const actionProfile = action
+    ? findActionDefinition(action.definitionId)?.audioProfileId
+    : null;
+  if (actionProfile) {
+    desired.set("action", { profileId: actionProfile, volume: 0.55 });
   }
 
   return desired;
+}
+
+/** 正在加热的灶眼属于哪几件家具。灶台空着的时候不该滋滋响 */
+function activeCookingInstances(): Set<string> {
+  const instances = new Set<string>();
+  for (const ref of listKitchenSlots()) {
+    if (isSlotCooking(ref)) instances.add(ref.instanceId);
+  }
+  return instances;
 }
 
 /** 把实际在播的对齐到"应该在播的"。只动差集，已经对的不重启 */
 function sync(): void {
   const desired = desiredLoops();
 
-  for (const profileId of activeLoops()) {
-    if (!desired.has(profileId)) stopLoop(profileId);
+  for (const tag of activeLoops()) {
+    if (!desired.has(tag)) stopLoop(tag);
   }
 
-  for (const [profileId, volume] of desired) {
+  for (const [tag, { profileId, volume, positional }] of desired) {
     // playLoop 对"已经在播"的情况只调音量，不会重头开始
-    playLoop(profileId, volume);
-    setLoopVolume(profileId, volume);
+    playLoop(profileId, { tag, volume });
+    setTaggedVolume(tag, volume, positional ? POSITIONAL_RAMP_SECONDS : undefined);
   }
 
   syncThunder();
+}
+
+/**
+ * 玩家位置。RoomScene 每帧调，这里自己限流。
+ *
+ * 由渲染层往音景推而不是音景去问角色控制器：角色控制器是 Interaction 层的，
+ * 让 Engine 反向依赖它会绕一圈。
+ */
+export function updateListener(x: number, z: number, deltaSeconds: number): void {
+  const moved = hasListener ? Math.hypot(x - listenerX, z - listenerZ) : 0;
+
+  listenerX = x;
+  listenerZ = z;
+  hasListener = true;
+
+  stepFootsteps(moved);
+
+  positionalTimer += deltaSeconds * 1000;
+  if (positionalTimer < POSITIONAL_INTERVAL_MS) return;
+  positionalTimer = 0;
+  sync();
+}
+
+/**
+ * 脚步声：按走过的距离而不是按时间。
+ *
+ * 按距离踩点的话，跑和走自动就是不同的频率，不用另外读速度；
+ * 站着不动自然一步也不会响。
+ */
+function stepFootsteps(moved: number): void {
+  if (moved <= 0 || moved > TELEPORT_THRESHOLD) return;
+
+  strideAccumulator += moved;
+  if (strideAccumulator < FOOTSTEP_STRIDE) return;
+  strideAccumulator = 0;
+
+  const zone = zoneAt(getWorld().room, worldToCell(listenerX, listenerZ));
+  if (!zone) return;
+
+  // 现在这张表是空的（还没有脚步素材）→ 查不到就静音。
+  // 素材到位那天在 Core 填一行映射，这里一个字都不用改
+  const profileId = zoneFootstepProfileIds[zone.kind];
+  if (profileId) playOneShot(profileId, 0.35);
 }
 
 /**
@@ -122,19 +334,56 @@ function syncThunder(): void {
   scheduleNext();
 }
 
+/**
+ * 开机预载：把**一定会用到的**素材先解码进缓存。
+ *
+ * 素材保持 WAV 不压缩（定案，见音景文档第六节），单个循环音 5 MB，
+ * 等到要播时才 fetch + decode 就是切完天气盯着静默好几秒。
+ * 玩家在标题页停留的那几秒正好够用。
+ *
+ * 只热底噪和天气——家具音按需加载就行，玩家不一定摆壁炉。
+ * "一定会用到的是哪几条"是规则层的知识，所以这个函数在这儿不在 AudioEngine。
+ */
+export function preloadEssentialAudio(): void {
+  /**
+   * 雨声的 profileId **从天气注册表查**，不写字面量：
+   * 硬编码 "weather_audio_rain" 的话，将来那条 profile 改名不会报错，
+   * 只是预载悄悄落空、退回"进屋才开始加载"，是最难发现的那种退化。
+   */
+  const rainProfile = weatherDefinitions.find(
+    (weather) => weather.kind === WeatherKind.Rain,
+  )?.audioProfileId;
+
+  const essentials = [
+    regionAmbienceProfileIds[getRoomStyle().regionId],
+    rainProfile,
+  ].filter((id): id is string => Boolean(id) && id !== "weather_audio_none");
+
+  // 刻意不 await：预载是尽力而为，不该挡着玩家进游戏
+  void preloadProfiles(essentials);
+}
+
 export function startSoundscape(): () => void {
   sync();
 
   offListeners = [
     on("weather_changed", () => sync()),
     on("day_phase_changed", () => sync()),
-    // 换屋子风格会换地区 → 换环境底噪
-    on("world_changed", ({ reason }) => {
-      if (reason === "restored" || reason === "style_changed") sync();
-    }),
+    // 换屋子风格会换地区（底噪），家具增删会改变"哪些家具在响"——
+    // 两件事都由这条事件承载，所以不再挑 reason
+    on("world_changed", () => sync()),
     // 首次用户交互解锁音频之后要补一次，否则等到下次天气变化才有声音
     on("audio_unlocked", () => sync()),
+    // 锅上灶、起锅都会改变"灶眼在不在加热"
+    on("kitchen_changed", () => sync()),
+    // 行动开始 / 结束 → 写字声跟着起落
+    on("action_changed", () => sync()),
     on("food_eaten", () => playOneShot("sfx_eat", 0.85)),
+    // 开箱面板一打开就响，而不是等玩家点"收下"——手放上去那一下才是开箱
+    on("unpack_changed", ({ open }) => {
+      if (open) playOneShot("sfx_unpack", 0.9);
+    }),
+    on("storage_open_requested", () => playOneShot("sfx_storage_open", 0.8)),
   ];
 
   return () => {
@@ -144,6 +393,9 @@ export function startSoundscape(): () => void {
     if (thunderTimer) clearTimeout(thunderTimer);
     thunderTimer = null;
 
+    hasListener = false;
+    strideAccumulator = 0;
+    positionalTimer = 0;
     stopAllAudio();
   };
 }
@@ -152,25 +404,34 @@ export function startSoundscape(): () => void {
 export function describeSoundscape(): {
   unlocked: boolean;
   contextState: string;
-  loopGains: Array<{ id: string; gain: number }>;
+  loopGains: Array<{ id: string; tag: string; gain: number }>;
+  loading: string[];
   playing: string[];
   desired: string[];
   phase: DayPhaseId;
   weatherId: string;
   regionId: string;
+  zone: string;
   /** 各总线的实际增益。用来确认设置面板的滑块真的接上了 */
   buses: Record<string, number>;
 } {
+  const zone = hasListener
+    ? zoneAt(getWorld().room, worldToCell(listenerX, listenerZ))?.kind ?? "none"
+    : "no-listener";
+
   return {
     unlocked: isAudioUnlocked(),
     /** AudioContext 真实状态。running 之外都是"其实没声音" */
     contextState: audioContextState(),
     loopGains: describeLoops(),
+    /** 还在 fetch/decode 的素材：能分开"没在播"和"还没加载完" */
+    loading: describeLoading(),
     playing: activeLoops(),
     desired: [...desiredLoops().keys()],
     phase: getClock().phase,
     weatherId: getWeather().id,
     regionId: getRoomStyle().regionId,
+    zone,
     buses: {
       master: round2(getBusVolume(AudioBusId.Master)),
       music: round2(getBusVolume(AudioBusId.Music)),

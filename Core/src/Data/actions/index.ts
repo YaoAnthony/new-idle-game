@@ -27,6 +27,7 @@ export const actionDefinitions = [
       { type: "item", itemId: "wood", quantity: 2 },
       { type: "item", itemId: "egg", quantity: 1 },
     ],
+    audioProfileId: "sfx_action_writing",
   },
   {
     id: "exercise",
@@ -51,6 +52,8 @@ export const actionDefinitions = [
       { type: "item", itemId: "paper", quantity: 3 },
       { type: "item", itemId: "graphite", quantity: 1 },
     ],
+    // 画画和写字共用笔尖摩擦的声音——同一支笔在纸上走
+    audioProfileId: "sfx_action_writing",
   },
   {
     // 休息是唯一**回**疲劳的行动（fatigueCost 为负），

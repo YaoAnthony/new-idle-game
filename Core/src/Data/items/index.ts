@@ -202,14 +202,6 @@ export const itemDefinitions = [
     placeableFurnitureId: "fireplace",
   },
   {
-    id: "furniture_fish_tank",
-    localizationKey: "item.furniture_fish_tank",
-    category: ItemCategory.Furniture,
-    stackLimit: 9,
-    rarity: Rarity.Uncommon,
-    placeableFurnitureId: "fish_tank",
-  },
-  {
     id: "furniture_floor_lamp",
     localizationKey: "item.furniture_floor_lamp",
     category: ItemCategory.Furniture,

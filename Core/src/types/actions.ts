@@ -1,4 +1,9 @@
-import type { ActionId, LocalizationKey, ProcessId } from "./base.js";
+import type {
+  ActionId,
+  AudioProfileId,
+  LocalizationKey,
+  ProcessId,
+} from "./base.js";
 import type { FurnitureCapability, PlacedFurnitureInstanceId } from "./furniture.js";
 import type { RewardDefinition } from "./events.js";
 import type { UtcTimestamp } from "./time.js";
@@ -46,6 +51,12 @@ export type ActionDefinition = {
   /** 基础疲劳消耗。负数表示恢复疲劳（休息类） */
   fatigueCost: number;
   rewards: RewardDefinition[];
+
+  /**
+   * 行动进行中的声音。和家具上的同名字段是同一个意思——
+   * "谁会发声"就是一个字段，不填就是这件事做起来没声音。
+   */
+  audioProfileId?: AudioProfileId | null;
 };
 
 /**

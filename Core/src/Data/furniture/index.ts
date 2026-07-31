@@ -21,7 +21,7 @@ export const furnitureDefinitions = [
     localizationKey: "furniture.stove",
     category: FurnitureCategory.Station,
     capabilities: [FurnitureCapability.Cooking],
-    audioProfileId: null,
+    audioProfileId: "furniture_cooking",
     floorLayer: FloorLayer.Object,
     blocksMovement: true,
     interactHint: {
@@ -69,7 +69,7 @@ export const furnitureDefinitions = [
     localizationKey: "furniture.kitchen_counter_l",
     category: FurnitureCategory.Station,
     capabilities: [FurnitureCapability.Cooking],
-    audioProfileId: null,
+    audioProfileId: "furniture_cooking",
     floorLayer: FloorLayer.Object,
     blocksMovement: true,
     interactHint: {
@@ -353,30 +353,13 @@ export const furnitureDefinitions = [
     localizationKey: "furniture.fireplace",
     category: FurnitureCategory.Decoration,
     capabilities: [FurnitureCapability.Ambience],
-    audioProfileId: null,
+    audioProfileId: "furniture_fireplace",
     floorLayer: FloorLayer.Object,
     blocksMovement: true,
     interactHint: {
       localizationKey: "hint.fireplace",
       action: "interact",
       anchorHeight: 2.5,
-    },
-  },
-  {
-    id: "fish_tank",
-    visualId: "fish_tank",
-    footprint: { width: 1, height: 1 },
-    placementSurface: PlacementSurface.Floor,
-    localizationKey: "furniture.fish_tank",
-    category: FurnitureCategory.Decoration,
-    capabilities: [FurnitureCapability.Ambience],
-    audioProfileId: null,
-    floorLayer: FloorLayer.Object,
-    blocksMovement: true,
-    interactHint: {
-      localizationKey: "hint.fish_tank",
-      action: "interact",
-      anchorHeight: 1.2,
     },
   },
   {
@@ -565,7 +548,7 @@ export const furnitureDefinitions = [
     localizationKey: "furniture.wall_clock",
     category: FurnitureCategory.Decoration,
     capabilities: [],
-    audioProfileId: null,
+    audioProfileId: "furniture_clock",
     blocksMovement: false,
   },
   {

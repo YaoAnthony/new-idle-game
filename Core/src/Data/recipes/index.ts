@@ -156,17 +156,6 @@ export const recipeDefinitions = [
     unlockConditionIds: [],
   },
   {
-    id: "fish_tank",
-    localizationKey: "recipe.fish_tank",
-    stationCapability: FurnitureCapability.Crafting,
-    ingredients: [
-      { itemId: "plank", quantity: 3 },
-      { itemId: "iron_ingot", quantity: 2 },
-    ],
-    outputs: [{ itemId: "furniture_fish_tank", quantity: 1 }],
-    unlockConditionIds: [],
-  },
-  {
     id: "floor_lamp",
     localizationKey: "recipe.floor_lamp",
     stationCapability: FurnitureCapability.Crafting,

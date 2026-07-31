@@ -1,7 +1,6 @@
 import type { Object3D } from "three";
 import {
   buildFireplace,
-  buildFishTank,
   buildFloorLamp,
 } from "./recipes/ambience.js";
 import { buildCushion, buildWoodenBed } from "./recipes/bedroom.js";
@@ -77,7 +76,6 @@ const REGISTRY: Record<string, VisualEntry> = {
   round_stool: { kind: "procedural", build: buildRoundStool },
   floor_cushion: { kind: "procedural", build: buildCushion },
   fireplace: { kind: "procedural", build: buildFireplace },
-  fish_tank: { kind: "procedural", build: buildFishTank },
   floor_lamp: { kind: "procedural", build: buildFloorLamp },
   potted_plant: { kind: "procedural", build: buildPottedPlant },
 

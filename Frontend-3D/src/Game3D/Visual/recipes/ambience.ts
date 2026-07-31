@@ -1,9 +1,9 @@
-import { Color, Mesh, MeshLambertMaterial, Object3D, PointLight } from "three";
-import { PALETTE, color } from "../palette.js";
+import { Color, Mesh, Object3D, PointLight } from "three";
+import { PALETTE } from "../palette.js";
 import { blob, box, cylinder, group, sphere } from "../primitives.js";
 
 /**
- * 氛围类家具：壁炉、鱼缸、落地灯。
+ * 氛围类家具：壁炉、落地灯。
  * 自发光的暖色面（emissive）让它们本体在夜里亮着；
  * 真室内光时代（镜头锁屋内 + 屋顶挡光）再各嵌一盏名为 lamp-light 的点光，
  * 初始强度 0，由 Lighting 按昼夜阶段点亮（黄昏半亮、入夜全亮）——
@@ -128,78 +128,6 @@ export function buildFireplace(): Object3D {
     ...bricks,
     lampLight(PALETTE.emberOrange, 0, 0.6, 0.5),
   ]);
-}
-
-/** 鱼缸（1×1）：矮木柜座 + 半透明水体 + 沙底、水草和两条小橙鱼 */
-export function buildFishTank(): Object3D {
-  const standHeight = 0.5;
-
-  const stand = box([0.72, standHeight, 0.62], {
-    color: PALETTE.woodMid,
-    position: [0, standHeight / 2, 0],
-  });
-
-  const standTrim = box([0.8, 0.07, 0.7], {
-    color: PALETTE.woodDark,
-    position: [0, standHeight + 0.035, 0],
-  });
-
-  // 水体直接用半透明蓝色块表现，省掉玻璃层。
-  // 传 Color 而不是字符串，拿到的是独立材质，改 opacity 不会污染共享缓存。
-  const water = box([0.7, 0.5, 0.52], {
-    color: color(PALETTE.waterBlue),
-    position: [0, standHeight + 0.32, 0],
-    castShadow: false,
-  });
-  const waterMaterial = water.material as MeshLambertMaterial;
-  waterMaterial.transparent = true;
-  waterMaterial.opacity = 0.45;
-
-  const rim = box([0.76, 0.05, 0.58], {
-    color: PALETTE.stoveTop,
-    position: [0, standHeight + 0.59, 0],
-  });
-
-  const sand = box([0.66, 0.07, 0.48], {
-    color: PALETTE.sandPale,
-    position: [0, standHeight + 0.11, 0],
-    castShadow: false,
-  });
-
-  // 水草：两株高矮不一的绿柱
-  const weeds = [
-    [-0.22, 0.26, 0.1],
-    [-0.12, 0.18, -0.09],
-  ].map(([x, h, z]) =>
-    cylinder(0.025, 0.045, h, 8, {
-      color: PALETTE.leafGreen,
-      position: [x, standHeight + 0.15 + h / 2, z],
-      castShadow: false,
-    }),
-  );
-
-  // 两条小鱼：椭圆身体 + 三角尾巴
-  const fish = [0.06, 0.2].flatMap((x, index) => {
-    const y = standHeight + 0.32 + index * 0.11;
-    const z = index === 0 ? 0.07 : -0.07;
-
-    const bodyMesh = sphere(0.055, 8, 6, {
-      color: PALETTE.fishOrange,
-      position: [x, y, z],
-      castShadow: false,
-    });
-    bodyMesh.scale.x = 1.6;
-
-    const tail = box([0.05, 0.07, 0.02], {
-      color: PALETTE.fishOrange,
-      position: [x + 0.1, y, z],
-      rotation: [0, 0, 0.5],
-      castShadow: false,
-    });
-    return [bodyMesh, tail];
-  });
-
-  return group("fish-tank", [stand, standTrim, water, rim, sand, ...weeds, ...fish]);
 }
 
 /** 落地灯（1×1）：木底座 + 细杆 + 梯形布罩，罩里一颗常亮的暖光球 */

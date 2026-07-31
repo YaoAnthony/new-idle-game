@@ -87,12 +87,14 @@ import { Lighting } from "../Engine/Lighting.js";
 import { stepFade } from "../Engine/Fade.js";
 import { setOutlineVisible } from "../Engine/Outline.js";
 import { createRenderer, type RendererHandle } from "../Engine/Renderer.js";
+import { updateListener } from "../Engine/Soundscape.js";
 import { CharacterController } from "../Interaction/CharacterController.js";
 import { PlacementController } from "../Interaction/PlacementController.js";
 import { buildCharacter } from "./CharacterView.js";
 import {
   FACING_VECTOR,
   FurnitureView,
+  furnitureWorldCenter,
   slotWorldPosition,
 } from "./FurnitureView.js";
 import { DoorView, WindowView, buildHouse, type BuiltHouse } from "./House/index.js";
@@ -651,7 +653,7 @@ export class RoomScene {
       const definition = getDefinition(placed.furnitureId);
       if (!definition?.interactHint) continue;
 
-      const center = this.furnitureCenter(placed, definition);
+      const center = furnitureWorldCenter(placed, definition, this.built.size);
       const distance = Math.hypot(
         center.x - this.controller.x,
         center.z - this.controller.z,
@@ -937,23 +939,6 @@ export class RoomScene {
     return best;
   }
 
-  /** 家具占地中心的世界坐标（考虑朝向旋转后的宽高） */
-  private furnitureCenter(
-    placed: { placement: { gridPosition: { x: number; y: number }; facing: Facing } },
-    definition: { footprint: { width: number; height: number } },
-  ): { x: number; z: number } {
-    const { width, depth } = this.built.size;
-    const { gridPosition, facing } = placed.placement;
-    const rotated = facing === Facing.East || facing === Facing.West;
-    const w = rotated ? definition.footprint.height : definition.footprint.width;
-    const h = rotated ? definition.footprint.width : definition.footprint.height;
-
-    return {
-      x: gridPosition.x - width / 2 + w / 2,
-      z: gridPosition.y - depth / 2 + h / 2,
-    };
-  }
-
   /**
    * 把当前提示气泡投影到屏幕坐标供 React 定位。
    * 每帧被 UI 层拉取，所以复用同一个 Vector3，不产生垃圾。
@@ -1109,6 +1094,11 @@ export class RoomScene {
 
   private update(deltaSeconds: number): void {
     this.controller.update(deltaSeconds, this.rig.azimuthDegrees);
+
+    // 音景要知道玩家站在哪儿（家具音的距离衰减、分区档案、脚步声）。
+    // 往里推而不是让音景去问控制器——控制器是 Interaction 层的，反向依赖会绕一圈
+    updateListener(this.controller.x, this.controller.z, deltaSeconds);
+
     tickPets(deltaSeconds, { x: this.controller.x, z: this.controller.z });
     this.petView.update(deltaSeconds);
 

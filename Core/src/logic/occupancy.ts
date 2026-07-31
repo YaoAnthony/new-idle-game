@@ -3,18 +3,24 @@ import {
   FloorLayer,
   FurnitureCapability,
   PlacementSurface,
-  type FurnitureDefinition,
   type FurnitureId,
   type PlacedFurniture,
   type PlacedFurnitureInstanceId,
 } from "../types/furniture.js";
+import type { PlaceableItem } from "../types/items.js";
 import type { RoomSave } from "../types/map.js";
 import { cellKey, footprintCells, type CellKey } from "./grid.js";
 import { interiorWallCells } from "./roomGeometry.js";
 
+/**
+ * `PlacedFurniture.furnitureId` → 那件物品的定义。
+ *
+ * 查出来的是整件物品而不是一份"家具定义"：合并之后摆在地上的和背包里的
+ * 是同一条数据，再投影出一个只给放置用的形状，等于把刚删掉的那层又建一遍。
+ */
 export type FurnitureLookup = (
   furnitureId: FurnitureId,
-) => FurnitureDefinition | undefined;
+) => PlaceableItem | undefined;
 
 /** 宠物可以落脚的目标格（椅子上、床上） */
 export type InteractionTarget = {
@@ -79,7 +85,7 @@ export function buildRoomOccupancy(
   for (const placed of placedFurniture) {
     if (placed.placement.roomId !== room.roomId) continue;
 
-    const definition = lookup(placed.furnitureId);
+    const definition = lookup(placed.furnitureId)?.placement;
     if (!definition) continue;
 
     const cells = footprintCells(

@@ -2,10 +2,10 @@ import { Facing, type AnchorId, type GridPosition } from "../types/base.js";
 import {
   BodyPosture,
   type FurnitureAnchor,
-  type FurnitureDefinition,
   type PlacedFurniture,
   type PlacedFurnitureInstanceId,
 } from "../types/furniture.js";
+import type { PlaceableItem } from "../types/items.js";
 import type { RoomSave } from "../types/map.js";
 import { footprintCells } from "./grid.js";
 
@@ -63,14 +63,14 @@ export function composeFacing(base: Facing, local: Facing): Facing {
  */
 function anchorCell(
   placed: PlacedFurniture,
-  definition: FurnitureDefinition,
+  item: PlaceableItem,
   anchor: FurnitureAnchor,
 ): GridPosition {
   const cells = footprintCells(
     placed.placement.gridPosition,
-    definition.footprint,
+    item.placement.footprint,
     placed.placement.facing,
-    definition.footprintMask,
+    item.placement.footprintMask,
   );
 
   // 占地的包围盒，用来把连续偏移映射回格子
@@ -115,15 +115,16 @@ function clamp(value: number, min: number, max: number): number {
 /** 这件家具上的所有锚点 */
 export function listFurnitureAnchors(
   placed: PlacedFurniture,
-  definition: FurnitureDefinition,
+  item: PlaceableItem,
 ): AnchorRef[] {
-  if (!definition.anchors) return [];
+  const { anchors } = item.placement;
+  if (!anchors) return [];
 
-  return definition.anchors.map((anchor) => ({
+  return anchors.map((anchor) => ({
     instanceId: placed.instanceId,
     anchorId: anchor.anchorId,
     anchor,
-    cell: anchorCell(placed, definition, anchor),
+    cell: anchorCell(placed, item, anchor),
     facing: composeFacing(
       placed.placement.facing,
       anchor.facing ?? Facing.North,
@@ -133,7 +134,7 @@ export function listFurnitureAnchors(
 
 export type AnchorLookup = (
   furnitureId: string,
-) => FurnitureDefinition | undefined;
+) => PlaceableItem | undefined;
 
 /**
  * 整间屋子里的锚点，可按姿态筛。
@@ -150,10 +151,10 @@ export function listRoomAnchors(
   for (const placed of placedFurniture) {
     if (placed.placement.roomId !== room.roomId) continue;
 
-    const definition = lookup(placed.furnitureId);
-    if (!definition?.anchors) continue;
+    const item = lookup(placed.furnitureId);
+    if (!item?.placement.anchors) continue;
 
-    for (const ref of listFurnitureAnchors(placed, definition)) {
+    for (const ref of listFurnitureAnchors(placed, item)) {
       if (posture && ref.anchor.posture !== posture) continue;
       refs.push(ref);
     }
@@ -194,10 +195,11 @@ export function findNearestFreeAnchor(
 
 /** 这件家具有没有可用姿态的锚点（提示气泡、交互判定用） */
 export function hasAnchorFor(
-  definition: FurnitureDefinition | undefined,
+  item: PlaceableItem | undefined,
   posture: BodyPosture,
 ): boolean {
   return (
-    definition?.anchors?.some((anchor) => anchor.posture === posture) ?? false
+    item?.placement.anchors?.some((anchor) => anchor.posture === posture) ??
+    false
   );
 }

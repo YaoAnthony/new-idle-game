@@ -2,9 +2,8 @@ import {
   Facing,
   PlacementSurface,
   WallOpeningKind,
-  findFurnitureDefinition,
-  findItemByFurnitureId,
   findItemDefinition,
+  findPlaceableItem,
   generateHouse,
   roomStyleDefinitions,
   type GameSave,
@@ -43,6 +42,19 @@ type Migration = {
   to: number;
   migrate: (save: GameSave) => GameSave;
 };
+
+/**
+ * v9 之前的存档里，`placedFurniture.furnitureId` 记的还是**旧家具 id**。
+ * v6/v7/v8 要按它查定义（算占地、折算回背包），所以得先过一遍改名表。
+ *
+ * 这些老迁移原来调的是 `findItemByFurnitureId`——那个函数查的是**当前**注册表里
+ * 的 `placeableFurnitureId` 字段。它随注册表变，正是迁移不该有的性质：
+ * 字段删掉的那天，v7 就会认不出老档里的家具，几十件东西静默蒸发。
+ * 换成查冻结的 `LEGACY_FURNITURE_ID`，行为和写它们那天完全一样，且从此不会再变。
+ */
+function legacyItem(furnitureId: string) {
+  return findItemDefinition(LEGACY_FURNITURE_ID[furnitureId] ?? furnitureId);
+}
 
 export const migrations: Migration[] = [
   // v2（2026-07-29 镜头改为锁定屋内）：墙高 3→4、北墙窗洞 2×1→2×2。
@@ -183,7 +195,9 @@ export const migrations: Migration[] = [
             if (placed.placement.kind !== PlacementSurface.Wall) return true;
             if (placed.placement.wallId !== "north") return true;
 
-            const definition = findFurnitureDefinition(placed.furnitureId);
+            const definition = findPlaceableItem(
+              LEGACY_FURNITURE_ID[placed.furnitureId] ?? placed.furnitureId,
+            )?.placement;
             const w = definition?.footprint.width ?? 1;
             const h = definition?.footprint.height ?? 1;
             const { x, y } = placed.placement.gridPosition;
@@ -195,7 +209,7 @@ export const migrations: Migration[] = [
             // 撤下的墙饰退回背包。**stackId 必须是 "backpack:N" 槽位编码**——
             // restoreInventory 靠它定位格子，写别的格式会被当坏记录静默丢弃，
             // 东西就真的凭空消失了（审查抓出来的教训）。
-            const item = findItemByFurnitureId(placed.furnitureId);
+            const item = legacyItem(placed.furnitureId);
             if (item) {
               const slot = firstFreeSlot(save.player.character.inventory);
               if (slot) {
@@ -244,7 +258,7 @@ export const migrations: Migration[] = [
       };
 
       for (const placed of save.ownWorld.placedFurniture ?? []) {
-        const item = findItemByFurnitureId(placed.furnitureId);
+        const item = legacyItem(placed.furnitureId);
         if (item) collect(item.id, 1);
 
         // 槽位内容：锅本身 + 锅里的食材（生食材照收，做到一半的过程丢弃）
@@ -347,7 +361,7 @@ export const migrations: Migration[] = [
         if (placed.furnitureId === "stove") {
           collect("furniture_kitchen_counter", 1);
         } else {
-          const item = findItemByFurnitureId(placed.furnitureId);
+          const item = legacyItem(placed.furnitureId);
           if (item) collect(item.id, 1);
         }
 

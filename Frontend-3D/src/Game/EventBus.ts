@@ -21,7 +21,7 @@ export type GameEvents = {
   /** 世界数据变化（家具增删等），渲染层据此同步场景图 */
   world_changed: { reason: string };
   /** 进入 / 退出布置模式 */
-  placement_mode_changed: { active: boolean; furnitureId: string | null };
+  placement_mode_changed: { active: boolean; itemId: string | null };
   /** 背包内容变化 */
   inventory_changed: { reason: string };
   /** 附近可交互目标变化（按 F 提示用），null 表示离开范围 */

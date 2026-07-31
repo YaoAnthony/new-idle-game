@@ -554,8 +554,9 @@ export class RoomScene {
 
     const { gridPosition, facing } = placed.placement;
     const rotated = facing === Facing.East || facing === Facing.West;
-    const w = rotated ? definition.footprint.height : definition.footprint.width;
-    const h = rotated ? definition.footprint.width : definition.footprint.height;
+    const { footprint } = definition.placement;
+    const w = rotated ? footprint.height : footprint.width;
+    const h = rotated ? footprint.width : footprint.height;
 
     const centerX = gridPosition.x - room.floorGrid.width / 2 + w / 2;
     const centerZ = gridPosition.y - room.floorGrid.height / 2 + h / 2;
@@ -668,9 +669,13 @@ export class RoomScene {
 
     for (const placed of placedFurniture) {
       const definition = getDefinition(placed.furnitureId);
-      if (!definition?.interactHint) continue;
+      if (!definition?.placement.interactHint) continue;
 
-      const center = furnitureWorldCenter(placed, definition, this.built.size);
+      const center = furnitureWorldCenter(
+        placed,
+        definition.placement,
+        this.built.size,
+      );
       const distance = Math.hypot(
         center.x - this.controller.x,
         center.z - this.controller.z,
@@ -680,10 +685,10 @@ export class RoomScene {
       bestHintDistance = distance;
       bestHint = {
         instanceId: placed.instanceId,
-        hint: definition.interactHint,
+        hint: definition.placement.interactHint,
         world: new Vector3(
           center.x,
-          definition.interactHint.anchorHeight ?? 1.2,
+          definition.placement.interactHint.anchorHeight ?? 1.2,
           center.z,
         ),
       };
@@ -694,20 +699,20 @@ export class RoomScene {
       const definition = getDefinition(placed.furnitureId);
       if (!definition) continue;
 
-      const capability = definition.capabilities.includes(
+      const capability = definition.placement.capabilities.includes(
         FurnitureCapability.Unpack,
       )
         ? ("unpack" as const)
-        : definition.capabilities.includes(FurnitureCapability.Crafting)
+        : definition.placement.capabilities.includes(FurnitureCapability.Crafting)
         ? ("crafting" as const)
-        : definition.capabilities.includes(FurnitureCapability.Cooking)
+        : definition.placement.capabilities.includes(FurnitureCapability.Cooking)
           ? ("cooking" as const)
-          : definition.capabilities.includes(FurnitureCapability.Storage)
+          : definition.placement.capabilities.includes(FurnitureCapability.Storage)
             ? ("storage" as const)
             : // 床优先当"躺"处理；沙发这类只有 Sitting 的落到坐
-              definition.capabilities.includes(FurnitureCapability.Sleep)
+              definition.placement.capabilities.includes(FurnitureCapability.Sleep)
               ? ("sleep" as const)
-              : definition.capabilities.includes(FurnitureCapability.Sitting)
+              : definition.placement.capabilities.includes(FurnitureCapability.Sitting)
                 ? ("sitting" as const)
                 : null;
       if (!capability) continue;
@@ -726,11 +731,11 @@ export class RoomScene {
       const { gridPosition, facing } = placed.placement;
       const rotated = facing === Facing.East || facing === Facing.West;
       const w = rotated
-        ? definition.footprint.height
-        : definition.footprint.width;
+        ? definition.placement.footprint.height
+        : definition.placement.footprint.width;
       const h = rotated
-        ? definition.footprint.width
-        : definition.footprint.height;
+        ? definition.placement.footprint.width
+        : definition.placement.footprint.height;
 
       /**
        * 距离算到**占地矩形的最近边**，不是中心。
@@ -798,7 +803,7 @@ export class RoomScene {
         const definition = placed
           ? getDefinition(placed.furnitureId)
           : undefined;
-        if (definition?.capabilities.includes(FurnitureCapability.Sleep)) {
+        if (definition?.placement.capabilities.includes(FurnitureCapability.Sleep)) {
           return "hint.sleep_now";
         }
       }
@@ -843,7 +848,7 @@ export class RoomScene {
       const definition = placed ? getDefinition(placed.furnitureId) : undefined;
 
       // 只有真正能睡的家具（带 Sleep 能力）才睡；躺在沙发上只是躺着
-      if (definition?.capabilities.includes(FurnitureCapability.Sleep)) {
+      if (definition?.placement.capabilities.includes(FurnitureCapability.Sleep)) {
         startSleep();
         return;
       }
@@ -890,7 +895,7 @@ export class RoomScene {
 
     const world = slotWorldPosition(
       placed.placement,
-      definition.footprint,
+      definition.placement.footprint,
       ref.anchor.offset,
       this.built.size,
     );
@@ -923,7 +928,7 @@ export class RoomScene {
 
     return slotWorldPosition(
       placed.placement,
-      definition.footprint,
+      definition.placement.footprint,
       ref.slot.offset,
       this.built.size,
     );

@@ -3,12 +3,12 @@ import {
   PlacementSurface,
   buildRoomOccupancy,
   checkPlacement,
-  findFurnitureDefinition,
+  findPlaceableItem,
   footprintCells,
   generateHouse,
   roomStyleDefinitions,
-  type FurnitureDefinition,
   type GridPosition,
+  type PlaceableItem,
   type HeldStack,
   type PlacedFurniture,
   type PlacementCheck,
@@ -49,7 +49,7 @@ let placedFurniture: PlacedFurniture[] = [];
 let occupancy = rebuild();
 
 function rebuild(): RoomOccupancy {
-  return buildRoomOccupancy(room, placedFurniture, findFurnitureDefinition);
+  return buildRoomOccupancy(room, placedFurniture, findPlaceableItem);
 }
 
 function nextInstanceId(furnitureId: string): string {
@@ -71,10 +71,14 @@ export function setRoomStyleId(styleId: string): void {
   if (next) roomStyle = next;
 }
 
+/**
+ * 已放置家具的定义。**furnitureId 现在就是物品 id**——合并之后
+ * 摆在地上的和背包里躺着的是同一条数据，不再需要两边换算。
+ */
 export function getDefinition(
   furnitureId: string,
-): FurnitureDefinition | undefined {
-  return findFurnitureDefinition(furnitureId);
+): PlaceableItem | undefined {
+  return findPlaceableItem(furnitureId);
 }
 
 /** 角色（将来还有宠物）当前压住的格子。放置校验要避开活物，否则会把人封进家具里 */
@@ -113,7 +117,7 @@ export function checkPlacementTarget(
   furnitureId: string,
   target: PlacementTarget,
 ): PlacementCheck {
-  const definition = findFurnitureDefinition(furnitureId);
+  const definition = findPlaceableItem(furnitureId);
 
   const check = checkPlacement(
     room,
@@ -135,7 +139,10 @@ export function checkPlacementTarget(
   if (!check.ok) return check;
 
   // 会挡路的家具不能压在角色身上（墙饰不占地面，天然不会）
-  if (target.kind === PlacementSurface.Floor && definition?.blocksMovement) {
+  if (
+    target.kind === PlacementSurface.Floor &&
+    definition?.placement.blocksMovement
+  ) {
     const cells = footprintCellKeys(
       definition,
       target.gridPosition,
@@ -155,15 +162,15 @@ export function checkPlacementTarget(
  * Core 的判定走散了（Core 认为凹口是空地、这里认为被占）。
  */
 function footprintCellKeys(
-  definition: FurnitureDefinition,
+  definition: PlaceableItem,
   gridPosition: GridPosition,
   facing: Facing,
 ): string[] {
   return footprintCells(
     gridPosition,
-    definition.footprint,
+    definition.placement.footprint,
     facing,
-    definition.footprintMask,
+    definition.placement.footprintMask,
   ).map((cell) => `${cell.x},${cell.y}`);
 }
 
@@ -323,7 +330,7 @@ export function restoreWorld(saved: {
 
   // 丢弃引用了未知家具定义的记录（内容更新后删过某件家具时不至于崩）
   placedFurniture = saved.placedFurniture.filter((item) =>
-    findFurnitureDefinition(item.furnitureId),
+    findPlaceableItem(item.furnitureId),
   );
 
   // instanceId 形如 "chair#7"，续号要从存档里的最大值往后接，避免撞号

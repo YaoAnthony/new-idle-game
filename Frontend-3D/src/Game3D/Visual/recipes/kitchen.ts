@@ -125,7 +125,7 @@ export function buildKitchenCounter(): Object3D {
   const burnerY = COUNTER_HEIGHT + COUNTER_TOP;
 
   /**
-   * 三个灶眼在长边西段。位置要和 FurnitureDefinition 的 slots offset 对上——
+   * 三个灶眼在长边西段。位置要和物品 placement.slots 的 offset 对上——
    * 那边是逻辑（锅放在哪一格），这里只是画出来的圈。
    */
   for (const bx of [-2.3, -1.5, -0.7]) {

@@ -242,7 +242,7 @@ export class FurnitureView {
     const definition = getDefinition(placed.furnitureId);
     if (!definition) return null;
 
-    const visual = buildVisual(definition.visualId);
+    const visual = buildVisual(definition.visual.id);
     if (!visual) return null;
 
     if (placed.placement.kind === PlacementSurface.Wall) {
@@ -251,18 +251,18 @@ export class FurnitureView {
         visual,
         wallId,
         placed.placement.gridPosition,
-        definition.footprint,
+        definition.placement.footprint,
         this.size,
       );
     } else {
       const { gridPosition, facing } = placed.placement;
       const rotated = facing === Facing.East || facing === Facing.West;
       const w = rotated
-        ? definition.footprint.height
-        : definition.footprint.width;
+        ? definition.placement.footprint.height
+        : definition.placement.footprint.width;
       const h = rotated
-        ? definition.footprint.width
-        : definition.footprint.height;
+        ? definition.placement.footprint.width
+        : definition.placement.footprint.height;
 
       const [originX, , originZ] = gridToWorld(
         gridPosition.x,

@@ -44,7 +44,7 @@ import { buildDumbbell, buildWorkbench } from "./recipes/workbench.js";
 /**
  * visualId → 几何体。
  *
- * Core 里的 FurnitureDefinition.visualId 只是个字符串，怎么变成模型是
+ * Core 里的 `ItemDefinition.visual.id` 只是个字符串，怎么变成模型是
  * Frontend 的事。这一层间接是刻意留的口子：
  *
  *   今天： "stove_default" → { kind: "procedural", build: buildStove }

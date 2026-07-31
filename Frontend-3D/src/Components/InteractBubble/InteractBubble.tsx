@@ -5,7 +5,7 @@ import { t } from "../../i18n/t";
 /**
  * 家具交互气泡。附着在家具上方的世界坐标，随镜头移动/旋转/缩放实时跟随。
  *
- * 内容完全来自 `FurnitureDefinition.interactHint`（Core 注册表）——
+ * 内容完全来自物品的 `placement.interactHint`（Core 注册表）——
  * 加一件带提示的家具只需填数据，这里一行不用改。
  *
  * 每帧从场景拉取投影后的屏幕坐标，用 transform 定位（不触发重排）。

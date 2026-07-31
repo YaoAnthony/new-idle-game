@@ -144,7 +144,7 @@ export class CookwareView {
 
     const world = slotWorldPosition(
       placed.placement,
-      definition.footprint,
+      definition.placement.footprint,
       ref.slot.offset,
       this.size,
     );

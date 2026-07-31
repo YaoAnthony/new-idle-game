@@ -5,7 +5,7 @@ import type {
   VisualId,
 } from "./base.js";
 import type { CookwareBlock, ServingWareBlock } from "./cooking.js";
-import type { FurnitureId, PlacementBlock } from "./furniture.js";
+import type { PlacementBlock } from "./furniture.js";
 
 export type ItemId = string;
 
@@ -94,8 +94,6 @@ export type ItemDefinition = {
    */
   placement?: PlacementBlock;
 
-  /** @deprecated 合并之后 id 就是同一个，不需要再指过去。留着是为了分阶段拆 */
-  placeableFurnitureId?: FurnitureId;
   /**
    * 能吃。**只有成品能有这一块**——生番茄、生鸡蛋、米一律不填，
    * 否则啃生食材比做饭省事，厨房就成了可选玩法。
@@ -117,3 +115,14 @@ export type ItemDefinition = {
   /** 是一件盛器（盘、汤碗、饭碗）。同时带两块也合法，比如端上桌的砂锅 */
   servingWare?: ServingWareBlock;
 };
+
+/**
+ * 一件**能摆到屋里**的物品，也就是过去说的"家具"。
+ *
+ * 这只是把 `placement` 收窄成必有，不是另一个种类——所以放置校验、占用图、
+ * 锚点这些只关心"摆放"的规则可以要求这个类型，而不必再定义一份 FurnitureDefinition。
+ *
+ * 放在 types 而不是 Data，是因为 `Core/logic` 要用它：规则层依赖注册表
+ * 会把依赖方向倒过来（logic → Data），那条线一旦破，Backend 想只引规则不引内容就做不到了。
+ */
+export type PlaceableItem = ItemDefinition & { placement: PlacementBlock };

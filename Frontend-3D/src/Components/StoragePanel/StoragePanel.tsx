@@ -1,4 +1,4 @@
-import { findFurnitureDefinition } from "core";
+import { findPlaceableItem } from "core";
 import { useEffect, useState } from "react";
 import { emit, on } from "../../Game/EventBus";
 import { addItem, getBackpack, removeItem } from "../../Game/State/inventory";
@@ -86,8 +86,8 @@ export function StoragePanel() {
   if (!target || !inventoryId) return null;
 
   const furnitureName =
-    findFurnitureDefinition(target.furnitureId)?.localizationKey ??
-    "furniture.storage_chest";
+    findPlaceableItem(target.furnitureId)?.localizationKey ??
+    "item.furniture_storage_chest";
 
   /** 箱子 → 背包 */
   const takeOut = (index: number): void => {

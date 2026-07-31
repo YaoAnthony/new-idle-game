@@ -338,7 +338,7 @@ function ItemDetail({
     );
   }
 
-  const placeable = Boolean(item.placeableFurnitureId);
+  const placeable = Boolean(item.placement);
   const edible = Boolean(item.food);
 
   return (

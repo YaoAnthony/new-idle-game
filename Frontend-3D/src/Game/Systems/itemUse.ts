@@ -24,7 +24,7 @@ export function useHeldItem(
   const item = findItemDefinition(held.itemId);
   if (!item) return "none";
 
-  if (item.placeableFurnitureId) {
+  if (item.placement) {
     if (!options.onPlacement) return "none";
     options.onPlacement(held.itemId);
     return "placement";
@@ -52,7 +52,7 @@ export function useInventoryItem(
   const item = findItemDefinition(itemId);
   if (!item) return "none";
 
-  if (item.placeableFurnitureId) {
+  if (item.placement) {
     if (!options.onPlacement) return "none";
     options.onPlacement(itemId);
     return "placement";

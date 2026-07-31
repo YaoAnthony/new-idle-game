@@ -12,7 +12,7 @@ import {
   zoneAt,
   zoneAudioProfiles,
   zoneFootstepProfileIds,
-  type FurnitureDefinition,
+  type PlaceableItem,
   type PlacedFurniture,
 } from "core";
 import { on } from "../../Game/EventBus";
@@ -125,6 +125,21 @@ function worldToCell(x: number, z: number): { x: number; y: number } {
 }
 
 /**
+ * 一件家具身上那条**持续音**。
+ *
+ * 物品的 audio 按语义分了 ambient（摆着就响）和 active（工作时才响），
+ * 这里仍然只取一条：**响不响由音频档案自己的 trigger 决定**
+ * （见下面 furnitureVolume 里的 Active 判定），家具那边只负责说"我有哪几种声音"。
+ * 两边都判一次的话，同一件事就有了两个真相来源。
+ * `use` 那一声是一次性的，不归持续音层管。
+ */
+function furnitureLoopProfile(
+  item: PlaceableItem | undefined,
+): string | undefined {
+  return item?.audio?.ambient ?? item?.audio?.active;
+}
+
+/**
  * 一件家具此刻该有多响（0 = 不该响）。
  *
  * 距离衰减手算 `(1 - d/r)²` 而不是上 PannerNode：治愈系游戏不需要方位感
@@ -137,7 +152,7 @@ function furnitureVolume(
   size: { width: number; depth: number },
 ): number {
   const definition = getDefinition(placed.furnitureId);
-  const profileId = definition?.audioProfileId;
+  const profileId = furnitureLoopProfile(definition);
   if (!definition || !profileId) return 0;
 
   const profile = findAudioProfileDefinition(profileId);
@@ -185,27 +200,24 @@ type DesiredLoop = {
  */
 function distanceToFurniture(
   placed: PlacedFurniture,
-  definition: FurnitureDefinition,
+  item: PlaceableItem,
   size: { width: number; depth: number },
 ): number {
   const flat = (point: { x: number; z: number }): number =>
     Math.hypot(point.x - listenerX, point.z - listenerZ);
 
-  if (
-    definition.slots?.length &&
-    placed.placement.kind === PlacementSurface.Floor
-  ) {
+  const { footprint, slots } = item.placement;
+
+  if (slots?.length && placed.placement.kind === PlacementSurface.Floor) {
     const placement = placed.placement;
     return Math.min(
-      ...definition.slots.map((slot) =>
-        flat(
-          slotWorldPosition(placement, definition.footprint, slot.offset, size),
-        ),
+      ...slots.map((slot) =>
+        flat(slotWorldPosition(placement, footprint, slot.offset, size)),
       ),
     );
   }
 
-  return flat(furnitureWorldCenter(placed, definition, size));
+  return flat(furnitureWorldCenter(placed, item.placement, size));
 }
 
 /** 现在应该在播的持续音：tag → 目标 */
@@ -245,7 +257,7 @@ function desiredLoops(): Map<string, DesiredLoop> {
     const volume = furnitureVolume(placed, cookingInstances, size);
     if (volume <= 0) continue;
 
-    const profileId = getDefinition(placed.furnitureId)?.audioProfileId;
+    const profileId = furnitureLoopProfile(getDefinition(placed.furnitureId));
     if (!profileId) continue;
 
     desired.set(`furniture:${placed.instanceId}`, {

@@ -2,8 +2,8 @@ import {
   Facing,
   FloorLayer,
   PlacementSurface,
-  furnitureDefinitions,
-  type FurnitureDefinition,
+  placeableItems,
+  type PlaceableItem,
 } from "core";
 import { addItem, restoreInventory } from "../State/inventory";
 import {
@@ -123,7 +123,7 @@ function analyseWalkability(): Pick<
  * 密铺会把人围死在家具中间。
  */
 function layoutFloorFurniture(
-  definitions: FurnitureDefinition[],
+  definitions: PlaceableItem[],
   report: TestRoomReport,
 ): void {
   const { floorGrid } = getWorld().room;
@@ -133,7 +133,7 @@ function layoutFloorFurniture(
   let rowHeight = 0;
 
   for (const definition of definitions) {
-    const { width: w, height: h } = definition.footprint;
+    const { width: w, height: h } = definition.placement.footprint;
     let placed = false;
 
     while (!placed && cursorY + h <= floorGrid.height) {
@@ -171,21 +171,22 @@ function layoutFloorFurniture(
  * 所以同样是逐格试放而不是算位置。
  */
 function layoutWallFurniture(
-  definitions: FurnitureDefinition[],
+  definitions: PlaceableItem[],
   report: TestRoomReport,
 ): void {
   const walls = Object.values(getWorld().room.walls);
 
   for (const definition of definitions) {
+    const { footprint } = definition.placement;
     let placed = false;
 
     for (const wall of walls) {
       if (placed) break;
 
-      for (let y = 0; y + definition.footprint.height <= wall.grid.height; y += 1) {
+      for (let y = 0; y + footprint.height <= wall.grid.height; y += 1) {
         if (placed) break;
 
-        for (let x = 0; x + definition.footprint.width <= wall.grid.width; x += 1) {
+        for (let x = 0; x + footprint.width <= wall.grid.width; x += 1) {
           const check = placeFurnitureAt(definition.id, {
             kind: PlacementSurface.Wall,
             wallId: wall.wallId,
@@ -224,35 +225,33 @@ export function setupTestRoom(): TestRoomReport {
     walkableRegions: 0,
   };
 
-  const usable = furnitureDefinitions.filter(
-    (definition) => !EXCLUDED_FURNITURE_IDS.has(definition.id),
+  const usable = placeableItems().filter(
+    (item) => !EXCLUDED_FURNITURE_IDS.has(item.id),
   );
 
-  const byAreaDesc = (a: FurnitureDefinition, b: FurnitureDefinition): number =>
-    b.footprint.width * b.footprint.height -
-    a.footprint.width * a.footprint.height;
+  const byAreaDesc = (a: PlaceableItem, b: PlaceableItem): number =>
+    b.placement.footprint.width * b.placement.footprint.height -
+    a.placement.footprint.width * a.placement.footprint.height;
 
   const floor = usable.filter(
-    (definition) => definition.placementSurface === PlacementSurface.Floor,
+    (item) => item.placement.surface === PlacementSurface.Floor,
   );
 
   layoutFloorFurniture(
     floor
-      .filter((definition) => definition.floorLayer === FloorLayer.Covering)
+      .filter((item) => item.placement.floorLayer === FloorLayer.Covering)
       .sort(byAreaDesc),
     report,
   );
   layoutFloorFurniture(
     floor
-      .filter((definition) => definition.floorLayer !== FloorLayer.Covering)
+      .filter((item) => item.placement.floorLayer !== FloorLayer.Covering)
       .sort(byAreaDesc),
     report,
   );
   layoutWallFurniture(
     usable
-      .filter(
-        (definition) => definition.placementSurface === PlacementSurface.Wall,
-      )
+      .filter((item) => item.placement.surface === PlacementSurface.Wall)
       .sort(byAreaDesc),
     report,
   );

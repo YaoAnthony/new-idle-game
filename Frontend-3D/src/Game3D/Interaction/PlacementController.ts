@@ -17,10 +17,7 @@ import {
   getWorld,
   type PlacementTarget,
 } from "../../Game/State/worldRuntime";
-import {
-  furnitureIdForItem,
-  placeFromItem,
-} from "../../Game/Systems/placement";
+import { placeFromItem } from "../../Game/Systems/placement";
 import { buildVisual } from "../Visual/VisualRegistry.js";
 import { FACING_ROTATION, placeOnWall } from "../World/FurnitureView.js";
 import { worldToWallCell } from "../World/House/index.js";
@@ -53,8 +50,11 @@ export class PlacementController {
 
   private ghost: Object3D | null = null;
   private ghostMaterials: MeshLambertMaterial[] = [];
+  /**
+   * 正在摆的那件物品。**以前这里有两个 id**（itemId 摆完要扣哪一格、
+   * furnitureId 摆下去变成什么），合并之后是同一个。
+   */
   private itemId: string | null = null;
-  private furnitureId: string | null = null;
   private surface: PlacementSurface = PlacementSurface.Floor;
   private facing: Facing = Facing.North;
   private gridX = 0;
@@ -85,16 +85,14 @@ export class PlacementController {
   begin(itemId: string): void {
     this.cancel();
 
-    const furnitureId = furnitureIdForItem(itemId);
-    if (!furnitureId || getCount(itemId) <= 0) return;
+    if (getCount(itemId) <= 0) return;
 
-    const definition = getDefinition(furnitureId);
-    const visual = definition ? buildVisual(definition.visualId) : null;
+    const definition = getDefinition(itemId);
+    const visual = definition ? buildVisual(definition.visual.id) : null;
     if (!definition || !visual) return;
 
     this.itemId = itemId;
-    this.furnitureId = furnitureId;
-    this.surface = definition.placementSurface;
+    this.surface = definition.placement.surface;
     this.facing = Facing.North;
     this.wallId = null;
 
@@ -116,7 +114,7 @@ export class PlacementController {
     this.ghost = visual;
     this.ghost.visible = false;
     this.parent.add(this.ghost);
-    emit("placement_mode_changed", { active: true, furnitureId: itemId });
+    emit("placement_mode_changed", { active: true, itemId });
   }
 
   cancel(): void {
@@ -125,10 +123,9 @@ export class PlacementController {
     this.ghostMaterials = [];
 
     if (this.itemId) {
-      emit("placement_mode_changed", { active: false, furnitureId: null });
+      emit("placement_mode_changed", { active: false, itemId: null });
     }
     this.itemId = null;
-    this.furnitureId = null;
     this.wallId = null;
   }
 
@@ -144,12 +141,13 @@ export class PlacementController {
     if (!this.active || this.surface === PlacementSurface.Wall) return;
 
     const { room } = getWorld();
-    const definition = getDefinition(this.furnitureId ?? "");
+    const definition = getDefinition(this.itemId ?? "");
     if (!definition) return;
 
     const rotated = this.facing === Facing.East || this.facing === Facing.West;
-    const w = rotated ? definition.footprint.height : definition.footprint.width;
-    const h = rotated ? definition.footprint.width : definition.footprint.height;
+    const { footprint } = definition.placement;
+    const w = rotated ? footprint.height : footprint.width;
+    const h = rotated ? footprint.width : footprint.height;
 
     // 夹在网格内：顶到墙就停住，不会推出屋外
     this.gridX = Math.min(
@@ -182,11 +180,11 @@ export class PlacementController {
     );
     this.raycaster.setFromCamera(this.pointer, this.camera);
 
-    const definition = getDefinition(this.furnitureId ?? "");
+    const definition = getDefinition(this.itemId ?? "");
     if (!definition) return;
 
     if (this.surface === PlacementSurface.Wall) {
-      this.aimAtWall(definition.footprint);
+      this.aimAtWall(definition.placement.footprint);
       return;
     }
 
@@ -194,8 +192,9 @@ export class PlacementController {
 
     const { room } = getWorld();
     const rotated = this.facing === Facing.East || this.facing === Facing.West;
-    const w = rotated ? definition.footprint.height : definition.footprint.width;
-    const h = rotated ? definition.footprint.width : definition.footprint.height;
+    const { footprint } = definition.placement;
+    const w = rotated ? footprint.height : footprint.width;
+    const h = rotated ? footprint.width : footprint.height;
 
     this.gridX = Math.round(this.hit.x + room.floorGrid.width / 2 - w / 2);
     this.gridY = Math.round(this.hit.z + room.floorGrid.height / 2 - h / 2);
@@ -265,9 +264,9 @@ export class PlacementController {
   }
 
   private refresh(): void {
-    if (!this.ghost || !this.furnitureId || !this.itemId) return;
+    if (!this.ghost || !this.itemId) return;
 
-    const definition = getDefinition(this.furnitureId);
+    const definition = getDefinition(this.itemId);
     if (!definition) return;
 
     const target = this.currentTarget();
@@ -277,7 +276,7 @@ export class PlacementController {
       return;
     }
 
-    const check = checkPlacementTarget(this.furnitureId, target);
+    const check = checkPlacementTarget(this.itemId, target);
     this.valid = check.ok && getCount(this.itemId) > 0;
 
     const { room } = getWorld();
@@ -290,17 +289,17 @@ export class PlacementController {
         this.ghost,
         target.wallId,
         target.gridPosition,
-        definition.footprint,
+        definition.placement.footprint,
         size,
       );
     } else {
       const rotated = this.facing === Facing.East || this.facing === Facing.West;
       const w = rotated
-        ? definition.footprint.height
-        : definition.footprint.width;
+        ? definition.placement.footprint.height
+        : definition.placement.footprint.width;
       const h = rotated
-        ? definition.footprint.width
-        : definition.footprint.height;
+        ? definition.placement.footprint.width
+        : definition.placement.footprint.height;
 
       this.ghost.position.set(
         this.gridX - size.width / 2 + w / 2,

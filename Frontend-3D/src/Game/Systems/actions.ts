@@ -77,7 +77,11 @@ export function findSupportingFurniture(category: ActionCategory): string | null
     const furniture = getDefinition(placed.furnitureId);
     if (!furniture) continue;
 
-    if (required.every((capability) => furniture.capabilities.includes(capability))) {
+    if (
+      required.every((capability) =>
+        furniture.placement.capabilities.includes(capability),
+      )
+    ) {
       return placed.instanceId;
     }
   }

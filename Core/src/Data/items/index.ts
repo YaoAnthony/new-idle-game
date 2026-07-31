@@ -5,7 +5,12 @@ import {
   FurnitureCapability,
   PlacementSurface,
 } from "../../types/furniture.js";
-import { ItemCategory, ItemOrigin, type ItemDefinition } from "../../types/items.js";
+import {
+  ItemCategory,
+  ItemOrigin,
+  type ItemDefinition,
+  type PlaceableItem,
+} from "../../types/items.js";
 
 /**
  * 物品注册表。**所有东西都在这里**——材料、食物、厨具、家具、场景道具。
@@ -162,7 +167,6 @@ export const itemDefinitions = [
         },
       ],
     },
-    placeableFurnitureId: "kitchen_counter_l",
   },
   {
     id: "furniture_workbench",
@@ -183,7 +187,6 @@ export const itemDefinitions = [
         anchorHeight: 1.35,
       },
     },
-    placeableFurnitureId: "ordinary_workbench",
   },
   {
     id: "furniture_table",
@@ -199,7 +202,6 @@ export const itemDefinitions = [
       floorLayer: FloorLayer.Object,
       blocksMovement: true,
     },
-    placeableFurnitureId: "wooden_table",
   },
   {
     id: "furniture_chair",
@@ -228,7 +230,6 @@ export const itemDefinitions = [
         },
       ],
     },
-    placeableFurnitureId: "wooden_chair",
   },
   {
     id: "furniture_rug",
@@ -244,7 +245,6 @@ export const itemDefinitions = [
       floorLayer: FloorLayer.Covering,
       blocksMovement: false,
     },
-    placeableFurnitureId: "round_rug",
   },
   {
     id: "bedroll",
@@ -268,7 +268,6 @@ export const itemDefinitions = [
         { anchorId: "lie", posture: BodyPosture.Lie, offset: [0, 0.12, 0] },
       ],
     },
-    placeableFurnitureId: "bedroll",
   },
   {
     id: "furniture_dumbbell",
@@ -284,7 +283,6 @@ export const itemDefinitions = [
       floorLayer: FloorLayer.Object,
       blocksMovement: false,
     },
-    placeableFurnitureId: "dumbbell",
   },
 
   // ---- 可放置家具（生活感扩充） ----
@@ -307,7 +305,6 @@ export const itemDefinitions = [
         anchorHeight: 1.9,
       },
     },
-    placeableFurnitureId: "bookshelf",
   },
   {
     id: "furniture_storage_chest",
@@ -328,7 +325,6 @@ export const itemDefinitions = [
         anchorHeight: 0.95,
       },
     },
-    placeableFurnitureId: "storage_chest",
   },
   {
     id: "furniture_bed",
@@ -352,7 +348,6 @@ export const itemDefinitions = [
         { anchorId: "lie", posture: BodyPosture.Lie, offset: [0, 0.64, -0.1] },
       ],
     },
-    placeableFurnitureId: "wooden_bed",
   },
   {
     id: "furniture_stool",
@@ -381,7 +376,6 @@ export const itemDefinitions = [
         },
       ],
     },
-    placeableFurnitureId: "round_stool",
   },
   {
     id: "furniture_cushion",
@@ -415,7 +409,6 @@ export const itemDefinitions = [
         },
       ],
     },
-    placeableFurnitureId: "floor_cushion",
   },
   {
     id: "furniture_fireplace",
@@ -437,7 +430,6 @@ export const itemDefinitions = [
         anchorHeight: 2.5,
       },
     },
-    placeableFurnitureId: "fireplace",
   },
   {
     id: "furniture_floor_lamp",
@@ -458,7 +450,6 @@ export const itemDefinitions = [
         anchorHeight: 1.7,
       },
     },
-    placeableFurnitureId: "floor_lamp",
   },
   {
     id: "furniture_potted_plant",
@@ -479,7 +470,6 @@ export const itemDefinitions = [
         anchorHeight: 1,
       },
     },
-    placeableFurnitureId: "potted_plant",
   },
   // ---- 铺地扩充 ----
   {
@@ -496,7 +486,6 @@ export const itemDefinitions = [
       floorLayer: FloorLayer.Covering,
       blocksMovement: false,
     },
-    placeableFurnitureId: "long_rug",
   },
   {
     id: "furniture_tatami_mat",
@@ -512,7 +501,6 @@ export const itemDefinitions = [
       floorLayer: FloorLayer.Covering,
       blocksMovement: false,
     },
-    placeableFurnitureId: "tatami_mat",
   },
   {
     id: "furniture_door_mat",
@@ -528,7 +516,6 @@ export const itemDefinitions = [
       floorLayer: FloorLayer.Covering,
       blocksMovement: false,
     },
-    placeableFurnitureId: "door_mat",
   },
   {
     id: "furniture_fabric_sofa",
@@ -555,7 +542,6 @@ export const itemDefinitions = [
         facing: Facing.South,
     })),
     },
-    placeableFurnitureId: "fabric_sofa",
   },
   {
     id: "furniture_wardrobe",
@@ -576,7 +562,6 @@ export const itemDefinitions = [
         anchorHeight: 2.1,
       },
     },
-    placeableFurnitureId: "wardrobe",
   },
   {
     id: "furniture_study_desk",
@@ -592,7 +577,6 @@ export const itemDefinitions = [
       floorLayer: FloorLayer.Object,
       blocksMovement: true,
     },
-    placeableFurnitureId: "study_desk",
   },
   {
     id: "furniture_coffee_table",
@@ -608,7 +592,6 @@ export const itemDefinitions = [
       floorLayer: FloorLayer.Object,
       blocksMovement: true,
     },
-    placeableFurnitureId: "coffee_table",
   },
 
   {
@@ -630,7 +613,6 @@ export const itemDefinitions = [
         anchorHeight: 1.6,
       },
     },
-    placeableFurnitureId: "easel",
   },
 
   {
@@ -646,7 +628,6 @@ export const itemDefinitions = [
       capabilities: [],
       blocksMovement: false,
     },
-    placeableFurnitureId: "picture_frame",
   },
   {
     id: "furniture_wall_clock",
@@ -662,7 +643,6 @@ export const itemDefinitions = [
       capabilities: [],
       blocksMovement: false,
     },
-    placeableFurnitureId: "wall_clock",
   },
   {
     id: "furniture_curtain",
@@ -678,7 +658,6 @@ export const itemDefinitions = [
       blocksMovement: false,
       coversOpenings: true,
     },
-    placeableFurnitureId: "curtain",
   },
 
   // ---- 厨具与盛器 ----
@@ -963,18 +942,14 @@ export const itemCategoryOrder = [
 // ---- 可放置（= 家具） ----
 
 /**
- * 带 `placement` 的物品。用类型守卫而不是另开一个类型：
- * 一件东西「能摆」是它的一块能力，不是它的种类。
+ * 「能摆」是一块能力不是一个种类，所以用类型守卫收窄，不另开一张表。
+ * `PlaceableItem` 本身定义在 types/items——Core/logic 也要用它。
  */
-export type PlaceableItem = ItemDefinition & {
-  placement: NonNullable<ItemDefinition["placement"]>;
-};
-
 export function isPlaceable(item: ItemDefinition): item is PlaceableItem {
   return item.placement !== undefined;
 }
 
-/** 取代 findFurnitureDefinition：能摆的物品才查得到 */
+/** 能摆的物品才查得到。摆放、占用图、锚点都从这里拿定义 */
 export function findPlaceableItem(itemId: string): PlaceableItem | undefined {
   const item = findItemDefinition(itemId);
   return item && isPlaceable(item) ? item : undefined;
@@ -989,17 +964,4 @@ export function findPlaceableItem(itemId: string): PlaceableItem | undefined {
  */
 export function placeableItems(): PlaceableItem[] {
   return (itemDefinitions as readonly ItemDefinition[]).filter(isPlaceable);
-}
-
-/**
- * @deprecated 家具 id 和物品 id 已经是同一个，这个函数没有意义了。
- * 留着是为了分阶段拆——阶段 3 会连同 `placeableFurnitureId` 一起删。
- */
-export function findItemByFurnitureId(
-  furnitureId: string,
-): ItemDefinition | undefined {
-  return (
-    itemDefinitions.find((item) => item.placeableFurnitureId === furnitureId) ??
-    findItemDefinition(furnitureId)
-  );
 }

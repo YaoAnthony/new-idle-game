@@ -2,9 +2,9 @@ import type { Facing, GridPosition, WallId } from "../types/base.js";
 import {
   FloorLayer,
   PlacementSurface,
-  type FurnitureDefinition,
   type PlacedFurniture,
 } from "../types/furniture.js";
+import type { PlaceableItem } from "../types/items.js";
 import type { RoomSave, WallOpening } from "../types/map.js";
 import { areAllCellsWithinGrid, cellKey, footprintCells } from "./grid.js";
 import {
@@ -66,12 +66,15 @@ function openingCells(opening: WallOpening): Set<string> {
 export function checkPlacement(
   room: RoomSave,
   request: PlacementRequest,
-  definition: FurnitureDefinition | undefined,
+  item: PlaceableItem | undefined,
   occupancy: RoomOccupancy,
 ): PlacementCheck {
-  if (!definition) return { ok: false, reason: "unknown_furniture" };
+  // 传进来的不是家具（没有 placement 那块能力）也走 unknown_furniture：
+  // 对调用方来说"这东西摆不了"和"查不到这东西"是同一件事
+  if (!item) return { ok: false, reason: "unknown_furniture" };
+  const definition = item.placement;
 
-  if (definition.placementSurface !== request.kind) {
+  if (definition.surface !== request.kind) {
     return { ok: false, reason: "wrong_surface" };
   }
 

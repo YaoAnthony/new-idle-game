@@ -3,7 +3,6 @@ export * from "./audio/index.js";
 export * from "./cooking/index.js";
 export * from "./dialogues/index.js";
 export * from "./events/index.js";
-export * from "./furniture/index.js";
 export * from "./items/index.js";
 export * from "./loot/index.js";
 export * from "./needs/index.js";

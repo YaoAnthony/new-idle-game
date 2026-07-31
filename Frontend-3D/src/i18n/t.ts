@@ -48,17 +48,12 @@ const ZH: Record<string, string> = {
   "item.egg.desc": "一颗新鲜的鸡蛋。",
   "item.fried_tomato_egg.desc": "热腾腾的番茄炒蛋，家的味道。",
 
-  // 家具
+  // 场景道具。**只剩这几条**——家具并进物品之后名字统一走 "item.*"，
+  // 这里留下的是三件玩家拿不到、也没有物品条目的房子自带道具
   "furniture.stove": "灶台",
-  "furniture.kitchen_counter_l": "整体橱柜",
   "furniture.stove.burner": "灶眼",
   "furniture.cardboard_box": "纸箱",
   "furniture.cardboard_stack": "纸箱堆",
-  "furniture.ordinary_workbench": "普通工作台",
-  "furniture.wooden_table": "木桌",
-  "furniture.wooden_chair": "木椅",
-  "furniture.round_rug": "圆地毯",
-  "furniture.dumbbell": "哑铃",
 
   // 配方
   "recipe.plank_from_wood": "木板",
@@ -74,7 +69,6 @@ const ZH: Record<string, string> = {
   // 物品（M5 新增）
   "item.bedroll": "地铺",
   "item.bedroll.desc": "被子和枕头。第一天，就先睡地铺吧。",
-  "furniture.bedroll": "地铺",
 
   // 剧情提示（storyRules 的 show_toast）
   "story.moving_in": "终于搬进来了。行李还堆在角落，先按 B 打开背包，把东西一件件拿出来吧。",
@@ -222,19 +216,6 @@ const ZH: Record<string, string> = {
   "ui.pickup_hint": "右键拿起",
   "ui.cooking_in_progress": "烹饪中…",
 
-  // ---- 生活感扩充：家具 ----
-  "furniture.bookshelf": "书架",
-  "furniture.storage_chest": "储物箱",
-  "furniture.wooden_bed": "木床",
-  "furniture.round_stool": "小圆凳",
-  "furniture.floor_cushion": "坐垫",
-  "furniture.fireplace": "壁炉",
-  "furniture.floor_lamp": "落地灯",
-  "furniture.potted_plant": "盆栽",
-  "furniture.picture_frame": "相框",
-  "furniture.wall_clock": "挂钟",
-  "furniture.curtain": "窗帘",
-
   // ---- 生活感扩充：物品 ----
   "item.furniture_bookshelf": "书架",
   "item.furniture_storage_chest": "储物箱",
@@ -274,14 +255,6 @@ const ZH: Record<string, string> = {
   "recipe.curtain": "窗帘",
 
   // ---- 铺地扩充 ----
-  "furniture.long_rug": "长毛地毯",
-  "furniture.tatami_mat": "草编席",
-  "furniture.door_mat": "门口地垫",
-  "furniture.fabric_sofa": "布艺沙发",
-  "furniture.wardrobe": "衣柜",
-  "furniture.study_desk": "书桌",
-  "furniture.coffee_table": "矮几",
-
   "hint.sofa": "坐下来歇会儿",
   "hint.wardrobe": "翻翻衣柜",
 
@@ -310,7 +283,6 @@ const ZH: Record<string, string> = {
   "recipe.coffee_table": "矮几",
 
   // 画架（创作类的解锁条件）
-  "furniture.easel": "画架",
   "hint.easel": "画点什么",
   "item.furniture_easel": "画架",
   "item.furniture_easel.desc": "支起来的画板，颜料还没干。想创作的时候用。",

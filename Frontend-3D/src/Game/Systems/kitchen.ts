@@ -56,14 +56,14 @@ export function listKitchenSlots(): KitchenSlotRef[] {
 
   for (const placed of getWorld().placedFurniture) {
     const definition = getDefinition(placed.furnitureId);
-    if (!definition?.slots) continue;
+    if (!definition?.placement.slots) continue;
 
-    for (const slot of definition.slots) {
+    for (const slot of definition.placement.slots) {
       refs.push({
         instanceId: placed.instanceId,
         slotId: slot.slotId,
         slot,
-        capabilities: definition.capabilities,
+        capabilities: definition.placement.capabilities,
         content: getSlotContent(placed.instanceId, slot.slotId),
       });
     }

@@ -1,6 +1,5 @@
 import type {
   AnchorId,
-  AudioProfileId,
   Facing,
   GridFootprint,
   GridPosition,
@@ -19,15 +18,9 @@ import type { ItemId } from "./items.js";
 export type FurnitureId = string;
 export type PlacedFurnitureInstanceId = string;
 
-export enum FurnitureCategory {
-  Station = "station",
-  Storage = "storage",
-  Bed = "bed",
-  Seating = "seating",
-  Table = "table",
-  Lighting = "lighting",
-  Decoration = "decoration",
-}
+// FurnitureCategory 删了：家具就是物品，分类只剩 ItemCategory 一处。
+// 留着两套分类的下场是"落地灯是 Lighting 还是 Furniture"这种问题要答两遍，
+// 而它从来没被任何逻辑读过——只有兼容层为了填字段才造过一个占位值。
 
 export enum PlacementSurface {
   Floor = "floor",
@@ -200,19 +193,6 @@ export type PlacementBlock = {
    */
   anchors?: FurnitureAnchor[];
 };
-
-/**
- * @deprecated 家具已经并进 `ItemDefinition`（带 `placement` 块的物品就是家具）。
- * 这个别名留给还没改完的调用方，阶段 3 会删掉。
- */
-export type FurnitureDefinition = {
-  id: FurnitureId;
-  localizationKey: LocalizationKey;
-  category: FurnitureCategory;
-  visualId: VisualId;
-  audioProfileId: AudioProfileId | null;
-  placementSurface: PlacementSurface;
-} & Omit<PlacementBlock, "surface">;
 
 export type FloorFurniturePlacement = {
   kind: PlacementSurface.Floor;

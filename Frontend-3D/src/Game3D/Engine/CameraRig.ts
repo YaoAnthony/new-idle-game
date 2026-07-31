@@ -21,9 +21,6 @@ export type CameraRigOptions = {
   shoulderOffset?: number;
 };
 
-/** 手动转镜之后暂停自动回中的时间，免得刚转完就被拽回去 */
-const MANUAL_HOLD_SECONDS = 2.5;
-
 /**
  * 俯仰角的上下限（度）。
  *
@@ -37,11 +34,24 @@ const MAX_PITCH = 62;
 const DRAG_YAW_PER_PIXEL = 0.32;
 const DRAG_PITCH_PER_PIXEL = 0.22;
 
-/** 自动回中的最大角速度（度/秒）。太快会晕，太慢跟不上转身 */
-const RECENTER_DEGREES_PER_SECOND = 150;
-
 /** 墙角贴脸时的最近距离。再近就穿进角色模型里了 */
 const MIN_WALL_DISTANCE = 1.15;
+
+/**
+ * 弹簧臂放回去的速度（每秒的指数逼近系数）。
+ *
+ * **收进来是瞬时的、放出去很慢**，这是第三人称弹簧臂的标准不对称：
+ * 慢一拍收就穿墙穿家具，是硬缺陷；慢慢放出去只是"镜头回得从容"，
+ * 反而更稳。对称处理的话，屋里走两步就会被墙推一下、离开再弹回来，
+ * 画面一直在前后拉——那正是最招人晕的一种运动。
+ */
+const WALL_RELEASE_RATE = 1.6;
+
+/**
+ * 放回去的死区。限制只宽松了这么一点就不动——
+ * 绕着家具走时可听见的限制会有细碎抖动，不设死区就成了持续的微推拉。
+ */
+const WALL_RELEASE_DEADZONE = 0.15;
 
 /** 复用的枢轴向量：加了肩后偏移之后的实际取景中心 */
 const PIVOT = new Vector3();
@@ -62,8 +72,11 @@ export class CameraRig {
   private readonly target = new Vector3();
   private readonly desiredTarget = new Vector3();
   private readonly shoulderOffset: number;
-  /** 手动转镜后的冷却，>0 时不自动回中 */
-  private manualHold = 0;
+  /**
+   * 弹簧臂当前允许的距离（带迟滞）。
+   * 每帧的原始限制抖得厉害，直接用会让镜头一路推拉，见 WALL_RELEASE_RATE。
+   */
+  private wallDistance = Infinity;
 
   mode: CameraMode = "follow";
 
@@ -180,7 +193,6 @@ export class CameraRig {
   /** 环绕旋转，每次 45°。手柄 / 调试用，键盘不再绑它 */
   rotateStep(direction: 1 | -1): void {
     this.desiredYaw += direction * 45;
-    this.manualHold = MANUAL_HOLD_SECONDS;
   }
 
   /**
@@ -200,49 +212,32 @@ export class CameraRig {
         MAX_PITCH,
       ),
     );
-    this.manualHold = MANUAL_HOLD_SECONDS;
   }
 
   /** 镜头瞬间甩到角色背后（进屋、读档时用，不要让玩家看见镜头自己转过去） */
   snapBehind(headingRadians: number): void {
     this.desiredYaw = MathUtils.radToDeg(headingRadians) + 180;
     this.yaw = this.desiredYaw;
-    this.manualHold = 0;
     // 平滑用的 target 也一起对齐，否则第一帧会从房间原点飞过来
     this.target.copy(this.desiredTarget);
     this.applyImmediately();
   }
 
   /**
-   * 肩后视角的核心：把镜头慢慢转到角色背后。
+   * **镜头不会自己转**（2026-07-31 定稿）。
    *
-   * `forwardness` 是"输入有多朝前"（纯 W = 1，横走 = 0，后退 = 0）。
-   * **必须用它加权，否则会自激**——WASD 是相机相对的，如果按住 A 时相机也跟着
-   * 角色左转，"左"就一直在变，人会原地画圈。只在往前走时回中，转身自然跟到背后，
-   * 横走和倒退时镜头钉住不动，玩家能看清自己在往哪挪。
+   * 原来走路时会自动把镜头拽到角色背后（150°/秒）。删掉的理由：
+   * 治愈 / 布置类游戏（动森、模拟人生、星露谷、Cozy Grove）一律是
+   * "相机只在玩家动它的时候动"，自动回中是动作游戏的语言。
+   * 世界在脚下自己转是晕眩最直接的来源，而本作玩家大部分时间在屋里
+   * 来回走动摆东西，这一转就转个不停。
+   *
+   * 还有一层耦合：偏航一变，视线撞到的就是另一面墙，弹簧臂的距离限制
+   * 跟着跳——**自动转镜头本身在触发推拉**，两个效果互相放大。
+   * 停掉自动回中，这条链也一起断了。
+   *
+   * 进屋和读档仍然用 snapBehind 一次性对齐到背后，那是瞬时的，不是过程。
    */
-  recenterBehind(
-    headingRadians: number,
-    forwardness: number,
-    deltaSeconds: number,
-  ): void {
-    if (this.manualHold > 0) {
-      this.manualHold = Math.max(0, this.manualHold - deltaSeconds);
-      return;
-    }
-
-    const weight = MathUtils.clamp(forwardness, 0, 1);
-    if (weight <= 0.001) return;
-
-    // 目标方位角 = 角色朝向 + 180°，取和当前 desiredYaw 最近的等价角
-    const behind = MathUtils.radToDeg(headingRadians) + 180;
-    let delta = (behind - this.desiredYaw) % 360;
-    if (delta > 180) delta -= 360;
-    if (delta < -180) delta += 360;
-
-    const maxStep = RECENTER_DEGREES_PER_SECOND * weight * deltaSeconds;
-    this.desiredYaw += MathUtils.clamp(delta, -maxStep, maxStep);
-  }
 
   zoom(delta: number): void {
     this.desiredDistance = MathUtils.clamp(
@@ -276,30 +271,22 @@ export class CameraRig {
     this.exitFocus();
   }
 
-  private pitchBeforeDecorate: number | null = null;
-
   /**
-   * 布置模式：把俯角抬到能看清地面格。
+   * 布置模式**不动镜头**，只换 mode。
    *
-   * 低俯角下透视会把远处的地面压扁，鼠标在屏幕上移几个像素、
-   * 地面格就跳好几格，贴墙那一行根本瞄不到。布置本来就该俯视——
-   * 退出时还回玩家原来的角度，不要偷偷改掉他调好的视角。
+   * 原来会把俯角抬到 48°，理由是"低俯角下贴墙那一行瞄不到"。
+   * 但同一次改动里已经加了方向键逐格微调，那才是真解法——
+   * 抬俯角只是绕过瞄不准，微调是直接解决它。
+   *
+   * 保留自动抬俯角的代价是：每进出一次摆放，画面就甩一下。
+   * 玩家摆一屋子家具要进出几十次，这个来回比"贴墙难瞄"难受得多。
+   * 想俯视就自己拖鼠标，镜头角度归玩家。
    */
   enterDecorate(): void {
-    if (this.pitchBeforeDecorate === null) {
-      this.pitchBeforeDecorate = this.desiredPitch;
-    }
-    this.desiredPitch = MathUtils.degToRad(
-      Math.max(MathUtils.radToDeg(this.desiredPitch), 48),
-    );
     this.mode = "decorate";
   }
 
   exitDecorate(): void {
-    if (this.pitchBeforeDecorate !== null) {
-      this.desiredPitch = this.pitchBeforeDecorate;
-      this.pitchBeforeDecorate = null;
-    }
     this.mode = "follow";
   }
 
@@ -326,10 +313,11 @@ export class CameraRig {
     this.pitch += (this.desiredPitch - this.pitch) * smoothing;
     this.distance += (this.desiredDistance - this.distance) * smoothing;
     this.target.lerp(this.desiredTarget, smoothing);
-    this.applyImmediately();
+    this.applyImmediately(deltaSeconds);
   }
 
-  private applyImmediately(): void {
+  /** 不传 deltaSeconds = 瞬时对齐，弹簧臂不走迟滞（构造 / snapBehind 用） */
+  private applyImmediately(deltaSeconds?: number): void {
     const azimuth = MathUtils.degToRad(this.yaw);
 
     // 视线方向的单位向量（目标 → 相机）
@@ -370,9 +358,25 @@ export class CameraRig {
      * 现在改成沿视线整体回缩：角色贴墙时镜头自然贴近后脑勺，
      * 这是所有第三人称游戏的既定语言，玩家一拖鼠标就知道该怎么办。
      */
-    const limit = this.distanceToBounds(PIVOT, dirX, dirY, dirZ);
     // 下限比 minDistance 更宽松：真到墙角就得贴脸，硬撑只会穿墙
-    const distance = Math.min(this.distance, Math.max(limit, MIN_WALL_DISTANCE));
+    const limit = Math.max(
+      this.distanceToBounds(PIVOT, dirX, dirY, dirZ),
+      MIN_WALL_DISTANCE,
+    );
+
+    if (deltaSeconds === undefined) {
+      // 瞬时对齐：构造和 snapBehind 不该看见弹簧臂伸缩的过程
+      this.wallDistance = limit;
+    } else if (limit < this.wallDistance) {
+      // 收进来立刻生效，慢一拍就是穿墙
+      this.wallDistance = limit;
+    } else if (limit - this.wallDistance > WALL_RELEASE_DEADZONE) {
+      this.wallDistance +=
+        (limit - this.wallDistance) *
+        (1 - Math.exp(-WALL_RELEASE_RATE * deltaSeconds));
+    }
+
+    const distance = Math.min(this.distance, this.wallDistance);
 
     this.camera.position.set(
       PIVOT.x + dirX * distance,

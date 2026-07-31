@@ -97,6 +97,7 @@ import {
   furnitureWorldCenter,
   slotWorldPosition,
 } from "./FurnitureView.js";
+import { HeldItemView } from "./HeldItemView.js";
 import { DoorView, WindowView, buildHouse, type BuiltHouse } from "./House/index.js";
 import { OutdoorScene } from "./OutdoorScene.js";
 
@@ -122,6 +123,7 @@ export class RoomScene {
   private readonly furnitureView: FurnitureView;
   private readonly cookwareView: CookwareView;
   private readonly characterRig = buildCharacter();
+  private readonly heldItemView: HeldItemView;
   private readonly controller: CharacterController;
   private readonly placement: PlacementController;
 
@@ -202,6 +204,9 @@ export class RoomScene {
 
     this.scene.add(this.characterRig.root);
     this.controller = new CharacterController(this.characterRig);
+    // 手上端着的东西挂到角色骨架上——在这之前手持物只有右下角一张卡片，
+    // 把锅从灶眼拿起来，世界里那口锅就凭空没了
+    this.heldItemView = new HeldItemView(this.characterRig.heldAnchor);
 
     /**
      * 读档时坐姿要在这里补一次。
@@ -1112,16 +1117,6 @@ export class RoomScene {
       if (pet) this.rig.lookAtPoint(pet.x, pet.z);
     } else {
       this.rig.lookAtPoint(this.controller.x, this.controller.z);
-
-      // 肩后视角：只在常态跟随时回中。对话/专注/过场各自接管了镜头，
-      // 这时候把人转到背后会把精心推近的构图搅乱
-      if (this.rig.mode === "follow") {
-        this.rig.recenterBehind(
-          this.controller.heading,
-          this.controller.forwardness,
-          deltaSeconds,
-        );
-      }
     }
     this.rig.update(deltaSeconds);
 
@@ -1233,6 +1228,7 @@ export class RoomScene {
     this.furnitureView.dispose();
     this.outdoor.dispose();
     this.cookwareView.dispose();
+    this.heldItemView.dispose();
     this.renderer.stop();
     this.renderer.dispose();
   }

@@ -28,6 +28,14 @@ export type CharacterRig = {
    * 挂在外面的话，朝东躺下会往北边倒。
    */
   posture: Object3D;
+  /**
+   * 手持物挂载点（胸前、双手托着的位置）。
+   *
+   * **挂在 body 上而不是某只手臂上**：手臂走路时前后摆，锅跟着甩会很滑稽；
+   * 而且端锅本来就是双手捧在身前的动作，不是单手拎着。挂在 body 上还能
+   * 跟着待机呼吸和步伐颠动一起动，看着是"端着"而不是"贴在身上"。
+   */
+  heldAnchor: Object3D;
   parts: {
     body: Object3D;
     head: Object3D;
@@ -143,6 +151,17 @@ export function buildCharacter(avatar: AvatarConfig = DEFAULT_AVATAR): Character
 
   body.add(head);
 
+  /**
+   * 端在身前的位置。y 相对 body 原点（胯部往上）。
+   *
+   * 压到腰腹这个高度而不是胸口：本作是俯视视角，抬高一点点在
+   * 俯角下就会和脑袋叠在一起——头是个半径 0.3 的大球，比看起来占地方。
+   */
+  const heldAnchor = new Object3D();
+  heldAnchor.name = "slot-held";
+  heldAnchor.position.set(0, BODY_HEIGHT - 0.36, 0.34);
+  body.add(heldAnchor);
+
   const posture = group("character-posture", [legLeft, legRight, body]);
   posture.position.y = HIP_HEIGHT;
 
@@ -155,6 +174,7 @@ export function buildCharacter(avatar: AvatarConfig = DEFAULT_AVATAR): Character
     root,
     heading,
     posture,
+    heldAnchor,
     parts: { body, head, hair, armLeft, armRight, legLeft, legRight },
   };
 }
@@ -201,23 +221,38 @@ function buildArm(
   return arm;
 }
 
+/** 端着东西时手臂前伸多少（弧度）。手掌大致落在 heldAnchor 两侧 */
+const CARRY_ARM_PITCH = -1.15;
+
 /**
  * 程序化动画：持续动作用代码直接驱动零件。
  * walkCycle 0→1 表示步态相位；speed 0 时回到待机呼吸。
+ *
+ * `carrying` 为真时手臂不摆，改成端在身前——手上明明捧着一口锅，
+ * 胳膊却照常前后甩会很滑稽。腿照走，身体照颠。
  */
 export function animateCharacter(
   rig: CharacterRig,
   walkPhase: number,
   moving: boolean,
   timeSeconds: number,
+  carrying = false,
 ): void {
   if (moving) {
     const swing = Math.sin(walkPhase * Math.PI * 2) * 0.55;
 
     rig.parts.legLeft.rotation.x = swing;
     rig.parts.legRight.rotation.x = -swing;
-    rig.parts.armLeft.rotation.x = -swing * 0.7;
-    rig.parts.armRight.rotation.x = swing * 0.7;
+
+    if (carrying) {
+      // 端着走时手臂只留一点点随步伐的起伏，不做前后摆
+      const bob = Math.sin(walkPhase * Math.PI * 2) * 0.06;
+      rig.parts.armLeft.rotation.x = CARRY_ARM_PITCH + bob;
+      rig.parts.armRight.rotation.x = CARRY_ARM_PITCH - bob;
+    } else {
+      rig.parts.armLeft.rotation.x = -swing * 0.7;
+      rig.parts.armRight.rotation.x = swing * 0.7;
+    }
 
     // 身体随步伐上下颠一点，低多边形的"活"主要靠这个。
     // y 相对胯部（posture 节点），所以基准是 0 而不是 LEG_HEIGHT
@@ -227,8 +262,17 @@ export function animateCharacter(
     const settle = 1 - Math.exp(-0.2);
     rig.parts.legLeft.rotation.x *= 1 - settle;
     rig.parts.legRight.rotation.x *= 1 - settle;
-    rig.parts.armLeft.rotation.x *= 1 - settle;
-    rig.parts.armRight.rotation.x *= 1 - settle;
+
+    if (carrying) {
+      // 站着端东西：手臂平滑收到端持角度，不要一放手就弹回去
+      rig.parts.armLeft.rotation.x +=
+        (CARRY_ARM_PITCH - rig.parts.armLeft.rotation.x) * settle;
+      rig.parts.armRight.rotation.x +=
+        (CARRY_ARM_PITCH - rig.parts.armRight.rotation.x) * settle;
+    } else {
+      rig.parts.armLeft.rotation.x *= 1 - settle;
+      rig.parts.armRight.rotation.x *= 1 - settle;
+    }
 
     // 待机呼吸
     rig.parts.body.position.y = Math.sin(timeSeconds * 2.2) * 0.012;

@@ -1,5 +1,6 @@
 import type { PoseId } from "core";
 import { MathUtils } from "three";
+import { getHeld } from "../../Game/State/heldItem";
 import { isWalkable, setActorFootprint } from "../../Game/State/worldRuntime";
 import { DEFAULT_POSTURE, isSupportedPosture } from "../Visual/poses.js";
 import type { CharacterRig } from "../World/CharacterView";
@@ -40,15 +41,6 @@ export class CharacterController {
   get heading(): number {
     return this.headingAngle;
   }
-
-  /**
-   * 本帧输入"有多朝前"：纯 W = 1，横走 = 0，后退 = 0，没动 = 0。
-   * 肩后相机用它加权回中，避免横走时镜头自激打圈。
-   */
-  get forwardness(): number {
-    return this.lastForwardness;
-  }
-  private lastForwardness = 0;
 
   /**
    * 姿态层：站 / 坐 / 盘腿 / 躺。坐着躺着时移动输入被忽略（要先起身）。
@@ -138,11 +130,6 @@ export class CharacterController {
 
     const moving = inputX !== 0 || inputZ !== 0;
 
-    // inputZ 为负代表按了 W（往屏幕里走）；归一化后就是"朝前程度"
-    this.lastForwardness = moving
-      ? Math.max(0, -inputZ / Math.hypot(inputX, inputZ))
-      : 0;
-
     if (moving) {
       const azimuth = MathUtils.degToRad(cameraAzimuthDegrees);
       const sin = Math.sin(azimuth);
@@ -177,8 +164,9 @@ export class CharacterController {
     setActorFootprint(this.x, this.z, RADIUS);
 
     // 站着才跑走路 / 待机呼吸；坐着躺着完全交给姿势
+    const carrying = getHeld() !== null;
     if (!seated) {
-      animateCharacter(this.rig, this.walkPhase, moving, this.elapsed);
+      animateCharacter(this.rig, this.walkPhase, moving, this.elapsed, carrying);
     }
 
     // 走动时不摆活动层（伏案写字），否则边走边伏案很怪
@@ -192,9 +180,6 @@ export class CharacterController {
   }
 
   private tickScriptedWalk(deltaSeconds: number): void {
-    // 脚本寻路期间镜头钉住不动，让角色自己走进画面（比跟拍背影更像过场）
-    this.lastForwardness = 0;
-
     const [tx, tz] = this.scriptedPath[this.scriptedIndex];
     const dx = tx - this.x;
     const dz = tz - this.z;

@@ -92,33 +92,48 @@ export function registerDropZone(id: string, handler: DropZoneHandler): () => vo
 }
 
 /**
- * 手指/鼠标移动超过这么多像素才算"在拖"，否则算一次点击。
+ * 移动没超过这么多像素就算一次点击，不算拖拽。
  *
- * 有阈值之前，按下就立刻进入拖拽状态并 `preventDefault()`——
- * 而按规范，在 pointerdown 上 preventDefault 会**连带取消后续的 click**。
- * 结果是：装了东西的格子永远收不到 onClick，点了没反应。
- * 拖拽和点击要在同一个格子上共存，就得靠阈值区分，不能靠抢先。
+ * 只用来区分"点"和"拖"，**不用来推迟幽灵出现**——按下就该看见东西
+ * 跟着手走，等移够 4px 才冒出来会像凭空跳一下。
  */
 const DRAG_THRESHOLD_PX = 4;
 
-export function beginDrag(event: ReactPointerEvent, from: SlotRef): void {
+/**
+ * 按下一个格子。返回后由 pointerup 决定这是拖拽还是点击。
+ *
+ * `onTap` 是**点击的正规出口**，不要指望 DOM 的 click 事件：
+ * 这里必须 `preventDefault()`，否则浏览器会把按住不放当成原生拖拽接管过去，
+ * pointermove 随之停发——幽灵会卡在第一次移动的位置不动，松手时物品
+ * 直接出现在目标格，看着就是"瞬移"。而 preventDefault 又会**连带取消
+ * 后续的 click**（规范如此）。两件事只能一起解决：原生行为全挡掉，
+ * 点击自己从 pointerup 派发。
+ */
+export function beginDrag(
+  event: ReactPointerEvent,
+  from: SlotRef,
+  onTap?: () => void,
+): void {
   const stack = getStackAt(from);
   if (!stack) return;
 
+  event.preventDefault();
+
   const originX = event.clientX;
   const originY = event.clientY;
-  let started = false;
+  let moved = false;
+
+  // 按下就出幽灵，和改动之前一样——手感差别全在这一下
+  setDrag({ from, stack, x: originX, y: originY });
 
   const onMove = (move: globalThis.PointerEvent) => {
-    if (!started) {
-      const moved = Math.hypot(move.clientX - originX, move.clientY - originY);
-      if (moved < DRAG_THRESHOLD_PX) return;
-
-      started = true;
-      setDrag({ from, stack, x: move.clientX, y: move.clientY });
-      return;
+    if (
+      !moved &&
+      Math.hypot(move.clientX - originX, move.clientY - originY) >=
+        DRAG_THRESHOLD_PX
+    ) {
+      moved = true;
     }
-
     if (current) setDrag({ ...current, x: move.clientX, y: move.clientY });
   };
 
@@ -126,8 +141,12 @@ export function beginDrag(event: ReactPointerEvent, from: SlotRef): void {
     window.removeEventListener("pointermove", onMove);
     window.removeEventListener("pointerup", onUp);
 
-    // 没越过阈值：这是一次点击，什么都不做，让 click 事件自己去处理
-    if (!started) return;
+    // 几乎没动 = 这是一次点击，不做投放
+    if (!moved) {
+      setDrag(null);
+      onTap?.();
+      return;
+    }
 
     const under = document.elementFromPoint(up.clientX, up.clientY);
     // 自定义落点优先：放入框是压在格子上方的，先问它要不要
@@ -253,13 +272,18 @@ export function SlotCell({
         .join(" ")}
       style={{ width: size, height: size }}
       onPointerDown={(event) => {
-        if (event.button === 0 && stack) beginDrag(event, slotRef);
+        if (event.button === 0 && stack) beginDrag(event, slotRef, onClick);
       }}
       onPointerEnter={() => {
         if (stack && ref.current) onHover?.(stack.itemId, ref.current);
       }}
       onPointerLeave={onLeave}
-      onClick={onClick}
+      // **只有空格子走 DOM 的 click**。有物品的格子在 pointerdown 上
+      // preventDefault 了，click 本来就不会来；万一某个浏览器还是发了，
+      // 这里挡住，免得和 onTap 各触发一次
+      onClick={() => {
+        if (!stack) onClick?.();
+      }}
     >
       {label && (
         <span className="absolute left-1 top-0.5 text-[11px] font-bold text-[#8a6a48]">

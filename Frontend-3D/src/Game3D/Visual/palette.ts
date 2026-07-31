@@ -131,6 +131,16 @@ export const PALETTE = {
   heatPerfect: "#f2c14b",
   heatOvercooked: "#c0392b",
 
+  // ---- 材料。木头系一律复用 woodDark/Mid/Light，这里只补它们没有的 ----
+  paperCream: "#f2ecda",
+  paperShade: "#ded5be",
+  leatherTan: "#a9764a",
+  leatherTanDark: "#87552f",
+  graphiteGrey: "#4a4952",
+  caneGreen: "#8fa855",
+  caneNode: "#c6bd7c",
+  rootFlesh: "#d8c391",
+
   /**
    * ---- 食材与成品菜 ----
    *

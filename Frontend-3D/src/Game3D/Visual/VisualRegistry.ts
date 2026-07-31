@@ -46,6 +46,19 @@ import {
   buildRice,
   buildTomato,
 } from "./recipes/ingredients.js";
+import {
+  buildGraphite,
+  buildIronIngot,
+  buildLeather,
+  buildNotebook,
+  buildPaper,
+  buildPencil,
+  buildPlank,
+  buildRoot,
+  buildStick,
+  buildSugarcane,
+  buildWood,
+} from "./recipes/materials.js";
 import { buildBookshelf, buildStorageChest } from "./recipes/storageFurniture.js";
 import { buildStove } from "./recipes/stove.js";
 import { buildKitchenCounter } from "./recipes/kitchen.js";
@@ -74,6 +87,22 @@ export type VisualEntry =
   | { kind: "gltf"; url: string };
 
 const REGISTRY: Record<string, VisualEntry> = {
+  /**
+   * 材料。**这一批原来一条都没有**——"不下锅、不拿在手上"是当时的理由，
+   * 但快捷栏选中木板，手上就该有块木板，不然玩家看到的是空手。
+   */
+  wood: { kind: "procedural", build: buildWood },
+  plank: { kind: "procedural", build: buildPlank },
+  stick: { kind: "procedural", build: buildStick },
+  sugarcane: { kind: "procedural", build: buildSugarcane },
+  paper: { kind: "procedural", build: buildPaper },
+  leather: { kind: "procedural", build: buildLeather },
+  graphite: { kind: "procedural", build: buildGraphite },
+  iron_ingot: { kind: "procedural", build: buildIronIngot },
+  root: { kind: "procedural", build: buildRoot },
+  notebook: { kind: "procedural", build: buildNotebook },
+  pencil: { kind: "procedural", build: buildPencil },
+
   stove_default: { kind: "procedural", build: buildStove },
   kitchen_counter_l: { kind: "procedural", build: buildKitchenCounter },
   cardboard_box: { kind: "procedural", build: buildCardboardBox },

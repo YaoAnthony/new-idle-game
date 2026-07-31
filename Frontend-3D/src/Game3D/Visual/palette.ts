@@ -130,6 +130,30 @@ export const PALETTE = {
   heatUndercooked: "#8bc34a",
   heatPerfect: "#f2c14b",
   heatOvercooked: "#c0392b",
+
+  /**
+   * ---- 食材与成品菜 ----
+   *
+   * 这些色值原来是 `recipes/cookware.ts` 里一张 itemId → 颜色的表，
+   * 和模型分开放着——于是"番茄的颜色"和"番茄长什么样"是两条独立的数据，
+   * 迟早会对不上（改了模型忘了改色，或者反过来）。
+   *
+   * 现在颜色只喂给模型，别处要用主色一律**从模型里取**（dominantColor）。
+   * 放进色板是因为整套画风的颜色本来就集中管理，食材没理由例外。
+   */
+  tomatoRed: "#d0483a",
+  eggShell: "#f2e6c2",
+  eggYolk: "#f6d878",
+  friedTomatoEgg: "#e07a4a",
+  riceRaw: "#f4f0e4",
+  riceCooked: "#fbf8ef",
+  pepperGreen: "#6f9e4c",
+  porkPink: "#c98a86",
+  centuryEgg: "#4a4258",
+  cabbageLeaf: "#bcd08a",
+  cabbageSoup: "#d8e0a8",
+  pepperPork: "#a8703f",
+  cheeseYellow: "#f0c04c",
 } as const;
 
 export type PaletteKey = keyof typeof PALETTE;

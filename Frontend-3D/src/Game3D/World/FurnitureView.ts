@@ -4,7 +4,7 @@ import { on } from "../../Game/EventBus";
 import { getDefinition, getWorld } from "../../Game/State/worldRuntime";
 import { clearFade, stepFade } from "../Engine/Fade.js";
 import { addOutline, setOutlineVisible } from "../Engine/Outline.js";
-import { buildVisual } from "../Visual/VisualRegistry.js";
+import { buildItemVisual } from "../Visual/VisualRegistry.js";
 import {
   WALL_ROTATION,
   gridToWorld,
@@ -242,7 +242,7 @@ export class FurnitureView {
     const definition = getDefinition(placed.furnitureId);
     if (!definition) return null;
 
-    const visual = buildVisual(definition.visual.id);
+    const visual = buildItemVisual(definition.id);
     if (!visual) return null;
 
     if (placed.placement.kind === PlacementSurface.Wall) {

@@ -18,7 +18,7 @@ import {
   type PlacementTarget,
 } from "../../Game/State/worldRuntime";
 import { placeFromItem } from "../../Game/Systems/placement";
-import { buildVisual } from "../Visual/VisualRegistry.js";
+import { buildItemVisual } from "../Visual/VisualRegistry.js";
 import { FACING_ROTATION, placeOnWall } from "../World/FurnitureView.js";
 import { worldToWallCell } from "../World/House/index.js";
 
@@ -88,7 +88,9 @@ export class PlacementController {
     if (getCount(itemId) <= 0) return;
 
     const definition = getDefinition(itemId);
-    const visual = definition ? buildVisual(definition.visual.id) : null;
+    // 虚影和真身走同一个入口，否则 visual.scale 只作用在其中一边，
+    // 摆下去的东西会比预览时大一圈
+    const visual = definition ? buildItemVisual(itemId) : null;
     if (!definition || !visual) return;
 
     this.itemId = itemId;

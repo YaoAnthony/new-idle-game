@@ -19,9 +19,8 @@ import { box, cylinder } from "../Visual/primitives.js";
 import {
   COOKWARE_CONTENT_ANCHOR,
   COOKWARE_CONTENT_RADIUS,
-  buildIngredient,
 } from "../Visual/recipes/cookware.js";
-import { buildVisual } from "../Visual/VisualRegistry.js";
+import { buildItemVisual } from "../Visual/VisualRegistry.js";
 import { slotWorldPosition } from "./FurnitureView.js";
 
 /**
@@ -138,8 +137,7 @@ export class CookwareView {
     const definition = getDefinition(placed.furnitureId);
     if (!definition) return null;
 
-    // 容器的 visualId 就是它的物品 id（厨具不是家具，没有 FurnitureDefinition）
-    const ware = buildVisual(ref.content.itemId);
+    const ware = buildItemVisual(ref.content.itemId);
     if (!ware) return null;
 
     const world = slotWorldPosition(
@@ -259,13 +257,15 @@ export class CookwareView {
       Array.from({ length: item.quantity }, () => item.itemId),
     );
 
-    return portions.map((itemId, index) => {
+    return portions.flatMap((itemId, index) => {
+      // 和手上端着的那份走同一个入口，锅里和手上不会长得不一样
+      const portion = buildItemVisual(itemId);
+      if (!portion) return [];
+
       // 螺旋排布：第一颗在正中，之后绕着中心散开，不会全堆在一点
       const angle = index * 2.4;
       const spread = portions.length === 1 ? 0 : radius * 0.6;
 
-      // 按物品查形状：放了鸡蛋锅里就是个蛋，不再是一色一个球
-      const portion = buildIngredient(itemId);
       portion.position.set(
         Math.cos(angle) * spread,
         anchor + Math.floor(index / 3) * 0.05,
@@ -273,7 +273,7 @@ export class CookwareView {
       );
       // 同一份食材每次朝向不同，几颗堆在一起才不像复制粘贴
       portion.rotation.y = angle;
-      return portion;
+      return [portion];
     });
   }
 

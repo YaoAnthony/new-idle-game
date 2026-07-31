@@ -1,6 +1,6 @@
 import { Object3D } from "three";
 import { PALETTE } from "../palette.js";
-import { blob, box, cylinder, group, sphere } from "../primitives.js";
+import { box, cylinder, group } from "../primitives.js";
 
 /**
  * 厨具与盛器。和家具走同一套图元，不需要出图或建模。
@@ -8,6 +8,9 @@ import { blob, box, cylinder, group, sphere } from "../primitives.js";
  * 两条约定，因为这些东西会被端来端去：
  * - **原点在底面**，这样放到灶眼槽位（offset 已经是台面高度）时不会陷进去
  * - 手柄一律朝 +Z（画面前方），锅摆在灶台上时手柄冲着玩家，不会穿进墙里
+ *
+ * 锅里装的**食材**不在这个文件里——它们是正式的视觉配方，
+ * 和家具、宠物一起挂在 VisualRegistry 上（见 `recipes/ingredients.ts`）。
  */
 
 /**
@@ -28,160 +31,6 @@ export const COOKWARE_CONTENT_RADIUS: Record<string, number> = {
   tall_pot: 0.17,
   plate: 0.16,
 };
-
-/**
- * 锅里那一坨东西画成什么颜色。
- *
- * 食材还没有各自的模型，先用色块占位——但**颜色本身是查表来的**，
- * 以后给番茄出了模型，就把这里换成 VisualRegistry 查询，
- * 调用方（CookwareView）不用改。
- */
-const INGREDIENT_COLOR: Record<string, string> = {
-  tomato: "#d0483a",
-  egg: "#f2e6c2",
-  fried_egg: "#f6d878",
-  fried_tomato_egg: "#e07a4a",
-  rice: "#f4f0e4",
-  cooked_rice: "#fbf8ef",
-  green_pepper: "#6f9e4c",
-  pork: "#c98a86",
-  century_egg: "#4a4258",
-  baby_cabbage: "#bcd08a",
-  baby_cabbage_soup: "#d8e0a8",
-  pepper_pork: "#a8703f",
-  cheese: "#f0c04c",
-};
-
-export function ingredientColor(itemId: string): string {
-  return INGREDIENT_COLOR[itemId] ?? PALETTE.fabricCream;
-}
-
-/**
- * 锅里那一份食材长什么样。
- *
- * 原来一律是个染色的小球——"放了鸡蛋，锅里得有个鸡蛋"这件事就没法成立，
- * 全是一样的球，只有颜色不同。现在按物品查形状，**查不到才退回小球**。
- *
- * 做成一张表而不是 switch：加一种食材是往表里加一行，
- * 和家具、音频那几张注册表是同一个路子。形状只用现有图元拼，
- * 不需要出模型——一颗蛋就是压扁的椭球，煎蛋是白饼加个黄心。
- */
-const INGREDIENT_SHAPE: Record<string, (color: string) => Object3D[]> = {
-  egg: (color) => {
-    const shell = sphere(0.075, 8, 6, { color, castShadow: false });
-    // 蛋是长的不是圆的：竖着拉一点，横着压一点
-    shell.scale.set(0.85, 1.15, 0.85);
-    return [shell];
-  },
-
-  fried_egg: (color) => {
-    const white = cylinder(0.115, 0.1, 0.022, 10, {
-      color: PALETTE.ceramicWhite,
-      castShadow: false,
-    });
-    const yolk = sphere(0.045, 8, 6, {
-      color,
-      position: [0, 0.022, 0],
-      castShadow: false,
-    });
-    yolk.scale.y = 0.55;
-    return [white, yolk];
-  },
-
-  tomato: (color) => {
-    const body = sphere(0.08, 8, 6, { color, castShadow: false });
-    body.scale.y = 0.86;
-    // 顶上那一小撮蒂，番茄和别的红色圆东西就分开了
-    const calyx = sphere(0.03, 6, 4, {
-      color: PALETTE.leafGreen,
-      position: [0, 0.068, 0],
-      castShadow: false,
-    });
-    calyx.scale.y = 0.5;
-    return [body, calyx];
-  },
-
-  rice: (color) => grains(color),
-  cooked_rice: (color) => grains(color),
-
-  cheese: (color) => {
-    // 一角楔形：上宽下窄的三棱柱，用 3 段圆柱最省事
-    const wedge = cylinder(0.09, 0.09, 0.075, 3, {
-      color,
-      position: [0, 0.037, 0],
-      castShadow: false,
-    });
-    return [wedge];
-  },
-
-  pork: (color) => slab(color),
-  pepper_pork: (color) => slab(color),
-
-  green_pepper: (color) => {
-    const body = sphere(0.07, 8, 6, { color, castShadow: false });
-    body.scale.set(0.8, 1.25, 0.8);
-    return [body];
-  },
-
-  baby_cabbage: (color) => {
-    const outer = sphere(0.085, 8, 6, { color, castShadow: false });
-    outer.scale.y = 1.15;
-    const heart = sphere(0.05, 6, 5, {
-      color: PALETTE.fabricCream,
-      position: [0, 0.055, 0],
-      castShadow: false,
-    });
-    heart.scale.y = 0.6;
-    return [outer, heart];
-  },
-
-  century_egg: (color) => {
-    const shell = sphere(0.075, 8, 6, { color, castShadow: false });
-    shell.scale.set(0.85, 1.15, 0.85);
-    return [shell];
-  },
-};
-
-/** 米粒：一小撮，不是一颗。散开摆才像"抓了一把下锅" */
-function grains(color: string): Object3D[] {
-  return [
-    [0, 0, 0],
-    [0.05, 0.012, 0.03],
-    [-0.045, 0.01, 0.035],
-    [0.02, 0.02, -0.05],
-  ].map(([x, y, z]) => {
-    const grain = sphere(0.028, 5, 4, {
-      color,
-      position: [x, y + 0.02, z],
-      castShadow: false,
-    });
-    grain.scale.set(1.5, 0.7, 0.9);
-    return grain;
-  });
-}
-
-/** 肉片：一块扁平的方块，和圆滚滚的蔬菜区分开 */
-function slab(color: string): Object3D[] {
-  const meat = box([0.16, 0.045, 0.11], {
-    color,
-    position: [0, 0.022, 0],
-    castShadow: false,
-  });
-  return [meat];
-}
-
-/**
- * 一份食材的模型。放在一个容器节点里返回，调用方只管摆位置。
- * 查不到形状就退回染色小球——宁可是个球，也不要拿别人的形状硬套。
- */
-export function buildIngredient(itemId: string): Object3D {
-  const color = ingredientColor(itemId);
-  const parts =
-    INGREDIENT_SHAPE[itemId]?.(color) ??
-    [blob(0.085, 0, { color, castShadow: false })];
-
-  return group(`ingredient-${itemId}`, parts);
-}
 
 /**
  * 炒锅：口大底小的铸铁锅 + 一根朝前的木柄。

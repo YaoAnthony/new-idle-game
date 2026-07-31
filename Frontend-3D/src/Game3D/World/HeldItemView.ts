@@ -4,9 +4,8 @@ import { getHeld } from "../../Game/State/heldItem";
 import {
   COOKWARE_CONTENT_ANCHOR,
   COOKWARE_CONTENT_RADIUS,
-  buildIngredient,
 } from "../Visual/recipes/cookware.js";
-import { buildVisual } from "../Visual/VisualRegistry.js";
+import { buildItemVisual } from "../Visual/VisualRegistry.js";
 
 /**
  * 手上端着的东西的 3D 表现。
@@ -45,13 +44,8 @@ export class HeldItemView {
     const held = getHeld();
     if (!held) return;
 
-    /**
-     * 视觉配方按**物品 id** 查，和 CookwareView 同一个约定
-     * （厨具不是家具，没有 FurnitureDefinition，visualId 就是物品 id）。
-     * 查不到就不画——生食材那些小东西还没有模型，宁可不画也不要
-     * 拿一个占位方块糊弄，那比看不见更难看。
-     */
-    const visual = buildVisual(held.itemId);
+    // 走物品统一入口：拿的是家具、厨具还是一颗番茄，这里都不用知道
+    const visual = buildItemVisual(held.itemId);
     if (!visual) return;
 
     const root = new Object3D();
@@ -86,18 +80,20 @@ export class HeldItemView {
       Array.from({ length: item.quantity }, () => item.itemId),
     );
 
-    return portions.map((portionId, index) => {
+    return portions.flatMap((portionId, index) => {
+      const portion = buildItemVisual(portionId);
+      if (!portion) return [];
+
       const angle = index * 2.4;
       const spread = portions.length === 1 ? 0 : radius * 0.6;
 
-      const portion = buildIngredient(portionId);
       portion.position.set(
         Math.cos(angle) * spread,
         anchor + Math.floor(index / 3) * 0.05,
         Math.sin(angle) * spread,
       );
       portion.rotation.y = angle;
-      return portion;
+      return [portion];
     });
   }
 

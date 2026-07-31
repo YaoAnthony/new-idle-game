@@ -697,11 +697,19 @@ export class RoomScene {
         ? definition.footprint.width
         : definition.footprint.height;
 
-      const centerX = gridPosition.x - width / 2 + w / 2;
-      const centerZ = gridPosition.y - depth / 2 + h / 2;
+      /**
+       * 距离算到**占地矩形的最近边**，不是中心。
+       *
+       * 原来按中心算、阈值 1.9——那是给 1×1、2×1 小家具定的。
+       * L 形橱柜占 6×4，中心离灶眼就有 2.35 米，玩家贴着灶台站着
+       * 也锁不上交互目标，"灶台上放不了东西"就是这么来的。
+       * 按最近边算，家具多大都能正常交互。
+       */
+      const minX = gridPosition.x - width / 2;
+      const minZ = gridPosition.y - depth / 2;
       const distance = Math.hypot(
-        centerX - this.controller.x,
-        centerZ - this.controller.z,
+        Math.max(minX - this.controller.x, 0, this.controller.x - (minX + w)),
+        Math.max(minZ - this.controller.z, 0, this.controller.z - (minZ + h)),
       );
 
       if (distance < bestDistance) {

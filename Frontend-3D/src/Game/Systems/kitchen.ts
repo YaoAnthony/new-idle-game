@@ -230,6 +230,21 @@ export function interactWithKitchenSlot(ref: KitchenSlotRef): boolean {
  * 没有垃圾桶这件家具之前，这是防止一口锅被错误组合卡死的保底操作。
  * 只倒内容，锅还在。
  */
+/**
+ * 调试用：直接往槽位塞一件厨具，跳过"手持 → 走过去 → 按 F"。
+ * 走的是和正式路径同一个 setSlotContent，所以状态一样会进存档。
+ */
+export function debugPutInSlot(ref: KitchenSlotRef, itemId: string): boolean {
+  const definition = findItemDefinition(itemId);
+  if (!definition?.cookware) return false;
+
+  setSlotContent(ref.instanceId, ref.slotId, {
+    itemId,
+    container: { items: [], heatSeconds: 0 },
+  });
+  return true;
+}
+
 export function dumpKitchenSlot(ref: KitchenSlotRef): boolean {
   if (!ref.content?.container || ref.content.container.items.length === 0) {
     return false;

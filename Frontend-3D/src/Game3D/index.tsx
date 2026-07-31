@@ -51,7 +51,7 @@ import {
   spoilExpiredFood,
 } from "../Game/State/inventory";
 import { startNeeds, tickNeeds } from "../Game/State/needs";
-import { listKitchenSlots } from "../Game/Systems/kitchen";
+import { debugPutInSlot, listKitchenSlots } from "../Game/Systems/kitchen";
 import { setupTestRoom } from "../Game/Systems/testRoom";
 import {
   getEventProgress,
@@ -248,6 +248,54 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
         handler: () => {
           scene.zoomToFit();
           return ok("已缩到最远");
+        },
+      }),
+      registerCommand({
+        name: "kitchen",
+        usage: "kitchen [槽位序号 [itemId]]",
+        description:
+          "不带参数：列出所有灶眼/槽位和里面装的东西；带序号：往那个槽位放一口锅（默认 wok），方便直接测火候",
+        handler: (args) => {
+          const slots = listKitchenSlots();
+          if (slots.length === 0) {
+            return { ok: false, message: "屋里还没有带槽位的厨具家具（先摆一个橱柜）" };
+          }
+
+          if (args.length === 0) {
+            const lines = slots.map((ref, index) => {
+              const held = ref.content
+                ? `${ref.content.itemId}${
+                    ref.content.container?.items.length
+                      ? `（内含 ${ref.content.container.items
+                          .map((item) => `${item.itemId}×${item.quantity}`)
+                          .join("、")}，加热 ${Math.round(
+                          ref.content.container.heatSeconds,
+                        )}s）`
+                      : "（空锅）"
+                  }`
+                : "空";
+              return ` ${index}  ${ref.instanceId} / ${ref.slotId}  →  ${held}`;
+            });
+            return ok(`共 ${slots.length} 个槽位：\n${lines.join("\n")}`);
+          }
+
+          const index = Number(args[0]);
+          const ref = slots[index];
+          if (!ref) {
+            return { ok: false, message: `没有序号 ${args[0]} 的槽位（0~${slots.length - 1}）` };
+          }
+          if (ref.content) {
+            return { ok: false, message: `${ref.slotId} 已经放着 ${ref.content.itemId} 了` };
+          }
+
+          const itemId = args[1] ?? "wok";
+          if (!findItemDefinition(itemId)) {
+            return { ok: false, message: `没有这个物品：${itemId}` };
+          }
+          if (!debugPutInSlot(ref, itemId)) {
+            return { ok: false, message: `${itemId} 放不进这个槽位（要带 cookware 能力）` };
+          }
+          return ok(`已把 ${itemId} 放到 ${ref.instanceId} / ${ref.slotId}`);
         },
       }),
       registerCommand({

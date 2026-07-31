@@ -24,6 +24,8 @@ function cabinet(
   depth: number,
   x: number,
   z: number,
+  /** false 时不铺台面——长边要在水槽处开洞，台面由调用方拼 */
+  withTop = true,
 ): Object3D[] {
   const kickHeight = 0.1;
 
@@ -38,6 +40,8 @@ function cabinet(
     position: [x, kickHeight / 2, z],
   });
 
+  if (!withTop) return [bodyNode, kick];
+
   const top = box([width + 0.06, COUNTER_TOP, depth + 0.06], {
     color: PALETTE.ceramicShade,
     position: [x, COUNTER_HEIGHT + COUNTER_TOP / 2, z],
@@ -46,33 +50,60 @@ function cabinet(
   return [bodyNode, kick, top];
 }
 
-/** 柜门：一排竖着的门板 + 细横把手 */
+/**
+ * 柜门：一排门板 + 细横把手。
+ *
+ * `axis` 必须跟着柜体走——长边的柜体沿 x 排开、门朝 z；
+ * 半岛的柜体沿 z 排开、门朝 x。之前半岛也按 x 轴排门，
+ * 结果三块门板飞到柜体外面躺在地上（截图里那三块）。
+ */
 function doors(
+  axis: "x" | "z",
   count: number,
   spanStart: number,
   spanEnd: number,
-  z: number,
+  /** 另一根水平轴上的门面位置 */
+  facePosition: number,
+  /** 门朝哪一侧凸出 */
   facing: 1 | -1,
 ): Object3D[] {
   const parts: Object3D[] = [];
-  const span = spanEnd - spanStart;
-  const width = span / count;
+  const width = (spanEnd - spanStart) / count;
+  const panelY = COUNTER_HEIGHT * 0.52;
+  const handleY = COUNTER_HEIGHT * 0.78;
 
   for (let i = 0; i < count; i += 1) {
-    const cx = spanStart + width * (i + 0.5);
-    parts.push(
-      box([width - 0.08, COUNTER_HEIGHT - 0.26, 0.05], {
-        color: PALETTE.woodDark,
-        position: [cx, COUNTER_HEIGHT * 0.52, z + facing * 0.03],
-      }),
-    );
-    parts.push(
-      cylinder(0.022, 0.022, width - 0.34, 6, {
-        color: PALETTE.stoveHandle,
-        position: [cx, COUNTER_HEIGHT * 0.78, z + facing * 0.07],
-        rotation: [0, 0, Math.PI / 2],
-      }),
-    );
+    const along = spanStart + width * (i + 0.5);
+
+    if (axis === "x") {
+      parts.push(
+        box([width - 0.08, COUNTER_HEIGHT - 0.26, 0.05], {
+          color: PALETTE.woodDark,
+          position: [along, panelY, facePosition + facing * 0.03],
+        }),
+      );
+      parts.push(
+        cylinder(0.022, 0.022, width - 0.34, 6, {
+          color: PALETTE.stoveHandle,
+          position: [along, handleY, facePosition + facing * 0.07],
+          rotation: [0, 0, Math.PI / 2],
+        }),
+      );
+    } else {
+      parts.push(
+        box([0.05, COUNTER_HEIGHT - 0.26, width - 0.08], {
+          color: PALETTE.woodDark,
+          position: [facePosition + facing * 0.03, panelY, along],
+        }),
+      );
+      parts.push(
+        cylinder(0.022, 0.022, width - 0.34, 6, {
+          color: PALETTE.stoveHandle,
+          position: [facePosition + facing * 0.07, handleY, along],
+          rotation: [Math.PI / 2, 0, 0],
+        }),
+      );
+    }
   }
   return parts;
 }
@@ -82,15 +113,16 @@ export function buildKitchenCounter(): Object3D {
 
   // ---- 长边：沿北墙，占地 x -3..3 的前两格深（z -2..0） ----
   const longZ = -1.5;
-  parts.push(...cabinet(6, 1, 0, longZ));
-  parts.push(...doors(5, -3, 3, longZ + 0.5, 1));
+  parts.push(...cabinet(6, 1, 0, longZ, false));
+  parts.push(...doors("x", 5, -3, 3, longZ + 0.5, 1));
 
   // ---- 短边（半岛）：从东端往南折，z -1..2 ----
   const shortX = 2.5;
   parts.push(...cabinet(1, 3, shortX, 0.5));
-  parts.push(...doors(3, -0.9, 1.9, shortX + 0.5, 1));
+  // 半岛的门朝西（-x，面向客厅一侧），沿 z 轴排开
+  parts.push(...doors("z", 3, -0.9, 1.9, shortX - 0.5, -1));
 
-  const topY = COUNTER_HEIGHT + COUNTER_TOP;
+  const burnerY = COUNTER_HEIGHT + COUNTER_TOP;
 
   /**
    * 三个灶眼在长边西段。位置要和 FurnitureDefinition 的 slots offset 对上——
@@ -100,14 +132,14 @@ export function buildKitchenCounter(): Object3D {
     parts.push(
       cylinder(0.24, 0.24, 0.05, 10, {
         color: PALETTE.stoveFire,
-        position: [bx, topY + 0.02, longZ],
+        position: [bx, burnerY + 0.02, longZ],
       }),
     );
     // 灶圈外侧一道深色环，低多边形里靠色环而不是造型区分"这里是火口"
     parts.push(
       cylinder(0.3, 0.3, 0.02, 10, {
         color: PALETTE.ironDark,
-        position: [bx, topY + 0.005, longZ],
+        position: [bx, burnerY + 0.005, longZ],
       }),
     );
   }
@@ -120,31 +152,81 @@ export function buildKitchenCounter(): Object3D {
     }),
   );
 
-  // ---- 水槽：长边东段，一个凹下去的方盆 + 龙头 ----
+  /**
+   * 水槽：**真的是个凹槽**，不是贴在台面上的深色板。
+   *
+   * 做法是台面在水槽处开洞（长边台面拆成四块围着洞铺），
+   * 盆由四片内壁 + 一块底围成，开口和台面齐平。
+   * 早先用"浅色板 + 深色板"叠出来假凹陷，两块共面直接 z-fighting
+   * （近看是一片锯齿），而且永远没法接洗碗——水槽里放得下东西，
+   * 前提是它真的有容积。
+   */
   const sinkX = 1.6;
+  const sinkHalfW = 0.55;
+  const sinkHalfD = 0.36;
+  const sinkDepth = 0.18;
+  const rimThickness = 0.05;
+
+  const counterHalfW = 3.03;
+  const counterHalfD = 0.53;
+  const counterY = COUNTER_HEIGHT + COUNTER_TOP / 2;
+
+  const topSlab = (
+    x0: number,
+    x1: number,
+    z0: number,
+    z1: number,
+  ): Object3D =>
+    box([x1 - x0, COUNTER_TOP, z1 - z0], {
+      color: PALETTE.ceramicShade,
+      position: [(x0 + x1) / 2, counterY, (z0 + z1) / 2],
+    });
+
+  const holeX0 = sinkX - sinkHalfW;
+  const holeX1 = sinkX + sinkHalfW;
+  const holeZ0 = longZ - sinkHalfD;
+  const holeZ1 = longZ + sinkHalfD;
+
+  // 台面四块，围出水槽的洞
+  parts.push(topSlab(-counterHalfW, holeX0, longZ - counterHalfD, longZ + counterHalfD));
+  parts.push(topSlab(holeX1, counterHalfW, longZ - counterHalfD, longZ + counterHalfD));
+  parts.push(topSlab(holeX0, holeX1, longZ - counterHalfD, holeZ0));
+  parts.push(topSlab(holeX0, holeX1, holeZ1, longZ + counterHalfD));
+
+  // 盆：四片内壁 + 底。内壁比台面暗一档但不是黑——黑会读成一个洞
+  const basinY = COUNTER_HEIGHT + COUNTER_TOP - sinkDepth / 2;
+  for (const [wx, wz, ww, wd] of [
+    [sinkX, holeZ0 + rimThickness / 2, sinkHalfW * 2, rimThickness],
+    [sinkX, holeZ1 - rimThickness / 2, sinkHalfW * 2, rimThickness],
+    [holeX0 + rimThickness / 2, longZ, rimThickness, sinkHalfD * 2],
+    [holeX1 - rimThickness / 2, longZ, rimThickness, sinkHalfD * 2],
+  ] as const) {
+    parts.push(
+      box([ww, sinkDepth, wd], {
+        color: PALETTE.ironLight,
+        position: [wx, basinY, wz],
+      }),
+    );
+  }
   parts.push(
-    box([1.1, 0.14, 0.72], {
-      color: PALETTE.ironLight,
-      position: [sinkX, topY - 0.05, longZ],
+    box([sinkHalfW * 2 - rimThickness, 0.04, sinkHalfD * 2 - rimThickness], {
+      color: PALETTE.ironMid,
+      position: [sinkX, COUNTER_HEIGHT + COUNTER_TOP - sinkDepth + 0.02, longZ],
     }),
   );
-  // 内胆比外沿深一档，才看得出是"凹进去的盆"而不是贴上去的板
-  parts.push(
-    box([0.94, 0.12, 0.58], {
-      color: PALETTE.potInner,
-      position: [sinkX, topY - 0.04, longZ],
-    }),
-  );
+
+  // 龙头：立管 + 出水横管
+  const topY = COUNTER_HEIGHT + COUNTER_TOP;
   parts.push(
     cylinder(0.035, 0.035, 0.42, 6, {
       color: PALETTE.ironLight,
-      position: [sinkX, topY + 0.21, longZ - 0.34],
+      position: [sinkX, topY + 0.21, holeZ0 - 0.12],
     }),
   );
   parts.push(
     cylinder(0.03, 0.03, 0.34, 6, {
       color: PALETTE.ironLight,
-      position: [sinkX, topY + 0.4, longZ - 0.17],
+      position: [sinkX, topY + 0.4, holeZ0 + 0.05],
       rotation: [Math.PI / 2, 0, 0],
     }),
   );

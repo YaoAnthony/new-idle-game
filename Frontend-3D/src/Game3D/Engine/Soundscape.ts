@@ -11,6 +11,8 @@ import { getWeather } from "../../Game/State/weather";
 import {
   activeLoops,
   getBusVolume,
+  audioContextState,
+  describeLoops,
   isAudioUnlocked,
   playLoop,
   playOneShot,
@@ -149,6 +151,8 @@ export function startSoundscape(): () => void {
 /** 音景当前状态，调试命令用 */
 export function describeSoundscape(): {
   unlocked: boolean;
+  contextState: string;
+  loopGains: Array<{ id: string; gain: number }>;
   playing: string[];
   desired: string[];
   phase: DayPhaseId;
@@ -159,6 +163,9 @@ export function describeSoundscape(): {
 } {
   return {
     unlocked: isAudioUnlocked(),
+    /** AudioContext 真实状态。running 之外都是"其实没声音" */
+    contextState: audioContextState(),
+    loopGains: describeLoops(),
     playing: activeLoops(),
     desired: [...desiredLoops().keys()],
     phase: getClock().phase,

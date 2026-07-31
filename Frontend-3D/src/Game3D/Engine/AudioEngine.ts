@@ -88,6 +88,15 @@ export function unlockAudio(): void {
 
   void ctx.resume().then(() => {
     if (unlocked) return;
+
+    /**
+     * **必须检查真实状态**：`resume()` 的 Promise 在没有可信用户手势时
+     * 也会 resolve，context 却停在 suspended。只认 Promise 就会把
+     * unlocked 置成假的 true——诊断显示"已解锁"，实际一声不响，
+     * 而且 pendingLoops 被清空后再也没人补播。
+     */
+    if (ctx.state !== "running") return;
+
     unlocked = true;
 
     // 补上等待期间想播的循环
@@ -104,26 +113,63 @@ export function isAudioUnlocked(): boolean {
   return unlocked;
 }
 
-async function loadBuffer(profileId: string): Promise<AudioBuffer | null> {
-  const cached = buffers.get(profileId);
+/**
+ * AudioContext 的**真实**状态。
+ *
+ * `unlocked` 只是我们自己的标志位——`resume()` 的 Promise 即使在
+ * 没有可信用户手势时也会 resolve，context 却仍然停在 suspended。
+ * 只看 unlocked 会得到"显示已解锁、其实一声不响"的假象，
+ * 诊断指令必须报这个真值才有意义。
+ */
+export function audioContextState(): string {
+  return context?.state ?? "none";
+}
+
+/** 正在跑的循环 + 它们的实际增益。用来区分"没在播"和"在播但音量是 0" */
+export function describeLoops(): Array<{ id: string; gain: number }> {
+  return [...loops.values()].map((handle) => ({
+    id: handle.profileId,
+    gain: Number(handle.gain.gain.value.toFixed(3)),
+  }));
+}
+
+/**
+ * 挑一条素材路径。定义里给数组就是变体——**每次随机挑一条**，
+ * 同一个动作反复听同一声会腻（开箱、脚步尤其明显）。
+ */
+function pickResourcePath(profileId: string): string | null {
+  const profile = findAudioProfileDefinition(profileId);
+  if (!profile) return null;
+
+  const paths = profile.resourcePath;
+  if (typeof paths === "string") return paths;
+  if (paths.length === 0) return null;
+  return paths[Math.floor(Math.random() * paths.length)];
+}
+
+/**
+ * 按**具体文件路径**缓存，不是按 profileId——
+ * 按 id 缓存的话变体永远只会播到第一条（第二次就命中缓存了）。
+ */
+async function loadBuffer(path: string): Promise<AudioBuffer | null> {
+  const cached = buffers.get(path);
   if (cached) return cached;
 
-  const profile = findAudioProfileDefinition(profileId);
   const ctx = ensureContext();
-  if (!profile || !ctx) return null;
+  if (!ctx) return null;
 
   try {
-    const response = await fetch(profile.resourcePath);
+    const response = await fetch(path);
     if (!response.ok) {
-      console.warn(`[audio] 取不到 ${profile.resourcePath}（${response.status}）`);
+      console.warn(`[audio] 取不到 ${path}（${response.status}）`);
       return null;
     }
 
     const buffer = await ctx.decodeAudioData(await response.arrayBuffer());
-    buffers.set(profileId, buffer);
+    buffers.set(path, buffer);
     return buffer;
   } catch (error) {
-    console.warn(`[audio] 解码失败 ${profile.resourcePath}`, error);
+    console.warn(`[audio] 解码失败 ${path}`, error);
     return null;
   }
 }
@@ -156,7 +202,10 @@ export function playLoop(profileId: string, volume = 1): void {
     return;
   }
 
-  void loadBuffer(profileId).then((buffer) => {
+  const loopPath = pickResourcePath(profileId);
+  if (!loopPath) return;
+
+  void loadBuffer(loopPath).then((buffer) => {
     const bus = busOf(profileId);
     if (!buffer || !bus || !context) return;
 
@@ -226,8 +275,12 @@ export function setLoopVolume(profileId: string, volume: number): void {
 export function playOneShot(profileId: string, volume = 1): void {
   const ctx = ensureContext();
   if (!ctx || !unlocked) return;
+  if (volume <= 0) return;
 
-  void loadBuffer(profileId).then((buffer) => {
+  const path = pickResourcePath(profileId);
+  if (!path) return;
+
+  void loadBuffer(path).then((buffer) => {
     const bus = busOf(profileId);
     if (!buffer || !bus || !context) return;
 
@@ -237,6 +290,16 @@ export function playOneShot(profileId: string, volume = 1): void {
 
     const source = context.createBufferSource();
     source.buffer = buffer;
+
+    /**
+     * 音高抖动。和变体是同一个目的：只有两条素材时，
+     * 配上 ±6% 的音高就能听出四五种差别，比再找素材便宜得多。
+     */
+    const variance = findAudioProfileDefinition(profileId)?.pitchVariance ?? 0;
+    if (variance > 0) {
+      source.playbackRate.value = 1 + (Math.random() * 2 - 1) * variance;
+    }
+
     source.connect(gain);
 
     const now = context.currentTime;

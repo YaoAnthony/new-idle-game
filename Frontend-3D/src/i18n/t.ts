@@ -482,6 +482,7 @@ const ZH: Record<string, string> = {
   "audio.weather_storm": "暴雨",
   "audio.thunder": "雷声",
   "audio.eat": "进食",
+  "audio.unpack": "拆箱",
 
   // 坐 / 躺。站着时用家具自己的提示文案，这里只补状态变了之后的那两句
   "hint.stand": "起来",

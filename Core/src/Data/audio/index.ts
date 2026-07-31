@@ -59,6 +59,20 @@ export const audioProfileDefinitions = [
   },
 
   // ---- 动作音 ----
+  //
+  // 一次性音都配变体 + 音高抖动：同一个动作反复听同一声会腻。
+  // 加素材只是往 resourcePath 数组里多填一行，代码不用动。
+  {
+    id: "sfx_unpack",
+    busId: AudioBusId.Effects,
+    resourcePath: [
+      "/audio/action/open_box.wav",
+      "/audio/action/chest_open.wav",
+    ],
+    localizationKey: "audio.unpack",
+    loop: false,
+    pitchVariance: 0.06,
+  },
   {
     id: "sfx_eat",
     busId: AudioBusId.Effects,

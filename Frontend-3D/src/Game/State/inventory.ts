@@ -1,12 +1,16 @@
 import {
+  ItemCategory,
   ItemQuality,
+  Rarity,
   findItemDefinition,
   isExpired,
+  itemCategoryOrder,
   resolveExpiry,
   type InventoryStack,
   type ItemCounts,
 } from "core";
 import { emit } from "../EventBus";
+import { t } from "../../i18n/t";
 import { getClock } from "./clock";
 
 /**
@@ -339,6 +343,108 @@ export function restoreInventory(stacks: InventoryStack[]): void {
 
   emit("inventory_changed", { reason: "restore" });
 }
+
+// ---- 整理 ----
+
+/**
+ * 把背包收拾一遍：同类合堆 → 按分类/稀有度/名字排 → 一路顶到最前面。
+ *
+ * **只动背包，不碰快捷栏**：快捷栏是玩家自己摆的顺序（几号键放什么
+ * 是肌肉记忆），替他重排等于把手感洗掉。这也是这类游戏的通行做法。
+ *
+ * 合堆放在排序前面：不先合的话，两堆各 3 个的木头会被当成两格排出来，
+ * "整理完还是散的"就成了 bug 观感。合堆只合 sameKind（同物同品质同保质期），
+ * 混堆会把"一盘上乘的菜和一盘焦的"搅在一起，那是数据损坏不是整理。
+ */
+export function sortBackpack(): void {
+  const stacks = backpack.filter(
+    (stack): stack is NonNullable<SlotStack> => stack !== null,
+  );
+
+  // 1. 合堆
+  const merged: Array<NonNullable<SlotStack>> = [];
+  for (const stack of stacks) {
+    const limit = stackLimit(stack.itemId);
+    let remaining = stack.count;
+
+    for (const target of merged) {
+      if (remaining <= 0) break;
+      if (!sameKind(target, stack)) continue;
+      const take = Math.min(limit - target.count, remaining);
+      target.count += take;
+      remaining -= take;
+    }
+
+    // 超过一堆上限的部分自己另起一堆，别把 count 撑破 stackLimit
+    while (remaining > 0) {
+      const take = Math.min(limit, remaining);
+      merged.push({ ...stack, count: take });
+      remaining -= take;
+    }
+  }
+
+  // 2. 排序
+  merged.sort(compareForSort);
+
+  // 3. 顶到最前面，后面补空
+  for (let i = 0; i < backpack.length; i += 1) {
+    backpack[i] = merged[i] ?? null;
+  }
+
+  emit("inventory_changed", { reason: "sort" });
+}
+
+/**
+ * 排序依据：分类 → 稀有度（稀的在前）→ 名字。
+ *
+ * 分类顺序取 Core 的 `itemCategoryOrder`，和背包页签是同一份，
+ * 整理完的结果才和页签从左到右对得上。
+ * 名字按**本地化之后**的字面比，中文走拼音——按 itemId 排的话
+ * 玩家看到的是一串没规律的顺序。
+ */
+function compareForSort(
+  a: NonNullable<SlotStack>,
+  b: NonNullable<SlotStack>,
+): number {
+  const da = findItemDefinition(a.itemId);
+  const db = findItemDefinition(b.itemId);
+
+  const categoryDelta = categoryRank(da?.category) - categoryRank(db?.category);
+  if (categoryDelta !== 0) return categoryDelta;
+
+  const rarityDelta = rarityRank(db?.rarity) - rarityRank(da?.rarity);
+  if (rarityDelta !== 0) return rarityDelta;
+
+  const nameDelta = t(da?.localizationKey ?? a.itemId).localeCompare(
+    t(db?.localizationKey ?? b.itemId),
+    "zh-Hans-CN",
+  );
+  if (nameDelta !== 0) return nameDelta;
+
+  // 兜底：同名不同品质的菜也要有稳定顺序，不然每次整理位置都在跳
+  return a.itemId.localeCompare(b.itemId);
+}
+
+/** 查不到分类的排最后，不要插在中间打乱分组 */
+function categoryRank(category: ItemCategory | undefined): number {
+  const index = category
+    ? (itemCategoryOrder as readonly ItemCategory[]).indexOf(category)
+    : -1;
+  return index < 0 ? itemCategoryOrder.length : index;
+}
+
+function rarityRank(rarity: Rarity | undefined): number {
+  return rarity ? RARITY_ORDER.indexOf(rarity) : -1;
+}
+
+const RARITY_ORDER: Rarity[] = [
+  Rarity.Common,
+  Rarity.Uncommon,
+  Rarity.Rare,
+  Rarity.Epic,
+  Rarity.Legendary,
+  Rarity.Mythic,
+];
 
 /** 搬进新家时的行李。家具放快捷栏（马上要用），材料进背包 */
 export function seedInitialInventory(): void {

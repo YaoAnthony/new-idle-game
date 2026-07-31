@@ -487,6 +487,22 @@ export function findItemDefinition(itemId: string): ItemDefinition | undefined {
   return itemDefinitions.find((item) => item.id === itemId);
 }
 
+/**
+ * 分类的展示顺序。**背包页签和"整理"排序共用这一份**——
+ * 各写各的话，整理完的结果和页签从左到右的顺序对不上，
+ * 玩家会觉得整理"没整明白"。
+ *
+ * 顺序按用得多少排：材料和食物天天动，任务物品基本不碰。
+ * 不用枚举的声明顺序，是因为那个顺序没道理承担"给玩家看的顺序"这个职责。
+ */
+export const itemCategoryOrder = [
+  ItemCategory.Material,
+  ItemCategory.Food,
+  ItemCategory.Furniture,
+  ItemCategory.Tool,
+  ItemCategory.Quest,
+] as const satisfies readonly ItemCategory[];
+
 /** 家具 id → 对应的物品（拿起家具时换回物品用） */
 export function findItemByFurnitureId(
   furnitureId: string,

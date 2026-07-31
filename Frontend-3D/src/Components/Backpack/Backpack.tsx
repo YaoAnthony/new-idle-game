@@ -1,7 +1,14 @@
-import { ItemCategory, findItemDefinition } from "core";
+import { ItemCategory, findItemDefinition, itemCategoryOrder } from "core";
 import { useEffect, useMemo, useState } from "react";
 import { emit, on } from "../../Game/EventBus";
-import { BACKPACK_SIZE, getBackpack } from "../../Game/State/inventory";
+import {
+  BACKPACK_SIZE,
+  HOTBAR_SIZE,
+  getBackpack,
+  getHotbar,
+  sortBackpack,
+  type SlotRef,
+} from "../../Game/State/inventory";
 import { useInventoryItem } from "../../Game/Systems/itemUse";
 import { t } from "../../i18n/t";
 import { DragGhost, ItemIcon, SlotCell } from "../Inventory/slots";
@@ -27,15 +34,11 @@ import { DragGhost, ItemIcon, SlotCell } from "../Inventory/slots";
  * - 正文字号从 10~11px 提到 12~15px。原来那个尺寸是给装饰用的，不是给读的。
  */
 
-/** 页签顺序。`null` = 全部 */
-const TABS: Array<ItemCategory | null> = [
-  null,
-  ItemCategory.Material,
-  ItemCategory.Food,
-  ItemCategory.Furniture,
-  ItemCategory.Tool,
-  ItemCategory.Quest,
-];
+/**
+ * 页签顺序。`null` = 全部，其余取 Core 的 `itemCategoryOrder`——
+ * 和"整理"的排序共用同一份，整理完的结果才和页签从左到右对得上。
+ */
+const TABS: Array<ItemCategory | null> = [null, ...itemCategoryOrder];
 
 const TAB_KEY: Record<string, string> = {
   all: "ui.category.all",
@@ -54,11 +57,16 @@ type BackpackProps = {
 export function Backpack({ onPlacement }: BackpackProps) {
   const [open, setOpen] = useState(false);
   const [slots, setSlots] = useState(getBackpack());
+  const [hotbarSlots, setHotbarSlots] = useState(getHotbar());
   const [tab, setTab] = useState<ItemCategory | null>(null);
-  const [pickedIndex, setPickedIndex] = useState<number | null>(null);
+  /** 详情卡在看哪一格。**带 container**——快捷栏那行也在面板里，点它也要能看 */
+  const [picked, setPicked] = useState<SlotRef | null>(null);
 
   useEffect(() => {
-    const off = on("inventory_changed", () => setSlots(getBackpack()));
+    const off = on("inventory_changed", () => {
+      setSlots(getBackpack());
+      setHotbarSlots(getHotbar());
+    });
 
     const onKeyDown = (event: KeyboardEvent) => {
       /**
@@ -92,10 +100,19 @@ export function Backpack({ onPlacement }: BackpackProps) {
   }, [open]);
 
   const visible = slots.slice(0, BACKPACK_SIZE);
+  const hotbarVisible = hotbarSlots.slice(0, HOTBAR_SIZE);
   const used = visible.filter(Boolean).length;
 
-  /** 选中的那一格。格子被清空（拿到手上）后自动松开选中 */
-  const picked = pickedIndex === null ? null : visible[pickedIndex] ?? null;
+  /** 选中格子里的东西。格子被清空（拿到手上、整理重排）后自动松开选中 */
+  const pickedStack =
+    picked === null
+      ? null
+      : (picked.container === "hotbar" ? hotbarVisible : visible)[
+          picked.index
+        ] ?? null;
+
+  const isPicked = (container: SlotRef["container"], index: number): boolean =>
+    picked?.container === container && picked.index === index;
 
   const matchesTab = useMemo(() => {
     return (itemId: string): boolean => {
@@ -147,7 +164,7 @@ export function Backpack({ onPlacement }: BackpackProps) {
               </button>
             </div>
 
-            <div className="flex flex-1 flex-wrap gap-1 sm:gap-1.5">
+            <div className="flex flex-1 flex-wrap items-center gap-1 sm:gap-1.5">
               {TABS.map((category) => {
                 const key = category ?? "all";
                 return (
@@ -163,6 +180,23 @@ export function Backpack({ onPlacement }: BackpackProps) {
                   </button>
                 );
               })}
+
+              {/*
+               * 整理。和页签隔开一点——它是**动作**不是筛选，
+               * 混在页签里会被当成"第七个分类"。
+               * 整理会重排格子，选中的下标就不再指向原来那件东西了，
+               * 所以顺手清掉选中。
+               */}
+              <button
+                type="button"
+                className="ui-tab ml-1 px-2 py-1 text-[12px] font-bold sm:px-2.5 sm:text-[13px]"
+                onClick={() => {
+                  sortBackpack();
+                  setPicked(null);
+                }}
+              >
+                {t("ui.backpack.sort")}
+              </button>
             </div>
 
             <button
@@ -193,10 +227,12 @@ export function Backpack({ onPlacement }: BackpackProps) {
                       stack={stack}
                       fluid
                       dimmed={dimmed}
-                      picked={pickedIndex === index && Boolean(stack)}
+                      picked={isPicked("backpack", index) && Boolean(stack)}
                       // 点击只**选中**，动作交给详情卡上的按钮——
                       // 原来点一下直接拿到手上，想看看这是什么都做不到
-                      onClick={() => setPickedIndex(stack ? index : null)}
+                      onClick={() =>
+                        setPicked(stack ? { container: "backpack", index } : null)
+                      }
                     />
                   );
                 })}
@@ -211,11 +247,40 @@ export function Backpack({ onPlacement }: BackpackProps) {
 
             <div className="md:flex-[2]">
               <ItemDetail
-                itemId={picked?.itemId ?? null}
-                count={picked?.count ?? 0}
+                itemId={pickedStack?.itemId ?? null}
+                count={pickedStack?.count ?? 0}
                 onPlacement={onPlacement}
-                onUsed={() => setPickedIndex(null)}
+                onUsed={() => setPicked(null)}
               />
+            </div>
+          </div>
+
+          {/*
+           * 快捷栏那一行**搬进面板里**。
+           *
+           * 面板现在是全屏遮罩式的，屏幕底部真正的快捷栏被压在遮罩下面，
+           * 拖不过去——底栏还写着"拖到下方快捷栏"，等于骗人。
+           * 把它放进面板是这类游戏的通行结构（Minecraft 起就是这样）：
+           * 拖拽全程在面板内部完成，不需要穿透遮罩。
+           *
+           * 它和屏幕底部那一行是**同一份数据**（都读 getHotbar），
+           * 不是复制品——改一边另一边跟着变。
+           */}
+          <div className="ui-parchment mt-3 p-2">
+            <div className="grid grid-cols-8 gap-1.5 sm:gap-2">
+              {hotbarVisible.map((stack, index) => (
+                <SlotCell
+                  key={index}
+                  slotRef={{ container: "hotbar", index }}
+                  stack={stack}
+                  fluid
+                  label={String(index + 1)}
+                  picked={isPicked("hotbar", index) && Boolean(stack)}
+                  onClick={() =>
+                    setPicked(stack ? { container: "hotbar", index } : null)
+                  }
+                />
+              ))}
             </div>
           </div>
 

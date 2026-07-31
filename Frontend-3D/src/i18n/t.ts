@@ -509,7 +509,8 @@ const ZH: Record<string, string> = {
   "ui.backpack.place": "布置到屋里",
   "ui.backpack.eat": "吃掉",
   "ui.backpack.capacity": "格子",
-  "ui.backpack.hint": "点击查看 · 拖到下方快捷栏 · B 关闭",
+  "ui.backpack.sort": "整理",
+  "ui.backpack.hint": "点击查看 · 拖到下面那排快捷栏 · Esc / B 关闭",
   "ui.backpack.filter_empty": "这一类还什么都没有",
 };
 

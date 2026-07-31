@@ -228,6 +228,14 @@ export class RoomScene {
       }),
     );
 
+    // 布置模式抬高俯角：低视角瞄不到远处的地面格
+    this.offEventListeners.push(
+      on("placement_mode_changed", ({ active }) => {
+        if (active) this.rig.enterDecorate();
+        else this.rig.exitDecorate();
+      }),
+    );
+
     // 对话期间锁移动 + 镜头推近（动森式，说话的人占满画面）
     this.offEventListeners.push(
       on("dialogue_changed", ({ open }) => {
@@ -347,6 +355,14 @@ export class RoomScene {
 
       // Q/E 转向已退役：镜头改成鼠标左键拖拽（标准第三人称）
       if (key === "r") this.placement.rotate();
+
+      // 布置模式：方向键逐格微调（鼠标在低俯角下够不到远处的格子）
+      if (this.placement.active) {
+        if (event.key === "ArrowUp") this.placement.nudge(0, -1);
+        if (event.key === "ArrowDown") this.placement.nudge(0, 1);
+        if (event.key === "ArrowLeft") this.placement.nudge(-1, 0);
+        if (event.key === "ArrowRight") this.placement.nudge(1, 0);
+      }
       if (event.key === "Escape") this.placement.cancel();
       // 配错了的出口：倒掉锅里的东西，锅还在（还没有垃圾桶这件家具）
       if (key === "g") {

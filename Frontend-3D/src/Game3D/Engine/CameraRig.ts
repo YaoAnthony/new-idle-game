@@ -276,6 +276,33 @@ export class CameraRig {
     this.exitFocus();
   }
 
+  private pitchBeforeDecorate: number | null = null;
+
+  /**
+   * 布置模式：把俯角抬到能看清地面格。
+   *
+   * 低俯角下透视会把远处的地面压扁，鼠标在屏幕上移几个像素、
+   * 地面格就跳好几格，贴墙那一行根本瞄不到。布置本来就该俯视——
+   * 退出时还回玩家原来的角度，不要偷偷改掉他调好的视角。
+   */
+  enterDecorate(): void {
+    if (this.pitchBeforeDecorate === null) {
+      this.pitchBeforeDecorate = this.desiredPitch;
+    }
+    this.desiredPitch = MathUtils.degToRad(
+      Math.max(MathUtils.radToDeg(this.desiredPitch), 48),
+    );
+    this.mode = "decorate";
+  }
+
+  exitDecorate(): void {
+    if (this.pitchBeforeDecorate !== null) {
+      this.desiredPitch = this.pitchBeforeDecorate;
+      this.pitchBeforeDecorate = null;
+    }
+    this.mode = "follow";
+  }
+
   enterFocus(): void {
     if (this.distanceBeforeFocus === null) {
       this.distanceBeforeFocus = this.desiredDistance;

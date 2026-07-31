@@ -132,6 +132,37 @@ export class PlacementController {
     this.wallId = null;
   }
 
+  /**
+   * 方向键逐格微调。
+   *
+   * 鼠标瞄准在低俯角下**够不到远处的格子**：透视把远端压扁，
+   * 屏幕上移几个像素，地面格就从 4 跳到 2 再跳到 -1——贴墙的
+   * 第 0 行根本落不上去。布置类游戏的通行解法就是键盘微调，
+   * 一次一格，想贴墙就一路顶到底。
+   */
+  nudge(dx: number, dy: number): void {
+    if (!this.active || this.surface === PlacementSurface.Wall) return;
+
+    const { room } = getWorld();
+    const definition = getDefinition(this.furnitureId ?? "");
+    if (!definition) return;
+
+    const rotated = this.facing === Facing.East || this.facing === Facing.West;
+    const w = rotated ? definition.footprint.height : definition.footprint.width;
+    const h = rotated ? definition.footprint.width : definition.footprint.height;
+
+    // 夹在网格内：顶到墙就停住，不会推出屋外
+    this.gridX = Math.min(
+      Math.max(this.gridX + dx, 0),
+      room.floorGrid.width - w,
+    );
+    this.gridY = Math.min(
+      Math.max(this.gridY + dy, 0),
+      room.floorGrid.height - h,
+    );
+    this.refresh();
+  }
+
   /** 墙饰的朝向由墙决定，转不了；R 只对地面家具有效 */
   rotate(): void {
     if (this.surface === PlacementSurface.Wall) return;

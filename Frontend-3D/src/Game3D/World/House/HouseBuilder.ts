@@ -201,11 +201,12 @@ function buildGenkanStep(room: RoomSave): Object3D | null {
       position: [eastX, 0.035, (northZ + southZ) / 2],
     }),
   );
-  // 南沿（土间→客厅），避开和东沿的重叠角
+  // 南沿（土间→客厅）。收缩量必须等于东沿的半宽 0.08——
+  // 多缩会在转角留一条缝，斜阳的低角度光一打就露馅（审查抓的）
   step.add(
-    box([genkan.rect.width - 0.16, 0.07, 0.16], {
+    box([genkan.rect.width - 0.08, 0.07, 0.16], {
       color: PALETTE.woodMid,
-      position: [(westX + eastX) / 2 - 0.08, 0.035, southZ],
+      position: [(westX + eastX) / 2 - 0.04, 0.035, southZ],
     }),
   );
 

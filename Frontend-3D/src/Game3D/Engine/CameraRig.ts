@@ -21,11 +21,27 @@ export type CameraRigOptions = {
   shoulderOffset?: number;
 };
 
-/** 手动转镜（Q/E）之后暂停自动回中的时间，免得刚转完就被拽回去 */
+/** 手动转镜之后暂停自动回中的时间，免得刚转完就被拽回去 */
 const MANUAL_HOLD_SECONDS = 2.5;
+
+/**
+ * 俯仰角的上下限（度）。
+ *
+ * 下限 8°：再平就快贴地了，室内会被家具糊满画面。
+ * 上限 62°：再高就成俯视图，人物变成一个头顶，也会顶到天花板。
+ */
+const MIN_PITCH = 8;
+const MAX_PITCH = 62;
+
+/** 鼠标拖拽的灵敏度：每像素转多少度 */
+const DRAG_YAW_PER_PIXEL = 0.32;
+const DRAG_PITCH_PER_PIXEL = 0.22;
 
 /** 自动回中的最大角速度（度/秒）。太快会晕，太慢跟不上转身 */
 const RECENTER_DEGREES_PER_SECOND = 150;
+
+/** 墙角贴脸时的最近距离。再近就穿进角色模型里了 */
+const MIN_WALL_DISTANCE = 1.15;
 
 /** 复用的枢轴向量：加了肩后偏移之后的实际取景中心 */
 const PIVOT = new Vector3();
@@ -37,7 +53,9 @@ export class CameraRig {
   private desiredYaw = 45;
   private distance: number;
   private desiredDistance: number;
-  private readonly pitch: number;
+  /** 俯仰角（弧度）。鼠标拖拽可改，和 yaw 一样走平滑插值 */
+  private pitch: number;
+  private desiredPitch: number;
   private readonly minDistance: number;
   private readonly maxDistance: number;
 
@@ -73,6 +91,7 @@ export class CameraRig {
 
     this.camera = new PerspectiveCamera(fov, aspect, 0.1, 200);
     this.pitch = MathUtils.degToRad(pitchDegrees);
+    this.desiredPitch = this.pitch;
     this.minDistance = minDistance;
     this.maxDistance = maxDistance;
     this.distance = initialDistance;
@@ -125,14 +144,13 @@ export class CameraRig {
   }
 
   /**
-   * 从目标点沿水平方向 (dirX, dirZ)（单位向量）出发撞到墙的距离（slab 法）。
+   * 从目标点沿视线方向撞到内壁盒的距离（slab 法，三个轴一起算）。
    * 目标永远在屋内，所以每个轴向都取"正向离开"的那一侧。
-   *
-   * 只算水平：垂直方向由 applyImmediately 单独处理，见那里的注释。
    */
-  private distanceToWalls(
+  private distanceToBounds(
     origin: Vector3,
     dirX: number,
+    dirY: number,
     dirZ: number,
   ): number {
     const bounds = this.bounds;
@@ -141,6 +159,7 @@ export class CameraRig {
     let tMax = Infinity;
     const axes: Array<[number, number, number, number]> = [
       [dirX, origin.x, bounds.minX, bounds.maxX],
+      [dirY, origin.y, bounds.minY, bounds.maxY],
       [dirZ, origin.z, bounds.minZ, bounds.maxZ],
     ];
 
@@ -158,9 +177,29 @@ export class CameraRig {
     this.desiredTarget.set(x, 1.1, z);
   }
 
-  /** 环绕旋转，每次 45°。手动转过之后暂时不自动回中 */
+  /** 环绕旋转，每次 45°。手柄 / 调试用，键盘不再绑它 */
   rotateStep(direction: 1 | -1): void {
     this.desiredYaw += direction * 45;
+    this.manualHold = MANUAL_HOLD_SECONDS;
+  }
+
+  /**
+   * 鼠标拖拽转镜头（标准第三人称）。传的是**像素位移**，
+   * 灵敏度在这里换算成角度——调手感只改这一处常量。
+   *
+   * 上下拖动改俯仰角：这是从"固定俯角的动森镜头"升级成
+   * 真正的轨道相机，玩家能自己压低视角看窗外的庭院，
+   * 也能抬高俯瞰整栋房子的布局。
+   */
+  orbit(deltaXPixels: number, deltaYPixels: number): void {
+    this.desiredYaw -= deltaXPixels * DRAG_YAW_PER_PIXEL;
+    this.desiredPitch = MathUtils.degToRad(
+      MathUtils.clamp(
+        MathUtils.radToDeg(this.desiredPitch) + deltaYPixels * DRAG_PITCH_PER_PIXEL,
+        MIN_PITCH,
+        MAX_PITCH,
+      ),
+    );
     this.manualHold = MANUAL_HOLD_SECONDS;
   }
 
@@ -257,6 +296,7 @@ export class CameraRig {
     const smoothing = 1 - Math.exp(-8 * deltaSeconds);
 
     this.yaw += (this.desiredYaw - this.yaw) * smoothing;
+    this.pitch += (this.desiredPitch - this.pitch) * smoothing;
     this.distance += (this.desiredDistance - this.distance) * smoothing;
     this.target.lerp(this.desiredTarget, smoothing);
     this.applyImmediately();
@@ -292,29 +332,26 @@ export class CameraRig {
       PIVOT.z = MathUtils.clamp(PIVOT.z, bounds.minZ, bounds.maxZ);
     }
 
-    // 锁定屋内。水平和垂直**分开**处理，这是肩后视角能用的关键：
-    //
-    // 角色贴着墙站时，"背后"就在墙里。如果只会沿视线整体回缩，镜头会一路贴到
-    // 后脑勺上（实测就是这样）。所以撞墙时只压缩水平距离，把省下来的量还给
-    // 高度——镜头改为**从上方越过肩膀往下看**，构图还在，人也没被怼脸。
-    // 天花板同理只夹高度：夹了之后俯角自然变平，缩放行程不会被卡死。
-    const horizontal = Math.cos(this.pitch);
-    const dirHX = horizontal === 0 ? 0 : dirX / horizontal;
-    const dirHZ = horizontal === 0 ? 0 : dirZ / horizontal;
+    /**
+     * 锁定屋内：**保持玩家要的角度，缩短距离**（弹簧臂，主流第三人称的做法）。
+     *
+     * 早先的做法是"水平撞墙就把省下的量还给高度"——那是固定俯角时代的
+     * 妥协：镜头角度不归玩家管，改构图没人察觉。鼠标能自己调俯仰之后
+     * 这条就成了灾难：想压低视角看窗外，镜头却自作主张抬回去顶住天花板，
+     * 玩家设的角度永远守不住，手感就是"很别扭"。
+     *
+     * 现在改成沿视线整体回缩：角色贴墙时镜头自然贴近后脑勺，
+     * 这是所有第三人称游戏的既定语言，玩家一拖鼠标就知道该怎么办。
+     */
+    const limit = this.distanceToBounds(PIVOT, dirX, dirY, dirZ);
+    // 下限比 minDistance 更宽松：真到墙角就得贴脸，硬撑只会穿墙
+    const distance = Math.min(this.distance, Math.max(limit, MIN_WALL_DISTANCE));
 
-    const wallLimit = this.distanceToWalls(PIVOT, dirHX, dirHZ);
-    const wantH = this.distance * horizontal;
-    const h = Math.min(wantH, wallLimit);
-
-    // 水平被压掉多少，就往上抬多少（保持总视距），再受天花板约束
-    const wantV = this.distance * dirY;
-    const raisedV = Math.sqrt(
-      Math.max(this.distance * this.distance - h * h, wantV * wantV),
+    this.camera.position.set(
+      PIVOT.x + dirX * distance,
+      PIVOT.y + dirY * distance,
+      PIVOT.z + dirZ * distance,
     );
-    const maxV = bounds ? Math.max(bounds.maxY - PIVOT.y, 0.2) : raisedV;
-    const v = Math.min(raisedV, maxV);
-
-    this.camera.position.set(PIVOT.x + dirHX * h, PIVOT.y + v, PIVOT.z + dirHZ * h);
     this.camera.lookAt(PIVOT);
   }
 }

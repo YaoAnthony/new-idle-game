@@ -344,8 +344,7 @@ export class RoomScene {
       // 所以这里必须先把姿态改回站立，否则玩家会以为卡住了
       if ("wasd".includes(key) && isResting()) standUp("moved");
 
-      if (key === "q") this.rotate(-1);
-      if (key === "e") this.rotate(1);
+      // Q/E 转向已退役：镜头改成鼠标左键拖拽（标准第三人称）
       if (key === "r") this.placement.rotate();
       if (event.key === "Escape") this.placement.cancel();
       // 配错了的出口：倒掉锅里的东西，锅还在（还没有垃圾桶这件家具）
@@ -403,10 +402,60 @@ export class RoomScene {
       this.rig.zoom(event.deltaY * 0.01);
     };
 
-    const onPointerMove = (event: PointerEvent) =>
-      this.placement.onPointerMove(event);
+    /**
+     * 鼠标左键拖拽转镜头（标准第三人称）。
+     *
+     * 左键身兼两职：**短按是点击**（放置模式落座家具），
+     * **拖动是转镜头**。用位移阈值区分——按下后移动超过 4 像素
+     * 就判定成拖拽，这一次的抬起不再触发点击。
+     * 主流第三人称游戏都是这么处理"一个键两种意图"的。
+     *
+     * setPointerCapture 是为了拖出画布边缘也不丢事件——
+     * 少了它，甩镜头甩到窗口外面镜头就卡住不动了。
+     */
+    let dragPointerId: number | null = null;
+    let dragLastX = 0;
+    let dragLastY = 0;
+    let dragDistance = 0;
 
-    const onClick = () => this.placement.onClick();
+    const DRAG_THRESHOLD_PIXELS = 4;
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.button !== 0) return;
+      dragPointerId = event.pointerId;
+      dragLastX = event.clientX;
+      dragLastY = event.clientY;
+      dragDistance = 0;
+      canvas.setPointerCapture(event.pointerId);
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      if (dragPointerId === event.pointerId) {
+        const dx = event.clientX - dragLastX;
+        const dy = event.clientY - dragLastY;
+        dragLastX = event.clientX;
+        dragLastY = event.clientY;
+        dragDistance += Math.abs(dx) + Math.abs(dy);
+
+        if (dragDistance > DRAG_THRESHOLD_PIXELS) {
+          this.rig.orbit(dx, dy);
+          // 拖镜头时不喂放置预览，否则虚影会跟着乱跳
+          return;
+        }
+      }
+
+      this.placement.onPointerMove(event);
+    };
+
+    const onPointerUp = (event: PointerEvent) => {
+      if (dragPointerId !== event.pointerId) return;
+      if (canvas.hasPointerCapture(event.pointerId)) {
+        canvas.releasePointerCapture(event.pointerId);
+      }
+      // 拖过就不是点击了
+      if (dragDistance <= DRAG_THRESHOLD_PIXELS) this.placement.onClick();
+      dragPointerId = null;
+    };
 
     // 右键拿起家具（V0.2：右键举起）
     const onContextMenu = (event: MouseEvent) => {
@@ -436,16 +485,18 @@ export class RoomScene {
 
     window.addEventListener("keydown", onKeyDown);
     this.container.addEventListener("wheel", onWheel, { passive: false });
+    canvas.addEventListener("pointerdown", onPointerDown);
     canvas.addEventListener("pointermove", onPointerMove);
-    canvas.addEventListener("click", onClick);
+    canvas.addEventListener("pointerup", onPointerUp);
     canvas.addEventListener("contextmenu", onContextMenu);
 
     return () => {
       detachController();
       window.removeEventListener("keydown", onKeyDown);
       this.container.removeEventListener("wheel", onWheel);
+      canvas.removeEventListener("pointerdown", onPointerDown);
       canvas.removeEventListener("pointermove", onPointerMove);
-      canvas.removeEventListener("click", onClick);
+      canvas.removeEventListener("pointerup", onPointerUp);
       canvas.removeEventListener("contextmenu", onContextMenu);
     };
   }

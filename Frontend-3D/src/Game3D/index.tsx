@@ -433,7 +433,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
   return (
     <>
       <div ref={containerRef} className="absolute inset-0 overflow-hidden" />
-      <Hotbar onSelectFurniture={handleSelect} />
+      {/* 快捷栏只管选中；"使用"（吃 / 进布置模式）统一走 F，见 RoomScene */}
+      <Hotbar />
       <HeldItem />
       <InteractBubble scene={scene} />
       <InteractHint />

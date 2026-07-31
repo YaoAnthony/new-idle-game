@@ -5,7 +5,6 @@ import {
   furnitureDefinitions,
   type FurnitureDefinition,
 } from "core";
-import { setHeld } from "../State/heldItem";
 import { addItem, restoreInventory } from "../State/inventory";
 import {
   clearAllFurniture,
@@ -260,8 +259,8 @@ export function setupTestRoom(): TestRoomReport {
 
   // 先清空再发放：反复跑这条指令应该得到同一个房间，
   // 而不是每次都在原来的基础上再堆一份（跑三次就 3 口锅、88 根木头）
+  // 手上那份就在快捷栏里，restoreInventory([]) 已经把它一起清掉了
   restoreInventory([]);
-  setHeld(null);
   for (const [itemId, quantity] of TEST_INVENTORY) addItem(itemId, quantity);
 
   return { ...report, ...analyseWalkability() };

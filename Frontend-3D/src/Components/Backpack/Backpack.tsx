@@ -6,6 +6,8 @@ import {
   HOTBAR_SIZE,
   getBackpack,
   getHotbar,
+  getSelectedHotbarIndex,
+  moveStack,
   sortBackpack,
   type SlotRef,
 } from "../../Game/State/inventory";
@@ -249,6 +251,7 @@ export function Backpack({ onPlacement }: BackpackProps) {
               <ItemDetail
                 itemId={pickedStack?.itemId ?? null}
                 count={pickedStack?.count ?? 0}
+                slotRef={pickedStack ? picked : null}
                 onPlacement={onPlacement}
                 onUsed={() => setPicked(null)}
               />
@@ -306,11 +309,14 @@ export function Backpack({ onPlacement }: BackpackProps) {
 function ItemDetail({
   itemId,
   count,
+  slotRef,
   onPlacement,
   onUsed,
 }: {
   itemId: string | null;
   count: number;
+  /** 这件东西在哪一格。"拿到手上"要靠它做槽位移动 */
+  slotRef: SlotRef | null;
   onPlacement?: (itemId: string) => void;
   onUsed: () => void;
 }) {
@@ -378,7 +384,7 @@ function ItemDetail({
             {t("ui.backpack.place")}
           </button>
         )}
-        {!placeable && (
+        {!placeable && edible && (
           <button
             type="button"
             className="ui-pack-action px-3 py-1.5 text-[13px] font-bold"
@@ -387,7 +393,30 @@ function ItemDetail({
               onUsed();
             }}
           >
-            {edible ? t("ui.backpack.eat") : t("ui.backpack.take")}
+            {t("ui.backpack.eat")}
+          </button>
+        )}
+
+        {/*
+         * "拿到手上" = 挪进**选中的快捷栏格子**。
+         *
+         * 手上拿的就是选中那一格，所以这个动作是一次普通的槽位移动，
+         * 不再是"从背包扣掉、塞进一个叫手的地方"。
+         * 已经在快捷栏里的东西不显示这个按钮——它本来就够得着。
+         */}
+        {!placeable && slotRef?.container === "backpack" && (
+          <button
+            type="button"
+            className="ui-pack-action px-3 py-1.5 text-[13px] font-bold"
+            onClick={() => {
+              moveStack(slotRef, {
+                container: "hotbar",
+                index: getSelectedHotbarIndex(),
+              });
+              onUsed();
+            }}
+          >
+            {t("ui.backpack.take")}
           </button>
         )}
       </div>

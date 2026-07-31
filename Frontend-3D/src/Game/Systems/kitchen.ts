@@ -18,7 +18,12 @@ import {
   type HeldStack,
 } from "core";
 import { emit } from "../EventBus";
-import { getHeld, setHeld } from "../State/heldItem";
+import {
+  consumeHeld,
+  getHeld,
+  putHeld,
+  setHeldContainer,
+} from "../State/heldItem";
 import { addItem } from "../State/inventory";
 import { applyFoodEffect } from "../State/needs";
 import {
@@ -147,14 +152,17 @@ export function interactWithKitchenSlot(ref: KitchenSlotRef): boolean {
     case "place_in_slot": {
       if (!held) return false;
       setSlotContent(ref.instanceId, ref.slotId, held);
-      setHeld(null);
+      // 手上这一份放到槽位上了：选中格扣一个，不是把整格清空——
+      // 手里拿着 5 个番茄，下锅一个，另外 4 个不该跟着没
+      consumeHeld();
       return true;
     }
 
     case "pick_up_from_slot": {
       if (!ref.content) return false;
       setSlotContent(ref.instanceId, ref.slotId, null);
-      setHeld(ref.content);
+      // 锅进选中的那一格。空手才会解析出"拿起来"，所以这格是空的
+      putHeld(ref.content);
       return true;
     }
 
@@ -172,7 +180,7 @@ export function interactWithKitchenSlot(ref: KitchenSlotRef): boolean {
         container: next,
       });
       // 手上那一份**已经进锅了**，不能既在锅里又在手上（四选一约束）
-      setHeld(null);
+      consumeHeld();
 
       // 配错了不吞东西也不生成黑暗料理，只是停止加热并说一声
       if (!next.recipeId) toast("cooking.no_recipe");
@@ -209,7 +217,7 @@ export function interactWithKitchenSlot(ref: KitchenSlotRef): boolean {
         items: [...plate.items, ...ref.content.container.items],
         heatSeconds: 0,
       };
-      setHeld({ ...held, container: served });
+      setHeldContainer(served);
       // 盛出后锅恢复为空锅
       setSlotContent(ref.instanceId, ref.slotId, {
         ...ref.content,
@@ -368,13 +376,10 @@ export function eatFromHand(): string | null {
     )
     .filter((item) => item.quantity > 0);
 
-  setHeld({
-    ...held,
-    container: {
-      items,
-      recipeId: matchCookingRecipe(held.itemId, items)?.id,
-      heatSeconds: 0,
-    },
+  setHeldContainer({
+    items,
+    recipeId: matchCookingRecipe(held.itemId, items)?.id,
+    heatSeconds: 0,
   });
 
   return portion.itemId;
@@ -389,7 +394,7 @@ export function storeHeldContents(): boolean {
     addItem(item.itemId, item.quantity, item.quality);
   }
 
-  setHeld({ ...held, container: emptyContainer() });
+  setHeldContainer(emptyContainer());
   return true;
 }
 

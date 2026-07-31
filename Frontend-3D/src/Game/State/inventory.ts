@@ -2,6 +2,7 @@ import {
   ItemCategory,
   ItemQuality,
   Rarity,
+  type ContainerContents,
   findItemDefinition,
   isExpired,
   itemCategoryOrder,
@@ -36,15 +37,58 @@ export type SlotStack = {
    * 就永远合不到一起，背包会被碎片塞满。
    */
   expiresAtUtc?: string;
+  /**
+   * 容器内容（锅里装着什么、煮到几分）。
+   *
+   * **格子本身装得下容器**，所以端着的锅不需要离开快捷栏。
+   * 原来这一块只存在于"手上"那个独立变量里，格子存不下，于是
+   * 拿起锅就得把它从格子里删掉——这正是"东西一拿在手里就消失"的根因。
+   *
+   * 形状直接对上 Core 的 ItemStackState.container，存档不用另造结构。
+   */
+  container?: ContainerContents;
 } | null;
 
-/** 两堆东西能不能合并。同物、同品质、同保质期才算一类 */
+/**
+ * 稳定序列化：对象按键名排序后再展开，所以**字段的书写顺序不影响结果**。
+ *
+ * 直接 JSON.stringify 不行——它按插入顺序输出，两个内容相同但构造顺序
+ * 不同的容器会得到不同的字符串，于是本该合堆的两份被判成不同。
+ */
+function stableKey(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableKey).join(",")}]`;
+
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, v]) => v !== undefined)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${JSON.stringify(k)}:${stableKey(v)}`);
+  return `{${entries.join(",")}}`;
+}
+
+/**
+ * 两堆东西能不能合并：**同一件物品、且实例状态完全一样**。
+ *
+ * 规则是通用的，不列举字段——**一件东西身上带的状态就是它的身份**。
+ * 锅尤其明显：它其实是个状态机（空锅 / 装着 A 菜 / 装着 B 菜 / 煮到几分），
+ * 每个状态都是不同的东西，凭什么合到一格里去？
+ *
+ * 这样写的好处是加字段零改动：以后给斧头加耐久、给装备加词条，
+ * 磨损不同的两把斧头自动不合堆，不需要有人记得回来改这里。
+ * 之前那版是手写一张"哪些字段要比"的清单——清单和数据结构迟早走散，
+ * 而走散的后果是**静默吞数据**（两把磨损不同的斧头合成一把，还不报错）。
+ * Core 的 ItemStackState 里 durability / customDataId 已经躺着了，
+ * 哪天启用就会踩到。
+ *
+ * 反过来"同一天做的两盘同样的菜要能合堆"也仍然成立：保质期特意
+ * 对齐到世界日末尾（见 SlotStack.expiresAtUtc），所以它们的状态真的相等。
+ */
 function sameKind(a: NonNullable<SlotStack>, b: NonNullable<SlotStack>): boolean {
-  return (
-    a.itemId === b.itemId &&
-    a.quality === b.quality &&
-    a.expiresAtUtc === b.expiresAtUtc
-  );
+  if (a.itemId !== b.itemId) return false;
+
+  const { itemId: _ai, count: _ac, ...stateA } = a;
+  const { itemId: _bi, count: _bc, ...stateB } = b;
+  return stableKey(stateA) === stableKey(stateB);
 }
 
 export const HOTBAR_SIZE = 8;
@@ -56,6 +100,18 @@ export type SlotRef = { container: SlotContainer; index: number };
 let hotbar: SlotStack[] = Array.from({ length: HOTBAR_SIZE }, () => null);
 let backpack: SlotStack[] = Array.from({ length: BACKPACK_SIZE }, () => null);
 
+/**
+ * 选中的快捷栏格子 = **手上拿着的那一格**。
+ *
+ * 这是本作里"手上"的全部定义，没有另一个存放地。切换快捷栏只改这个
+ * 下标，东西一步都不动——所以不会从格子里消失、不会被放回到别的格子、
+ * 存档也不用多存一份。Minecraft / 泰拉瑞亚 / 星露谷都是这个模型。
+ *
+ * 放在这里而不是 Hotbar 组件的 useState 里：它是**游戏状态**，
+ * 厨房交互、角色动画、手持物渲染都要读，不是某个组件的局部显示状态。
+ */
+let selectedHotbarIndex = 0;
+
 function slots(container: SlotContainer): SlotStack[] {
   return container === "hotbar" ? hotbar : backpack;
 }
@@ -66,6 +122,69 @@ export function getHotbar(): SlotStack[] {
 
 export function getBackpack(): SlotStack[] {
   return backpack.map((stack) => (stack ? { ...stack } : null));
+}
+
+// ---- 选中格（= 手上） ----
+
+export function getSelectedHotbarIndex(): number {
+  return selectedHotbarIndex;
+}
+
+/** 换一格。**只改下标**，一件东西都不搬 */
+export function selectHotbarSlot(index: number): void {
+  if (index < 0 || index >= HOTBAR_SIZE) return;
+  if (index === selectedHotbarIndex) return;
+
+  selectedHotbarIndex = index;
+  emit("held_changed", {});
+}
+
+export function getSelectedStack(): SlotStack {
+  const stack = hotbar[selectedHotbarIndex];
+  return stack ? { ...stack } : null;
+}
+
+/**
+ * 放进第一个空位（快捷栏优先，和 addItem 一致）。
+ * 读旧存档时补救用——那时候要连容器一起塞回去，addItem 带不了容器。
+ */
+export function placeInFirstFreeSlot(stack: NonNullable<SlotStack>): boolean {
+  for (const list of [hotbar, backpack]) {
+    for (let i = 0; i < list.length; i += 1) {
+      if (list[i]) continue;
+      list[i] = { ...stack };
+      emit("inventory_changed", { reason: "restore" });
+      return true;
+    }
+  }
+  return false;
+}
+
+/** 直接改写选中格。厨房交互用（把锅端起来、把锅放下） */
+export function setSelectedStack(next: SlotStack): void {
+  hotbar[selectedHotbarIndex] = next;
+  emit("inventory_changed", { reason: "selected" });
+  emit("held_changed", {});
+}
+
+/**
+ * 选中格扣掉一个。
+ *
+ * "手上这一份被用掉了"要走这条，不能直接把整格清空——
+ * 手里拿着 5 个番茄下锅一个，另外 4 个不该跟着消失。
+ */
+export function consumeSelectedOne(): void {
+  const stack = hotbar[selectedHotbarIndex];
+  if (!stack) return;
+
+  if (stack.count > 1) {
+    hotbar[selectedHotbarIndex] = { ...stack, count: stack.count - 1 };
+  } else {
+    hotbar[selectedHotbarIndex] = null;
+  }
+
+  emit("inventory_changed", { reason: "consumed" });
+  emit("held_changed", {});
 }
 
 function stackLimit(itemId: string): number {
@@ -310,8 +429,13 @@ export function snapshotInventory(): InventoryStack[] {
         itemId: stack.itemId,
         quantity: stack.count,
         state:
-          stack.quality || stack.expiresAtUtc
-            ? { quality: stack.quality, expiresAtUtc: stack.expiresAtUtc }
+          stack.quality || stack.expiresAtUtc || stack.container
+            ? {
+                quality: stack.quality,
+                expiresAtUtc: stack.expiresAtUtc,
+                // 锅里煮着的东西跟着格子一起进存档
+                container: stack.container,
+              }
             : undefined,
       });
     });
@@ -338,6 +462,7 @@ export function restoreInventory(stacks: InventoryStack[]): void {
       count: stack.quantity,
       quality: stack.state?.quality,
       expiresAtUtc: stack.state?.expiresAtUtc,
+      container: stack.state?.container,
     };
   }
 

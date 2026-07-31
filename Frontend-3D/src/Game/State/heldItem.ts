@@ -1,123 +1,156 @@
 import {
   emptyContainer,
   findItemDefinition,
+  type ContainerContents,
   type HeldStack,
   type InventoryStack,
 } from "core";
 import { emit } from "../EventBus";
-import { addItem, getCount, removeItem } from "./inventory";
+import {
+  addItem,
+  consumeSelectedOne,
+  getSelectedStack,
+  placeInFirstFreeSlot,
+  setSelectedStack,
+} from "./inventory";
 
 /**
- * 手持物：厨房系统要求的第四个"东西能在的地方"。
+ * 手持物 = **选中的那个快捷栏格子**，不是另一个存放地。
  *
- * 文档第三节的四选一约束：每一份食材任何时刻只在
- * 玩家手中 / 设施槽位 / 容器内部 / 已销毁 之一。
- * 背包和槽位早就有了，手上这一格是新开的。
+ * 原来这里有个模块级的 `held` 变量，拿起东西时把它从背包里 removeItem、
+ * 塞进 `held`。那样"手上"就成了快捷栏之外的第五个地方，代价是：
  *
- * 为什么锅的内容物挂在这里而不是背包里：背包的 stack 只有 (itemId, count)，
- * 两口锅会合堆，其中一口锅里的东西就凭空消失了。所以**带内容的容器不进背包**，
- * 只能端在手上或者放在槽位上——这也正好对应"端着锅走"这个动作。
+ * - 数量为 1 的东西一拿起来就从格子里消失（玩家眼里就是"没了"）
+ * - 换手要把旧的搬回去，走 addItem 落在**第一个空位**而不是原来那格，
+ *   摆好的快捷栏会被自己洗牌
+ * - 槽位和手上是两套形状（前者没有 container、后者没有 expiresAtUtc），
+ *   来回转换会丢信息——拿起再放下，保质期被按当天重算，等于白续命
+ * - 存档多一份 heldItem，恢复还有顺序依赖
+ *
+ * 当初造这个地方的理由是"两口锅放一格会合堆，锅里的东西就没了"。约束是
+ * 真的，但结论错了：该做的是**让格子装得下容器**（SlotStack.container），
+ * 而不是在快捷栏外面另开一处。Minecraft / 泰拉瑞亚 / 星露谷都是
+ * "手上拿的就是选中的格子"——切换只改一个下标，东西一步都不动。
+ *
+ * 现在这个文件只剩一层薄适配：把选中格翻译成 Core 的 HeldStack
+ * （厨房规则表吃这个形状），以及几个"对手上那份做点什么"的写入口。
  */
 
-let held: HeldStack | null = null;
-
 export function getHeld(): HeldStack | null {
-  return held ? { ...held } : null;
+  const stack = getSelectedStack();
+  if (!stack) return null;
+
+  /**
+   * **厨具/盛器一定带一块容器，哪怕是空的。**
+   *
+   * Core 的 resolveKitchenInteraction 用"手上那件有没有 container"
+   * 来区分**拿着食材**（可以投进锅）还是**拿着容器**（不能塞进另一口锅）。
+   * 老模型里 takeIntoHand 会在拿起时补上这一块，所以这条规则一直成立；
+   * 新模型里锅是经 addItem 直接进格子的，身上没有容器——不补的话，
+   * 拿着锅对着锅按 F 会被判成"投料"，锅能塞进锅里。
+   *
+   * 补在这里而不是入格时：东西进格子的路子有五六条（addItem / moveStack /
+   * restoreInventory / 整理…），逐个补必漏；而这里是**唯一**把格子翻译成
+   * Core 那套 HeldStack 的地方，堵一处就够。
+   */
+  const definition = findItemDefinition(stack.itemId);
+  const needsContainer = Boolean(
+    definition?.cookware || definition?.servingWare,
+  );
+
+  return {
+    itemId: stack.itemId,
+    quality: stack.quality,
+    container: stack.container ?? (needsContainer ? emptyContainer() : undefined),
+  };
 }
 
 export function isHandFree(): boolean {
-  return held === null;
+  return getSelectedStack() === null;
 }
 
-/** 直接改写手上的东西（厨房交互内部用，外部走 takeIntoHand/returnToBackpack） */
-export function setHeld(next: HeldStack | null): void {
-  held = next;
-  emit("held_changed", {});
-}
+/**
+ * 把一件东西放进选中格（从灶眼把锅端起来）。
+ * 格子得是空的——调用方（Core 的 resolveKitchenInteraction）只在空手时
+ * 才会解析出"拿起来"，所以这里只做兜底。
+ */
+export function putHeld(stack: HeldStack): boolean {
+  if (getSelectedStack()) return false;
 
-/** 从背包拿一件到手上。手上已经有东西就拿不了 */
-export function takeIntoHand(itemId: string): boolean {
-  if (held) return false;
-  if (getCount(itemId) <= 0) return false;
-  if (!removeItem(itemId, 1)) return false;
-
-  const definition = findItemDefinition(itemId);
-  held = {
-    itemId,
+  const definition = findItemDefinition(stack.itemId);
+  setSelectedStack({
+    itemId: stack.itemId,
+    count: 1,
+    quality: stack.quality,
     // 容器一到手上就带一个空内容块，之后投料直接往里加，不用到处判空
     container:
-      definition?.cookware || definition?.servingWare
+      stack.container ??
+      (definition?.cookware || definition?.servingWare
         ? emptyContainer()
-        : undefined,
-  };
-  emit("held_changed", {});
+        : undefined),
+  });
   return true;
 }
 
-export type SwapResult = "ok" | "hand_busy" | "missing";
+/** 手上这一份被用掉了（下锅、放到槽位上）。整格只有一个才清空 */
+export function consumeHeld(): void {
+  consumeSelectedOne();
+}
 
-/**
- * 快捷栏选中一格：把手上的东西换成这件。
- *
- * **原来是"手上有东西就什么都不做"**（takeIntoHand 直接 return false），
- * 于是端起一口锅之后就卡死了：按别的格子没反应、锅也不在背包里
- * （拿到手上时已经从背包扣掉了），想换个食材下锅根本换不了。
- * 快捷栏本来就是"换手上拿什么"的东西，不能只在空手时才work。
- *
- * 一条例外：**端着有内容的容器不给换**。放回背包会按 itemId 合堆，
- * 锅里那份菜就凭空没了（见本文件顶部四选一的注释）。
- * 这时候得先起锅或装盘，调用方要把原因说出来。
- *
- * 想空出手来选快捷栏里的空格就行（"选中空格 = 空手"），见 Hotbar。
- */
-export function swapIntoHand(itemId: string): SwapResult {
-  if (held) {
-    if (held.container && held.container.items.length > 0) return "hand_busy";
-    if (returnToBackpack() !== "ok") return "hand_busy";
-  }
+/** 只改选中格里那件东西的容器内容（投料、起锅、装盘） */
+export function setHeldContainer(container: ContainerContents): void {
+  const stack = getSelectedStack();
+  if (!stack) return;
 
-  return takeIntoHand(itemId) ? "ok" : "missing";
+  setSelectedStack({ ...stack, container });
 }
 
 export type ReturnResult = "ok" | "not_empty" | "empty_hand";
 
-/** 放回背包。容器里还有东西时拒绝——进了背包就会合堆，内容会丢 */
+/**
+ * 把选中格里那件东西挪回背包。
+ *
+ * 严格说现在它已经"在快捷栏里"了，不需要再放回哪儿——留着这个操作
+ * 是因为玩家可能想腾空这一格。容器里还有东西就拒绝：进背包会按 itemId
+ * 找位置，虽然 sameKind 挡住了合堆，但把一口热锅塞进背包深处也不是
+ * 玩家想要的，先让他起锅。
+ */
 export function returnToBackpack(): ReturnResult {
-  if (!held) return "empty_hand";
-  if (held.container && held.container.items.length > 0) return "not_empty";
+  const stack = getSelectedStack();
+  if (!stack) return "empty_hand";
+  if (stack.container && stack.container.items.length > 0) return "not_empty";
 
-  addItem(held.itemId, 1);
-  held = null;
-  emit("held_changed", {});
+  setSelectedStack(null);
+  addItem(stack.itemId, stack.count, stack.quality);
   return "ok";
 }
 
-// ---- 存档 ----
+// ---- 存档兼容 ----
 //
-// 手上端着锅时存盘、读档后锅还在手上，否则读档会凭空吞掉一口锅。
-// 形状借用 InventoryStack（它的 state.container 正好装得下锅里的东西），
-// 不另造一套 Frontend 专用结构。
+// 手上那份现在就在快捷栏里，跟着 snapshotInventory 一起进存档，
+// 不再单独存一份。旧存档里的 heldItem 还得认，否则读老档会凭空吞掉一口锅。
 
+/** 已废弃：手上那份现在由快捷栏承载。保留字段是为了不破坏存档结构 */
 export function snapshotHeld(): InventoryStack | null {
-  if (!held) return null;
-
-  return {
-    stackId: "hand",
-    itemId: held.itemId,
-    quantity: 1,
-    state: { quality: held.quality, container: held.container },
-  };
+  return null;
 }
 
+/**
+ * 旧存档里单独存着的手持物：塞回背包，别丢。
+ *
+ * 不往快捷栏塞是刻意的——老档的快捷栏布局是玩家摆的，
+ * 读档时凭空占掉一格更让人困惑；进背包最多是"多了一件东西要归位"。
+ */
 export function restoreHeld(saved: InventoryStack | null | undefined): void {
-  held =
-    saved && findItemDefinition(saved.itemId)
-      ? {
-          itemId: saved.itemId,
-          quality: saved.state?.quality,
-          container: saved.state?.container,
-        }
-      : null;
+  if (!saved || !findItemDefinition(saved.itemId)) return;
 
+  // 连容器一起塞回去。走 addItem 的话锅里煮着的东西会在读档时消失
+  placeInFirstFreeSlot({
+    itemId: saved.itemId,
+    count: saved.quantity || 1,
+    quality: saved.state?.quality,
+    expiresAtUtc: saved.state?.expiresAtUtc,
+    container: saved.state?.container,
+  });
   emit("held_changed", {});
 }

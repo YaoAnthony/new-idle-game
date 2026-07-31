@@ -416,6 +416,10 @@ const ZH: Record<string, string> = {
   "cooking.band.overcooked": "焦了",
 
   // 厨房交互提示
+  // 槽位状态：空手站在灶眼前时报状态而不是"按 F 做饭"——
+  // 按了什么也不会发生，那句提示是假的
+  "cooking.status.empty_burner": "空着的灶眼",
+  "cooking.status.has_cookware": "灶眼上架着锅",
   "cooking.hint.place": "放上灶眼",
   "cooking.hint.pick_up": "端起来",
   "cooking.hint.add": "投进锅里",

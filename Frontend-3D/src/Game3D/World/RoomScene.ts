@@ -951,25 +951,52 @@ export class RoomScene {
   } | null {
     if (!this.hintTarget) return null;
 
-    this.projectScratch.copy(this.hintTarget.world).project(this.rig.camera);
+    /**
+     * 厨具的气泡挂到**最近的那个槽位**，不是家具中心。
+     *
+     * L 形橱柜占 6×4，气泡挂中心就浮在凹口上方——三个灶眼共用一个
+     * 飘在半空的提示，玩家看不出说的是哪一个。挂到槽位上之后，
+     * 你站在哪个灶眼前，气泡就在那个灶眼上，"是哪一个"不言自明。
+     */
+    const kitchenSlot = this.nearestKitchenSlot(this.hintTarget.instanceId);
+    const slotWorld = kitchenSlot ? this.kitchenSlotWorld(kitchenSlot) : null;
+
+    if (slotWorld) {
+      this.projectScratch.set(slotWorld.x, slotWorld.y + 0.45, slotWorld.z);
+    } else {
+      this.projectScratch.copy(this.hintTarget.world);
+    }
+    this.projectScratch.project(this.rig.camera);
 
     // 投影到相机背后时 z > 1，此时不显示
     if (this.projectScratch.z > 1) return null;
 
     // 厨具的提示随手上端着什么实时变（"放上灶眼" / "投进锅里" / "起锅"），
     // 所以这里每帧问一次规则表，而不是用家具那句写死的静态提示
-    const kitchenSlot = this.nearestKitchenSlot(this.hintTarget.instanceId);
     const kitchenHint = kitchenSlot ? describeKitchenSlot(kitchenSlot) : null;
 
     // 坐 / 躺同理：同一件家具在"站着"和"坐着"时该说的话不一样
     const restingHint = this.describeRestingHint(this.hintTarget.instanceId);
 
+    /**
+     * 没有可执行动作时显示**槽位状态**而不是家具那句"做饭"。
+     * 空手站在空灶眼前，"按 F 做饭"是句假话——按了什么也不会发生。
+     * 改成报状态（"空灶眼" / 锅里装着什么），并且不显示按键标签。
+     */
+    const slotStatus =
+      kitchenSlot && !kitchenHint
+        ? kitchenSlot.content
+          ? "cooking.status.has_cookware"
+          : "cooking.status.empty_burner"
+        : null;
+
     const rect = this.container.getBoundingClientRect();
     return {
       instanceId: this.hintTarget.instanceId,
       localizationKey:
-        kitchenHint ?? restingHint ?? this.hintTarget.hint.localizationKey,
-      action: this.hintTarget.hint.action,
+        kitchenHint ?? restingHint ?? slotStatus ?? this.hintTarget.hint.localizationKey,
+      // 没有可执行动作就别显示按键——按了不会发生任何事
+      action: slotStatus ? undefined : this.hintTarget.hint.action,
       x: rect.left + ((this.projectScratch.x + 1) / 2) * rect.width,
       y: rect.top + ((1 - this.projectScratch.y) / 2) * rect.height,
     };

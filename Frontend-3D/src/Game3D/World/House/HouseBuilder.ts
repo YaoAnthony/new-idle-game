@@ -1,14 +1,16 @@
 import {
+  HouseZoneKind,
   WallOpeningKind,
+  zoneAt,
   type InteriorWall,
   type RoomSave,
   type WallOpening,
   type WallSave,
 } from "core";
 import { Object3D } from "three";
-import { PALETTE, jitterShade } from "../Visual/palette.js";
-import { box } from "../Visual/primitives.js";
-import { createQuadMesh, type Quad } from "./quadMesh.js";
+import { PALETTE, jitterShade } from "../../Visual/palette.js";
+import { box } from "../../Visual/primitives.js";
+import { createQuadMesh, type Quad } from "../quadMesh.js";
 
 /**
  * 把 Core 的 RoomSave（纯数据）变成网格体。
@@ -24,7 +26,7 @@ import { createQuadMesh, type Quad } from "./quadMesh.js";
  * 墙和天花板都投影——真室内光靠它们挡出"光只从窗洞进来"。
  */
 
-export type BuiltRoom = {
+export type BuiltHouse = {
   root: Object3D;
   floor: Object3D;
   ceiling: Object3D;
@@ -127,15 +129,35 @@ function wallLayout(
   }
 }
 
-function buildFloor(width: number, depth: number): Object3D {
+/**
+ * 地板按分区换材质：玄关是土间的青灰瓦（大块、抖动小），
+ * 洗手间是冷调瓷砖（1×1 棋盘格），其余全屋木地板。
+ * 分区查询走 Core 的 zoneAt——地板、相机、音景对"这是哪个房间"
+ * 永远只有一份答案。
+ */
+function buildFloor(room: RoomSave): Object3D {
+  const width = room.floorGrid.width;
+  const depth = room.floorGrid.height;
   const halfW = width / 2;
   const halfD = depth / 2;
   const quads: Quad[] = [];
 
   for (let y = 0; y < depth; y += 1) {
     for (let x = 0; x < width; x += 1) {
-      // 每两列换一次基色，形成长条木板的感觉
-      const base = x % 4 < 2 ? PALETTE.floorWood : PALETTE.floorWoodAlt;
+      const kind = zoneAt(room, { x, y })?.kind;
+
+      let base: string;
+      let jitter = 0.03;
+      if (kind === HouseZoneKind.Genkan) {
+        base = (x + y) % 2 === 0 ? PALETTE.genkanTile : PALETTE.genkanTileAlt;
+        jitter = 0.015;
+      } else if (kind === HouseZoneKind.Bath) {
+        base = (x + y) % 2 === 0 ? PALETTE.bathTile : PALETTE.bathTileAlt;
+        jitter = 0.012;
+      } else {
+        // 每两列换一次基色，形成长条木板的感觉
+        base = x % 4 < 2 ? PALETTE.floorWood : PALETTE.floorWoodAlt;
+      }
 
       quads.push({
         corners: [
@@ -145,12 +167,49 @@ function buildFloor(width: number, depth: number): Object3D {
           [x - halfW + 1, 0, y - halfD],
         ],
         normal: [0, 1, 0],
-        color: jitterShade(base, x, y, 0.03),
+        color: jitterShade(base, x, y, jitter),
       });
     }
   }
 
   return createQuadMesh(quads, "floor");
+}
+
+/**
+ * 上がり框：玄关土间与室内地板交界处的一步木沿。
+ * 不做真实高差（角色控制器没有地形高度，凹下去脚会悬空），
+ * 用一条 7 厘米的木框压住材质分界线，秩序感就出来了。
+ */
+function buildGenkanStep(room: RoomSave): Object3D | null {
+  const genkan = room.zones?.find((zone) => zone.kind === HouseZoneKind.Genkan);
+  if (!genkan) return null;
+
+  const halfW = room.floorGrid.width / 2;
+  const halfD = room.floorGrid.height / 2;
+  const step = new Object3D();
+  step.name = "genkan-step";
+
+  const eastX = genkan.rect.x + genkan.rect.width - halfW;
+  const southZ = genkan.rect.y + genkan.rect.height - halfD;
+  const westX = genkan.rect.x - halfW;
+  const northZ = genkan.rect.y - halfD;
+
+  // 东沿（土间→客厅）
+  step.add(
+    box([0.16, 0.07, genkan.rect.height], {
+      color: PALETTE.woodMid,
+      position: [eastX, 0.035, (northZ + southZ) / 2],
+    }),
+  );
+  // 南沿（土间→客厅），避开和东沿的重叠角
+  step.add(
+    box([genkan.rect.width - 0.16, 0.07, 0.16], {
+      color: PALETTE.woodMid,
+      position: [(westX + eastX) / 2 - 0.08, 0.035, southZ],
+    }),
+  );
+
+  return step;
 }
 
 /**
@@ -427,12 +486,41 @@ function buildInteriorWalls(room: RoomSave, wallHeight: number): Object3D {
     });
     body.receiveShadow = true;
 
+    // 内墙也要有踢脚和长押（两面都要）：外墙的木构架语言
+    // 不延续到隔断上，隔断就是一块突兀的白板
+    const trims = new Object3D();
+    const NAGESHI_Y = 3.1;
+    for (const side of [-1, 1]) {
+      if (wall.axis === "x") {
+        trims.add(box([w - 0.02, 0.12, 0.06], {
+          color: PALETTE.wallTrim,
+          position: [centerX, 0.06, centerZ + side * 0.52],
+        }));
+        trims.add(box([w - 0.02, 0.14, 0.06], {
+          color: PALETTE.wallTrim,
+          position: [centerX, NAGESHI_Y, centerZ + side * 0.52],
+        }));
+      } else {
+        trims.add(box([0.06, 0.12, d - 0.02], {
+          color: PALETTE.wallTrim,
+          position: [centerX + side * 0.52, 0.06, centerZ],
+        }));
+        trims.add(box([0.06, 0.14, d - 0.02], {
+          color: PALETTE.wallTrim,
+          position: [centerX + side * 0.52, NAGESHI_Y, centerZ],
+        }));
+      }
+    }
+
     if (wall.axis === "x") {
-      groupForRow(wall.from.y).add(body);
+      const group = groupForRow(wall.from.y);
+      group.add(body);
+      group.add(trims);
     } else {
       const group = new Object3D();
       group.name = `partition-col-${wall.from.x}`;
       group.add(body);
+      group.add(trims);
       container.add(group);
     }
   }
@@ -489,7 +577,7 @@ function buildInteriorWalls(room: RoomSave, wallHeight: number): Object3D {
   return container;
 }
 
-export function buildRoom(room: RoomSave): BuiltRoom {
+export function buildHouse(room: RoomSave): BuiltHouse {
   const width = room.floorGrid.width;
   const depth = room.floorGrid.height;
   const wallHeight = Math.max(
@@ -500,13 +588,15 @@ export function buildRoom(room: RoomSave): BuiltRoom {
   const root = new Object3D();
   root.name = `room-${room.roomId}`;
 
-  const floor = buildFloor(width, depth);
+  const floor = buildFloor(room);
   root.add(floor);
 
   const ceiling = buildCeiling(width, depth, wallHeight);
   root.add(ceiling);
 
   root.add(buildTimberFrame(room, wallHeight));
+  const genkanStep = buildGenkanStep(room);
+  if (genkanStep) root.add(genkanStep);
 
   const interiorWalls = buildInteriorWalls(room, wallHeight);
   root.add(interiorWalls);

@@ -10,7 +10,7 @@ import {
   gridToWorld,
   wallCellToWorld,
   wallInwardNormal,
-} from "./RoomBuilder.js";
+} from "./House/index.js";
 
 /** 墙饰离开墙面一点点，避免背面与墙面共面闪烁 */
 export const WALL_MOUNT_OFFSET = 0.012;

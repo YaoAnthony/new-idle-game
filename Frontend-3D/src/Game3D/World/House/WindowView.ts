@@ -10,9 +10,9 @@ import {
   Points,
   PointsMaterial,
 } from "three";
-import { PALETTE } from "../Visual/palette.js";
-import { box } from "../Visual/primitives.js";
-import type { WindowAnchor } from "./RoomBuilder.js";
+import { PALETTE } from "../../Visual/palette.js";
+import { box } from "../../Visual/primitives.js";
+import type { WindowAnchor } from "./HouseBuilder.js";
 
 /**
  * 窗户本体（2026-07-30 大瘦身）。

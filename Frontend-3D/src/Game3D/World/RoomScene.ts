@@ -94,10 +94,8 @@ import {
   FurnitureView,
   slotWorldPosition,
 } from "./FurnitureView.js";
-import { buildRoom, type BuiltRoom } from "./RoomBuilder.js";
-import { DoorView } from "./DoorView.js";
+import { DoorView, WindowView, buildHouse, type BuiltHouse } from "./House/index.js";
 import { OutdoorScene } from "./OutdoorScene.js";
-import { WindowView } from "./WindowView.js";
 
 export type SceneDebugState = {
   phase: DayPhaseId;
@@ -114,7 +112,7 @@ export class RoomScene {
 
   private readonly renderer: RendererHandle;
   private readonly lighting: Lighting;
-  private readonly built: BuiltRoom;
+  private readonly built: BuiltHouse;
   private readonly windowViews: WindowView[] = [];
   private readonly outdoor: OutdoorScene;
   private readonly doorViews: DoorView[] = [];
@@ -171,7 +169,7 @@ export class RoomScene {
     if (options.seedFurniture !== false) seedInitialFurniture();
 
     const { room } = getWorld();
-    this.built = buildRoom(room);
+    this.built = buildHouse(room);
     this.scene.add(this.built.root);
 
     // 门板：没有它门洞会直接透出背景色

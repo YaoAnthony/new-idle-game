@@ -1,7 +1,7 @@
 import { Object3D } from "three";
-import { PALETTE } from "../Visual/palette.js";
-import { box, cylinder, group } from "../Visual/primitives.js";
-import type { WindowAnchor } from "./RoomBuilder.js";
+import { PALETTE } from "../../Visual/palette.js";
+import { box, cylinder, group } from "../../Visual/primitives.js";
+import type { WindowAnchor } from "./HouseBuilder.js";
 
 /**
  * 门。没有门板时，门洞会直接透出场景背景色，看起来像墙破了个方洞。

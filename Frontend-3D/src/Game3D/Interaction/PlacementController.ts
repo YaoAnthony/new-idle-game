@@ -23,7 +23,7 @@ import {
 } from "../../Game/Systems/placement";
 import { buildVisual } from "../Visual/VisualRegistry.js";
 import { FACING_ROTATION, placeOnWall } from "../World/FurnitureView.js";
-import { worldToWallCell } from "../World/RoomBuilder.js";
+import { worldToWallCell } from "../World/House/index.js";
 
 /**
  * 布置模式：从背包选家具物品后出现虚影，跟随鼠标吸附网格，

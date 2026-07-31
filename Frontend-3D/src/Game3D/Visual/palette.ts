@@ -93,6 +93,14 @@ export const PALETTE = {
   sandPale: "#dcc79a",
   fishOrange: "#e08a4e",
 
+  // ---- 分区地板（2LDK）。玄关是土间的青灰瓦——踩进屋第一脚
+  //      和木地板拉开材质差，"进了门再上一步台阶"的日式秩序感靠它；
+  //      洗手间是冷调瓷砖，全屋唯一的冷色地面 ----
+  genkanTile: "#9a9184",
+  genkanTileAlt: "#8f8679",
+  bathTile: "#cfd9d5",
+  bathTileAlt: "#c3cfca",
+
   // ---- 天花板（镜头锁进屋内后可见）。跟着墙一起提亮，
   //      深色只留给横梁——梁在浅顶上才勾得出屋子的结构感 ----
   ceilingWood: "#d9c8a8",

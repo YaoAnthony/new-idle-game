@@ -101,7 +101,7 @@ export function setActorFootprint(x: number, z: number, radius: number): void {
 /**
  * 放置目标。地面按 (格子, 朝向) 定位；墙面按 (墙, 墙格) 定位——
  * 墙饰的朝向由 wallId 唯一决定，存档里的 facing 固定为 North
- * （见 Game3D/World/RoomBuilder 的"墙面坐标系"注释）。
+ * （见 Game3D/World/House/HouseBuilder 的"墙面坐标系"注释）。
  */
 export type PlacementTarget =
   | { kind: PlacementSurface.Floor; gridPosition: GridPosition; facing: Facing }

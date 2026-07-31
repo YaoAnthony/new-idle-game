@@ -19,15 +19,30 @@ import { t } from "../../i18n/t";
  * 单个格子、指针式拖拽（跨快捷栏/背包）、悬浮介绍。
  */
 
-export function ItemIcon({ itemId, size = 44 }: { itemId: string; size?: number }) {
+/**
+ * `fluid` = 尺寸交给格子撑（占父容器的百分比），不写死像素。
+ * 自适应布局下格子本身会随屏幕变大变小，图标必须跟着走。
+ */
+export function ItemIcon({
+  itemId,
+  size = 44,
+  fluid = false,
+}: {
+  itemId: string;
+  size?: number;
+  fluid?: boolean;
+}) {
   const [broken, setBroken] = useState(false);
   const item = findItemDefinition(itemId);
+  const sizing = fluid ? undefined : { width: size, height: size };
 
   if (broken || !item) {
     return (
       <span
-        className="grid place-items-center text-center text-[11px] leading-tight text-[#4a3020]"
-        style={{ width: size, height: size }}
+        className={`grid place-items-center text-center leading-tight text-[#4a3020] ${
+          fluid ? "h-[74%] w-[74%] text-[clamp(9px,1.4vw,12px)]" : "text-[11px]"
+        }`}
+        style={sizing}
       >
         {item ? t(item.localizationKey) : itemId}
       </span>
@@ -39,8 +54,10 @@ export function ItemIcon({ itemId, size = 44 }: { itemId: string; size?: number 
       src={`/icons/${itemId}.png`}
       alt={t(item.localizationKey)}
       draggable={false}
-      className="pointer-events-none select-none object-contain"
-      style={{ width: size, height: size }}
+      className={`pointer-events-none select-none object-contain ${
+        fluid ? "h-[74%] w-[74%]" : ""
+      }`}
+      style={sizing}
       onError={() => setBroken(true)}
     />
   );
@@ -227,7 +244,10 @@ type SlotCellProps = {
   stack: SlotStack;
   selected?: boolean;
   label?: string;
+  /** 固定边长（快捷栏这种一行到底的用）。不传 = 由父容器撑满，见 fluid */
   size?: number;
+  /** 尺寸交给网格撑：格子占满一个网格单元并保持正方形。自适应布局用 */
+  fluid?: boolean;
   /** 被筛选压暗（仍然占位，见 .ui-slot--dimmed 的注释） */
   dimmed?: boolean;
   /** 当前正在详情卡里看的那一格 */
@@ -243,6 +263,7 @@ export function SlotCell({
   selected = false,
   label,
   size = 56,
+  fluid = false,
   dimmed = false,
   picked = false,
   onHover,
@@ -264,13 +285,14 @@ export function SlotCell({
       data-slot={`${slotRef.container}:${slotRef.index}`}
       className={[
         "ui-slot",
+        fluid ? "aspect-square w-full" : "",
         selected || picked ? "ui-slot--selected" : "",
         picked ? "ui-slot--picked" : "",
         dimmed ? "ui-slot--dimmed" : "",
       ]
         .filter(Boolean)
         .join(" ")}
-      style={{ width: size, height: size }}
+      style={fluid ? undefined : { width: size, height: size }}
       onPointerDown={(event) => {
         if (event.button === 0 && stack) beginDrag(event, slotRef, onClick);
       }}
@@ -296,9 +318,13 @@ export function SlotCell({
           {rarity && rarity !== "common" && (
             <span className={`ui-rarity ui-rarity--${rarity}`} />
           )}
-          <ItemIcon itemId={stack.itemId} size={size - 14} />
+          <ItemIcon itemId={stack.itemId} size={size - 14} fluid={fluid} />
           {stack.count > 1 && (
-            <span className="absolute bottom-0.5 right-1 text-[12px] font-bold text-[#3d2817] [text-shadow:0_1px_0_rgb(255_248_225),0_0_3px_rgb(255_248_225)]">
+            <span
+              className={`absolute bottom-0.5 right-1 font-bold text-[#3d2817] [text-shadow:0_1px_0_rgb(255_248_225),0_0_3px_rgb(255_248_225)] ${
+                fluid ? "text-[clamp(10px,1.5vw,13px)]" : "text-[12px]"
+              }`}
+            >
               {stack.count}
             </span>
           )}

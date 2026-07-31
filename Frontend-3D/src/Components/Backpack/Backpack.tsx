@@ -61,10 +61,21 @@ export function Backpack({ onPlacement }: BackpackProps) {
     const off = on("inventory_changed", () => setSlots(getBackpack()));
 
     const onKeyDown = (event: KeyboardEvent) => {
+      /**
+       * **Esc 不受输入框守卫限制**。那道守卫的本意只是别让 `b` 被
+       * 当成快捷键从输入框里抢走（否则打字打不出 b），但原来它挡在
+       * 整个 handler 前面，连 Esc 一起吞了——先按过 ` 开调试台、
+       * 或者点过任何输入框，Esc 就关不掉背包了。关闭是兜底操作，
+       * 任何时候都得管用。
+       */
+      if (event.key === "Escape") {
+        setOpen(false);
+        return;
+      }
+
       const target = event.target as HTMLElement | null;
       if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA") return;
       if (event.key.toLowerCase() === "b") setOpen((current) => !current);
-      if (event.key === "Escape") setOpen(false);
     };
 
     window.addEventListener("keydown", onKeyDown);
@@ -99,84 +110,122 @@ export function Backpack({ onPlacement }: BackpackProps) {
 
   return (
     <>
-      <div className="ui-pack absolute right-6 top-1/2 z-20 w-[min(760px,60vw)] -translate-y-1/2 p-4">
-        {/* ---- 标题行：名字 + 分类页签 + 关闭 ---- */}
-        <div className="mb-3 flex items-center gap-3">
-          <h2 className="shrink-0 text-[20px] font-bold tracking-[0.2em] text-[#f7e6c4] [text-shadow:0_2px_0_rgb(74_44_26)]">
-            {t("ui.backpack")}
-          </h2>
+      {/*
+       * 压暗背景：面板占住正中间，暗一层才看得出焦点在面板上。
+       * 点空白处也能关——和 Esc 一样是兜底出口。
+       *
+       * z-40 而不是 20：这是**全屏遮罩式模态**，按仓库既有分层
+       * （HUD 和侧栏 z-30、全屏覆盖 z-40、拖拽幽灵 z-50）该压过 HUD。
+       * 原来 z-20 会被右上角的设置按钮（z-30）盖住关闭按钮——
+       * 窄屏上两者正好重叠，点不到 ×。
+       */}
+      <div
+        className="absolute inset-0 z-40 grid place-items-center bg-black/40 p-3"
+        onPointerDown={(event) => {
+          if (event.target === event.currentTarget) setOpen(false);
+        }}
+      >
+        <div className="ui-pack flex max-h-full w-[min(1100px,96vw)] flex-col p-3 sm:p-4">
+          {/*
+           * 标题行。**窄屏拆成两行**：标题+关闭一行、页签自己一行。
+           * 挤在一行的话页签会换行，把标题顶得上下不着边。
+           */}
+          <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="shrink-0 text-[17px] font-bold tracking-[0.2em] text-[#f7e6c4] [text-shadow:0_2px_0_rgb(74_44_26)] sm:text-[20px]">
+                {t("ui.backpack")}
+              </h2>
 
-          <div className="flex flex-1 flex-wrap gap-1.5">
-            {TABS.map((category) => {
-              const key = category ?? "all";
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  className={`ui-tab px-2.5 py-1 text-[13px] font-bold ${
-                    tab === category ? "ui-tab--active" : ""
-                  }`}
-                  onClick={() => setTab(category)}
-                >
-                  {t(TAB_KEY[key])}
-                </button>
-              );
-            })}
-          </div>
+              {/* 窄屏时关闭按钮跟着标题走，宽屏时排到最右 */}
+              <button
+                type="button"
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-md border-2 border-[#4a2c1a] bg-[#c0392b] text-[16px] font-bold text-white shadow hover:brightness-110 sm:hidden"
+                aria-label={t("ui.close")}
+                onClick={() => setOpen(false)}
+              >
+                ×
+              </button>
+            </div>
 
-          <button
-            type="button"
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-md border-2 border-[#4a2c1a] bg-[#c0392b] text-[16px] font-bold text-white shadow hover:brightness-110"
-            aria-label={t("ui.close")}
-            onClick={() => setOpen(false)}
-          >
-            ×
-          </button>
-        </div>
-
-        {/* ---- 主体：左格子 / 右详情 ---- */}
-        <div className="flex gap-3">
-          <div className="ui-parchment p-3">
-            <div className="grid grid-cols-6 gap-2">
-              {visible.map((stack, index) => {
-                const dimmed = Boolean(stack) && !matchesTab(stack!.itemId);
+            <div className="flex flex-1 flex-wrap gap-1 sm:gap-1.5">
+              {TABS.map((category) => {
+                const key = category ?? "all";
                 return (
-                  <SlotCell
-                    key={index}
-                    slotRef={{ container: "backpack", index }}
-                    stack={stack}
-                    size={54}
-                    dimmed={dimmed}
-                    picked={pickedIndex === index && Boolean(stack)}
-                    // 点击只**选中**，动作交给右边的按钮——
-                    // 原来点一下直接拿到手上，想看看这是什么都做不到
-                    onClick={() => setPickedIndex(stack ? index : null)}
-                  />
+                  <button
+                    key={key}
+                    type="button"
+                    className={`ui-tab px-2 py-1 text-[12px] font-bold sm:px-2.5 sm:text-[13px] ${
+                      tab === category ? "ui-tab--active" : ""
+                    }`}
+                    onClick={() => setTab(category)}
+                  >
+                    {t(TAB_KEY[key])}
+                  </button>
                 );
               })}
             </div>
 
-            {!tabHasAny && (
-              <div className="mt-2 text-center text-[12px] text-[#9a7a52]">
-                {t("ui.backpack.filter_empty")}
-              </div>
-            )}
+            <button
+              type="button"
+              className="hidden h-8 w-8 shrink-0 place-items-center rounded-md border-2 border-[#4a2c1a] bg-[#c0392b] text-[16px] font-bold text-white shadow hover:brightness-110 sm:grid"
+              aria-label={t("ui.close")}
+              onClick={() => setOpen(false)}
+            >
+              ×
+            </button>
           </div>
 
-          <ItemDetail
-            itemId={picked?.itemId ?? null}
-            count={picked?.count ?? 0}
-            onPlacement={onPlacement}
-            onUsed={() => setPickedIndex(null)}
-          />
-        </div>
+          {/*
+           * 主体。**窄屏竖排、宽屏并排**：手机上并排会把两边都压成条，
+           * 格子小到点不准；竖排则是格子在上、详情在下，各自拿满宽度。
+           * 只有一个滚动条（整块主体），格子和详情各自不再单独滚。
+           */}
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto md:flex-row">
+            <div className="ui-parchment p-2 sm:p-3 md:flex-[3]">
+              {/* 手机 4 列、平板以上 6 列。格子是流体的，跟着列宽走 */}
+              <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-6 sm:gap-2">
+                {visible.map((stack, index) => {
+                  const dimmed = Boolean(stack) && !matchesTab(stack!.itemId);
+                  return (
+                    <SlotCell
+                      key={index}
+                      slotRef={{ container: "backpack", index }}
+                      stack={stack}
+                      fluid
+                      dimmed={dimmed}
+                      picked={pickedIndex === index && Boolean(stack)}
+                      // 点击只**选中**，动作交给详情卡上的按钮——
+                      // 原来点一下直接拿到手上，想看看这是什么都做不到
+                      onClick={() => setPickedIndex(stack ? index : null)}
+                    />
+                  );
+                })}
+              </div>
 
-        {/* ---- 底栏：操作提示 + 容量 ---- */}
-        <div className="mt-3 flex items-center justify-between text-[12px] text-[#e6d2ac]">
-          <span>{t("ui.backpack.hint")}</span>
-          <span className="font-bold">
-            {t("ui.backpack.capacity")} {used} / {BACKPACK_SIZE}
-          </span>
+              {!tabHasAny && (
+                <div className="mt-2 text-center text-[12px] text-[#9a7a52]">
+                  {t("ui.backpack.filter_empty")}
+                </div>
+              )}
+            </div>
+
+            <div className="md:flex-[2]">
+              <ItemDetail
+                itemId={picked?.itemId ?? null}
+                count={picked?.count ?? 0}
+                onPlacement={onPlacement}
+                onUsed={() => setPickedIndex(null)}
+              />
+            </div>
+          </div>
+
+          {/* ---- 底栏：操作提示 + 容量 ---- */}
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[12px] text-[#e6d2ac]">
+            <span>{t("ui.backpack.hint")}</span>
+            <span className="font-bold">
+              {t("ui.backpack.capacity")} {used} / {BACKPACK_SIZE}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -204,7 +253,8 @@ function ItemDetail({
 
   if (!itemId || !item) {
     return (
-      <div className="ui-parchment grid flex-1 place-items-center p-4 text-center">
+      // 窄屏上空详情卡不该占掉半屏高度，给个下限就够了
+      <div className="ui-parchment grid h-full min-h-[92px] place-items-center p-4 text-center">
         <div>
           <div className="text-[14px] font-bold text-[#8a6a48]">
             {t("ui.backpack.empty_title")}
@@ -221,10 +271,10 @@ function ItemDetail({
   const edible = Boolean(item.food);
 
   return (
-    <div className="ui-parchment flex flex-1 flex-col p-4">
+    <div className="ui-parchment flex h-full flex-col p-3 sm:p-4">
       <div className="flex items-start gap-3">
-        <div className="ui-slot grid h-[64px] w-[64px] shrink-0 place-items-center">
-          <ItemIcon itemId={itemId} size={50} />
+        <div className="ui-slot grid h-[56px] w-[56px] shrink-0 place-items-center sm:h-[64px] sm:w-[64px]">
+          <ItemIcon itemId={itemId} size={44} />
         </div>
 
         <div className="min-w-0 flex-1">
@@ -245,7 +295,7 @@ function ItemDetail({
         </div>
       </div>
 
-      <p className="mt-3 flex-1 text-[13px] leading-relaxed text-[#5b4028]">
+      <p className="mt-3 flex-1 text-[13px] leading-relaxed text-[#5b4028] sm:text-[14px]">
         {t(`${item.localizationKey}.desc`)}
       </p>
 

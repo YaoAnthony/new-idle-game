@@ -1,6 +1,11 @@
-import type { LocalizationKey, Rarity } from "./base.js";
+import type {
+  AudioProfileId,
+  LocalizationKey,
+  Rarity,
+  VisualId,
+} from "./base.js";
 import type { CookwareBlock, ServingWareBlock } from "./cooking.js";
-import type { FurnitureId } from "./furniture.js";
+import type { FurnitureId, PlacementBlock } from "./furniture.js";
 
 export type ItemId = string;
 
@@ -33,6 +38,41 @@ export type ToolType =
   | "axe"
   | "fishing_rod";
 
+/**
+ * 长什么样。**必填**。
+ *
+ * 设成必填是刻意的：加了一件东西却没人知道它该画成什么样，
+ * 这种事要在编译期就过不去。之前物品没有这个字段，表现层只能拿
+ * itemId 当 visualId 蒙，蒙不中就静默不画——玩家分不清是还没做还是坏了。
+ *
+ * 拿在手上、扔在地上、下到锅里，用的都是这一份。
+ */
+export type VisualBlock = {
+  id: VisualId;
+  /** 整体缩放，不填 = 1。"这东西画得偏大"是改数据，不是改渲染代码 */
+  scale?: number;
+  /**
+   * 下锅时的形态（切好的块）。**不填就从"整"形态的主色自动生成**，
+   * 不需要为每种食材单独建模——多数食材都用不着填这个。
+   */
+  preppedId?: VisualId;
+};
+
+/**
+ * 这东西会发什么声。全是 ref，指向 Core/Data/audio 里的 profileId。
+ *
+ * 拆成三个是因为触发条件不同，不是三种音色：
+ * 什么时候响由音景层（Frontend 的 Soundscape）决定，这里只声明"有哪几种"。
+ */
+export type AudioBlock = {
+  /** 摆在屋里就一直响：壁炉噼啪、挂钟滴答 */
+  ambient?: AudioProfileId;
+  /** 只在"正在工作"时响：灶眼加热 */
+  active?: AudioProfileId;
+  /** 用一下的那一声：开箱、开柜 */
+  use?: AudioProfileId;
+};
+
 export type ItemDefinition = {
   id: ItemId;
   localizationKey: LocalizationKey;
@@ -41,6 +81,20 @@ export type ItemDefinition = {
   rarity: Rarity;
   /** 不填按 Otherworld 处理——这个世界的东西是默认，现实物品才是特例 */
   origin?: ItemOrigin;
+
+  visual: VisualBlock;
+  audio?: AudioBlock;
+
+  /**
+   * 能摆到屋里。**带这一块的物品就是"家具"**——不是另一个类型。
+   *
+   * 用能力块而不是让家具继承物品，是因为能力不排他：一块蛋糕可以
+   * 既能吃又能摆在桌上，继承表达不了。而且 food / cookware / tool
+   * 本来就是这么写的，`placement` 只是又一块。
+   */
+  placement?: PlacementBlock;
+
+  /** @deprecated 合并之后 id 就是同一个，不需要再指过去。留着是为了分阶段拆 */
   placeableFurnitureId?: FurnitureId;
   /**
    * 能吃。**只有成品能有这一块**——生番茄、生鸡蛋、米一律不填，

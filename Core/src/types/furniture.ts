@@ -150,9 +150,19 @@ export type InteractHint = {
   anchorHeight?: number;
 };
 
-export type FurnitureDefinition = {
-  id: FurnitureId;
-  visualId: VisualId;
+/**
+ * 「能摆到屋里」这一块能力。带这一块的物品就是家具。
+ *
+ * 原来这是一整个 `FurnitureDefinition`，和 `ItemDefinition` 并列——
+ * 于是落地灯在数据里存在两次（物品一条、家具一条、两个 id、两个本地化键），
+ * 靠 placeableFurnitureId 来回换算。现在它降格成物品身上的一块能力，
+ * 一件东西只有一条定义。见 `Frontend-3D/V0.4 - 物品与家具统一.md`。
+ *
+ * **id / 名字 / 分类 / 长什么样 / 发什么声都不在这里**——那些是物品本身的属性，
+ * 摆不摆得下去不改变它是什么东西。这里只留"摆放"这件事需要的信息。
+ */
+export type PlacementBlock = {
+  surface: PlacementSurface;
   footprint: GridFootprint;
   /**
    * 非矩形家具真正压住哪几格（朝北时相对 footprint 左上角的偏移）。
@@ -162,11 +172,7 @@ export type FurnitureDefinition = {
    * 也会被算成占用，玩家看着是空地却走不进去。
    */
   footprintMask?: ReadonlyArray<readonly [number, number]>;
-  placementSurface: PlacementSurface;
-  localizationKey: LocalizationKey;
-  category: FurnitureCategory;
   capabilities: FurnitureCapability[];
-  audioProfileId: AudioProfileId | null;
 
   /** 地面家具的分层；墙面家具忽略此字段 */
   floorLayer?: FloorLayer;
@@ -194,6 +200,19 @@ export type FurnitureDefinition = {
    */
   anchors?: FurnitureAnchor[];
 };
+
+/**
+ * @deprecated 家具已经并进 `ItemDefinition`（带 `placement` 块的物品就是家具）。
+ * 这个别名留给还没改完的调用方，阶段 3 会删掉。
+ */
+export type FurnitureDefinition = {
+  id: FurnitureId;
+  localizationKey: LocalizationKey;
+  category: FurnitureCategory;
+  visualId: VisualId;
+  audioProfileId: AudioProfileId | null;
+  placementSurface: PlacementSurface;
+} & Omit<PlacementBlock, "surface">;
 
 export type FloorFurniturePlacement = {
   kind: PlacementSurface.Floor;

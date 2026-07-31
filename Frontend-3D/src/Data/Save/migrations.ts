@@ -401,7 +401,63 @@ export const migrations: Migration[] = [
       return save;
     },
   },
+
+  // v9（2026-07-31 物品与家具统一）：家具并进物品注册表，
+  // 同一件东西不再有两个 id。存档里 placedFurniture.furnitureId 记的是
+  // **家具**那一侧的 id（floor_lamp），统一后要换成**物品**那一侧
+  // （furniture_floor_lamp）。
+  //
+  // 这条不能漏：restoreWorld 会**丢弃引用了未知家具的记录**，
+  // 所以不迁移的话老存档不会报错，而是屋里的家具静默消失。
+  {
+    to: 9,
+    migrate: (save) => {
+      for (const placed of save.ownWorld.placedFurniture ?? []) {
+        placed.furnitureId =
+          LEGACY_FURNITURE_ID[placed.furnitureId] ?? placed.furnitureId;
+      }
+      return save;
+    },
+  },
 ];
+
+/**
+ * 旧家具 id → 统一后的物品 id。
+ *
+ * **写死在这里，不从注册表推导。** 迁移表必须冻结在写它的那一刻——
+ * 从当前注册表推导的话，将来谁再改一次 id，这条旧迁移的行为会跟着变，
+ * 那是迁移最忌讳的事（同一份老存档，今天和明天迁出来的结果不一样）。
+ *
+ * 没列出来的（stove / cardboard_box / cardboard_stack / bedroll）是
+ * id 本来就没变的，落到 `?? placed.furnitureId` 那条分支。
+ */
+const LEGACY_FURNITURE_ID: Record<string, string> = {
+  kitchen_counter_l: "furniture_kitchen_counter",
+  ordinary_workbench: "furniture_workbench",
+  wooden_table: "furniture_table",
+  wooden_chair: "furniture_chair",
+  round_rug: "furniture_rug",
+  dumbbell: "furniture_dumbbell",
+  bookshelf: "furniture_bookshelf",
+  storage_chest: "furniture_storage_chest",
+  wooden_bed: "furniture_bed",
+  round_stool: "furniture_stool",
+  floor_cushion: "furniture_cushion",
+  fireplace: "furniture_fireplace",
+  floor_lamp: "furniture_floor_lamp",
+  potted_plant: "furniture_potted_plant",
+  long_rug: "furniture_long_rug",
+  tatami_mat: "furniture_tatami_mat",
+  door_mat: "furniture_door_mat",
+  fabric_sofa: "furniture_fabric_sofa",
+  wardrobe: "furniture_wardrobe",
+  study_desk: "furniture_study_desk",
+  coffee_table: "furniture_coffee_table",
+  easel: "furniture_easel",
+  picture_frame: "furniture_picture_frame",
+  wall_clock: "furniture_wall_clock",
+  curtain: "furniture_curtain",
+};
 
 export type MigrationResult =
   | { ok: true; save: GameSave; migrated: boolean }

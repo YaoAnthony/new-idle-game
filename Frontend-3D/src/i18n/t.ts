@@ -483,6 +483,8 @@ const ZH: Record<string, string> = {
   "hint.stand": "起来",
   "hint.sleep_now": "睡吧",
 
+  "ui.hand_busy": "手上端着东西呢，先起锅或者装盘",
+
   "ui.held.title": "手上",
   "ui.held.drop": "放回背包",
   "ui.held.eat": "吃掉",

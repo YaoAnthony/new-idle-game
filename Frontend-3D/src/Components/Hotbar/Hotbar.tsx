@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { on } from "../../Game/EventBus";
+import { emit, on } from "../../Game/EventBus";
+import { returnToBackpack } from "../../Game/State/heldItem";
 import { getHotbar, HOTBAR_SIZE } from "../../Game/State/inventory";
 import { useInventoryItem } from "../../Game/Systems/itemUse";
 import {
@@ -19,8 +20,32 @@ type HotbarProps = {
 };
 
 export function Hotbar({ onSelectFurniture }: HotbarProps) {
-  const useItem = (itemId: string): void => {
-    useInventoryItem(itemId, { onPlacement: onSelectFurniture });
+  /**
+   * 选中一格。
+   *
+   * **选中空格 = 空手**（Minecraft 的语义）：东西一拿到手上，原来那格
+   * 就空了，所以"再按一次同一格收手"是按不到的；给个空格当"放下"用，
+   * 玩家才有键盘上的出口，不用专门去开背包点按钮。
+   */
+  const selectAt = (index: number, stack: { itemId: string } | null): void => {
+    setSelected(index);
+
+    if (!stack) {
+      if (returnToBackpack() === "not_empty") notifyHandBusy();
+      return;
+    }
+
+    const outcome = useInventoryItem(stack.itemId, {
+      onPlacement: onSelectFurniture,
+    });
+
+    // 换不了手时必须说一声。默默不动是最难受的那种——
+    // 玩家会以为快捷栏坏了，而不是"锅里还有东西"
+    if (outcome === "hand_busy") notifyHandBusy();
+  };
+
+  const notifyHandBusy = (): void => {
+    emit("story_toast", { localizationKey: "ui.hand_busy", durationMs: 2000 });
   };
 
   const [slots, setSlots] = useState(getHotbar());
@@ -47,20 +72,12 @@ export function Hotbar({ onSelectFurniture }: HotbarProps) {
       const index = Number(event.key) - 1;
       if (Number.isNaN(index) || index < 0 || index >= HOTBAR_SIZE) return;
 
-      setSelected(index);
-      const stack = getHotbar()[index];
-      if (stack) useItem(stack.itemId);
+      selectAt(index, getHotbar()[index]);
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onSelectFurniture, dialogueOpen]);
-
-  const selectSlot = (index: number) => {
-    setSelected(index);
-    const stack = slots[index];
-    if (stack) useItem(stack.itemId);
-  };
 
   return (
     <>
@@ -76,7 +93,7 @@ export function Hotbar({ onSelectFurniture }: HotbarProps) {
                 label={String(index + 1)}
                 onHover={show}
                 onLeave={hide}
-                onClick={() => selectSlot(index)}
+                onClick={() => selectAt(index, stack)}
               />
             ))}
           </div>

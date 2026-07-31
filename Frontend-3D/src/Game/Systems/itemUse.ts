@@ -1,5 +1,5 @@
 import { findItemDefinition } from "core";
-import { takeIntoHand } from "../State/heldItem";
+import { swapIntoHand } from "../State/heldItem";
 import { eatFood } from "../State/needs";
 
 /**
@@ -12,7 +12,13 @@ import { eatFood } from "../State/needs";
  * 生食材没有 food 块（只有成品能吃），所以它们自然落到"拿到手上"。
  */
 
-export type ItemUseOutcome = "placement" | "eaten" | "held" | "none";
+export type ItemUseOutcome =
+  | "placement"
+  | "eaten"
+  | "held"
+  /** 手上端着有内容的容器，换不了手。调用方该说一声为什么 */
+  | "hand_busy"
+  | "none";
 
 export function useInventoryItem(
   itemId: string,
@@ -32,5 +38,13 @@ export function useInventoryItem(
     return "eaten";
   }
 
-  return takeIntoHand(itemId) ? "held" : "none";
+  // 换手而不是"空手才拿得起"：快捷栏的职责就是换手上拿什么
+  switch (swapIntoHand(itemId)) {
+    case "ok":
+      return "held";
+    case "hand_busy":
+      return "hand_busy";
+    default:
+      return "none";
+  }
 }

@@ -54,6 +54,31 @@ export function takeIntoHand(itemId: string): boolean {
   return true;
 }
 
+export type SwapResult = "ok" | "hand_busy" | "missing";
+
+/**
+ * 快捷栏选中一格：把手上的东西换成这件。
+ *
+ * **原来是"手上有东西就什么都不做"**（takeIntoHand 直接 return false），
+ * 于是端起一口锅之后就卡死了：按别的格子没反应、锅也不在背包里
+ * （拿到手上时已经从背包扣掉了），想换个食材下锅根本换不了。
+ * 快捷栏本来就是"换手上拿什么"的东西，不能只在空手时才work。
+ *
+ * 一条例外：**端着有内容的容器不给换**。放回背包会按 itemId 合堆，
+ * 锅里那份菜就凭空没了（见本文件顶部四选一的注释）。
+ * 这时候得先起锅或装盘，调用方要把原因说出来。
+ *
+ * 想空出手来选快捷栏里的空格就行（"选中空格 = 空手"），见 Hotbar。
+ */
+export function swapIntoHand(itemId: string): SwapResult {
+  if (held) {
+    if (held.container && held.container.items.length > 0) return "hand_busy";
+    if (returnToBackpack() !== "ok") return "hand_busy";
+  }
+
+  return takeIntoHand(itemId) ? "ok" : "missing";
+}
+
 export type ReturnResult = "ok" | "not_empty" | "empty_hand";
 
 /** 放回背包。容器里还有东西时拒绝——进了背包就会合堆，内容会丢 */

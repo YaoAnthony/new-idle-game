@@ -421,7 +421,9 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       <HeldItem />
       <InteractBubble scene={scene} />
       <InteractHint />
-      <Backpack />
+      {/* 家具从背包也能直接进布置模式了——原来只有快捷栏能进，
+          得先把家具拖到快捷栏才摆得了，白绕一步 */}
+      <Backpack onPlacement={handleSelect} />
       <StationPanel />
       <StoragePanel />
       <DialoguePanel />

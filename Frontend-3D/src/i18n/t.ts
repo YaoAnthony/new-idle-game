@@ -487,6 +487,30 @@ const ZH: Record<string, string> = {
   "ui.held.drop": "放回背包",
   "ui.held.eat": "吃掉",
   "ui.held.store": "收起来",
+
+  // 背包分类页签。值来自 Core 的 ItemCategory，加一类物品只用在这儿补一行
+  "ui.category.all": "全部",
+  "ui.category.material": "材料",
+  "ui.category.furniture": "家具",
+  "ui.category.tool": "工具",
+  "ui.category.food": "食物",
+  "ui.category.quest": "任务",
+
+  "ui.rarity.common": "常见",
+  "ui.rarity.uncommon": "少见",
+  "ui.rarity.rare": "稀有",
+  "ui.rarity.epic": "珍贵",
+  "ui.rarity.legendary": "传说",
+  "ui.rarity.mythic": "神话",
+
+  "ui.backpack.empty_title": "还没有选中东西",
+  "ui.backpack.empty_hint": "点一下格子看看它是什么",
+  "ui.backpack.take": "拿到手上",
+  "ui.backpack.place": "布置到屋里",
+  "ui.backpack.eat": "吃掉",
+  "ui.backpack.capacity": "格子",
+  "ui.backpack.hint": "点击查看 · 拖到下方快捷栏 · B 关闭",
+  "ui.backpack.filter_empty": "这一类还什么都没有",
 };
 
 export function t(key: string): string {

@@ -91,20 +91,43 @@ export function registerDropZone(id: string, handler: DropZoneHandler): () => vo
   };
 }
 
+/**
+ * 手指/鼠标移动超过这么多像素才算"在拖"，否则算一次点击。
+ *
+ * 有阈值之前，按下就立刻进入拖拽状态并 `preventDefault()`——
+ * 而按规范，在 pointerdown 上 preventDefault 会**连带取消后续的 click**。
+ * 结果是：装了东西的格子永远收不到 onClick，点了没反应。
+ * 拖拽和点击要在同一个格子上共存，就得靠阈值区分，不能靠抢先。
+ */
+const DRAG_THRESHOLD_PX = 4;
+
 export function beginDrag(event: ReactPointerEvent, from: SlotRef): void {
   const stack = getStackAt(from);
   if (!stack) return;
 
-  event.preventDefault();
-  setDrag({ from, stack, x: event.clientX, y: event.clientY });
+  const originX = event.clientX;
+  const originY = event.clientY;
+  let started = false;
 
   const onMove = (move: globalThis.PointerEvent) => {
+    if (!started) {
+      const moved = Math.hypot(move.clientX - originX, move.clientY - originY);
+      if (moved < DRAG_THRESHOLD_PX) return;
+
+      started = true;
+      setDrag({ from, stack, x: move.clientX, y: move.clientY });
+      return;
+    }
+
     if (current) setDrag({ ...current, x: move.clientX, y: move.clientY });
   };
 
   const onUp = (up: globalThis.PointerEvent) => {
     window.removeEventListener("pointermove", onMove);
     window.removeEventListener("pointerup", onUp);
+
+    // 没越过阈值：这是一次点击，什么都不做，让 click 事件自己去处理
+    if (!started) return;
 
     const under = document.elementFromPoint(up.clientX, up.clientY);
     // 自定义落点优先：放入框是压在格子上方的，先问它要不要
@@ -186,6 +209,10 @@ type SlotCellProps = {
   selected?: boolean;
   label?: string;
   size?: number;
+  /** 被筛选压暗（仍然占位，见 .ui-slot--dimmed 的注释） */
+  dimmed?: boolean;
+  /** 当前正在详情卡里看的那一格 */
+  picked?: boolean;
   onHover?: (itemId: string, element: HTMLElement) => void;
   onLeave?: () => void;
   onClick?: () => void;
@@ -197,6 +224,8 @@ export function SlotCell({
   selected = false,
   label,
   size = 56,
+  dimmed = false,
+  picked = false,
   onHover,
   onLeave,
   onClick,
@@ -208,11 +237,20 @@ export function SlotCell({
     drag.from.container === slotRef.container &&
     drag.from.index === slotRef.index;
 
+  const rarity = stack ? findItemDefinition(stack.itemId)?.rarity : undefined;
+
   return (
     <div
       ref={ref}
       data-slot={`${slotRef.container}:${slotRef.index}`}
-      className={["ui-slot", selected ? "ui-slot--selected" : ""].join(" ")}
+      className={[
+        "ui-slot",
+        selected || picked ? "ui-slot--selected" : "",
+        picked ? "ui-slot--picked" : "",
+        dimmed ? "ui-slot--dimmed" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
       style={{ width: size, height: size }}
       onPointerDown={(event) => {
         if (event.button === 0 && stack) beginDrag(event, slotRef);
@@ -224,15 +262,19 @@ export function SlotCell({
       onClick={onClick}
     >
       {label && (
-        <span className="absolute left-1 top-0.5 text-[10px] font-bold text-[#8a6a48]">
+        <span className="absolute left-1 top-0.5 text-[11px] font-bold text-[#8a6a48]">
           {label}
         </span>
       )}
       {stack && !isDragSource && (
         <>
+          {/* 常见档不画环——大多数东西都是常见的，画了等于没画还吵 */}
+          {rarity && rarity !== "common" && (
+            <span className={`ui-rarity ui-rarity--${rarity}`} />
+          )}
           <ItemIcon itemId={stack.itemId} size={size - 14} />
           {stack.count > 1 && (
-            <span className="absolute bottom-0.5 right-1 text-[11px] font-bold text-[#3d2817] [text-shadow:0_1px_0_rgb(255_248_225)]">
+            <span className="absolute bottom-0.5 right-1 text-[12px] font-bold text-[#3d2817] [text-shadow:0_1px_0_rgb(255_248_225),0_0_3px_rgb(255_248_225)]">
               {stack.count}
             </span>
           )}

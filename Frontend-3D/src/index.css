@@ -27,53 +27,178 @@ input {
   min-height: 100dvh;
 }
 
-/* ---- 游戏 UI 皮肤（图片由 Codex 生成，缺图时退化为纯色） ---- */
+/* ---- 游戏 UI 皮肤 ----
+ *
+ * **全部用 CSS 画，不用背景图**（2026-07-31 定稿）。
+ *
+ * 原来格子、快捷栏、背包各是一张 PNG。三个问题：图和图之间对不上
+ * （各画各的边框粗细和色号，拼在一起像几个人做的）；整图当底会把版式钉死
+ * （内容只能按百分比怼到画好的窗口里，换图就得重排）；缩放和高分屏下
+ * 位图边框还会糊。渐变 + 边框 + 内阴影这套在任何尺寸下都是锐的，
+ * 改配色也只动这一处。
+ *
+ * 物品图标仍然是 PNG——那是**内容**（每件东西长什么样），不是界面外壳。
+ */
 
-/* 物品格子：像素缝线格（slot.png 自带边框，不再叠 CSS 边框） */
+/* 物品格子 */
 .ui-slot {
   position: relative;
   display: grid;
   place-items: center;
-  background-color: transparent;
-  background-image: url("/ui/slot.png");
-  background-size: 100% 100%;
-  image-rendering: pixelated;
+  border: 2px solid #b08a55;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ecdcbb 0%, #dbc59a 100%);
+  box-shadow:
+    inset 0 2px 4px rgb(120 85 45 / 0.28),
+    0 1px 0 rgb(255 255 255 / 0.35);
   cursor: pointer;
   user-select: none;
   touch-action: none;
+  transition: border-color 90ms ease-out, filter 90ms ease-out;
+}
+
+.ui-slot:hover {
+  border-color: #d9a95c;
 }
 
 .ui-slot--selected {
-  background-image: url("/ui/slot_selected.png");
-  filter: drop-shadow(0 0 6px rgb(233 168 60 / 0.7));
+  border-color: #e0a94a;
+  background: linear-gradient(180deg, #fff1cf 0%, #f8dfa9 100%);
+  box-shadow:
+    0 0 0 2px rgb(224 169 74 / 0.45),
+    inset 0 2px 4px rgb(160 120 60 / 0.2);
 }
 
-/* 快捷栏 / 面板的皮革底 */
+/* 快捷栏 / 小面板的皮革底 */
 .ui-bar {
-  border: 3px solid #6b4426;
-  background-color: #8a5f3a;
-  background-image: url("/ui/panel.png");
-  background-size: 100% 100%;
-  box-shadow: 0 4px 14px rgb(0 0 0 / 0.45);
+  border: 3px solid #5c3a22;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #8f6440 0%, #744d2f 100%);
+  box-shadow:
+    0 8px 20px rgb(0 0 0 / 0.42),
+    inset 0 2px 0 rgb(255 255 255 / 0.16),
+    inset 0 -3px 0 rgb(0 0 0 / 0.18);
 }
 
-/* 背包：像素书包造型整图（backpack_bg.png） */
-.ui-satchel {
-  background-color: transparent;
-  background-image: url("/ui/backpack_bg.png");
-  background-size: 100% 100%;
-  background-repeat: no-repeat;
-  image-rendering: pixelated;
-  filter: drop-shadow(0 10px 24px rgb(0 0 0 / 0.5));
+/* 背包主面板：和 .ui-bar 同一套语言，只是更厚重一点 */
+.ui-pack {
+  border: 3px solid #5c3a22;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #8f6440 0%, #6f492c 100%);
+  box-shadow:
+    0 16px 36px rgb(0 0 0 / 0.5),
+    inset 0 2px 0 rgb(255 255 255 / 0.18),
+    inset 0 -4px 0 rgb(0 0 0 / 0.2);
 }
 
-/* 工作台：皮面笔记本整图（book_bg.png，1536x1024） */
+/* 羊皮纸内衬：格子和详情卡都躺在它上面 */
+.ui-parchment {
+  border: 3px solid #a8834f;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #f7ecd2 0%, #efe0bf 100%);
+  box-shadow: inset 0 2px 6px rgb(90 60 30 / 0.22);
+}
+
+/* 分类页签 */
+.ui-tab {
+  border: 2px solid #7a5230;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #b98a55 0%, #a3743f 100%);
+  color: #f6e6c8;
+  box-shadow: 0 2px 0 #6b4426;
+  transition: filter 90ms ease-out, transform 90ms ease-out;
+}
+
+.ui-tab:hover {
+  filter: brightness(1.08);
+}
+
+.ui-tab--active {
+  background: linear-gradient(180deg, #ffe1a2 0%, #efc270 100%);
+  border-color: #6b4426;
+  color: #4a3018;
+  box-shadow: inset 0 2px 0 rgb(255 255 255 / 0.6);
+  transform: translateY(1px);
+}
+
+/* 详情卡上的动作按钮 */
+.ui-pack-action {
+  border: 2px solid #4f7a35;
+  border-radius: 9px;
+  background: linear-gradient(180deg, #86bb5c 0%, #6a9f44 100%);
+  color: #fdfbf2;
+  box-shadow: 0 3px 0 #47692c;
+  transition: transform 90ms ease-out, filter 90ms ease-out;
+}
+
+.ui-pack-action:hover {
+  filter: brightness(1.06);
+}
+
+.ui-pack-action:active {
+  transform: translateY(2px);
+  box-shadow: none;
+}
+
+/* 被筛掉的格子：压暗但**不重排**。
+   槽位下标就是拖拽的落点地址，一旦按筛选重新排列，
+   拖到第三格就不再是背包第三格了。 */
+.ui-slot--dimmed {
+  filter: grayscale(0.75) brightness(0.72);
+  opacity: 0.55;
+}
+
+/* 当前选中的格子 */
+.ui-slot--picked {
+  filter: drop-shadow(0 0 7px rgb(233 168 60 / 0.9));
+}
+
+/* 稀有度只画一圈细边，不整格染色——
+   研究里那句"别弄成一袋彩虹糖"说的就是这个。常见档完全不画。 */
+.ui-rarity {
+  position: absolute;
+  inset: 4px;
+  border-radius: 5px;
+  border: 2px solid transparent;
+  pointer-events: none;
+}
+
+.ui-rarity--uncommon { border-color: #6aa84f; }
+.ui-rarity--rare { border-color: #4a86c8; }
+.ui-rarity--epic { border-color: #9b6cc4; }
+.ui-rarity--legendary { border-color: #e0a94a; }
+.ui-rarity--mythic { border-color: #d4574e; }
+
+/* 工作台：摊开的皮面本子。中缝用一条渐变画出来。
+   **宽高比先留着**——StationPanel 的内容还是按百分比钉在这块面上的
+   （top-[8%] 这种），去掉比例它会直接塌掉。那个面板要改成真布局
+   是另一件事，不顺手在这儿一起做。 */
 .ui-book {
   aspect-ratio: 1536 / 1024;
-  background-image: url("/ui/book_bg.png");
-  background-size: 100% 100%;
-  background-repeat: no-repeat;
-  filter: drop-shadow(0 12px 28px rgb(0 0 0 / 0.5));
+  border: 3px solid #5c3a22;
+  border-radius: 14px;
+  background:
+    /* 顶部皮革书脊带。**必须留**：标题是浅色字（配的是原来那张图的
+       深色木牌），底下换成羊皮纸就成了浅底浅字，直接看不见 */
+    linear-gradient(
+      180deg,
+      #7a5230 0%,
+      #6b4426 17%,
+      transparent 17%
+    ),
+    /* 中缝 */
+    linear-gradient(
+      90deg,
+      transparent calc(50% - 9px),
+      rgb(74 44 26 / 0.55) calc(50% - 9px),
+      rgb(52 30 17 / 0.75) 50%,
+      rgb(74 44 26 / 0.55) calc(50% + 9px),
+      transparent calc(50% + 9px)
+    ),
+    linear-gradient(180deg, #f7ecd2 0%, #ecdcba 100%);
+  box-shadow:
+    0 14px 32px rgb(0 0 0 / 0.5),
+    inset 0 2px 0 rgb(255 255 255 / 0.35);
 }
 
 /* ---- 对话框（动森式：奶油圆角气泡 + 名字药丸 + 继续三角） ---- */
@@ -112,20 +237,23 @@ input {
 }
 
 /* 送礼的放入框：**就是一个放大的物品格**。
-   不另造一套矢量虚线框——它紧挨着 32 个像素缝线格，
-   混两套渲染语言会像两个人做的东西拼在一起。
-   拖拽中直接复用格子既有的"选中"皮，落点比新造的高亮更好认。 */
+   不另造一套虚线框——它紧挨着一排物品格，混两套语言会像
+   两个人做的东西拼在一起。拖拽中直接复用格子的"选中"样式，
+   落点比新造的高亮更好认。 */
 .ui-gift-slot {
-  background-image: url("/ui/slot.png");
-  background-size: 100% 100%;
-  image-rendering: pixelated;
+  border: 2px solid #b08a55;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #ecdcbb 0%, #dbc59a 100%);
+  box-shadow: inset 0 2px 4px rgb(120 85 45 / 0.28);
   color: #8a6a48;
-  transition: filter 120ms ease-out, transform 120ms ease-out;
+  transition: filter 120ms ease-out, transform 120ms ease-out,
+    border-color 120ms ease-out;
 }
 
 .ui-gift-slot--active {
-  background-image: url("/ui/slot_selected.png");
-  filter: drop-shadow(0 0 8px rgb(233 168 60 / 0.75));
+  border-color: #e0a94a;
+  background: linear-gradient(180deg, #fff1cf 0%, #f8dfa9 100%);
+  box-shadow: 0 0 0 2px rgb(224 169 74 / 0.5);
   transform: scale(1.04);
 }
 

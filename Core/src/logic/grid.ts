@@ -27,19 +27,66 @@ export function orientedFootprint(
     : { width: footprint.width, height: footprint.height };
 }
 
-/** 从原点（左上角）向 +x / +y 展开，返回占用的所有格子 */
+/**
+ * 占地遮罩：非矩形家具真正压住哪几格。
+ *
+ * 坐标是**朝北时相对 footprint 左上角**的偏移。不填 = 整个矩形都占。
+ * L 形橱柜是第一个需要它的——不加遮罩的话，L 的凹口那块空地
+ * （5×3 十五格）也会被算成占用，玩家看着是空地却走不进去。
+ */
+export type FootprintMask = ReadonlyArray<readonly [number, number]>;
+
+/**
+ * 从原点（左上角）向 +x / +y 展开，返回占用的所有格子。
+ *
+ * 带遮罩时格子按朝向旋转：朝北原样，朝东顺时针 90°，依此类推。
+ * 旋转公式以矩形的宽高为界，转完再平移回第一象限——
+ * 这样"家具转 90° 之后压住哪几格"和模型转过去的样子对得上。
+ */
 export function footprintCells(
   origin: GridPosition,
   footprint: GridFootprint,
   facing: Facing,
+  mask?: FootprintMask,
 ): GridPosition[] {
   const { width, height } = orientedFootprint(footprint, facing);
   const cells: GridPosition[] = [];
 
-  for (let dy = 0; dy < height; dy += 1) {
-    for (let dx = 0; dx < width; dx += 1) {
-      cells.push({ x: origin.x + dx, y: origin.y + dy });
+  if (!mask || mask.length === 0) {
+    for (let dy = 0; dy < height; dy += 1) {
+      for (let dx = 0; dx < width; dx += 1) {
+        cells.push({ x: origin.x + dx, y: origin.y + dy });
+      }
     }
+    return cells;
+  }
+
+  const baseW = footprint.width;
+  const baseH = footprint.height;
+
+  for (const [mx, my] of mask) {
+    let dx: number;
+    let dy: number;
+
+    switch (facing) {
+      case Facing.East:
+        dx = baseH - 1 - my;
+        dy = mx;
+        break;
+      case Facing.South:
+        dx = baseW - 1 - mx;
+        dy = baseH - 1 - my;
+        break;
+      case Facing.West:
+        dx = my;
+        dy = baseW - 1 - mx;
+        break;
+      default:
+        dx = mx;
+        dy = my;
+    }
+
+    cells.push({ x: origin.x + dx, y: origin.y + dy });
   }
 
   return cells;

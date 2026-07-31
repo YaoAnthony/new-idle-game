@@ -4,6 +4,7 @@ import {
   buildRoomOccupancy,
   checkPlacement,
   findFurnitureDefinition,
+  footprintCells,
   generateHouse,
   roomStyleDefinitions,
   type FurnitureDefinition,
@@ -148,22 +149,22 @@ export function checkPlacementTarget(
   return check;
 }
 
+/**
+ * 家具压住哪几格。**直接调 Core 的 footprintCells**，不要在这里
+ * 自己展开矩形——原来抄了一份，L 形橱柜加占地遮罩之后这份就和
+ * Core 的判定走散了（Core 认为凹口是空地、这里认为被占）。
+ */
 function footprintCellKeys(
   definition: FurnitureDefinition,
   gridPosition: GridPosition,
   facing: Facing,
 ): string[] {
-  const rotated = facing === Facing.East || facing === Facing.West;
-  const w = rotated ? definition.footprint.height : definition.footprint.width;
-  const h = rotated ? definition.footprint.width : definition.footprint.height;
-
-  const keys: string[] = [];
-  for (let dy = 0; dy < h; dy += 1) {
-    for (let dx = 0; dx < w; dx += 1) {
-      keys.push(`${gridPosition.x + dx},${gridPosition.y + dy}`);
-    }
-  }
-  return keys;
+  return footprintCells(
+    gridPosition,
+    definition.footprint,
+    facing,
+    definition.footprintMask,
+  ).map((cell) => `${cell.x},${cell.y}`);
 }
 
 export function placeFurnitureAt(

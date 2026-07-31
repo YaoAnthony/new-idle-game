@@ -56,6 +56,15 @@ export const furnitureDefinitions = [
     id: "kitchen_counter_l",
     visualId: "kitchen_counter_l",
     footprint: { width: 6, height: 4 },
+    /**
+     * L 形只压住两条边，凹口那 5×3 是空地——玩家要能站进去够到灶台。
+     * 长边是第 0 行整行，半岛是第 5 列往下三格，
+     * 和 recipes/kitchen.ts 里两个 cabinet() 的位置一一对应。
+     */
+    footprintMask: [
+      [0, 0], [1, 0], [2, 0], [3, 0], [4, 0], [5, 0],
+      [5, 1], [5, 2], [5, 3],
+    ],
     placementSurface: PlacementSurface.Floor,
     localizationKey: "furniture.kitchen_counter_l",
     category: FurnitureCategory.Station,

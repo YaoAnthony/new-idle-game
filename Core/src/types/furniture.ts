@@ -154,6 +154,14 @@ export type FurnitureDefinition = {
   id: FurnitureId;
   visualId: VisualId;
   footprint: GridFootprint;
+  /**
+   * 非矩形家具真正压住哪几格（朝北时相对 footprint 左上角的偏移）。
+   * 不填 = 整个矩形都占。
+   *
+   * L 形橱柜是第一个需要它的：不加遮罩的话 L 的凹口那块空地
+   * 也会被算成占用，玩家看着是空地却走不进去。
+   */
+  footprintMask?: ReadonlyArray<readonly [number, number]>;
   placementSurface: PlacementSurface;
   localizationKey: LocalizationKey;
   category: FurnitureCategory;

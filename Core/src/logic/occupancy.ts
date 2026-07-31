@@ -86,6 +86,7 @@ export function buildRoomOccupancy(
       placed.placement.gridPosition,
       definition.footprint,
       placed.placement.facing,
+      definition.footprintMask,
     );
 
     if (placed.placement.kind === PlacementSurface.Wall) {

@@ -70,6 +70,7 @@ function anchorCell(
     placed.placement.gridPosition,
     definition.footprint,
     placed.placement.facing,
+    definition.footprintMask,
   );
 
   // 占地的包围盒，用来把连续偏移映射回格子

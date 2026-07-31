@@ -79,6 +79,7 @@ export function checkPlacement(
     request.gridPosition,
     definition.footprint,
     request.facing,
+    definition.footprintMask,
   );
 
   if (request.kind === PlacementSurface.Floor) {

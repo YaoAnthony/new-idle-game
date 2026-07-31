@@ -12,6 +12,37 @@ import type { DialogueDefinition } from "../../types/dialogue.js";
  * 内容作者只负责写"它这一档是什么反应"（见 `logic/giftRules.ts`）。
  */
 export const dialogueDefinitions: DialogueDefinition[] = [
+  /**
+   * 开场独白（2026-07-30）。搬进新家的第一分钟不该是"面对空房子发呆"——
+   * 玩家自己先说两句，把"这是我的家了"和"该收拾了"两件事说明白，
+   * 顺手把目光引到门口那两个箱子上。speaker 是 player：
+   * 名字药丸显示"你"，头像那半自然空着，符合独白的样子。
+   */
+  {
+    id: "moving_in_monologue",
+    localizationKey: "dialogue.moving_in_monologue",
+    entryNodeId: "m1",
+    nodes: {
+      m1: {
+        nodeId: "m1",
+        speaker: "player",
+        localizationKey: "dlg.movein.m1",
+        nextNodeId: "m2",
+      },
+      m2: {
+        nodeId: "m2",
+        speaker: "player",
+        localizationKey: "dlg.movein.m2",
+        nextNodeId: "m3",
+      },
+      m3: {
+        nodeId: "m3",
+        speaker: "player",
+        localizationKey: "dlg.movein.m3",
+      },
+    },
+  },
+
   {
     id: "moss_wisp_first_meet",
     localizationKey: "dialogue.moss_wisp_first_meet",

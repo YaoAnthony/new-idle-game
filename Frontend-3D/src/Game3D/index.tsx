@@ -7,6 +7,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActionHub } from "../Components/ActionHub/ActionHub";
 import { Backpack } from "../Components/Backpack/Backpack";
+import { RewardPanel } from "../Components/RewardPanel/RewardPanel";
 import { DialoguePanel } from "../Components/Dialogue/DialoguePanel";
 import { HeldItem } from "../Components/HeldItem/HeldItem";
 import { Hotbar } from "../Components/Hotbar/Hotbar";
@@ -382,6 +383,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       <SettingsDrawer />
       <TutorialGuide />
       <SleepOverlay />
+      <RewardPanel />
       <StoryToast />
     </>
   );

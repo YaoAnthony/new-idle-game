@@ -56,6 +56,7 @@ import {
   type KitchenSlotRef,
 } from "../../Game/Systems/kitchen";
 import { pickupFurniture } from "../../Game/Systems/placement";
+import { openUnpack } from "../../Game/Systems/unpack";
 import {
   findAnchor,
   hasFreeAnchor,
@@ -375,6 +376,9 @@ export class RoomScene {
             });
           } else if (this.interactTarget.capability === "sitting") {
             this.restAtTarget(BodyPosture.Sit);
+          } else if (this.interactTarget.capability === "unpack") {
+            // 纸箱/奖励箱：弹领取面板，收下才真的入包并消失
+            openUnpack(this.interactTarget.instanceId);
           } else if (this.interactTarget.capability === "cooking") {
             // 灶台不开面板：菜是真的在锅里做出来的。
             // 对着离自己最近的那个灶眼操作（放锅 / 投料 / 起锅 / 端起来）
@@ -656,8 +660,10 @@ export class RoomScene {
       if (!definition) continue;
 
       const capability = definition.capabilities.includes(
-        FurnitureCapability.Crafting,
+        FurnitureCapability.Unpack,
       )
+        ? ("unpack" as const)
+        : definition.capabilities.includes(FurnitureCapability.Crafting)
         ? ("crafting" as const)
         : definition.capabilities.includes(FurnitureCapability.Cooking)
           ? ("cooking" as const)

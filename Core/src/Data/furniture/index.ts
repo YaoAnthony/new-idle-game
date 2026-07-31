@@ -51,10 +51,12 @@ export const furnitureDefinitions = [
     placementSurface: PlacementSurface.Floor,
     localizationKey: "furniture.cardboard_box",
     category: FurnitureCategory.Decoration,
-    capabilities: [],
+    // 一次性容器：拆开就没了。装什么由实例的 state.lootTableId 决定
+    capabilities: [FurnitureCapability.Unpack],
     audioProfileId: null,
     floorLayer: FloorLayer.Object,
     blocksMovement: true,
+    interactHint: { localizationKey: "hint.unpack", action: "interact" },
   },
   {
     id: "cardboard_stack",
@@ -63,10 +65,11 @@ export const furnitureDefinitions = [
     placementSurface: PlacementSurface.Floor,
     localizationKey: "furniture.cardboard_stack",
     category: FurnitureCategory.Decoration,
-    capabilities: [],
+    capabilities: [FurnitureCapability.Unpack],
     audioProfileId: null,
     floorLayer: FloorLayer.Object,
     blocksMovement: true,
+    interactHint: { localizationKey: "hint.unpack", action: "interact" },
   },
   {
     id: "ordinary_workbench",

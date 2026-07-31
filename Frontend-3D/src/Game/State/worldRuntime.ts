@@ -256,35 +256,50 @@ export function removeFurniture(instanceId: string): boolean {
 export function seedInitialFurniture(): void {
   if (placedFurniture.length > 0) return;
 
-  const initial: Array<{
+  /**
+   * 2026-07-30 定稿：开局**只有两个纸箱**，就摆在玄关门口。
+   *
+   * 以前铺满了灶台、书架、储物箱和三堆纸箱——那是"别人住过的屋子"。
+   * 现在的第一眼是**空房子加两个箱子**：所有东西都在箱子里，
+   * 玩家亲手拆开、亲手摆出来，家才是自己布置的。
+   * 装什么见 Core 的 Data/loot（工具一箱、家什一箱）。
+   */
+  const boxes: Array<{
     furnitureId: string;
     gridPosition: GridPosition;
     facing: Facing;
+    lootTableId: string;
   }> = [
-    // 房子自带的灶台：开放厨房区（北墙西段、小窗旁）
-    { furnitureId: "stove", gridPosition: { x: 8, y: 0 }, facing: Facing.North },
-
-    // 房东留下的旧家具：书架在客厅侧墙，储物箱塞在东墙边
-    { furnitureId: "bookshelf", gridPosition: { x: 12, y: 0 }, facing: Facing.North },
-    { furnitureId: "storage_chest", gridPosition: { x: 22, y: 4 }, facing: Facing.West },
-
-    // 行李堆在玄关进门处——刚搬进来，先卸在落脚的地方才合理
-    { furnitureId: "cardboard_stack", gridPosition: { x: 2, y: 4 }, facing: Facing.North },
-    { furnitureId: "cardboard_box", gridPosition: { x: 4, y: 5 }, facing: Facing.East },
-    { furnitureId: "cardboard_box", gridPosition: { x: 1, y: 6 }, facing: Facing.South },
-
-    // 搬到一半没力气的第二堆：客厅中部偏南
-    { furnitureId: "cardboard_stack", gridPosition: { x: 11, y: 6 }, facing: Facing.West },
-    { furnitureId: "cardboard_box", gridPosition: { x: 12, y: 5 }, facing: Facing.South },
-
-    // 孤零零一个滚进了主卧门口
-    { furnitureId: "cardboard_box", gridPosition: { x: 4, y: 10 }, facing: Facing.East },
+    {
+      furnitureId: "cardboard_stack",
+      gridPosition: { x: 2, y: 3 },
+      facing: Facing.East,
+      lootTableId: "moving_tools",
+    },
+    {
+      furnitureId: "cardboard_box",
+      gridPosition: { x: 4, y: 4 },
+      facing: Facing.South,
+      lootTableId: "moving_furniture",
+    },
   ];
 
-  for (const item of initial) {
-    placeFurniture(item.furnitureId, item.gridPosition, item.facing);
-  }
+  placedFurniture = boxes.map((box) => ({
+    instanceId: nextInstanceId(box.furnitureId),
+    furnitureId: box.furnitureId,
+    placement: {
+      kind: PlacementSurface.Floor as const,
+      roomId: room.roomId,
+      gridPosition: box.gridPosition,
+      facing: box.facing,
+    },
+    state: { lootTableId: box.lootTableId },
+  }));
+
+  occupancy = rebuild();
+  emit("world_changed", { reason: "seeded" });
 }
+
 
 // ---- 存档 ----
 //

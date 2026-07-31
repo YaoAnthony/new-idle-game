@@ -16,6 +16,8 @@ export type StorySignalKind =
   | "game_started"
   | "backpack_opened"
   | "furniture_placed"
+  /** 拆开了一个一次性容器（纸箱/奖励箱）。subject 是战利品表 id */
+  | "unpacked"
   | "craft_completed"
   | "cook_completed"
   | "dialogue_ended"

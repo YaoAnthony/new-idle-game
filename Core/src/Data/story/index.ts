@@ -6,13 +6,13 @@ import type { StoryRule, TutorialDefinition } from "../../types/story.js";
  * 这里是唯一的剧情真相来源——代码里不允许再出现剧情分支。
  */
 export const storyRules: StoryRule[] = [
-  // 搬进新家的开场提示
+  // 搬进新家：开场独白。延迟一点让镜头先落定，玩家看清屋子再开口
   {
     id: "moving_in_intro",
     triggers: [{ signal: "game_started" }],
     effects: [
       { kind: "set_event_stage", eventId: "moving_in", stageId: "arrived" },
-      { kind: "show_toast", localizationKey: "story.moving_in", durationMs: 7000 },
+      { kind: "start_dialogue", dialogueId: "moving_in_monologue", delayMs: 900 },
     ],
   },
 
@@ -108,9 +108,9 @@ export const tutorialDefinition: TutorialDefinition = {
   completedLocalizationKey: "tutorial.completed",
   steps: [
     {
-      stepId: "backpack",
-      localizationKey: "tutorial.backpack",
-      completedBy: { signal: "backpack_opened" },
+      stepId: "unpack",
+      localizationKey: "tutorial.unpack",
+      completedBy: { signal: "unpacked" },
     },
     {
       stepId: "workbench",

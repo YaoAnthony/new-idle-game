@@ -101,6 +101,21 @@ function hash01(seed: number): number {
   return x - Math.floor(x);
 }
 
+/**
+ * 樱花树的位置：落地窗正外的庭院预留区中心。
+ * 常开的奇观地标（定稿）——不接季节，它永远盛开。
+ */
+const SAKURA_X = 7.5;
+/**
+ * 离北墙多远。6.5 时树梢被窗框上沿切掉——**近一点反而看得全**：
+ * 窗口是个固定大小的画框，物体越近仰角越大、越容易顶出框外，
+ * 但树冠也越大越有存在感。4.2 是"树冠占满窗子上半、树梢刚好在框内"
+ * 的甜点，压低视角时整棵树都在画里。
+ */
+const SAKURA_DISTANCE = 4.2;
+
+const PETAL_COUNT = 90;
+
 const RAIN_MAX = 420;
 /** 小雨的粒子数。外景比旧窗贴画大得多，密度按面积等比放大 */
 const RAIN_COUNT_LIGHT = 190;
@@ -131,6 +146,11 @@ export class OutdoorScene {
   private readonly rain: Points;
   private readonly rainVelocities: Float32Array;
   private stormWind = false;
+
+  /** 樱花花瓣。常年飘落——树是常开的奇观，不接季节 */
+  private readonly petals: Points;
+  private readonly petalSeeds: Float32Array;
+  private windy = false;
 
   private elapsed = 0;
 
@@ -215,6 +235,12 @@ export class OutdoorScene {
     this.buildGround();
     this.buildForest();
     this.buildRiver();
+    this.buildSakura();
+
+    const petals = this.buildPetals();
+    this.petals = petals.points;
+    this.petalSeeds = petals.seeds;
+    this.root.add(this.petals);
 
     // ---- 雨（真的下在世界里，不再是窗贴画上的粒子） ----
     const rain = this.buildRain();
@@ -452,6 +478,121 @@ export class OutdoorScene {
     }
   }
 
+  /**
+   * 樱花树：落地窗正外的庭院地标（常开的奇观，不接季节）。
+   *
+   * 建模思路和参考图一致——**树冠就是一堆粉色球**，靠三个粉调
+   * 拉出体积：主调、暗面、顶部高光。树干分两段带弯折，
+   * 一根侧枝伸向窗户方向，让构图有个前景的斜线。
+   * 树下再铺一圈落花圆斑，暗示"这里一直在落"。
+   */
+  private buildSakura(): void {
+    const tree = new Object3D();
+    tree.name = "sakura";
+    tree.position.set(SAKURA_X, 0, this.northZ - SAKURA_DISTANCE);
+
+    const PINK = "#f2b8cc";
+    const PINK_DARK = "#e394b3";
+    const PINK_LIGHT = "#fbe0e9";
+
+    // 主干两段：下段直、上段带弯，比一根直筒有生气
+    tree.add(
+      cylinder(0.22, 0.3, 2.0, 6, {
+        color: TRUNK_BROWN,
+        position: [0, 1.0, 0],
+        castShadow: false,
+      }),
+    );
+    const upper = cylinder(0.14, 0.2, 1.5, 6, {
+      color: TRUNK_BROWN,
+      position: [0.25, 2.6, 0],
+      castShadow: false,
+    });
+    upper.rotation.z = -0.22;
+    tree.add(upper);
+
+    // 侧枝伸向窗户（-x 是房子方向）
+    const branch = cylinder(0.08, 0.13, 1.4, 5, {
+      color: TRUNK_BROWN,
+      position: [-0.7, 2.5, 0.15],
+      castShadow: false,
+    });
+    branch.rotation.z = 1.0;
+    tree.add(branch);
+
+    const puffs: Array<[number, number, number, number, string]> = [
+      [0.3, 3.7, 0, 1.5, PINK],
+      [-1.15, 3.2, 0.2, 1.05, PINK],
+      [1.35, 3.35, -0.2, 1.1, PINK_DARK],
+      [0.5, 4.5, 0.3, 0.95, PINK_LIGHT],
+      [-0.5, 4.2, -0.5, 0.85, PINK_LIGHT],
+      [1.0, 4.0, 0.6, 0.8, PINK],
+      [-1.5, 3.9, -0.3, 0.7, PINK_DARK],
+      [0.0, 3.0, 0.8, 0.75, PINK_DARK],
+    ];
+    for (const [px, py, pz, radius, color] of puffs) {
+      tree.add(
+        blob(radius, 0, {
+          color,
+          position: [px, py, pz],
+          castShadow: false,
+        }),
+      );
+    }
+
+    // 树下的落花：贴地圆斑（零厚度，掠射角不会露侧面）
+    for (let i = 0; i < 5; i += 1) {
+      const patch = new Mesh(
+        new CircleGeometry(0.8 + hash01(i * 5.3) * 0.9, 10),
+        ownMaterial(PINK_LIGHT),
+      );
+      patch.rotation.x = -Math.PI / 2;
+      patch.position.set(
+        (hash01(i * 3.7) - 0.5) * 4,
+        0.005,
+        (hash01(i * 7.9) - 0.5) * 3.5,
+      );
+      tree.add(patch);
+    }
+
+    this.root.add(tree);
+  }
+
+  /**
+   * 花瓣粒子：从树冠体积里生成，边落边横摆。
+   *
+   * 每片存一个 seed，横摆的相位和速度都从它推出来——
+   * 这样一把粒子里没有两片是同步的，看起来才像风里的花瓣
+   * 而不是一场粉色的雨。落到地面就回到树冠重来。
+   */
+  private buildPetals(): { points: Points; seeds: Float32Array } {
+    const positions = new Float32Array(PETAL_COUNT * 3);
+    const seeds = new Float32Array(PETAL_COUNT);
+
+    for (let i = 0; i < PETAL_COUNT; i += 1) {
+      positions[i * 3] = SAKURA_X + (Math.random() - 0.5) * 5;
+      positions[i * 3 + 1] = Math.random() * 4.6;
+      positions[i * 3 + 2] =
+        this.northZ - SAKURA_DISTANCE + (Math.random() - 0.5) * 4;
+      seeds[i] = Math.random() * Math.PI * 2;
+    }
+
+    const geometry = new BufferGeometry();
+    geometry.setAttribute("position", new BufferAttribute(positions, 3));
+
+    const material = new PointsMaterial({
+      color: "#f7cdd9",
+      size: 0.11,
+      transparent: true,
+      opacity: 0.95,
+      depthWrite: false,
+    });
+
+    const points = new Points(geometry, material);
+    points.name = "sakura-petals";
+    return { points, seeds };
+  }
+
   private buildRain(): { points: Points; velocities: Float32Array } {
     const positions = new Float32Array(RAIN_MAX * 3);
     const velocities = new Float32Array(RAIN_MAX);
@@ -518,6 +659,7 @@ export class OutdoorScene {
       weather === WeatherKind.Storm ? RAIN_MAX : RAIN_COUNT_LIGHT,
     );
     this.stormWind = weather === WeatherKind.Storm;
+    this.windy = weather === WeatherKind.Wind || weather === WeatherKind.Storm;
     (this.rain.material as PointsMaterial).opacity =
       weather === WeatherKind.Storm ? 0.85 : 0.6;
 
@@ -572,6 +714,31 @@ export class OutdoorScene {
       streak.position.x += (0.9 + hash01(i * 7.7) * 0.5) * deltaSeconds;
       if (streak.position.x > 70) streak.position.x = -70;
       streak.position.z = this.riverCenter(streak.position.x) + (hash01(i * 3.7) - 0.5) * 1.6;
+    }
+
+    // 花瓣：下落 + 正弦横摆，落地回到树冠。风天飘得更斜更快
+    {
+      const attribute = this.petals.geometry.getAttribute("position") as BufferAttribute;
+      const array = attribute.array as Float32Array;
+      const drift = this.windy ? 2.1 : 0.75;
+      const fall = this.windy ? 0.9 : 0.55;
+
+      for (let i = 0; i < PETAL_COUNT; i += 1) {
+        const offset = i * 3;
+        const seed = this.petalSeeds[i];
+        array[offset] +=
+          (Math.sin(this.elapsed * 0.8 + seed) * 0.35 + drift * 0.25) * deltaSeconds;
+        array[offset + 1] -= fall * deltaSeconds;
+        array[offset + 2] += Math.cos(this.elapsed * 0.6 + seed) * 0.3 * deltaSeconds;
+
+        if (array[offset + 1] < 0) {
+          array[offset] = SAKURA_X + (Math.random() - 0.5) * 5;
+          array[offset + 1] = 3.4 + Math.random() * 1.4;
+          array[offset + 2] =
+            this.northZ - SAKURA_DISTANCE + (Math.random() - 0.5) * 4;
+        }
+      }
+      attribute.needsUpdate = true;
     }
 
     if (!this.rain.visible) return;

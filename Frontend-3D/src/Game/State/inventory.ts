@@ -345,21 +345,19 @@ export function seedInitialInventory(): void {
   const empty = [...hotbar, ...backpack].every((stack) => stack === null);
   if (!empty) return;
 
-  hotbar[0] = { itemId: "furniture_workbench", count: 1 };
-  hotbar[1] = { itemId: "bedroll", count: 1 };
-  hotbar[2] = { itemId: "furniture_rug", count: 1 };
-  // 炒锅和盘子跟地铺一样是搬家带来的：租来的房子自带灶台，
-  // 所以进屋就能做饭，不用先攒材料造锅（第一天流程不能断在这里）
-  hotbar[3] = { itemId: "wok", count: 1 };
-  hotbar[4] = { itemId: "plate", count: 1 };
+  /**
+   * 2026-07-30 定稿：**背包开局是空的**，行李全在门口那两个纸箱里。
+   *
+   * 以前直接把工作台、炒锅、地铺塞满快捷栏——那等于替玩家把箱子拆了，
+   * 开局第一眼就是一排看不懂的图标。现在东西得自己拆出来，
+   * 「打开箱子拿到工具」这一下才有分量（见 Core 的 Data/loot）。
+   *
+   * 只留地铺和一点食材：地铺是第一天必须能睡觉的兜底（不在箱子里，
+   * 是背着来的），食材是为了第一天能做饭见苔苔。
+   */
+  hotbar[0] = { itemId: "bedroll", count: 1 };
 
   const materials: Array<[string, number]> = [
-    ["wood", 8],
-    ["sugarcane", 2],
-    ["leather", 1],
-    ["graphite", 1],
-    ["iron_ingot", 2],
-    ["root", 1],
     ["tomato", 2],
     ["egg", 2],
     ["rice", 2],
@@ -370,3 +368,4 @@ export function seedInitialInventory(): void {
 
   emit("inventory_changed", { reason: "seed" });
 }
+

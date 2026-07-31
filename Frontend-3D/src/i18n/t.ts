@@ -81,7 +81,8 @@ const ZH: Record<string, string> = {
   "story.day_one_wrap": "第一天就这样过去了。这个小家，之后慢慢布置吧。",
 
   // 教程步骤（tutorialDefinition）
-  "tutorial.backpack": "按 B 打开背包，看看妈妈帮你收拾的行李",
+  "tutorial.unpack": "走到门口的箱子旁边按 F，把行李拆开",
+  "tutorial.backpack_unused": "按 B 打开背包，看看妈妈帮你收拾的行李",
   "tutorial.workbench": "从快捷栏选出工作台（按 1），放在屋里",
   "tutorial.craft": "走到工作台旁按 F，做一块木板试试",
   "tutorial.gift": "有小家伙进来了！过去打个招呼，送点吃的",
@@ -136,6 +137,14 @@ const ZH: Record<string, string> = {
   "dlg.first.n6": "没有也没关系！那我在这儿等等看。反正我也没别的地方要去。",
   "dlg.first.n7":
     "（苔苔在墙角坐下来，偷偷瞄了你好几眼，好像有一肚子问题没问完）",
+  // 开场独白：搬进新家的第一分钟。三句话说明白"到家了""屋子是空的"
+  // "先拆门口那两个箱子"，把玩家的第一个动作指出来
+  "dlg.movein.m1": "……终于到了。\n（你放下背包，屋子里空得能听见回声）",
+  "dlg.movein.m2":
+    "这就是我的家了啊。比照片上还大一点——客厅、两间屋、还有个能看见院子的大窗户。",
+  "dlg.movein.m3":
+    "行李都在门口那两个箱子里。\n先把它们拆了，慢慢收拾吧。",
+
   "dlg.casual.c1": "（苔苔凑过来闻了闻你，卷芽轻轻晃了两下）",
   "dlg.casual.cc_gift": "给你带了点东西",
   "dlg.casual.cc_bye": "只是路过看看你",
@@ -174,6 +183,12 @@ const ZH: Record<string, string> = {
   // 是它的状态，不是玩家被系统限制了
   "ui.gift_already_today": "（它今天已经吃饱啦，明天再来吧）",
   "ui.gift_drop": "放入",
+  // 一次性领取面板（拆箱 / 任务奖励通用）
+  "ui.reward_subtitle": "已经放进你的背包",
+  "ui.reward_claim": "收下",
+  "loot.moving_tools": "打开了工具箱",
+  "loot.moving_furniture": "打开了家什箱",
+  "hint.unpack": "拆开箱子",
   // 「不给了」是玩家的动作，不能复用「现在没有吃的…」——那是一句陈述，
   // 而且新 UI 里背包全都能递，"没有吃的"这个前提本身也不成立了
   "ui.decline_gift": "这次不给了",
@@ -436,7 +451,9 @@ const ZH: Record<string, string> = {
   "ui.settings.key_interact": "交互",
   "ui.settings.key_backpack": "背包",
   "ui.settings.key_dump": "倒掉锅里的",
-  "ui.settings.key_rotate": "旋转镜头 / 家具",
+  "ui.settings.key_camera": "转动镜头",
+  "ui.settings.key_zoom": "拉近拉远",
+  "ui.settings.key_rotate": "旋转家具",
   "ui.settings.close": "关闭",
 
   // ---- 世界时钟与天气 ----

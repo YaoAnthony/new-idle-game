@@ -14,7 +14,8 @@ export type StationCapability =
   | "cooking"
   | "sleep"
   | "sitting"
-  | "storage";
+  | "storage"
+  | "unpack";
 
 export type GameEvents = {
   /** 世界数据变化（家具增删等），渲染层据此同步场景图 */
@@ -33,6 +34,8 @@ export type GameEvents = {
       }
     | { kind: "pet"; petId: string }
     | null;
+  /** 一次性容器（纸箱/奖励箱）的领取面板开合 */
+  unpack_changed: { open: boolean };
   /** 玩家按 F 请求打开工作站界面。灶台不走这条——菜是真的在锅里做的 */
   station_open_requested: {
     instanceId: string;

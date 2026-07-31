@@ -242,7 +242,9 @@ export function SettingsDrawer() {
                     ["ui.settings.key_interact", "F"],
                     ["ui.settings.key_backpack", "B"],
                     ["ui.settings.key_dump", "G"],
-                    ["ui.settings.key_rotate", "Q / E / R"],
+                    ["ui.settings.key_camera", "拖动鼠标左键"],
+                    ["ui.settings.key_zoom", "滚轮"],
+                    ["ui.settings.key_rotate", "R"],
                   ].map(([labelKey, keys]) => (
                     <div
                       key={labelKey}

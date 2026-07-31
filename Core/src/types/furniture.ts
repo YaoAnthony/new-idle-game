@@ -52,6 +52,12 @@ export enum FurnitureCapability {
   Sleep = "sleep",
   Sitting = "sitting",
   Ambience = "ambience",
+  /**
+   * 一次性容器：按 F 打开，内容进背包，家具本身消失。
+   * 搬家纸箱、任务奖励箱都是它——**装什么由实例的 lootTableId 决定**，
+   * 不写死在家具定义里，同一种纸箱才能装不同的东西。
+   */
+  Unpack = "unpack",
 
   // ---- 行动支撑能力 ----
   // 「家里有什么家具 → 能做哪类行动」是内容规则，必须放 Core：
@@ -201,6 +207,9 @@ export type FurniturePlacement = FloorFurniturePlacement | WallFurniturePlacemen
 export type PlacedFurnitureState = {
   durability?: number;
   storageInventoryId?: InventoryId;
+
+  /** 一次性容器的内容（对 FurnitureCapability.Unpack）。查 Data/loot 注册表 */
+  lootTableId?: string;
   activeProcessId?: ProcessId;
   customVisualId?: VisualId;
 

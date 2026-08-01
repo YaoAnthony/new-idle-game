@@ -13,6 +13,10 @@ import {
   snapshotDroppedItems,
 } from "../../Game/State/droppedItems";
 import { restoreHeld, snapshotHeld } from "../../Game/State/heldItem";
+import {
+  restoreLocalPosition,
+  snapshotLocalPosition,
+} from "../../Game/State/participants";
 import { restoreResting, snapshotResting } from "../../Game/State/posture";
 import {
   pruneOrphanStorages,
@@ -99,6 +103,8 @@ export function serializeGameSave(previous?: GameSave): GameSave {
         inventory: snapshotInventory(),
         needs: getNeeds(),
         heldItem: snapshotHeld(),
+        // 站在哪、面朝哪。权威在 Game/State/participants，渲染层每帧写进去
+        position: snapshotLocalPosition(),
         restingOn: snapshotResting(),
       },
       // 做过一次的配方。不是"解锁"（配方目前全量开放），
@@ -106,6 +112,8 @@ export function serializeGameSave(previous?: GameSave): GameSave {
       discoveredRecipeIds: getDiscoveredRecipeIds(),
       // 行动清单跟着玩家走——这是你现实里要做的事，不属于哪间屋子
       actionEntries: snapshotActionEntries(),
+      // 正在做的那条也跟着人走（v12 从 WorldSave 搬来，见 PlayerSave 的注释）
+      activeActionProcess: snapshotAction(),
     },
 
     ownWorld: {
@@ -134,8 +142,6 @@ export function serializeGameSave(previous?: GameSave): GameSave {
         events: getEventProgress(),
         firedStoryRuleIds: getFiredStoryRuleIds(),
       },
-
-      activeActionProcess: snapshotAction(),
     },
   };
 }
@@ -170,6 +176,8 @@ export function hydrateGameSave(save: GameSave): void {
 
   restoreInventory(save.player.character.inventory);
   restoreHeld(save.player.character.heldItem);
+  // 位置要在 GameView 挂载之前就位：CharacterController 的构造函数从这里读初值
+  restoreLocalPosition(save.player.character.position);
   restoreDiscoveredRecipes(save.player.discoveredRecipeIds ?? []);
   // 坐姿最后恢复：它要查家具锚点，房间必须已经就位
   restoreResting(save.player.character.restingOn);
@@ -185,5 +193,5 @@ export function hydrateGameSave(save: GameSave): void {
 
   // 行动最后恢复：它可能立刻结算并发奖励，需要背包已经就位
   restoreActionEntries(save.player.actionEntries);
-  restoreAction(save.ownWorld.activeActionProcess);
+  restoreAction(save.player.activeActionProcess);
 }

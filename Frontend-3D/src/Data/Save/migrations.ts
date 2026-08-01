@@ -459,6 +459,34 @@ export const migrations: Migration[] = [
       return save;
     },
   },
+
+  // v12（2026-08-01 participants）：正在进行的行动从 WorldSave 搬到 PlayerSave。
+  //
+  // 这条**必须迁移**，和 v10/v11 那种"补个空数组顺便推版本号"不是一回事：
+  // 字段换了家，不搬的话老存档里正做着的行动读档后直接消失——
+  // 一条按绝对 UTC 推进、离线也会完成的行动就这么无声没了。
+  //
+  // 搬家的理由见 PlayerSave.activeActionProcess 的注释：世界级单数字段
+  // 在联机时会让多个玩家共用一个"正在进行"的槽。
+  //
+  // 位置（PlayerSave.character.position）是纯新增可选字段，不在这里补——
+  // 读出来 undefined 就回出生点，和老存档的行为一模一样。
+  {
+    to: 12,
+    migrate: (save) => {
+      const world = save.ownWorld as typeof save.ownWorld & {
+        activeActionProcess?: NonNullable<typeof save.player.activeActionProcess>;
+      };
+
+      // ??= 而不是 =：万一两边都有（客户端版本来回横跳过），以玩家侧为准，
+      // 那边是新家，不该被老字段覆盖回去
+      if (world.activeActionProcess) {
+        save.player.activeActionProcess ??= world.activeActionProcess;
+        delete world.activeActionProcess;
+      }
+      return save;
+    },
+  },
 ];
 
 /**

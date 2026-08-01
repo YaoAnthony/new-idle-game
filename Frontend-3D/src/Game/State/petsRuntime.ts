@@ -1,7 +1,8 @@
 import {
   AffectionStage,
-  Facing,
+  facingToHeading,
   findPath,
+  headingToFacing,
   type GridPosition,
   type PetSave,
 } from "core";
@@ -144,18 +145,8 @@ export function spawnPet(petId: string, definitionId: string): PetRuntime {
  * WorldPosition 是 (mapId, x, y, facing) 的平面坐标，没有第三个轴——
  * 屋里是俯视网格，宠物的 3D z 对应的就是这里的 y。
  * heading 是连续弧度，落档时量化到最近的 Facing（读档后马上又开始游荡，无所谓精度）。
+ * 换算搬去了 Core 的 logic/facing：玩家那边也要用同一套，两份迟早会漂。
  */
-function headingToFacing(heading: number): Facing {
-  const quarter = Math.round(heading / (Math.PI / 2)) & 3;
-  return [Facing.North, Facing.East, Facing.South, Facing.West][quarter];
-}
-
-const FACING_HEADING: Record<Facing, number> = {
-  [Facing.North]: 0,
-  [Facing.East]: Math.PI / 2,
-  [Facing.South]: Math.PI,
-  [Facing.West]: -Math.PI / 2,
-};
 
 export function snapshotPets(): Record<string, PetSave> {
   const { room } = getWorld();
@@ -194,7 +185,7 @@ export function restorePets(saved: Record<string, PetSave>): void {
       state: "idle",
       x: entry.position.x,
       z: entry.position.y,
-      heading: FACING_HEADING[entry.position.facing] ?? 0,
+      heading: facingToHeading(entry.position.facing),
       affectionStage: entry.affectionStage,
       nickname: entry.nickname,
       lastGiftWorldDayId: entry.lastGiftWorldDayId,

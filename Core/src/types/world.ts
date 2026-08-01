@@ -1,4 +1,3 @@
-import type { ActionProcessSave } from "./actions.js";
 import type { ChatMessage } from "./chat.js";
 import type { FeatureId, RoomId, WorldId } from "./base.js";
 import type { EventProgressSave } from "./events.js";
@@ -99,11 +98,10 @@ export type WorldSave = {
     firedStoryRuleIds?: StoryRuleId[];
   };
 
-  /**
-   * 正在进行的行动。放在世界侧是因为它绑着世界里的某件家具
-   * （furnitureInstanceId）。按绝对 UTC 推进，关掉游戏也会照常完成。
-   */
-  activeActionProcess?: ActionProcessSave;
+  // activeActionProcess 搬去 PlayerSave 了（save v12）。
+  // 原来的理由是"它绑着世界里的某件家具"，但那只说明 furnitureInstanceId
+  // 属于世界，不说明**谁在做这件事**属于世界。世界级单数字段在联机时
+  // 直接崩：3 个人共用一个"正在进行"的槽。
 
   gameRules?: GameRulesSave;
 };

@@ -11,6 +11,10 @@ import {
 } from "core";
 import { emit } from "../EventBus";
 import { nowMs, nowUtc } from "../State/clock";
+import {
+  LOCAL_PLAYER_ID,
+  setParticipantActivity,
+} from "../State/participants";
 import { signal } from "./story";
 import { addItem } from "../State/inventory";
 import { getNeeds, restoreFatigue, spendFatigue } from "../State/needs";
@@ -47,6 +51,27 @@ export type ActionEnd = {
 let active: ActiveAction | null = null;
 let timer: ReturnType<typeof setTimeout> | null = null;
 let lastEnd: ActionEnd | null = null;
+
+/**
+ * 改"正在做什么"**只走这一条路**，顺手把 participant 的 activity 也对齐。
+ *
+ * 不让各处自己 `active = ...` 再各自记得同步一次——`held_changed` 就是
+ * 那么漏的：13 个改动点里只有 4 个记得广播，剩下的静默不一致。
+ * 派生出来的东西必须由赋值那一刻产生，不能靠调用方自觉。
+ */
+function setActive(next: ActiveAction | null): void {
+  active = next;
+  setParticipantActivity(
+    LOCAL_PLAYER_ID,
+    next
+      ? {
+          actionId: next.definitionId,
+          startedAt: next.startedAtMs,
+          furnitureInstanceId: next.furnitureInstanceId || undefined,
+        }
+      : null,
+  );
+}
 
 export function getActiveAction(): ActiveAction | null {
   return active;
@@ -126,7 +151,7 @@ export function startAction(
   // 精力不够就开不了——代价是重要级"有实际效果"的一半
   if (!canAfford(definition, priority)) return false;
 
-  active = {
+  setActive({
     definitionId,
     category: definition.category,
     customName: customName.trim() || "专注",
@@ -134,14 +159,14 @@ export function startAction(
     startedAtMs: nowMs(),
     durationMs: durationSeconds * 1000,
     furnitureInstanceId,
-  };
+  });
 
   // 开始时就扣，避免"开着不完成"白嫖；休息类是负数，等于当场回一点
   const cost = fatigueCostOf(definition, priority);
   if (cost > 0) spendFatigue(cost);
   else if (cost < 0) restoreFatigue(-cost);
 
-  timer = setTimeout(() => finish(true), active.durationMs);
+  timer = setTimeout(() => finish(true), durationSeconds * 1000);
   emit("action_changed", { status: "started" });
   signal("action_started", definitionId);
   return true;
@@ -181,7 +206,7 @@ function finish(completed: boolean): void {
     );
 
   lastEnd = { action: active, completed, rewards, petCompanion };
-  active = null;
+  setActive(null);
   emit("action_changed", { status: completed ? "completed" : "cancelled" });
   if (completed) signal("action_completed", definition?.id);
 }
@@ -284,7 +309,7 @@ export function snapshotAction(): ActionProcessSave | undefined {
 export function restoreAction(saved: ActionProcessSave | undefined): void {
   if (timer) clearTimeout(timer);
   timer = null;
-  active = null;
+  setActive(null);
 
   if (!saved || saved.status !== "active") return;
 
@@ -295,7 +320,7 @@ export function restoreAction(saved: ActionProcessSave | undefined): void {
   if (!Number.isFinite(startedAtMs)) return;
 
   const durationMs = saved.durationMinutes * 60000;
-  active = {
+  setActive({
     definitionId: saved.actionId,
     category: definition.category,
     customName: saved.customName ?? "专注",
@@ -303,7 +328,7 @@ export function restoreAction(saved: ActionProcessSave | undefined): void {
     startedAtMs,
     durationMs,
     furnitureInstanceId: saved.furnitureInstanceId ?? "",
-  };
+  });
 
   const remainingMs = startedAtMs + durationMs - nowMs();
   if (remainingMs <= 0) {

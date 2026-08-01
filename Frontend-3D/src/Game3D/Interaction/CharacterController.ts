@@ -1,6 +1,10 @@
 import type { PoseId } from "core";
 import { MathUtils } from "three";
 import { getHeld } from "../../Game/State/heldItem";
+import {
+  getLocalTransform,
+  setLocalTransform,
+} from "../../Game/State/participants";
 import { isWalkable, setActorFootprint } from "../../Game/State/worldRuntime";
 import { DEFAULT_POSTURE, isSupportedPosture } from "../Visual/poses.js";
 import type { CharacterRig } from "../World/CharacterView";
@@ -20,13 +24,16 @@ export class CharacterController {
   private elapsed = 0;
   private headingAngle = 0;
 
-  // 出生在西墙门口内侧几步（门洞中心在 z=0），像刚推门进屋。
-  // 不贴着门站是给肩后镜头留出背后的空间——贴墙时镜头会被迫抬高俯拍，
-  // 开局第一帧就成了头顶特写
-  // 出生在玄关内侧（2LDK 户型：门在西墙 z1~2，玄关 x0..5/z0..3）——
-  // 搬进新家的第一步是站在玄关看客厅
-  x = -8.5;
-  z = -6;
+  /**
+   * 世界坐标。**权威在 `Game/State/participants`**，这里是它的工作副本：
+   * 每帧算完写回去（`setLocalTransform`），构造时从那边读初值。
+   *
+   * 为什么不直接读写那边的对象：移动这段一帧要读写 x/z 十几次
+   * （轴分离碰撞、朝向插值），每次都穿过一层函数调用不值得；
+   * 而"一帧结束时两边一致"对存档和联机来说已经足够。
+   */
+  x: number;
+  z: number;
 
   /**
    * 根节点的离地高度。站着是 0；坐下 / 躺下时由 resting 系统抬到
@@ -57,14 +64,20 @@ export class CharacterController {
   private onScriptedArrive: (() => void) | null = null;
 
   constructor(private readonly rig: CharacterRig) {
+    // 读档时位置已经灌进 participants 了（hydrate 在 GameView 挂载之前跑），
+    // 新游戏则拿到出生点。开局站哪不再是这一层的事
+    const { x, z, heading } = getLocalTransform();
+    this.x = x;
+    this.z = z;
+    this.headingAngle = heading;
     rig.root.position.set(this.x, 0, this.z);
-    this.headingAngle = Math.PI / 2; // 面向房间内
   }
 
   teleport(x: number, z: number): void {
     this.x = x;
     this.z = z;
     this.rig.root.position.set(x, 0, z);
+    setLocalTransform(x, z, this.headingAngle);
   }
 
   /** 沿世界坐标点列走过去，到达后回调。期间输入被忽略 */
@@ -162,6 +175,8 @@ export class CharacterController {
     this.rig.root.position.set(this.x, this.supportY, this.z);
     this.rig.heading.rotation.y = this.headingAngle;
     setActorFootprint(this.x, this.z, RADIUS);
+    // 一帧的末尾把权威状态对齐。存档和（将来的）联机都从那边读
+    setLocalTransform(this.x, this.z, this.headingAngle);
 
     // 站着才跑走路 / 待机呼吸；坐着躺着完全交给姿势
     const carrying = getHeld() !== null;
@@ -208,6 +223,7 @@ export class CharacterController {
     this.rig.root.position.set(this.x, 0, this.z);
     this.rig.heading.rotation.y = this.headingAngle;
     setActorFootprint(this.x, this.z, RADIUS);
+    setLocalTransform(this.x, this.z, this.headingAngle);
     animateCharacter(this.rig, this.walkPhase, true, this.elapsed);
   }
 }

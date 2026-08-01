@@ -1,4 +1,4 @@
-import { Object3D } from "three";
+import { Mesh, Object3D, Vector3 } from "three";
 import { PALETTE } from "../palette.js";
 import { blob, box, cylinder, group, sphere } from "../primitives.js";
 
@@ -16,9 +16,58 @@ import { blob, box, cylinder, group, sphere } from "../primitives.js";
  * 别处要主色就从模型里取（`dominantColor`）——颜色和模型不会再对不上，
  * 因为它就是模型的颜色。
  *
- * 尺寸按"锅里那一份"定（半径 0.07~0.12）。拿在手上时由 HeldItemView
- * 统一缩放，不在这里为第二种场合再调一套数字。
+ * 形体的尺寸按"锅里那一份看得清"手调，最后统一乘 `FOOD_SCALE` 收到真实大小，
+ * 所以下面每个配方里的数字都是**相对值**，不要当厘米读。
  */
+
+/**
+ * 食材整体缩放。
+ *
+ * 这批形体当初是照"锅里那一份看得清"调的，没人拿它跟世界比例对过——
+ * 而 1 世界单位就是 1 米（台面高 0.98 正是真实的 90 厘米台面），
+ * 于是番茄有 16 厘米宽、鸡蛋 13 厘米，是真东西的两三倍。
+ * 拿在手上时和角色的脸一个量级。
+ *
+ * 收到 0.6：番茄约 9.6 厘米、鸡蛋约 7.7 厘米——比真的略大一点，
+ * 低多边形下面数少，太小就只剩几个色块看不出是什么，留这点夸张是值的。
+ */
+const FOOD_SCALE = 0.6;
+
+const scratch = new Vector3();
+
+/**
+ * 收尾：整组缩到真实尺寸，并把**原点抬到底面**。
+ *
+ * 原点在底面是这套模型的通用约定（厨具、材料都是），扔到地上时 y=0 就是
+ * 落地面。这批食材原来是球心当原点，所以掉在地上有一半埋在地板里，
+ * 放进锅里也有一半陷在锅底下面。
+ *
+ * 偏移加在**子节点**上而不是整组的 position 上：position 要留给调用方
+ * （CookwareView 摆位置时会直接覆盖它）。
+ */
+function food(name: string, parts: Object3D[]): Object3D {
+  const node = group(name, parts);
+  node.scale.setScalar(FOOD_SCALE);
+  node.updateMatrixWorld(true);
+
+  let minY = Infinity;
+  node.traverse((child) => {
+    if (!(child instanceof Mesh)) return;
+    const position = child.geometry.attributes.position;
+    for (let i = 0; i < position.count; i += 1) {
+      scratch
+        .set(position.getX(i), position.getY(i), position.getZ(i))
+        .applyMatrix4(child.matrixWorld);
+      if (scratch.y < minY) minY = scratch.y;
+    }
+  });
+
+  // minY 是缩放之后的世界高度，抬回子节点时要除掉缩放
+  if (Number.isFinite(minY) && minY !== 0) {
+    for (const child of node.children) child.position.y -= minY / FOOD_SCALE;
+  }
+  return node;
+}
 
 export function buildTomato(): Object3D {
   const body = sphere(0.08, 8, 6, {
@@ -35,14 +84,14 @@ export function buildTomato(): Object3D {
   });
   calyx.scale.y = 0.5;
 
-  return group("tomato", [body, calyx]);
+  return food("tomato", [body, calyx]);
 }
 
 /** 蛋是长的不是圆的：竖着拉一点，横着压一点 */
 function eggShape(name: string, color: string): Object3D {
   const shell = sphere(0.075, 8, 6, { color, castShadow: false });
   shell.scale.set(0.85, 1.15, 0.85);
-  return group(name, [shell]);
+  return food(name, [shell]);
 }
 
 export function buildEgg(): Object3D {
@@ -65,7 +114,7 @@ export function buildFriedEgg(): Object3D {
     castShadow: false,
   });
   yolk.scale.y = 0.55;
-  return group("fried_egg", [white, yolk]);
+  return food("fried_egg", [white, yolk]);
 }
 
 /** 米粒：一小撮，不是一颗。散开摆才像"抓了一把下锅" */
@@ -85,7 +134,7 @@ function grains(name: string, color: string): Object3D {
     return grain;
   });
 
-  return group(name, parts);
+  return food(name, parts);
 }
 
 export function buildRice(): Object3D {
@@ -103,7 +152,7 @@ function slab(name: string, color: string): Object3D {
     position: [0, 0.022, 0],
     castShadow: false,
   });
-  return group(name, [meat]);
+  return food(name, [meat]);
 }
 
 export function buildPork(): Object3D {
@@ -120,7 +169,7 @@ export function buildGreenPepper(): Object3D {
     castShadow: false,
   });
   body.scale.set(0.8, 1.25, 0.8);
-  return group("green_pepper", [body]);
+  return food("green_pepper", [body]);
 }
 
 export function buildBabyCabbage(): Object3D {
@@ -137,7 +186,7 @@ export function buildBabyCabbage(): Object3D {
   });
   heart.scale.y = 0.6;
 
-  return group("baby_cabbage", [outer, heart]);
+  return food("baby_cabbage", [outer, heart]);
 }
 
 /** 一角楔形：上宽下窄的三棱柱，用 3 段圆柱最省事 */
@@ -147,7 +196,7 @@ export function buildCheese(): Object3D {
     position: [0, 0.037, 0],
     castShadow: false,
   });
-  return group("cheese", [wedge]);
+  return food("cheese", [wedge]);
 }
 
 /**
@@ -158,7 +207,7 @@ export function buildCheese(): Object3D {
  * 不是重做美术。像样的成品菜模型是阶段 6 的活。
  */
 function mound(name: string, color: string): Object3D {
-  return group(name, [blob(0.085, 0, { color, castShadow: false })]);
+  return food(name, [blob(0.085, 0, { color, castShadow: false })]);
 }
 
 export function buildFriedTomatoEgg(): Object3D {
@@ -194,7 +243,7 @@ export function buildMysteryStew(): Object3D {
     return bit;
   });
 
-  return group("mystery_stew", [body, ...bits]);
+  return food("mystery_stew", [body, ...bits]);
 }
 
 // ---- 切块形态 ----
@@ -236,7 +285,7 @@ export function buildChopped(name: string, color: string): Object3D {
     return piece;
   });
 
-  return group(`${name}-chopped`, pieces);
+  return food(`${name}-chopped`, pieces);
 }
 
 /**

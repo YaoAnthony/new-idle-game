@@ -271,6 +271,34 @@ export function containerHoldsDish(contents: ContainerContents): boolean {
   );
 }
 
+/**
+ * 这锅现在能盛出什么。盛不了返回 null。
+ *
+ * 两种能盛：锅里已经是成品（起过锅了），或者还是生料但火候已经到位——
+ * 后者等于"起锅 + 装盘"一步做完，玩家不需要先空手按一次 F。
+ */
+function servableItems(
+  cookwareId: CookwareId,
+  contents: ContainerContents,
+): ContainerItem[] | null {
+  if (contents.items.length === 0) return null;
+  if (containerHoldsDish(contents)) return contents.items;
+
+  const cooking = resolveCookingTarget(cookwareId, contents);
+  if (!cooking) return null;
+
+  const quality = qualityForBand(heatBandOf(heatRatio(contents, cooking)));
+  if (!quality) return null;
+
+  return [
+    {
+      itemId: cooking.output,
+      quantity: 1,
+      quality: combineQuality(quality, contents.items),
+    },
+  ];
+}
+
 // ---- 交互解析（放置规则表） ----
 
 /**
@@ -309,7 +337,7 @@ export type KitchenAction =
   | { kind: "pick_up_from_slot" }
   | { kind: "add_ingredient" }
   | { kind: "take_out_dish"; output: ItemId; recipeId?: string; quality: ItemQuality }
-  | { kind: "serve_onto_plate" }
+  | { kind: "serve_onto_plate"; items: ContainerItem[] }
   | { kind: "reject"; reason: KitchenRejectReason };
 
 /**
@@ -329,15 +357,28 @@ export function resolveKitchenInteraction(
   const slotWare = target.content;
 
   if (held) {
-    // 1a 手持空盘 + 槽位上是做好的菜 → 盛出来
-    if (
-      findItemDefinition(held.itemId)?.servingWare &&
-      slotWare?.container &&
-      containerHoldsDish(slotWare.container)
-    ) {
-      return containerHasRoom(held.itemId, held.container ?? emptyContainer())
-        ? { kind: "serve_onto_plate" }
-        : { kind: "reject", reason: KitchenRejectReason.ContainerFull };
+    /**
+     * 1a 手持盛器对着锅 → **直接接菜**。
+     *
+     * 锅里是不是已经"起过锅"不重要：熟了就能盛。原来要求锅里必须已经是
+     * 成品（先空手按 F 起锅、再拿盘子按 F），于是端着盘子站在一锅熟菜前面
+     * 会被告知"这个不能下锅"——玩家手里拿的明明就是接菜的东西。
+     *
+     * 熟没熟由火候说了算，和"起没起锅"无关，所以这里两种情况都收：
+     * 锅里已经是成品就照搬，还是生料但已经熟了就当场变成成品端出来。
+     */
+    if (findItemDefinition(held.itemId)?.servingWare && slotWare?.container) {
+      const served = servableItems(slotWare.itemId, slotWare.container);
+      if (served) {
+        return containerHasRoom(held.itemId, held.container ?? emptyContainer())
+          ? { kind: "serve_onto_plate", items: served }
+          : { kind: "reject", reason: KitchenRejectReason.ContainerFull };
+      }
+
+      // 锅里有东西但还没熟——该说的是"再等等"，不是"这个不能下锅"
+      if (slotWare.container.items.length > 0) {
+        return { kind: "reject", reason: KitchenRejectReason.NotReady };
+      }
     }
 
     // 1b 手持食材 + 槽位上是容器 → 投入

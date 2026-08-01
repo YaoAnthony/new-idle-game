@@ -1,6 +1,5 @@
 import {
   HeatBand,
-  KitchenRejectReason,
   addToContainer,
   containerHoldsDish,
   emptyContainer,
@@ -107,13 +106,6 @@ export function nearestSlotOf(
 
 // ---- 交互 ----
 
-const REJECT_KEYS: Record<KitchenRejectReason, string> = {
-  [KitchenRejectReason.SlotRefuses]: "cooking.reject.slot_refuses",
-  [KitchenRejectReason.ContainerFull]: "cooking.reject.container_full",
-  [KitchenRejectReason.NotReady]: "cooking.reject.not_ready",
-  [KitchenRejectReason.NotAnIngredient]: "cooking.reject.not_an_ingredient",
-  [KitchenRejectReason.Nothing]: "cooking.reject.nothing",
-};
 
 /**
  * 把一份**不在手上**的东西递给槽位——扔过来的米砸在灶台跟前时走这条。
@@ -176,10 +168,6 @@ export function describeKitchenSlot(ref: KitchenSlotRef): string | null {
     default:
       return null;
   }
-}
-
-function toast(localizationKey: string): void {
-  emit("story_toast", { localizationKey, durationMs: 1800 });
 }
 
 /**
@@ -252,12 +240,21 @@ export function interactWithKitchenSlot(ref: KitchenSlotRef): boolean {
     case "serve_onto_plate": {
       if (!held || !ref.content?.container) return false;
 
+      /**
+       * 盛什么由 Core 说了算（action.items）——锅里已经是成品就照搬，
+       * 还是生料但熟了就是"起锅 + 装盘"一步做完。这一层不重新判断一遍。
+       */
       const plate = held.container ?? emptyContainer();
       const served: ContainerContents = {
-        items: [...plate.items, ...ref.content.container.items],
+        items: [...plate.items, ...action.items],
         heatSeconds: 0,
       };
       setHeldContainer(served);
+
+      // 一步盛出来的那道菜也该发信号，否则"做完一道菜"的剧情只认两步流程
+      for (const item of action.items) {
+        emit("story_signal", { kind: "cook_completed", subject: item.itemId });
+      }
       // 盛出后锅恢复为空锅
       setSlotContent(ref.instanceId, ref.slotId, {
         ...ref.content,
@@ -266,8 +263,14 @@ export function interactWithKitchenSlot(ref: KitchenSlotRef): boolean {
       return true;
     }
 
+    /**
+     * 做不了就什么都不发生，**不弹提示**。
+     *
+     * 屏幕上已经写着答案了：进度环的颜色就是熟没熟，锅里装着什么一眼能看见。
+     * 再补一句"还没熟，再等等"是把玩家当不会看画面的人，而且这类提示越多，
+     * 玩家越不去看画面本身。
+     */
     default:
-      toast(REJECT_KEYS[action.reason]);
       return false;
   }
 }

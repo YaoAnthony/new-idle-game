@@ -177,6 +177,49 @@ export function addToContainer(
   };
 }
 
+/**
+ * 加了这一样之后，锅里的东西**还通得到某条配方吗**。
+ *
+ * 判据不是"加完必须正好凑成一道菜"——青椒炒肉和皮蛋汤都是两样材料一样一样
+ * 放的，那样第一样就进不去，这两道菜永远做不出来。
+ * 判据是**子集**：锅里现有的加上这一样，得是某条配方材料表的一部分。
+ *
+ * 所以：
+ * - 空炒锅放青椒 → 是青椒炒肉的一半 → 收
+ * - 再放猪肉 → 正好凑齐 → 收，而且立刻开火
+ * - 空炒锅放青椒再放鸡蛋 → 没有哪条配方同时要这两样 → **不收**
+ *
+ * 这条规则替掉了原来"照收不误，然后停止加热并说一句搭配不对"的做法：
+ * 那样玩家要先把东西丢进去、看见不对、再倒掉重来，而系统在他按下去**之前**
+ * 就已经知道结果了。知道就该拦住。
+ */
+export function canAddToContainer(
+  cookwareId: CookwareId,
+  contents: ContainerContents,
+  itemId: ItemId,
+): boolean {
+  const cookware = findItemDefinition(cookwareId)?.cookware;
+  if (!cookware) return false;
+
+  // 加进去之后锅里会是什么
+  const next = new Map<ItemId, number>();
+  for (const item of contents.items) {
+    next.set(item.itemId, (next.get(item.itemId) ?? 0) + item.quantity);
+  }
+  next.set(itemId, (next.get(itemId) ?? 0) + 1);
+
+  return cookingRecipeDefinitions.some((recipe) => {
+    if (recipe.cookwareId !== cookwareId) return false;
+    if (!cookware.methods.includes(recipe.method)) return false;
+
+    // 锅里的每一样都得是这条配方要的，且数量不能超
+    return [...next].every(([id, quantity]) => {
+      const input = recipe.inputs.find((entry) => entry.itemId === id);
+      return input !== undefined && quantity <= input.quantity;
+    });
+  });
+}
+
 /** 容器还装得下吗 */
 export function containerHasRoom(
   wareId: ItemId,
@@ -225,6 +268,8 @@ export enum KitchenRejectReason {
   NotReady = "not_ready",
   /** 手里的东西没法投进这个容器 */
   NotAnIngredient = "not_an_ingredient",
+  /** 投进去凑不出任何配方，**在放下去之前就拦住** */
+  NoRecipe = "no_recipe",
   /** 没有可做的操作 */
   Nothing = "nothing",
 }
@@ -270,8 +315,14 @@ export function resolveKitchenInteraction(
       if (held.container) {
         return { kind: "reject", reason: KitchenRejectReason.NotAnIngredient };
       }
-      if (!containerHasRoom(slotWare.itemId, slotWare.container ?? emptyContainer())) {
+      const contents = slotWare.container ?? emptyContainer();
+      if (!containerHasRoom(slotWare.itemId, contents)) {
         return { kind: "reject", reason: KitchenRejectReason.ContainerFull };
+      }
+      // 凑不出任何配方就**不让进锅**。系统在玩家按下去之前就知道结果了，
+      // 知道还放进去、再告诉他"搭配不对"，等于让他多走一趟倒锅
+      if (!canAddToContainer(slotWare.itemId, contents, held.itemId)) {
+        return { kind: "reject", reason: KitchenRejectReason.NoRecipe };
       }
       return { kind: "add_ingredient" };
     }

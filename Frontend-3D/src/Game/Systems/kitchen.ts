@@ -111,6 +111,7 @@ const REJECT_KEYS: Record<KitchenRejectReason, string> = {
   [KitchenRejectReason.ContainerFull]: "cooking.reject.container_full",
   [KitchenRejectReason.NotReady]: "cooking.reject.not_ready",
   [KitchenRejectReason.NotAnIngredient]: "cooking.reject.not_an_ingredient",
+  [KitchenRejectReason.NoRecipe]: "cooking.reject.no_recipe",
   [KitchenRejectReason.Nothing]: "cooking.reject.nothing",
 };
 
@@ -149,9 +150,6 @@ export function offerToSlot(ref: KitchenSlotRef, stack: HeldStack): boolean {
         ...ref.content,
         container: next,
       });
-
-      // 配错了照样收下，只是停止加热并说一声——和按 F 投料一致
-      if (!next.recipeId) toast("cooking.no_recipe");
       return true;
     }
 
@@ -227,9 +225,6 @@ export function interactWithKitchenSlot(ref: KitchenSlotRef): boolean {
       });
       // 手上那一份**已经进锅了**，不能既在锅里又在手上（四选一约束）
       consumeHeld();
-
-      // 配错了不吞东西也不生成黑暗料理，只是停止加热并说一声
-      if (!next.recipeId) toast("cooking.no_recipe");
       return true;
     }
 
@@ -309,16 +304,16 @@ export function debugAddIngredient(
   ref: KitchenSlotRef,
   itemId: string,
 ): boolean {
-  if (!ref.content) return false;
   if (!findItemDefinition(itemId)) return false;
 
-  const next = addToContainer(
-    ref.content.itemId,
-    ref.content.container ?? emptyContainer(),
-    itemId,
-  );
-  setSlotContent(ref.instanceId, ref.slotId, { ...ref.content, container: next });
-  return true;
+  /**
+   * 调试指令**也走同一条判定链**。
+   *
+   * 原来这里直连 addToContainer，于是 /kitchen 能把任何东西塞进锅里，
+   * 而按 F 和扔进去都会被拦。调试路径比正式路径宽松的后果不是"方便"，
+   * 是**验不出真问题**——用指令摆好的局面，玩家根本走不到。
+   */
+  return offerToSlot(ref, { itemId });
 }
 
 export function dumpKitchenSlot(ref: KitchenSlotRef): boolean {

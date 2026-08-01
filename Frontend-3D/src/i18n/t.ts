@@ -402,7 +402,7 @@ const ZH: Record<string, string> = {
   "cooking.reject.not_ready": "还没熟，再等等",
   "cooking.reject.not_an_ingredient": "这个不能下锅",
   "cooking.reject.nothing": "没什么可做的",
-  "cooking.no_recipe": "这个搭配好像不太对",
+  "cooking.reject.no_recipe": "这个搭配凑不出菜",
   "cooking.pot_not_empty": "锅里还有东西，先处理掉",
   "cooking.hands_full": "手上已经端着东西了",
 

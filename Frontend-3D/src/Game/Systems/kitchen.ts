@@ -112,6 +112,7 @@ const REJECT_KEYS: Record<KitchenRejectReason, string> = {
   [KitchenRejectReason.NotReady]: "cooking.reject.not_ready",
   [KitchenRejectReason.NotAnIngredient]: "cooking.reject.not_an_ingredient",
   [KitchenRejectReason.NoRecipe]: "cooking.reject.no_recipe",
+  [KitchenRejectReason.FinishFirst]: "cooking.reject.finish_first",
   [KitchenRejectReason.Nothing]: "cooking.reject.nothing",
 };
 

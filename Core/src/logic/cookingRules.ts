@@ -220,6 +220,32 @@ export function canAddToContainer(
   });
 }
 
+/**
+ * 把锅里正在做的那道**起锅之后**，这一样就放得下了吗。
+ *
+ * 只回答"是不是差一次起锅"，不判断熟没熟——没熟的答案也是"等一下再起锅"，
+ * 和熟了该做的事是同一件。
+ */
+function pendingOutputWouldFit(
+  cookwareId: CookwareId,
+  contents: ContainerContents,
+  itemId: ItemId,
+): boolean {
+  if (!contents.recipeId) return false;
+
+  const pending = cookingRecipeDefinitions.find(
+    (recipe) => recipe.id === contents.recipeId,
+  );
+  if (!pending) return false;
+
+  // 起锅会把锅里的一切换成成品（见 take_out_dish），照这个形状再问一次
+  return canAddToContainer(
+    cookwareId,
+    { items: [{ itemId: pending.output, quantity: 1 }], heatSeconds: 0 },
+    itemId,
+  );
+}
+
 /** 容器还装得下吗 */
 export function containerHasRoom(
   wareId: ItemId,
@@ -270,6 +296,14 @@ export enum KitchenRejectReason {
   NotAnIngredient = "not_an_ingredient",
   /** 投进去凑不出任何配方，**在放下去之前就拦住** */
   NoRecipe = "no_recipe",
+  /**
+   * 锅里那道**还没起锅**，起了就装得下这一样。
+   *
+   * 和 NoRecipe 分开是因为玩家该做的事完全不同：一个是"换个东西"，
+   * 一个是"等一下再按 F"。都说成"搭配不对"的话，玩家会以为番茄炒蛋
+   * 根本不能这么做，转头去试别的组合——而正确答案就在眼前。
+   */
+  FinishFirst = "finish_first",
   /** 没有可做的操作 */
   Nothing = "nothing",
 }
@@ -322,7 +356,19 @@ export function resolveKitchenInteraction(
       // 凑不出任何配方就**不让进锅**。系统在玩家按下去之前就知道结果了，
       // 知道还放进去、再告诉他"搭配不对"，等于让他多走一趟倒锅
       if (!canAddToContainer(slotWare.itemId, contents, held.itemId)) {
-        return { kind: "reject", reason: KitchenRejectReason.NoRecipe };
+        /**
+         * 先分清是"真配不上"还是"锅里那道还没起锅"。
+         *
+         * 番茄炒蛋要的是**煎蛋**不是生鸡蛋，所以锅里躺着生蛋时放番茄
+         * 确实凑不出配方——但玩家该做的不是换东西，是把蛋起了再放。
+         * 这两种情况都报"搭配不对"的话，等于把正确答案藏起来。
+         */
+        return {
+          kind: "reject",
+          reason: pendingOutputWouldFit(slotWare.itemId, contents, held.itemId)
+            ? KitchenRejectReason.FinishFirst
+            : KitchenRejectReason.NoRecipe,
+        };
       }
       return { kind: "add_ingredient" };
     }

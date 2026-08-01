@@ -147,23 +147,34 @@ export const itemDefinitions = [
         anchorHeight: 1.35,
       },
       slots: [
+        /**
+         * offset 的 y 是**承托面高度**，也就是锅底该落在哪儿。
+         *
+         * 这里是**灶圈顶面**（1.025）不是台面（0.98）：锅是架在灶圈上的，
+         * 不是陷进台面里。按台面算的话，灶圈比锅底又高又宽，
+         * 它的顶面会从锅底穿出来一厘米——俯视锅里凭空多一个橙色圆盘。
+         *
+         * 多给的 5 毫米是留白，免得锅底和灶圈顶面正好共面打架。
+         * 数字跟着 Game3D/Visual/recipes/kitchen 里画灶圈的高度走，
+         * 那边改了这里也要改（同一个物理面，两边各自画各自的）。
+         */
         {
           slotId: "burner_1",
           localizationKey: "furniture.stove.burner",
           acceptedTags: ["cookware"],
-          offset: [-2.3, 0.98, -1.5],
+          offset: [-2.3, 1.03, -1.5],
         },
         {
           slotId: "burner_2",
           localizationKey: "furniture.stove.burner",
           acceptedTags: ["cookware"],
-          offset: [-1.5, 0.98, -1.5],
+          offset: [-1.5, 1.03, -1.5],
         },
         {
           slotId: "burner_3",
           localizationKey: "furniture.stove.burner",
           acceptedTags: ["cookware"],
-          offset: [-0.7, 0.98, -1.5],
+          offset: [-0.7, 1.03, -1.5],
         },
       ],
     },

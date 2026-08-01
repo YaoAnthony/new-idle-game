@@ -127,6 +127,10 @@ export function buildKitchenCounter(): Object3D {
   /**
    * 三个灶眼在长边西段。位置要和物品 placement.slots 的 offset 对上——
    * 那边是逻辑（锅放在哪一格），这里只是画出来的圈。
+   *
+   * **高度也要对上**：灶圈顶面（burnerY + 0.02 + 0.05/2 = 1.025）就是锅底
+   * 该落的地方，槽位 offset 的 y 写的是 1.03。改了这里的厚度或抬高量，
+   * 那边也得跟着改，否则灶圈会从锅底穿出来（俯视锅里凭空多一个橙色圆盘）。
    */
   for (const bx of [-2.3, -1.5, -0.7]) {
     parts.push(

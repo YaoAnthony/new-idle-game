@@ -169,6 +169,34 @@ export function buildBabyCabbageSoup(): Object3D {
   return mound("baby_cabbage_soup", PALETTE.cabbageSoup);
 }
 
+/**
+ * 一锅乱炖。**刻意画得看不出是什么**——它的意思就是"这堆东西没配成菜"，
+ * 画得太具体反而像一道正经菜。一坨浑色的糊，上面浮两块认不出的料。
+ */
+export function buildMysteryStew(): Object3D {
+  const body = blob(0.095, 0, {
+    color: PALETTE.stewMurk,
+    position: [0, 0.045, 0],
+  });
+  body.scale.set(1.1, 0.62, 1.05);
+
+  // 浮头：两块偏亮的小料，位置错开，看得出"里面有东西"但认不出是什么
+  const bits = [
+    { at: [0.035, 0.078, 0.02] as [number, number, number], size: 0.032 },
+    { at: [-0.03, 0.07, -0.035] as [number, number, number], size: 0.026 },
+  ].map(({ at, size }) => {
+    const bit = blob(size, 0, {
+      color: PALETTE.stewMurkLight,
+      position: at,
+      castShadow: false,
+    });
+    bit.rotation.set(0.5, 0.9, 0.3);
+    return bit;
+  });
+
+  return group("mystery_stew", [body, ...bits]);
+}
+
 // ---- 切块形态 ----
 
 /** 切成几块 */

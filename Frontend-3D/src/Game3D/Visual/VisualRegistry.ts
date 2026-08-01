@@ -42,6 +42,7 @@ import {
   buildFriedEgg,
   buildFriedTomatoEgg,
   buildGreenPepper,
+  buildMysteryStew,
   buildPepperPork,
   buildPlaceholder,
   buildPork,
@@ -165,6 +166,7 @@ const REGISTRY: Record<string, VisualEntry> = {
   cheese: { kind: "procedural", build: buildCheese },
   fried_tomato_egg: { kind: "procedural", build: buildFriedTomatoEgg },
   baby_cabbage_soup: { kind: "procedural", build: buildBabyCabbageSoup },
+  mystery_stew: { kind: "procedural", build: buildMysteryStew },
 
   // 墙饰
   picture_frame: { kind: "procedural", build: buildPictureFrame },

@@ -1,4 +1,8 @@
-import { cookingRecipeDefinitions, heatTuning } from "../Data/cooking/index.js";
+import {
+  cookingRecipeDefinitions,
+  heatTuning,
+  mysteryDish,
+} from "../Data/cooking/index.js";
 import { findItemDefinition } from "../Data/items/index.js";
 import type {
   ContainerContents,
@@ -86,20 +90,88 @@ export function matchCookingRecipe(
   );
 }
 
-// ---- 火候 ----
+// ---- 这锅正在做什么 ----
 
-/** 这道菜会不会烧到红色。配方显式声明，省略 = 会 */
-export function isOvercookable(recipe: CookingRecipeDefinition): boolean {
-  return recipe.overcookable ?? true;
+/**
+ * 锅里这堆东西**正在变成什么**。
+ *
+ * 关键是它**永远有答案**：匹配得上配方就是那道菜，匹配不上就是一锅乱炖。
+ * 于是投料时不需要判断"这个搭配对不对"——爱放什么放什么，进度条照走，
+ * 到点了端出来看结果。玩家不用先学会配方才敢下锅。
+ *
+ * 配方是**每次重新按内容算**的，不看存在容器上的 recipeId：
+ * 中途加了番茄，目标当场从煎蛋变成番茄炒蛋，时长也跟着换。
+ */
+export type CookingTarget = {
+  /** 匹配到的配方；没有就是乱炖 */
+  recipeId?: string;
+  output: ItemId;
+  durationSeconds: number;
+  overcookable: boolean;
+};
+
+export function resolveCookingTarget(
+  cookwareId: CookwareId,
+  contents: ContainerContents,
+): CookingTarget | null {
+  if (contents.items.length === 0) return null;
+
+  const recipe = matchCookingRecipe(cookwareId, contents.items);
+  if (recipe) {
+    return {
+      recipeId: recipe.id,
+      output: recipe.output,
+      durationSeconds: recipe.durationSeconds,
+      overcookable: recipe.overcookable ?? true,
+    };
+  }
+
+  /**
+   * 锅里已经是做好的菜了 → **没有在做的东西**，停火等装盘。
+   *
+   * 少了这一条，起锅之后那道菜自己会继续烧，12 秒后变成乱炖——
+   * 玩家做好一盘番茄炒蛋，转身去干别的，回来锅里是一坨乱炖。
+   * 判定放在配方匹配**之后**：以后真有配方拿成品菜当材料，那条照样成立。
+   */
+  if (containerHoldsDish(contents)) return null;
+
+  return {
+    output: mysteryDish.itemId,
+    durationSeconds: mysteryDish.durationSeconds,
+    overcookable: true,
+  };
 }
 
-/** 已加热多久 / 配方需要多久。半成品封顶在"刚熟"，永远不会变红 */
+/**
+ * 火候封顶在几倍时长。
+ *
+ * 不封顶的话 heatSeconds 会一直涨（不会焦的菜尤其明显，它的 ratio 卡在 1，
+ * 而停机判据看的是画满没有，永远画不满）。真正的坏处不是数字变大，是
+ * **中途加料会瞬间变焦**：鸡蛋放了十分钟，加个番茄换成 12 秒的配方，
+ * 比例一下变成 50。
+ */
+function heatCeiling(target: CookingTarget): number {
+  const ceiling = target.overcookable
+    ? heatTuning.ringFullAt
+    : heatTuning.perfectAt;
+  return ceiling * target.durationSeconds;
+}
+
+/** 已加热多久 / 这道菜需要多久 */
 export function heatRatio(
   contents: ContainerContents,
-  recipe: CookingRecipeDefinition,
+  target: CookingTarget,
 ): number {
-  const raw = contents.heatSeconds / Math.max(recipe.durationSeconds, 0.001);
-  return isOvercookable(recipe) ? raw : Math.min(raw, heatTuning.perfectAt);
+  const capped = Math.min(contents.heatSeconds, heatCeiling(target));
+  return capped / Math.max(target.durationSeconds, 0.001);
+}
+
+/** 还该不该继续加热。到顶了就停，免得 heatSeconds 无限涨 */
+export function shouldKeepHeating(
+  contents: ContainerContents,
+  target: CookingTarget,
+): boolean {
+  return contents.heatSeconds < heatCeiling(target);
 }
 
 export function heatBandOf(ratio: number): HeatBand {
@@ -154,8 +226,11 @@ export function emptyContainer(): ContainerContents {
 }
 
 /**
- * 投一样东西进容器。内容一变就重新匹配配方、**并把加热秒数归零**——
- * 现在锅里是另一样东西了，沿用上一道菜的火候没有意义。
+ * 投一样东西进容器。
+ *
+ * **加热秒数不清零。** 中途加番茄时，锅从"煎蛋 8 秒"换成"番茄炒蛋 12 秒"，
+ * 已经烧掉的秒数照算——玩家感受到的是"这锅一直在烧"，不是"每加一样重新开始"。
+ * 清零的话，往一锅快好的菜里补最后一样材料反而要从头等，没道理。
  */
 export function addToContainer(
   cookwareId: CookwareId,
@@ -173,77 +248,8 @@ export function addToContainer(
   return {
     items,
     recipeId: matchCookingRecipe(cookwareId, items)?.id,
-    heatSeconds: 0,
+    heatSeconds: contents.heatSeconds,
   };
-}
-
-/**
- * 加了这一样之后，锅里的东西**还通得到某条配方吗**。
- *
- * 判据不是"加完必须正好凑成一道菜"——青椒炒肉和皮蛋汤都是两样材料一样一样
- * 放的，那样第一样就进不去，这两道菜永远做不出来。
- * 判据是**子集**：锅里现有的加上这一样，得是某条配方材料表的一部分。
- *
- * 所以：
- * - 空炒锅放青椒 → 是青椒炒肉的一半 → 收
- * - 再放猪肉 → 正好凑齐 → 收，而且立刻开火
- * - 空炒锅放青椒再放鸡蛋 → 没有哪条配方同时要这两样 → **不收**
- *
- * 这条规则替掉了原来"照收不误，然后停止加热并说一句搭配不对"的做法：
- * 那样玩家要先把东西丢进去、看见不对、再倒掉重来，而系统在他按下去**之前**
- * 就已经知道结果了。知道就该拦住。
- */
-export function canAddToContainer(
-  cookwareId: CookwareId,
-  contents: ContainerContents,
-  itemId: ItemId,
-): boolean {
-  const cookware = findItemDefinition(cookwareId)?.cookware;
-  if (!cookware) return false;
-
-  // 加进去之后锅里会是什么
-  const next = new Map<ItemId, number>();
-  for (const item of contents.items) {
-    next.set(item.itemId, (next.get(item.itemId) ?? 0) + item.quantity);
-  }
-  next.set(itemId, (next.get(itemId) ?? 0) + 1);
-
-  return cookingRecipeDefinitions.some((recipe) => {
-    if (recipe.cookwareId !== cookwareId) return false;
-    if (!cookware.methods.includes(recipe.method)) return false;
-
-    // 锅里的每一样都得是这条配方要的，且数量不能超
-    return [...next].every(([id, quantity]) => {
-      const input = recipe.inputs.find((entry) => entry.itemId === id);
-      return input !== undefined && quantity <= input.quantity;
-    });
-  });
-}
-
-/**
- * 把锅里正在做的那道**起锅之后**，这一样就放得下了吗。
- *
- * 只回答"是不是差一次起锅"，不判断熟没熟——没熟的答案也是"等一下再起锅"，
- * 和熟了该做的事是同一件。
- */
-function pendingOutputWouldFit(
-  cookwareId: CookwareId,
-  contents: ContainerContents,
-  itemId: ItemId,
-): boolean {
-  if (!contents.recipeId) return false;
-
-  const pending = cookingRecipeDefinitions.find(
-    (recipe) => recipe.id === contents.recipeId,
-  );
-  if (!pending) return false;
-
-  // 起锅会把锅里的一切换成成品（见 take_out_dish），照这个形状再问一次
-  return canAddToContainer(
-    cookwareId,
-    { items: [{ itemId: pending.output, quantity: 1 }], heatSeconds: 0 },
-    itemId,
-  );
 }
 
 /** 容器还装得下吗 */
@@ -294,16 +300,6 @@ export enum KitchenRejectReason {
   NotReady = "not_ready",
   /** 手里的东西没法投进这个容器 */
   NotAnIngredient = "not_an_ingredient",
-  /** 投进去凑不出任何配方，**在放下去之前就拦住** */
-  NoRecipe = "no_recipe",
-  /**
-   * 锅里那道**还没起锅**，起了就装得下这一样。
-   *
-   * 和 NoRecipe 分开是因为玩家该做的事完全不同：一个是"换个东西"，
-   * 一个是"等一下再按 F"。都说成"搭配不对"的话，玩家会以为番茄炒蛋
-   * 根本不能这么做，转头去试别的组合——而正确答案就在眼前。
-   */
-  FinishFirst = "finish_first",
   /** 没有可做的操作 */
   Nothing = "nothing",
 }
@@ -312,7 +308,7 @@ export type KitchenAction =
   | { kind: "place_in_slot" }
   | { kind: "pick_up_from_slot" }
   | { kind: "add_ingredient" }
-  | { kind: "take_out_dish"; recipeId: string; quality: ItemQuality }
+  | { kind: "take_out_dish"; output: ItemId; recipeId?: string; quality: ItemQuality }
   | { kind: "serve_onto_plate" }
   | { kind: "reject"; reason: KitchenRejectReason };
 
@@ -349,27 +345,23 @@ export function resolveKitchenInteraction(
       if (held.container) {
         return { kind: "reject", reason: KitchenRejectReason.NotAnIngredient };
       }
+      // 锅里只收食材。铅笔和铁块不该能炖，这一条和"搭配对不对"无关
+      if (!findItemDefinition(held.itemId)?.ingredient) {
+        return { kind: "reject", reason: KitchenRejectReason.NotAnIngredient };
+      }
+
       const contents = slotWare.container ?? emptyContainer();
       if (!containerHasRoom(slotWare.itemId, contents)) {
         return { kind: "reject", reason: KitchenRejectReason.ContainerFull };
       }
-      // 凑不出任何配方就**不让进锅**。系统在玩家按下去之前就知道结果了，
-      // 知道还放进去、再告诉他"搭配不对"，等于让他多走一趟倒锅
-      if (!canAddToContainer(slotWare.itemId, contents, held.itemId)) {
-        /**
-         * 先分清是"真配不上"还是"锅里那道还没起锅"。
-         *
-         * 番茄炒蛋要的是**煎蛋**不是生鸡蛋，所以锅里躺着生蛋时放番茄
-         * 确实凑不出配方——但玩家该做的不是换东西，是把蛋起了再放。
-         * 这两种情况都报"搭配不对"的话，等于把正确答案藏起来。
-         */
-        return {
-          kind: "reject",
-          reason: pendingOutputWouldFit(slotWare.itemId, contents, held.itemId)
-            ? KitchenRejectReason.FinishFirst
-            : KitchenRejectReason.NoRecipe,
-        };
-      }
+
+      /**
+       * **不判断搭配对不对。**
+       *
+       * 配方在进度条走完那一刻才按内容匹配，配不上就是一锅乱炖——所以
+       * 这里没有可拒绝的理由。投料时就拦的话，玩家得先学会配方才敢下锅，
+       * 而"扔进去看看会变成什么"本来就是做饭这件事好玩的地方。
+       */
       return { kind: "add_ingredient" };
     }
 
@@ -385,20 +377,22 @@ export function resolveKitchenInteraction(
 
   if (!slotWare) return { kind: "reject", reason: KitchenRejectReason.Nothing };
 
-  // 3 空手 + 锅里有东西在加热 → 先判断能不能起锅
+  // 3 空手 + 锅里有东西 → 先判断能不能起锅
+  // 参数已经叫 target 了（那是"对着哪个槽位"），这里的是"正在做什么菜"
   const contents = slotWare.container;
-  const recipe = contents?.recipeId
-    ? cookingRecipeDefinitions.find((entry) => entry.id === contents.recipeId)
-    : undefined;
+  const cooking = contents
+    ? resolveCookingTarget(slotWare.itemId, contents)
+    : null;
 
-  if (contents && recipe) {
-    const band = heatBandOf(heatRatio(contents, recipe));
+  if (contents && cooking) {
+    const band = heatBandOf(heatRatio(contents, cooking));
     const quality = qualityForBand(band);
     // 还没熟就按 F：什么都不消耗，只提示。不做"功亏一篑"的判定
     if (!quality) return { kind: "reject", reason: KitchenRejectReason.NotReady };
     return {
       kind: "take_out_dish",
-      recipeId: recipe.id,
+      output: cooking.output,
+      recipeId: cooking.recipeId,
       quality: combineQuality(quality, contents.items),
     };
   }

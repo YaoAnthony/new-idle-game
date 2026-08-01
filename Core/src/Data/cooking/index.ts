@@ -41,11 +41,25 @@ export const heatTuning: HeatTuning = {
   ringFullAt: 1.9,
 };
 
+/**
+ * 什么配方都没匹配上时端出来的东西。
+ *
+ * 有这一条，锅就**永远有个结果**——玩家爱往里扔什么扔什么，进度条照走，
+ * 到点了给一锅乱炖。没有它就得在投料时判断"这个搭配对不对"，
+ * 而那意味着玩家要先学会配方才敢下锅。
+ */
+export const mysteryDish = {
+  itemId: "mystery_stew",
+  /** 乱炖没有"正确时长"，取个中间值，比最短的煎蛋长、比正经菜短 */
+  durationSeconds: 12,
+} as const;
+
 // ---- 菜谱 ----
 
 /**
- * 投料顺序天然重要：先放番茄再放鸡蛋做不出番茄炒蛋，因为没有任何配方匹配
- * 「锅里有生番茄 + 生鸡蛋」。这是扁平配方表的自然结果，不用额外写规则。
+ * 配方在**进度条走完那一刻**按锅里的内容匹配，不在投料时判断。
+ * 所以「先放鸡蛋、中途再加番茄」和「一起放」得到的是同一道番茄炒蛋——
+ * 玩家不需要记投料顺序，只要在出锅前把料配齐。
  */
 export const cookingRecipeDefinitions = [
   {
@@ -56,8 +70,11 @@ export const cookingRecipeDefinitions = [
     inputs: [{ itemId: "egg", quantity: 1 }],
     output: "fried_egg",
     durationSeconds: 8,
-    // 半成品：进度走完就停住等你加番茄，永远不会焦。
-    // 但它同时也是一道能直接吃的菜——玩家自己决定停在哪一步。
+    /**
+     * 走完就停住，永远不会焦——"鸡蛋扔进去不管它，回来是个煎蛋"。
+     * 这也是它能当番茄炒蛋半路材料的原因：停在刚熟的位置等你加番茄，
+     * 而不是自己烧糊。
+     */
     overcookable: false,
   },
   {
@@ -65,8 +82,10 @@ export const cookingRecipeDefinitions = [
     localizationKey: "recipe.fried_tomato_egg",
     cookwareId: "wok",
     method: "fry",
+    // 收**生鸡蛋**而不是煎蛋：中途加番茄就该变成番茄炒蛋，
+    // 不该要求玩家先把蛋起锅再放回去
     inputs: [
-      { itemId: "fried_egg", quantity: 1 },
+      { itemId: "egg", quantity: 1 },
       { itemId: "tomato", quantity: 1 },
     ],
     output: "fried_tomato_egg",

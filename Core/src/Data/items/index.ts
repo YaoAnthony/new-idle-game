@@ -864,6 +864,24 @@ export const itemDefinitions = [
     food: { hungerRestore: 30, fatigueRestore: 10, shelfLifeSeconds: 172800 },
     ingredient: { tags: ["dish", "soup"] },
   },
+  {
+    /**
+     * 一锅乱炖：什么配方都没匹配上时端出来的东西。
+     *
+     * 有这道菜，锅就永远有个结果，投料时才不需要判断"搭配对不对"——
+     * 玩家爱扔什么扔什么，到点了看结果。它是**能吃的**，只是回复得少：
+     * 乱做也不该白费材料，但显然不如照配方做划算。
+     */
+    id: "mystery_stew",
+    localizationKey: "item.mystery_stew",
+    category: ItemCategory.Food,
+    stackLimit: 20,
+    rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    visual: { id: "mystery_stew" },
+    food: { hungerRestore: 10, shelfLifeSeconds: 86400 },
+    ingredient: { tags: ["dish"] },
+  },
 
   // ---- 场景道具：不进背包，但和家具走同一套定义 ----
   {

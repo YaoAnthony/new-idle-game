@@ -25,6 +25,8 @@ const ZH: Record<string, string> = {
   "item.tomato": "番茄",
   "item.egg": "鸡蛋",
   "item.fried_tomato_egg": "番茄炒蛋",
+  "item.mystery_stew": "一锅乱炖",
+  "item.mystery_stew.desc": "说不清放了什么，但确实是热的。吃得饱一点点。",
 
   // 物品介绍（背包悬浮）
   "item.wood.desc": "从森林里捡回来的木头，做什么都用得上。",
@@ -402,8 +404,6 @@ const ZH: Record<string, string> = {
   "cooking.reject.not_ready": "还没熟，再等等",
   "cooking.reject.not_an_ingredient": "这个不能下锅",
   "cooking.reject.nothing": "没什么可做的",
-  "cooking.reject.no_recipe": "这个搭配凑不出菜",
-  "cooking.reject.finish_first": "先把锅里这道起锅，再放这个",
   "cooking.pot_not_empty": "锅里还有东西，先处理掉",
   "cooking.hands_full": "手上已经端着东西了",
 

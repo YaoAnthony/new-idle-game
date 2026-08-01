@@ -4,10 +4,11 @@ import {
   addToContainer,
   containerHoldsDish,
   emptyContainer,
-  findCookingRecipeDefinition,
   findItemDefinition,
   heatBandOf,
   heatRatio,
+  resolveCookingTarget,
+  shouldKeepHeating,
   heatRingFill,
   matchCookingRecipe,
   resolveKitchenInteraction,
@@ -111,8 +112,6 @@ const REJECT_KEYS: Record<KitchenRejectReason, string> = {
   [KitchenRejectReason.ContainerFull]: "cooking.reject.container_full",
   [KitchenRejectReason.NotReady]: "cooking.reject.not_ready",
   [KitchenRejectReason.NotAnIngredient]: "cooking.reject.not_an_ingredient",
-  [KitchenRejectReason.NoRecipe]: "cooking.reject.no_recipe",
-  [KitchenRejectReason.FinishFirst]: "cooking.reject.finish_first",
   [KitchenRejectReason.Nothing]: "cooking.reject.nothing",
 };
 
@@ -231,12 +230,11 @@ export function interactWithKitchenSlot(ref: KitchenSlotRef): boolean {
 
     case "take_out_dish": {
       if (!ref.content) return false;
-      const recipe = findCookingRecipeDefinition(action.recipeId);
-      if (!recipe) return false;
 
-      // 锅里的一切换成成品，火候归零。成品留在锅里等着装盘或者继续加料
+      // 锅里的一切换成成品，火候归零。成品留在锅里等着装盘或者继续加料。
+      // 产出直接来自 action——乱炖没有配方 id，查配方表是查不到的
       const items = [
-        { itemId: recipe.output, quantity: 1, quality: action.quality },
+        { itemId: action.output, quantity: 1, quality: action.quality },
       ];
       setSlotContent(ref.instanceId, ref.slotId, {
         ...ref.content,
@@ -247,7 +245,7 @@ export function interactWithKitchenSlot(ref: KitchenSlotRef): boolean {
         },
       });
 
-      emit("story_signal", { kind: "cook_completed", subject: recipe.output });
+      emit("story_signal", { kind: "cook_completed", subject: action.output });
       return true;
     }
 
@@ -332,13 +330,15 @@ export function dumpKitchenSlot(ref: KitchenSlotRef): boolean {
 // ---- 加热 ----
 
 /**
- * 这个槽位此刻是不是真的在加热：锅架在能提供热源的槽位上，且内容匹配到了配方。
- * - 端到普通台面 → 不加热（这不是压力，是给玩家的调度权）
- * - 配错了组合 → recipeId 为空 → 不加热
+ * 这个槽位此刻是不是真的在加热：**锅里有东西**，而且架在能提供热源的槽位上。
+ *
+ * 不再看"匹配到配方没有"——凑不出配方的一锅东西照样在烧，最后端出来是乱炖。
+ * 原来那条判断会让玩家看着一锅冷冰冰的东西，猜不到是自己配错了还是火没开。
+ * 端到普通台面才不加热（这不是压力，是给玩家的调度权）。
  */
 export function isSlotCooking(ref: KitchenSlotRef): boolean {
   const container = ref.content?.container;
-  if (!ref.content || !container?.recipeId) return false;
+  if (!ref.content || !container || container.items.length === 0) return false;
   return slotHeatsCookware(ref.capabilities, ref.content.itemId);
 }
 
@@ -346,14 +346,11 @@ export function isSlotCooking(ref: KitchenSlotRef): boolean {
 export function tickKitchen(deltaSeconds: number): void {
   for (const ref of listKitchenSlots()) {
     const container = ref.content?.container;
-    if (!container?.recipeId || !isSlotCooking(ref)) continue;
+    if (!container || !ref.content || !isSlotCooking(ref)) continue;
 
-    const recipe = findCookingRecipeDefinition(container.recipeId);
-    if (!recipe) continue;
-
-    // 已经封顶就别再累加了，免得 heatSeconds 无限涨
-    const ratio = heatRatio(container, recipe);
-    if (heatRingFill(ratio) >= 1) continue;
+    const target = resolveCookingTarget(ref.content.itemId, container);
+    // 到顶就停：不停的话 heatSeconds 无限涨，中途加料会瞬间变焦
+    if (!target || !shouldKeepHeating(container, target)) continue;
 
     advanceSlotHeat(ref.instanceId, ref.slotId, deltaSeconds);
   }
@@ -370,12 +367,12 @@ export type SlotHeatView = {
 /** 进度环要画什么。没在加热的槽位返回 null（不画环） */
 export function getSlotHeat(ref: KitchenSlotRef): SlotHeatView | null {
   const container = ref.content?.container;
-  if (!container?.recipeId) return null;
+  if (!container || !ref.content || container.items.length === 0) return null;
 
-  const recipe = findCookingRecipeDefinition(container.recipeId);
-  if (!recipe) return null;
+  const target = resolveCookingTarget(ref.content.itemId, container);
+  if (!target) return null;
 
-  const ratio = heatRatio(container, recipe);
+  const ratio = heatRatio(container, target);
   const band = heatBandOf(ratio);
   return {
     band,

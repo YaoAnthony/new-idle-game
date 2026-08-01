@@ -173,6 +173,9 @@ export const PALETTE = {
   cabbageSoup: "#d8e0a8",
   pepperPork: "#a8703f",
   cheeseYellow: "#f0c04c",
+  /** 乱炖：几样东西混出来的浑色，刻意调得"说不清是什么" */
+  stewMurk: "#8a6b47",
+  stewMurkLight: "#a2825b",
 } as const;
 
 export type PaletteKey = keyof typeof PALETTE;

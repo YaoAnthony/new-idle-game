@@ -82,11 +82,11 @@ const ZH: Record<string, string> = {
   // 教程步骤（tutorialDefinition）
   "tutorial.unpack": "走到门口的箱子旁边按 F，把行李拆开",
   "tutorial.backpack_unused": "按 B 打开背包，看看妈妈帮你收拾的行李",
-  "tutorial.workbench": "从快捷栏选出工作台（按 1），放在屋里",
+  "tutorial.workbench": "从快捷栏选出工作台，放在屋里",
   "tutorial.craft": "走到工作台旁按 F，做一块木板试试",
   "tutorial.gift": "有小家伙进来了！过去打个招呼，送点吃的",
   "tutorial.action": "点右上角「行动」，写下你现实中要做的事",
-  "tutorial.sleep": "铺开地铺（按 2），睡一觉吧",
+  "tutorial.sleep": "从快捷栏选出地铺，铺开睡一觉吧",
   "tutorial.completed": "✨ 第一天圆满结束！这个小家，之后就慢慢布置吧。",
 
   // NPC

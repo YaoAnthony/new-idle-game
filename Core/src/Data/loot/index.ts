@@ -47,6 +47,10 @@ export const lootTableDefinitions: LootTableDefinition[] = [
     entries: [
       { itemId: "furniture_table", quantity: 1 },
       { itemId: "furniture_chair", quantity: 2 },
+      // 地铺原来是"背着来的"，开局直接在手上。但教程第一步就是拆箱子，
+      // 那条兜底兜的是一个玩家必然会做的动作——而代价是开局第一眼
+      // 手上凭空多个东西，和"行李全在箱子里"这个开场自相矛盾
+      { itemId: "bedroll", quantity: 1 },
     ],
   },
 ];

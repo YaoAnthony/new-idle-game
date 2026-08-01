@@ -30,6 +30,20 @@ export type WeatherDefinition = {
   /** 视觉与声音资源只存 id，具体资源由表现层注册 */
   visualProfileId: WeatherVisualProfileId;
   audioProfileId: AudioProfileId;
+
+  /**
+   * 这种天气把**地区底噪**压低多少（0 = 不影响，1 = 整层撤掉）。
+   *
+   * 原来底噪和天气是两条互不相干的层：下着雨，森林还是原来那么响，
+   * 叠在一起像两个音轨各放各的。而地区底噪那条素材**就是鸟鸣**——
+   * 下雨鸟不叫了，这不是"变小声"，是那一层根本不该在。所以雨和暴雨都填 1。
+   *
+   * 留成 0~1 的连续值而不是一个开关，是因为不是每种天气都这样：
+   * 起风时林子还是有声音的，只是被风压过去一点。那种天气填 0.3 就好。
+   *
+   * 不填 = 0：没有声音的天气（晴、阴）本来就不该压低任何东西。
+   */
+  ambienceDuck?: number;
 };
 
 export type WeatherScheduleEntry = {

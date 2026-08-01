@@ -226,17 +226,28 @@ function desiredLoops(): Map<string, DesiredLoop> {
   const zone = currentZoneProfile();
 
   const phase = getClock().phase;
+  const weather = getWeather();
+
+  /**
+   * 天气把底噪压下去多少。压多少写在天气定义里（ambienceDuck），
+   * 不在这里按天气名分支——加一种天气不该回来改这个函数。
+   *
+   * 压到 0 就等于"被替换掉"，那也是数据能表达的一种取值。
+   */
+  const duck = Math.min(Math.max(weather.ambienceDuck ?? 0, 0), 1);
   const ambienceVolume =
-    (AMBIENCE_VOLUME_BY_PHASE[phase] ?? 1) * zone.ambienceVolumeScale;
+    (AMBIENCE_VOLUME_BY_PHASE[phase] ?? 1) * zone.ambienceVolumeScale * (1 - duck);
 
   // 地区底噪。stone 地区没素材 → 查不到就没有这一层，静音而不是报错
-  const regionProfile = regionAmbienceProfileIds[getRoomStyle().regionId];
-  if (regionProfile) {
-    desired.set(regionProfile, { profileId: regionProfile, volume: ambienceVolume });
+  // 压到 0 时干脆不要这一层，省得留一条听不见的循环占着解码
+  if (ambienceVolume > 0.001) {
+    const regionProfile = regionAmbienceProfileIds[getRoomStyle().regionId];
+    if (regionProfile) {
+      desired.set(regionProfile, { profileId: regionProfile, volume: ambienceVolume });
+    }
   }
 
   // 天气音层。天气定义里的 audioProfileId 查不到条目就没有这一层
-  const weather = getWeather();
   const weatherProfile = weather.audioProfileId;
   if (weatherProfile && weatherProfile !== "weather_audio_none") {
     desired.set(weatherProfile, {

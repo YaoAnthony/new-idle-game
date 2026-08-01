@@ -38,6 +38,9 @@ export const weatherDefinitions = [
     tags: ["wet", "dim"],
     visualProfileId: "weather_visual_rain",
     audioProfileId: "weather_audio_rain",
+    // 下雨就没有鸟叫了。地区底噪那条素材本身就是鸟鸣，
+    // 留一点"底子"在雨里是说不通的——不是变小声，是它们不叫了
+    ambienceDuck: 1,
   },
   {
     id: "wind",
@@ -58,6 +61,8 @@ export const weatherDefinitions = [
     tags: ["wet", "dark", "windy", "event_candidate"],
     visualProfileId: "weather_visual_storm",
     audioProfileId: "weather_audio_storm",
+    // 暴雨同理，只会更彻底
+    ambienceDuck: 1,
   },
 ] satisfies WeatherDefinition[];
 

@@ -12,7 +12,6 @@ import { DialoguePanel } from "../Components/Dialogue/DialoguePanel";
 import { HeldItem } from "../Components/HeldItem/HeldItem";
 import { Hotbar } from "../Components/Hotbar/Hotbar";
 import { InteractBubble } from "../Components/InteractBubble/InteractBubble";
-import { InteractHint } from "../Components/InteractHint/InteractHint";
 import { NeedsHud } from "../Components/NeedsHud/NeedsHud";
 import { SettingsDrawer } from "../Components/SettingsDrawer/SettingsDrawer";
 import { SleepOverlay } from "../Components/SleepOverlay/SleepOverlay";
@@ -432,7 +431,6 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       <Hotbar />
       <HeldItem />
       <InteractBubble scene={scene} />
-      <InteractHint />
       {/* 家具从背包也能直接进布置模式了——原来只有快捷栏能进，
           得先把家具拖到快捷栏才摆得了，白绕一步 */}
       <Backpack />

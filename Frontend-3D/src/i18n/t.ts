@@ -175,7 +175,6 @@ const ZH: Record<string, string> = {
   "ui.action_name_placeholder": "想做什么？比如：写完 assignment2",
   "ui.start_action": "开始",
   "ui.you": "你",
-  "ui.talk_hint": "聊聊",
   // 每天一次的节流。写成"它今天吃饱了"而不是"今日次数已用完"——
   // 是它的状态，不是玩家被系统限制了
   "ui.gift_already_today": "（它今天已经吃饱啦，明天再来吧）",
@@ -197,7 +196,6 @@ const ZH: Record<string, string> = {
   "ui.craft": "制作",
   "ui.cooking": "烹饪",
   "ui.close": "关闭",
-  "ui.interact_hint": "使用",
 
   // 家具交互气泡（走近时浮在家具上方）
   "hint.stove": "做饭",

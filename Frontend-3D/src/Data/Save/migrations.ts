@@ -433,6 +433,21 @@ export const migrations: Migration[] = [
       return save;
     },
   },
+
+  // v10（2026-08-01 掉落物）：WorldSave 多了 droppedItems。
+  //
+  // 加可选字段本来不需要迁移条目——读出来是 undefined，restoreDroppedItems
+  // 当空数组处理就完了。补这一条是为了**存档版本号别停在 9**：
+  // 版本号不动的话，v10 的客户端存出来的档在旧客户端眼里也是 9，
+  // 旧客户端会照读不误、把 droppedItems 整个丢掉，然后自动存盘写回去——
+  // 玩家扔在地上的东西就这么没了，而且全程不报错。
+  {
+    to: 10,
+    migrate: (save) => {
+      save.ownWorld.droppedItems ??= [];
+      return save;
+    },
+  },
 ];
 
 /**

@@ -1,9 +1,9 @@
 import type { ActionProcessSave } from "./actions.js";
-import type { FeatureId, WorldId } from "./base.js";
+import type { FeatureId, RoomId, WorldId } from "./base.js";
 import type { EventProgressSave } from "./events.js";
 import type { StoryRuleId } from "./story.js";
 import type { PlacedFurniture } from "./furniture.js";
-import type { InventorySave } from "./inventory.js";
+import type { InventorySave, InventoryStack } from "./inventory.js";
 import type { MapSave } from "./map.js";
 import type { PetSave } from "./pets.js";
 import type { RegionId, RoomStyleId } from "./roomStyle.js";
@@ -22,6 +22,31 @@ export type HouseSave = {
 
 export type GameRulesSave = {
   timeRun: boolean;
+};
+
+export type DroppedItemId = string;
+
+/**
+ * 扔在地上的一份东西。
+ *
+ * 和 `PlacedFurniture` 是两码事，**刻意不合并**：放置物吸附网格、有朝向、
+ * 参与占用图和通行判定；掉落物落在连续坐标上、没有朝向、谁都能踩过去。
+ * 硬合成一个类型的话，每个消费方都要先问一句"这条是摆的还是扔的"。
+ *
+ * 存的是 `InventoryStack` 而不是光一个 itemId：锅扔出去时锅里煮着的东西
+ * 得跟着走，而那份内容本来就挂在 stack 的 state 上。
+ *
+ * **飞行速度不存**。存档跨的是"关掉游戏再打开"这种尺度，半空中那一瞬间
+ * 的速度没有保留价值；读档后重力会把它接着拽到地上，落点几乎不变。
+ */
+export type DroppedItem = {
+  id: DroppedItemId;
+  roomId: RoomId;
+
+  /** 世界坐标（连续）。y 是物件底面的高度，落地时为 0 */
+  position: { x: number; y: number; z: number };
+
+  stack: InventoryStack;
 };
 
 /**
@@ -43,6 +68,13 @@ export type WorldSave = {
   maps: Record<string, MapSave>;
   pets: Record<string, PetSave>;
   placedFurniture: PlacedFurniture[];
+
+  /**
+   * 扔在地上的东西。**必须进存档**——不存的话关掉游戏再打开，
+   * 地上那些东西凭空消失，那是丢货不是"没实现"。
+   * 老存档没有这个字段，读出来当空数组。
+   */
+  droppedItems?: DroppedItem[];
 
   /** 储物箱等容器的内容，键为 InventoryId */
   inventories: Record<string, InventorySave>;

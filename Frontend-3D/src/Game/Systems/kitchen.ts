@@ -114,6 +114,52 @@ const REJECT_KEYS: Record<KitchenRejectReason, string> = {
   [KitchenRejectReason.Nothing]: "cooking.reject.nothing",
 };
 
+/**
+ * 把一份**不在手上**的东西递给槽位——扔过来的米砸在灶台跟前时走这条。
+ *
+ * **一条新规则都没写。** 判定完全交给 `resolveKitchenInteraction`，
+ * 和按 F 投料是同一个函数：所以"锅满了不收""扔口锅进锅里不收"
+ * "空灶眼上能架锅"这些全都自动成立，而且以后厨房改规则，扔进去的行为
+ * 跟着一起改——不会出现按 F 一套判断、扔进去另一套，慢慢走散。
+ *
+ * 这也是"吸收方不认识锅"的意思：它只知道附近有个槽位，问一句收不收。
+ *
+ * 返回 true 表示槽位收下了，调用方负责把地上那份删掉。
+ */
+export function offerToSlot(ref: KitchenSlotRef, stack: HeldStack): boolean {
+  const action = resolveKitchenInteraction(stack, ref);
+
+  switch (action.kind) {
+    // 空槽位 + 扔来的是厨具 → 架上去。这条是上面那套规则白送的，
+    // 不是特意做的功能：槽位说它收 cookware，那扔过去的锅当然也收
+    case "place_in_slot":
+      setSlotContent(ref.instanceId, ref.slotId, stack);
+      return true;
+
+    case "add_ingredient": {
+      if (!ref.content) return false;
+
+      const next = addToContainer(
+        ref.content.itemId,
+        ref.content.container ?? emptyContainer(),
+        stack.itemId,
+        stack.quality,
+      );
+      setSlotContent(ref.instanceId, ref.slotId, {
+        ...ref.content,
+        container: next,
+      });
+
+      // 配错了照样收下，只是停止加热并说一声——和按 F 投料一致
+      if (!next.recipeId) toast("cooking.no_recipe");
+      return true;
+    }
+
+    default:
+      return false;
+  }
+}
+
 /** 交互提示气泡上显示什么。空手对着空灶眼时没什么可说的 */
 export function describeKitchenSlot(ref: KitchenSlotRef): string | null {
   const action = resolveKitchenInteraction(getHeld(), ref);

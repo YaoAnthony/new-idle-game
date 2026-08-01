@@ -30,6 +30,17 @@ const OCCLUSION_SAMPLES: Array<{ height: number; lateral: number }> = [
   { height: HIP_HEIGHT * 0.45, lateral: 0 },
 ];
 
+/**
+ * 扔到地上的东西离槽位多近算"扔进去了"。
+ *
+ * 只比**平面**距离：灶眼在台面上（y≈1），而扔出来的东西落在地板上，
+ * 把高度算进去的话没有任何东西够得着灶眼。
+ *
+ * 0.75 是照着灶眼间距（0.8）定的——比间距小一点，所以瞄准哪个灶眼就进哪个，
+ * 不会因为半径太大而"扔向左边那口锅，米进了中间那口"。
+ */
+const KITCHEN_ABSORB_RADIUS = 0.75;
+
 /** 提示气泡的附着目标：家具实例 + 提示数据 + 世界锚点 */
 type HintTarget = {
   instanceId: string;
@@ -38,6 +49,15 @@ type HintTarget = {
 };
 import { PlacementSurface, findPlaceableItem } from "core";
 import { getHeld } from "../../Game/State/heldItem";
+import {
+  findDroppedItem,
+  removeDroppedItem,
+  tickDroppedItems,
+} from "../../Game/State/droppedItems";
+import {
+  throwHeldItem,
+  tickItemPickup,
+} from "../../Game/Systems/dropping";
 import { emit, on, type StationCapability } from "../../Game/EventBus";
 import { getPet, getPets, tickPets } from "../../Game/State/petsRuntime";
 import {
@@ -53,6 +73,7 @@ import {
   dumpKitchenSlot,
   interactWithKitchenSlot,
   listKitchenSlots,
+  offerToSlot,
   tickKitchen,
   type KitchenSlotRef,
 } from "../../Game/Systems/kitchen";
@@ -77,6 +98,7 @@ import {
   findPosture,
 } from "../Visual/poses.js";
 import { CookwareView } from "./CookwareView.js";
+import { DroppedItemView } from "./DroppedItemView.js";
 import {
   BODY_HALF_WIDTH,
   HEAD_TOP_HEIGHT,
@@ -124,6 +146,7 @@ export class RoomScene {
   private readonly doorViews: DoorView[] = [];
   private readonly furnitureView: FurnitureView;
   private readonly cookwareView: CookwareView;
+  private readonly droppedItemView: DroppedItemView;
   private readonly characterRig = buildCharacter();
   private readonly heldItemView: HeldItemView;
   private readonly controller: CharacterController;
@@ -202,6 +225,9 @@ export class RoomScene {
     this.cookwareView = new CookwareView(this.built.size);
     this.scene.add(this.cookwareView.root);
 
+    this.droppedItemView = new DroppedItemView();
+    this.scene.add(this.droppedItemView.root);
+
     this.scene.add(this.petView.root);
 
     this.scene.add(this.characterRig.root);
@@ -252,6 +278,11 @@ export class RoomScene {
      */
     this.offEventListeners.push(
       on("held_changed", () => this.syncPlacementToHeld()),
+    );
+
+    // 扔出去的东西落地那一刻，问一句附近的槽位收不收
+    this.offEventListeners.push(
+      on("dropped_item_landed", ({ id }) => this.offerLandedItem(id)),
     );
 
     // 对话期间锁移动 + 镜头推近（动森式，说话的人占满画面）
@@ -452,6 +483,15 @@ export class RoomScene {
        * 一按就把菜吃了。选中和使用是两回事，帮助行里写的也一直是"F 使用"。
        */
       if (key === "f") useHeldItem();
+
+      // Q = 把手上那一份扔出去
+      if (key === "q") {
+        throwHeldItem({
+          x: this.controller.x,
+          z: this.controller.z,
+          heading: this.controller.heading,
+        });
+      }
     };
 
     const onWheel = (event: WheelEvent) => {
@@ -1146,6 +1186,10 @@ export class RoomScene {
     tickKitchen(deltaSeconds);
     this.cookwareView.update(this.rig.camera, deltaSeconds);
 
+    tickDroppedItems(deltaSeconds);
+    tickItemPickup({ x: this.controller.x, z: this.controller.z });
+    this.droppedItemView.update(deltaSeconds);
+
     // 过场：镜头跟拍进屋的宠物；平时跟随角色
     if (this.cutscenePetId) {
       const pet = getPet(this.cutscenePetId);
@@ -1210,6 +1254,40 @@ export class RoomScene {
     this.outdoor.setCelestial(body, progress);
   }
 
+  /**
+   * 一份东西落地了：附近有槽位就递过去问一句。
+   *
+   * 这里只回答**几何问题**（哪个槽位最近、够不够近）——收不收是规则问题，
+   * 交给 Game/Systems/kitchen 的 offerToSlot，那边走的是和按 F 投料
+   * 完全同一条 Core 判定链。
+   */
+  private offerLandedItem(id: string): void {
+    const entity = findDroppedItem(id);
+    if (!entity) return;
+
+    let best: KitchenSlotRef | undefined;
+    let bestDistance = KITCHEN_ABSORB_RADIUS;
+
+    for (const ref of listKitchenSlots()) {
+      const world = this.kitchenSlotWorld(ref);
+      if (!world) continue;
+
+      const distance = Math.hypot(world.x - entity.x, world.z - entity.z);
+      if (distance >= bestDistance) continue;
+
+      bestDistance = distance;
+      best = ref;
+    }
+    if (!best) return;
+
+    const accepted = offerToSlot(best, {
+      itemId: entity.stack.itemId,
+      quality: entity.stack.state?.quality,
+      container: entity.stack.state?.container,
+    });
+    if (accepted) removeDroppedItem(id);
+  }
+
   /** 手上拿的是能摆的东西 → 出虚影；换成别的或空手 → 收起来 */
   private syncPlacementToHeld(): void {
     const held = getHeld();
@@ -1269,6 +1347,7 @@ export class RoomScene {
     this.outdoor.dispose();
     this.cookwareView.dispose();
     this.heldItemView.dispose();
+    this.droppedItemView.dispose();
     this.renderer.stop();
     this.renderer.dispose();
   }

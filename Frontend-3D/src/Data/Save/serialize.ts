@@ -4,6 +4,10 @@ import {
   type GameSave,
 } from "core";
 import { restoreClock, snapshotClock } from "../../Game/State/clock";
+import {
+  restoreDroppedItems,
+  snapshotDroppedItems,
+} from "../../Game/State/droppedItems";
 import { restoreHeld, snapshotHeld } from "../../Game/State/heldItem";
 import { restoreResting, snapshotResting } from "../../Game/State/posture";
 import {
@@ -115,6 +119,8 @@ export function serializeGameSave(previous?: GameSave): GameSave {
       maps: { [MAIN_MAP_ID]: createSingleRoomMap(MAIN_MAP_ID, world.room) },
       pets: snapshotPets(),
       placedFurniture: world.placedFurniture,
+      // 地上扔着的东西也是世界的一部分，不存就等于关一次游戏丢一次货
+      droppedItems: snapshotDroppedItems(),
       inventories: snapshotStorages(),
 
       progression: {
@@ -148,6 +154,8 @@ export function hydrateGameSave(save: GameSave): void {
   // 恢复完立刻清一次幽灵库存——老存档里可能存着已经不在屋里的家具的箱子，
   // 不清的话它会一直占着 WorldSave.inventories 且永远打不开
   restoreStorages(save.ownWorld.inventories);
+  // 老存档没有这个字段，restoreDroppedItems 会当空数组处理
+  restoreDroppedItems(save.ownWorld.droppedItems);
   pruneOrphanStorages(
     save.ownWorld.placedFurniture.map((item) => item.instanceId),
   );

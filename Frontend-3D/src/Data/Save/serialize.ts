@@ -1,8 +1,4 @@
-import {
-  createSingleRoomMap,
-  roomStyleDefinitions,
-  type GameSave,
-} from "core";
+import { createSingleRoomMap, type GameSave } from "core";
 import { restoreClock, snapshotClock } from "../../Game/State/clock";
 import {
   restoreChatLog,
@@ -31,7 +27,9 @@ import {
 import { getNeeds, restoreNeeds } from "../../Game/State/needs";
 import { restorePets, snapshotPets } from "../../Game/State/petsRuntime";
 import {
+  getRoomStyle,
   restoreWorld,
+  setRoomStyleId,
   snapshotWorld,
 } from "../../Game/State/worldRuntime";
 import {
@@ -86,6 +84,7 @@ function nowUtc(): string {
 
 export function serializeGameSave(previous?: GameSave): GameSave {
   const world = snapshotWorld();
+  const style = getRoomStyle();
   const timestamp = nowUtc();
 
   return {
@@ -119,10 +118,20 @@ export function serializeGameSave(previous?: GameSave): GameSave {
     ownWorld: {
       worldId: WORLD_ID,
       seed: previous?.ownWorld.seed ?? 1,
-      house: previous?.ownWorld.house ?? {
-        houseId: "home",
-        regionId: "forest",
-        styleId: roomStyleDefinitions[0].id,
+      /**
+       * 屋子风格**问运行时要，不从上一份存档抄**。
+       *
+       * 原来写的是 `previous?.ownWorld.house ?? {默认}`——纯透传，
+       * 于是运行时改了风格（将来的装修系统）存盘也拿不到。
+       * 加上读档那边压根没回灌，这个字段两个方向都是断的。
+       *
+       * regionId 从风格定义推导、不另存一份：两个字段各存各的，
+       * 迟早出现"styleId 是海边小屋、regionId 还写着 forest"。
+       */
+      house: {
+        houseId: previous?.ownWorld.house.houseId ?? "home",
+        regionId: style.regionId,
+        styleId: style.id,
       },
 
       clock: snapshotClock(),
@@ -153,6 +162,11 @@ export function serializeGameSave(previous?: GameSave): GameSave {
 export function hydrateGameSave(save: GameSave): void {
   const room = Object.values(save.ownWorld.maps)[0]?.rooms;
   const firstRoom = room ? Object.values(room)[0] : undefined;
+
+  // 风格最先回灌：环境音按它的 regionId 选底噪，侧边栏拿它显示屋子名。
+  // 存档里是删掉的风格时 setRoomStyleId 会保持不动（退回默认），
+  // 和 restoreWorld 丢弃未知家具是同一个姿态——内容更新不该让存档读不出来
+  setRoomStyleId(save.ownWorld.house.styleId);
 
   restoreWorld({
     room: firstRoom,

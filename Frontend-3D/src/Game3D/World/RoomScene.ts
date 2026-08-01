@@ -5,7 +5,6 @@ import {
   FurnitureCapability,
   WeatherKind,
   findPath,
-  roomStyleDefinitions,
 } from "core";
 import type { InteractHint } from "core";
 import { Raycaster, Scene, Vector2, Vector3 } from "three";
@@ -62,6 +61,7 @@ import { emit, on, type StationCapability } from "../../Game/EventBus";
 import { getPet, getPets, tickPets } from "../../Game/State/petsRuntime";
 import {
   getDefinition,
+  getRoomStyle,
   getWorld,
   seedInitialFurniture,
 } from "../../Game/State/worldRuntime";
@@ -1346,7 +1346,7 @@ export class RoomScene {
       phase: this.phase,
       weather: this.weather,
       outline: this.outlineEnabled,
-      styleId: roomStyleDefinitions[0].id,
+      styleId: getRoomStyle().id,
       character: {
         x: Number(this.controller.x.toFixed(2)),
         z: Number(this.controller.z.toFixed(2)),

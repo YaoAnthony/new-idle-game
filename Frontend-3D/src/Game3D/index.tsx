@@ -2,10 +2,14 @@ import {
   DayPhaseId,
   WeatherKind,
   findItemDefinition,
+  itemDefinitions,
   type StorySignalKind,
 } from "core";
 import { useEffect, useRef, useState } from "react";
 import { ActionHub } from "../Components/ActionHub/ActionHub";
+import { t } from "../i18n/t";
+import { ChatPanel } from "../Components/Chat/ChatPanel";
+import { SpeechBubble } from "../Components/Chat/SpeechBubble";
 import { Backpack } from "../Components/Backpack/Backpack";
 import { RewardPanel } from "../Components/RewardPanel/RewardPanel";
 import { DialoguePanel } from "../Components/Dialogue/DialoguePanel";
@@ -91,6 +95,17 @@ const STORY_SIGNALS = [
   "pet_entered",
 ] as const satisfies readonly StorySignalKind[];
 
+/**
+ * 枚举 → 补全候选。
+ *
+ * 命令的参数候选**一律现算**，不写字面量清单：`/give` 的候选就是
+ * `itemDefinitions` 里的全部 id，抄一份进命令定义的话，新加的物品补不出来、
+ * 删掉的还留在提示里，而这种走散没人会发现。
+ */
+function asSuggestions(values: readonly string[]): { value: string }[] {
+  return values.map((value) => ({ value }));
+}
+
 const PHASES = [
   DayPhaseId.Dawn,
   DayPhaseId.Day,
@@ -166,6 +181,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
         name: "time",
         usage: "time <dawn|day|dusk|night>",
         description: "把世界时钟拨到某个时段（光照/天空/音景一起跟着变）",
+        arguments: [{ name: "时段", suggest: () => asSuggestions(PHASES) }],
         handler: (args) => {
           const phase = parseEnum(args[0], PHASES, "时段");
           // 拨的是时钟偏移而不是"当前时段"这个结果——
@@ -201,6 +217,9 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
         name: "weather",
         usage: "weather <sunny|cloudy|rain|wind|storm|auto>",
         description: "按住某种天气（auto 恢复自然天气）",
+        arguments: [
+          { name: "天气", suggest: () => asSuggestions([...WEATHERS, "auto"]) },
+        ],
         handler: (args) => {
           if (args[0] === "auto") {
             debugClearWeather();
@@ -221,6 +240,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       }),
       registerCommand({
         name: "outline",
+        arguments: [{ name: "开关", suggest: () => asSuggestions(["on", "off"]) }],
         usage: "outline <on|off>",
         description: "开关浅色描边",
         handler: (args) => {
@@ -231,6 +251,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       }),
       registerCommand({
         name: "rotate",
+        arguments: [{ name: "方向", suggest: () => asSuggestions(["cw", "ccw"]) }],
         usage: "rotate <cw|ccw>",
         description: "相机档位旋转（也可以按 Q / E）",
         handler: (args) => {
@@ -250,6 +271,29 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       }),
       registerCommand({
         name: "kitchen",
+        arguments: [
+          {
+            name: "槽位序号",
+            suggest: () =>
+              listKitchenSlots().map((ref, index) => ({
+                value: String(index),
+                description: ref.content
+                  ? `${ref.slotId}（装着 ${ref.content.itemId}）`
+                  : `${ref.slotId}（空）`,
+              })),
+          },
+          {
+            name: "厨具或食材",
+            // 能放进槽位的和能下锅的都列出来，两类都是合法参数
+            suggest: () =>
+              itemDefinitions
+                .filter((item) => item.cookware || item.servingWare || item.ingredient)
+                .map((item) => ({
+                  value: item.id,
+                  description: t(item.localizationKey),
+                })),
+          },
+        ],
         usage: "kitchen [槽位序号 [itemId]]",
         description:
           "不带参数：列出所有灶眼/槽位和里面装的东西；带序号：往那个槽位放一口锅（默认 wok），方便直接测火候",
@@ -345,6 +389,18 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
         name: "give",
         usage: "give <itemId> [数量]",
         description: "调试发放物品",
+        arguments: [
+          {
+            name: "物品",
+            // 候选就是注册表本身。加一件物品，这里自动就有了
+            suggest: () =>
+              itemDefinitions.map((item) => ({
+                value: item.id,
+                description: t(item.localizationKey),
+              })),
+          },
+          { name: "数量" },
+        ],
         handler: (args) => {
           const itemId = args[0] ?? "";
           if (!findItemDefinition(itemId)) {
@@ -445,6 +501,10 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       <SleepOverlay />
       <RewardPanel />
       <StoryToast />
+      {/* 消息面板挂在游戏里而不是 App 里：消息记录属于**这个世界**，
+          标题界面上还没有世界，开个输入框对着空气打字没有意义 */}
+      <ChatPanel />
+      <SpeechBubble scene={scene} />
     </>
   );
 }

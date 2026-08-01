@@ -448,6 +448,17 @@ export const migrations: Migration[] = [
       return save;
     },
   },
+
+  // v11（2026-08-01 消息系统）：WorldSave 多了 chatLog。
+  // 和 v10 同理——补这一条是为了版本号跟着动，否则旧客户端会认得这份档、
+  // 把 chatLog 整个丢掉再存回去。
+  {
+    to: 11,
+    migrate: (save) => {
+      save.ownWorld.chatLog ??= [];
+      return save;
+    },
+  },
 ];
 
 /**

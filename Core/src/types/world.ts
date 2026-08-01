@@ -1,4 +1,5 @@
 import type { ActionProcessSave } from "./actions.js";
+import type { ChatMessage } from "./chat.js";
 import type { FeatureId, RoomId, WorldId } from "./base.js";
 import type { EventProgressSave } from "./events.js";
 import type { StoryRuleId } from "./story.js";
@@ -75,6 +76,14 @@ export type WorldSave = {
    * 老存档没有这个字段，读出来当空数组。
    */
   droppedItems?: DroppedItem[];
+
+  /**
+   * 消息流（玩家打的字、命令反馈、剧情提示、NPC 说的话）。
+   *
+   * 按世界日只留最近几天，规则在 `logic/chat.ts` 的 `trimChatLog`。
+   * 老存档没有这个字段，读出来当空数组。
+   */
+  chatLog?: ChatMessage[];
 
   /** 储物箱等容器的内容，键为 InventoryId */
   inventories: Record<string, InventorySave>;

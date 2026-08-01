@@ -12,10 +12,35 @@ export type CommandResult = {
 
 export type CommandHandler = (args: string[]) => CommandResult;
 
+export type CommandSuggestion = {
+  value: string;
+  description?: string;
+};
+
+/**
+ * 一个参数位的候选。
+ *
+ * **`suggest` 是函数不是数组**，这一条很要紧：`/give` 的候选是全部物品 id，
+ * 写成字面量数组就等于在命令定义里再抄一份物品清单，而清单和注册表迟早
+ * 走散（新加的物品补不出来，删掉的还在提示里）。函数每次现算，
+ * 加物品零改动——和这个仓库里别处的做法一致。
+ */
+export type CommandArgument = {
+  /** 参数名，没有候选时当占位提示显示 */
+  name: string;
+  suggest?: () => CommandSuggestion[];
+};
+
 export type CommandDefinition = {
   name: string;
   usage: string;
   description: string;
+  /**
+   * 按位置声明的参数。用位置数组而不是给每条候选打
+   * "第几个参数/前面得是什么"的标签（Oldfrontend 那版的做法）——
+   * 位置本来就是位置，用下标表达最直接，也不会出现两条候选声明打架。
+   */
+  arguments?: CommandArgument[];
   handler: CommandHandler;
 };
 

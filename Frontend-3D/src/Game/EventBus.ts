@@ -41,6 +41,14 @@ export type GameEvents = {
     instanceId: string;
     capability: "crafting";
   };
+  /**
+   * 消息流里多了一条（玩家打的字 / 命令反馈 / 剧情提示 / NPC 说话）。
+   * 裁剪也走这条——聊天面板重读一遍列表就是了，几百条的量级不值得
+   * 为"加了一条"和"删了几条"分两个事件。
+   */
+  chat_message: { id: string; kind: string };
+  /** 玩家在聊天框里说了句话（不是命令）。头顶那个气泡吃这条 */
+  player_said: { text: string };
   /** 手上端着的东西变了（拿起 / 放下 / 装盘） */
   held_changed: Record<string, never>;
   /**

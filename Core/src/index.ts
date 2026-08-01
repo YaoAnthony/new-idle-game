@@ -2,6 +2,7 @@ export * from "./types/actions.js";
 export * from "./types/audio.js";
 export * from "./types/avatar.js";
 export * from "./types/base.js";
+export * from "./types/chat.js";
 export * from "./types/cooking.js";
 export * from "./types/dialogue.js";
 export * from "./types/events.js";

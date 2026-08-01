@@ -86,6 +86,15 @@ export function startAutosave(): () => void {
     on("held_changed", () => schedule()),
     on("posture_changed", () => schedule()),
     on("needs_changed", () => schedule()),
+    /**
+     * 说过的话也要存。
+     *
+     * 漏了这一条的后果不明显但很难受：说完一句就关掉游戏，那句话没了——
+     * 而**别的操作会顺手把它带进存档**（扔个东西触发 inventory_changed，
+     * 那次写盘正好把之前的消息一起写了）。于是"有时候记得住有时候记不住"，
+     * 玩家根本猜不到规律。防抖在 schedule 里，刷屏也只写一次。
+     */
+    on("chat_message", () => schedule()),
   ];
 
   // 页面进入后台 / 关闭：来不及防抖，直接写

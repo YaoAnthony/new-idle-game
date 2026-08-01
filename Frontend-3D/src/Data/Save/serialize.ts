@@ -5,6 +5,10 @@ import {
 } from "core";
 import { restoreClock, snapshotClock } from "../../Game/State/clock";
 import {
+  restoreChatLog,
+  snapshotChatLog,
+} from "../../Game/State/chatLog";
+import {
   restoreDroppedItems,
   snapshotDroppedItems,
 } from "../../Game/State/droppedItems";
@@ -121,6 +125,8 @@ export function serializeGameSave(previous?: GameSave): GameSave {
       placedFurniture: world.placedFurniture,
       // 地上扔着的东西也是世界的一部分，不存就等于关一次游戏丢一次货
       droppedItems: snapshotDroppedItems(),
+      // 消息记录只留最近几个世界日，裁剪规则在 Core 的 trimChatLog
+      chatLog: snapshotChatLog(),
       inventories: snapshotStorages(),
 
       progression: {
@@ -156,6 +162,8 @@ export function hydrateGameSave(save: GameSave): void {
   restoreStorages(save.ownWorld.inventories);
   // 老存档没有这个字段，restoreDroppedItems 会当空数组处理
   restoreDroppedItems(save.ownWorld.droppedItems);
+  // 消息记录要在时钟之后恢复——裁剪按"今天是哪天"算
+  restoreChatLog(save.ownWorld.chatLog);
   pruneOrphanStorages(
     save.ownWorld.placedFurniture.map((item) => item.instanceId),
   );

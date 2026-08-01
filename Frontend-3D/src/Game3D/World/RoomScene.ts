@@ -1084,6 +1084,30 @@ export class RoomScene {
   }
 
   /**
+   * 角色头顶的屏幕坐标。说话气泡挂在这里。
+   *
+   * 和 getHintBubble 共用同一套投影（世界坐标 → NDC → 容器内像素），
+   * 各写一份的话镜头缩放时两个气泡会对不齐——它们本来就该在同一个平面上。
+   */
+  getSpeechAnchor(): { x: number; y: number } | null {
+    this.projectScratch.set(
+      this.controller.x,
+      HEAD_TOP_HEIGHT + this.controller.supportY + 0.28,
+      this.controller.z,
+    );
+    this.projectScratch.project(this.rig.camera);
+
+    // 投影到相机背后时 z > 1
+    if (this.projectScratch.z > 1) return null;
+
+    const rect = this.container.getBoundingClientRect();
+    return {
+      x: rect.left + ((this.projectScratch.x + 1) / 2) * rect.width,
+      y: rect.top + ((1 - this.projectScratch.y) / 2) * rect.height,
+    };
+  }
+
+  /**
    * 从相机往角色身上的若干采样点打射线，挡在中间的家具要让开。
    *
    * 只取"比角色近"的命中——角色背后的家具没挡着任何东西，

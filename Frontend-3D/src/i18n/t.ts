@@ -216,6 +216,10 @@ const ZH: Record<string, string> = {
   "ui.help.controls":
     "B 背包 · F 使用 · Q 扔出 · 拖动左键转镜头 · 滚轮缩放 · 右键拿起家具 · 手上拿着家具时左键放下 · ↑↓←→ 微调 · R 旋转",
   "ui.cooking_in_progress": "烹饪中…",
+  // 消息面板
+  "ui.chat.closed_hint": "回车说话 · / 开命令",
+  "ui.chat.placeholder": "说点什么，或者用 / 开头敲指令…",
+  "ui.chat.dismiss": "Esc 收起",
 
   // ---- 生活感扩充：物品 ----
   "item.furniture_bookshelf": "书架",

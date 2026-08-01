@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { DebugConsole } from "./Components/DebugConsole/DebugConsole";
 import { TitleScreen } from "./Components/TitleScreen";
 import { TITLE_SCREEN_CONFIG } from "./Components/TitleScreen/config";
 import { getSaveRepository, hydrateGameSave, setBaseline } from "./Data/Save";
@@ -92,7 +91,6 @@ function App() {
         </div>
       ) : null}
 
-      <DebugConsole />
     </main>
   );
 }

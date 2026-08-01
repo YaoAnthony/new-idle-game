@@ -2,6 +2,7 @@ import { Object3D } from "three";
 import { PALETTE } from "../palette.js";
 import { blob, box, cylinder, group, sphere } from "../primitives.js";
 
+
 /**
  * 食材与成品菜的模型。
  *
@@ -166,4 +167,60 @@ export function buildFriedTomatoEgg(): Object3D {
 
 export function buildBabyCabbageSoup(): Object3D {
   return mound("baby_cabbage_soup", PALETTE.cabbageSoup);
+}
+
+// ---- 切块形态 ----
+
+/** 切成几块 */
+const CHOP_PIECES = 5;
+
+/**
+ * 切块形态：**不建模，从整形态的主色自动生成**。
+ *
+ * 这是整套设计里唯一一处"程序生成而不是写配方"的地方，理由是它不承担识别：
+ * 番茄切了以后就是几块红的，切了的猪肉就是几块粉的——玩家认的是**锅里
+ * 有东西在变化**，不是"这一块的轮廓是不是番茄"。为每样食材再画一套切块，
+ * 是拿建模量换一个没人看的细节。
+ *
+ * 反过来，**整**形态必须 authored：拿在手上、扔在地上时它就是这件东西
+ * 本身，那时候轮廓要认得出来。
+ *
+ * 角度和高低全部由序号推出来，**不用随机数**——CookwareView 靠内容摘要
+ * 决定要不要重建模型，随机会让同一锅东西每次重建都换个样子。
+ */
+export function buildChopped(name: string, color: string): Object3D {
+  const pieces = Array.from({ length: CHOP_PIECES }, (_, index) => {
+    // 2.4 弧度 ≈ 黄金角，五块散得开又不对称，不会摆成一朵花
+    const angle = index * 2.4;
+    const spread = index === 0 ? 0 : 0.045;
+
+    // 三棱柱 = 楔形。刀切出来的断面本来就是平的，用球反而不像切过
+    const piece = cylinder(0.038, 0.032, 0.024, 3, {
+      color,
+      position: [
+        Math.cos(angle) * spread,
+        0.012 + (index % 2) * 0.014,
+        Math.sin(angle) * spread,
+      ],
+      rotation: [0, angle, (index % 2 === 0 ? 1 : -1) * 0.22],
+      castShadow: false,
+    });
+    return piece;
+  });
+
+  return group(`${name}-chopped`, pieces);
+}
+
+/**
+ * 兜底：查不到视觉配方时画的东西。
+ *
+ * 关键不是这个方块长什么样，是**它存在**——原来查不到就静默不画，
+ * 玩家分不清"这东西本来就看不见"和"坏了"，开发也收不到任何信号。
+ */
+export function buildPlaceholder(): Object3D {
+  const cube = box([0.11, 0.11, 0.11], {
+    color: PALETTE.placeholder,
+    position: [0, 0.055, 0],
+  });
+  return group("placeholder", [cube]);
 }

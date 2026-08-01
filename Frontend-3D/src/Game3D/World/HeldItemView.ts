@@ -5,7 +5,10 @@ import {
   COOKWARE_CONTENT_ANCHOR,
   COOKWARE_CONTENT_RADIUS,
 } from "../Visual/recipes/cookware.js";
-import { buildItemVisual } from "../Visual/VisualRegistry.js";
+import {
+  buildItemVisual,
+  buildPortionVisual,
+} from "../Visual/VisualRegistry.js";
 
 /**
  * 手上端着的东西的 3D 表现。
@@ -81,7 +84,7 @@ export class HeldItemView {
     );
 
     return portions.flatMap((portionId, index) => {
-      const portion = buildItemVisual(portionId);
+      const portion = buildPortionVisual(portionId);
       if (!portion) return [];
 
       const angle = index * 2.4;

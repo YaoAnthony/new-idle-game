@@ -1,4 +1,4 @@
-import { findItemDefinition } from "core";
+import { findItemDefinition, getItemTags, itemDefinitions } from "core";
 import { Mesh, Vector3, type MeshLambertMaterial, type Object3D } from "three";
 import {
   buildFireplace,
@@ -36,12 +36,14 @@ import {
   buildBabyCabbageSoup,
   buildCenturyEgg,
   buildCheese,
+  buildChopped,
   buildCookedRice,
   buildEgg,
   buildFriedEgg,
   buildFriedTomatoEgg,
   buildGreenPepper,
   buildPepperPork,
+  buildPlaceholder,
   buildPork,
   buildRice,
   buildTomato,
@@ -195,13 +197,92 @@ export function buildVisual(visualId: string): Object3D | null {
  */
 export function buildItemVisual(itemId: string): Object3D | null {
   const visual = findItemDefinition(itemId)?.visual;
-  if (!visual) return null;
-
-  const object = buildVisual(visual.id);
-  if (object && visual.scale !== undefined) {
-    object.scale.multiplyScalar(visual.scale);
+  if (!visual) {
+    // 物品本身都查不到——这是个坏 id，不是缺模型，两件事分开报
+    reportOnce(`unknown-item:${itemId}`, `视觉：查不到物品 "${itemId}"`);
+    return null;
   }
+
+  const object = buildVisual(visual.id) ?? placeholderFor(itemId, visual.id);
+  if (visual.scale !== undefined) object.scale.multiplyScalar(visual.scale);
   return object;
+}
+
+/**
+ * **锅里 / 盘里那一份**长什么样。手上端着的容器和灶眼上的容器共用这一个，
+ * "生的要切、成品不切"这条规则只有这一处，两边不会各判一遍然后判出不同结果。
+ *
+ * 判据用 `dish` 标签，**不用有没有 food 块**。两者在当前数据上分得一样开
+ * （8 件生食材都没 food，5 道菜都有），但 food 表达的是"能不能吃"，
+ * 是个平衡决定——哪天给生鸡蛋开了个生食玩法加上 food，锅里的蛋就会
+ * 悄悄从切块变回整颗。一次平衡改动不该改掉一个视觉决定。
+ */
+export function buildPortionVisual(itemId: string): Object3D | null {
+  const item = findItemDefinition(itemId);
+  if (!item) {
+    reportOnce(`unknown-item:${itemId}`, `视觉：查不到物品 "${itemId}"`);
+    return null;
+  }
+
+  // 做好的菜整个装在锅里，不切——它已经是成品了
+  if (getItemTags(itemId).includes("dish")) return buildItemVisual(itemId);
+
+  // 配方自己声明了下锅形态就用它（米就是这么免掉切块的）
+  if (item.visual.preppedId) {
+    return buildVisual(item.visual.preppedId) ?? placeholderFor(itemId, item.visual.preppedId);
+  }
+
+  // 没声明就从整形态的主色自动生成切块，不需要为每样食材再建一个模型
+  const color = dominantColor(item.visual.id);
+  if (!color) return placeholderFor(itemId, item.visual.id);
+
+  return buildChopped(itemId, color);
+}
+
+// ---- 缺配方时的兜底 ----
+
+/**
+ * 同一个 id 只报一次。
+ *
+ * 这些查询都在**每帧或每次重建**的路径上（锅里的内容、手上的东西），
+ * 不去重的话一个缺模型的食材能在几秒内刷出上千条，控制台就废了——
+ * 而控制台正是这套兜底唯一要送达的地方。
+ */
+const reported = new Set<string>();
+
+function reportOnce(key: string, message: string): void {
+  if (reported.has(key)) return;
+  reported.add(key);
+  console.warn(`[visual] ${message}`);
+}
+
+function placeholderFor(itemId: string, visualId: string): Object3D {
+  reportOnce(
+    `missing-visual:${visualId}`,
+    `物品 "${itemId}" 的视觉配方 "${visualId}" 没有注册，先用占位方块顶着`,
+  );
+  return buildPlaceholder();
+}
+
+/**
+ * 开机点一次名：**哪些物品还没有模型**。
+ *
+ * 和上面那个运行时兜底是两件事——兜底要等玩家真的碰到那件东西才出声，
+ * 而这个在启动时就把整张表过一遍。"还缺哪些"是开发要一眼看全的清单，
+ * 不该靠玩到才知道。全齐时一声不吭，不占控制台。
+ */
+export function auditItemVisuals(): string[] {
+  const missing = itemDefinitions
+    .filter((item) => !resolveVisual(item.visual.id))
+    .map((item) => `${item.id} → ${item.visual.id}`);
+
+  if (missing.length > 0) {
+    console.warn(
+      `[visual] ${missing.length} 件物品还没有视觉配方：\n  ${missing.join("\n  ")}`,
+    );
+  }
+
+  return missing;
 }
 
 // ---- 主色 ----

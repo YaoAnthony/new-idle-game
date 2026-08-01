@@ -20,7 +20,10 @@ import {
   COOKWARE_CONTENT_ANCHOR,
   COOKWARE_CONTENT_RADIUS,
 } from "../Visual/recipes/cookware.js";
-import { buildItemVisual } from "../Visual/VisualRegistry.js";
+import {
+  buildItemVisual,
+  buildPortionVisual,
+} from "../Visual/VisualRegistry.js";
 import { slotWorldPosition } from "./FurnitureView.js";
 
 /**
@@ -259,7 +262,7 @@ export class CookwareView {
 
     return portions.flatMap((itemId, index) => {
       // 和手上端着的那份走同一个入口，锅里和手上不会长得不一样
-      const portion = buildItemVisual(itemId);
+      const portion = buildPortionVisual(itemId);
       if (!portion) return [];
 
       // 螺旋排布：第一颗在正中，之后绕着中心散开，不会全堆在一点

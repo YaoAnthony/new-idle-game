@@ -733,7 +733,12 @@ export const itemDefinitions = [
     stackLimit: 99,
     rarity: Rarity.Common,
     origin: ItemOrigin.Otherworld,
-    visual: { id: "rice" },
+    /**
+     * 下锅形态显式指回整形态：**米不用切**。
+     * 不填的话表现层会从主色自动生成切块，而米本来就是散粒，
+     * 切成几块小楔形反而不像米了。自动切块是给番茄猪肉那种整块食材的。
+     */
+    visual: { id: "rice", preppedId: "rice" },
     ingredient: { tags: ["grain"] },
   },
   {

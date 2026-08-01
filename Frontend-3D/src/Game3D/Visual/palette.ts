@@ -131,6 +131,15 @@ export const PALETTE = {
   heatPerfect: "#f2c14b",
   heatOvercooked: "#c0392b",
 
+  /**
+   * 查不到视觉配方时的兜底色。
+   *
+   * 刻意选中性灰而不是洋红：这东西会**出现在玩家面前**，不是只给开发看的。
+   * 洋红块在一屋子暖色低多边形里像个 bug 弹窗；灰块只是"还没做好的东西"，
+   * 玩家看一眼就过去了。真正告诉开发的是控制台那条点名。
+   */
+  placeholder: "#9c968c",
+
   // ---- 材料。木头系一律复用 woodDark/Mid/Light，这里只补它们没有的 ----
   paperCream: "#f2ecda",
   paperShade: "#ded5be",

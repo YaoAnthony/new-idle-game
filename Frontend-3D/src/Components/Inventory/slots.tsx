@@ -13,6 +13,7 @@ import {
   type SlotStack,
 } from "../../Game/State/inventory";
 import { t } from "../../i18n/t";
+import { presentedItemId } from "../../Game/Systems/servedDish";
 
 /**
  * 槽位式背包的共享件：物品图标（生成图 + 文字兜底）、
@@ -297,7 +298,9 @@ export function SlotCell({
         if (event.button === 0 && stack) beginDrag(event, slotRef, onClick);
       }}
       onPointerEnter={() => {
-        if (stack && ref.current) onHover?.(stack.itemId, ref.current);
+        // 盛着菜的盘子要报那道菜，不是"盘子"
+        const shown = presentedItemId(stack);
+        if (shown && ref.current) onHover?.(shown, ref.current);
       }}
       onPointerLeave={onLeave}
       // **只有空格子走 DOM 的 click**。有物品的格子在 pointerdown 上
@@ -318,7 +321,11 @@ export function SlotCell({
           {rarity && rarity !== "common" && (
             <span className={`ui-rarity ui-rarity--${rarity}`} />
           )}
-          <ItemIcon itemId={stack.itemId} size={size - 14} fluid={fluid} />
+          <ItemIcon
+            itemId={presentedItemId(stack) ?? stack.itemId}
+            size={size - 14}
+            fluid={fluid}
+          />
           {stack.count > 1 && (
             <span
               className={`absolute bottom-0.5 right-1 font-bold text-[#3d2817] [text-shadow:0_1px_0_rgb(255_248_225),0_0_3px_rgb(255_248_225)] ${

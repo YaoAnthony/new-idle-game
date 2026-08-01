@@ -10,8 +10,11 @@ import {
   moveStack,
   sortBackpack,
   type SlotRef,
+  type SlotStack,
 } from "../../Game/State/inventory";
-import { useInventoryItem } from "../../Game/Systems/itemUse";
+import { eatInventoryItem } from "../../Game/Systems/itemUse";
+import { eatFromWare } from "../../Game/Systems/servedDish";
+import { presentedItemId, servedDish } from "../../Game/Systems/servedDish";
 import { t } from "../../i18n/t";
 import { DragGhost, ItemIcon, SlotCell } from "../Inventory/slots";
 
@@ -244,7 +247,7 @@ export function Backpack() {
 
             <div className="md:flex-[2]">
               <ItemDetail
-                itemId={pickedStack?.itemId ?? null}
+                stack={pickedStack ?? null}
                 count={pickedStack?.count ?? 0}
                 slotRef={pickedStack ? picked : null}
                 onUsed={() => setPicked(null)}
@@ -301,17 +304,24 @@ export function Backpack() {
  * 让那块面积在没选中时也在说话。
  */
 function ItemDetail({
-  itemId,
+  stack,
   count,
   slotRef,
   onUsed,
 }: {
-  itemId: string | null;
+  /**
+   * 收整个 stack 而不是光一个 itemId：**盛着菜的盘子，itemId 还是 plate**，
+   * 只看 id 就会把"一盘番茄炒蛋"显示成"干净的盘子"。
+   */
+  stack: SlotStack;
   count: number;
   /** 这件东西在哪一格。"拿到手上"要靠它做槽位移动 */
   slotRef: SlotRef | null;
   onUsed: () => void;
 }) {
+  // 盘子里盛着菜就按那道菜显示；空盘还是盘子
+  const dish = servedDish(stack);
+  const itemId = presentedItemId(stack);
   const item = itemId ? findItemDefinition(itemId) : null;
 
   if (!itemId || !item) {
@@ -331,6 +341,8 @@ function ItemDetail({
   }
 
   const edible = Boolean(item.food);
+  /** 盛在盘里的菜要连盘一起处理：吃掉菜、盘子留下 */
+  const eatsFromWare = Boolean(dish) && slotRef !== null;
 
   return (
     <div className="ui-parchment flex h-full flex-col p-3 sm:p-4">
@@ -374,7 +386,8 @@ function ItemDetail({
             type="button"
             className="ui-pack-action px-3 py-1.5 text-[13px] font-bold"
             onClick={() => {
-              useInventoryItem(itemId);
+              if (eatsFromWare && slotRef) eatFromWare(slotRef);
+              else eatInventoryItem(itemId);
               onUsed();
             }}
           >

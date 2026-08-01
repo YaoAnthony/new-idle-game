@@ -233,10 +233,25 @@ function stackLimit(itemId: string): number {
 
 // ---- 聚合接口（制作/烹饪/送礼用，不感知槽位） ----
 
+/**
+ * 这一格装着东西吗（锅里有料、盘里有菜）。
+ *
+ * 一个空盘和一个盛着番茄炒蛋的盘，`itemId` 都是 `plate`——数据上没错，
+ * 但**按 itemId 算数量、按 itemId 扣物品的地方必须把后者排除掉**：
+ * 存进箱子、合成消耗都会挑中那个装着菜的，把菜连盘一起吞掉，还不报错。
+ */
+export function isLoadedWare(stack: SlotStack): boolean {
+  return (stack?.container?.items.length ?? 0) > 0;
+}
+
+/**
+ * 聚合数量。**装着东西的容器不算数**——背包里一个空盘加一个盛着菜的盘，
+ * "我有几个盘子"的答案是 1，因为另一个不是你能拿去用的盘子。
+ */
 export function getCounts(): ItemCounts {
   const counts: ItemCounts = {};
   for (const stack of [...hotbar, ...backpack]) {
-    if (!stack) continue;
+    if (!stack || isLoadedWare(stack)) continue;
     counts[stack.itemId] = (counts[stack.itemId] ?? 0) + stack.count;
   }
   return counts;
@@ -335,7 +350,8 @@ export function removeItem(itemId: string, quantity = 1): boolean {
   for (const list of [backpack, hotbar]) {
     for (let i = 0; i < list.length && remaining > 0; i += 1) {
       const stack = list[i];
-      if (!stack || stack.itemId !== itemId) continue;
+      // 跳过装着东西的：扣一个"盘子"不该把那盘番茄炒蛋端走
+      if (!stack || stack.itemId !== itemId || isLoadedWare(stack)) continue;
       const take = Math.min(stack.count, remaining);
       stack.count -= take;
       remaining -= take;
@@ -416,6 +432,12 @@ function removeItemSilent(itemId: string, quantity: number): void {
 }
 
 // ---- 拖拽移动（背包 UI 用） ----
+
+/** 直接改写某一格。吃掉盘子里的菜、留下空盘这类"只动一格"的操作用它 */
+export function setStackAt(ref: SlotRef, next: SlotStack): void {
+  slots(ref.container)[ref.index] = next;
+  announce("slot");
+}
 
 export function getStackAt(ref: SlotRef): SlotStack {
   const stack = slots(ref.container)[ref.index];

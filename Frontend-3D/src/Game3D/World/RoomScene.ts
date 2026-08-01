@@ -78,7 +78,7 @@ import {
   type KitchenSlotRef,
 } from "../../Game/Systems/kitchen";
 import { pickupFurniture } from "../../Game/Systems/placement";
-import { useHeldItem } from "../../Game/Systems/itemUse";
+import { eatHeldItem } from "../../Game/Systems/itemUse";
 import { openUnpack } from "../../Game/Systems/unpack";
 import {
   findAnchor,
@@ -482,7 +482,7 @@ export class RoomScene {
        * 原来这件事绑在"按数字键选中快捷栏"上，于是想看看 3 号格是什么，
        * 一按就把菜吃了。选中和使用是两回事，帮助行里写的也一直是"F 使用"。
        */
-      if (key === "f") useHeldItem();
+      if (key === "f") eatHeldItem();
 
       // Q = 把手上那一份扔出去
       if (key === "q") {

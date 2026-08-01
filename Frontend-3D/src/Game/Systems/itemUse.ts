@@ -3,7 +3,11 @@ import { getHeld } from "../State/heldItem";
 import { eatFood } from "../State/needs";
 
 /**
- * 对**手上那件东西**（= 选中的快捷栏格子）做点什么。
+ * 吃掉手上那件东西（= 选中的快捷栏格子）。
+ *
+ * 函数原来叫 useHeldItem——那时候它还管"进布置模式"，是个泛化的"使用"。
+ * 布置搬走之后只剩下吃，而 use 开头的名字会被 eslint 当成 React Hook，
+ * 每次在 onClick 里调都报一条误报。名字跟着职责走，误报也就没了。
  *
  * 触发它的是 F（帮助行里写的就是"F 使用"），不是按数字键。
  * 数字键只换选中格——不然想看看 3 号格是什么，一按就把菜吃了。
@@ -22,7 +26,7 @@ import { eatFood } from "../State/needs";
 
 export type ItemUseOutcome = "eaten" | "none";
 
-export function useHeldItem(): ItemUseOutcome {
+export function eatHeldItem(): ItemUseOutcome {
   const held = getHeld();
   if (!held) return "none";
 
@@ -30,11 +34,13 @@ export function useHeldItem(): ItemUseOutcome {
 }
 
 /**
- * 背包里点一件东西的"使用"。
+ * 吃掉背包里点的那一件。和上面分开：背包里点的那件**不一定是手上那件**。
  *
- * 和上面分开：背包里点的那件**不一定是手上那件**，得按 itemId 走。
+ * 注意这条只管**物品本身能吃**的情况。盛在盘子里的菜走
+ * `Systems/servedDish` 的 eatFromWare——那一格的 itemId 是 `plate`，
+ * 盘子本身没有 food 块，从这里是吃不到的。
  */
-export function useInventoryItem(itemId: string): ItemUseOutcome {
+export function eatInventoryItem(itemId: string): ItemUseOutcome {
   return eat(itemId);
 }
 

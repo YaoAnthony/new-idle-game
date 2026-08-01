@@ -36,6 +36,16 @@ export type GameEvents = {
     | null;
   /** 一次性容器（纸箱/奖励箱）的领取面板开合 */
   unpack_changed: { open: boolean };
+  /**
+   * ESC 菜单点了一格，请求打开某个面板。
+   *
+   * 走事件而不是把各面板的 open 提到上层：每个面板的开关本来就归它自己管
+   * （B 开背包、右上角按钮开行动），菜单只是**多一个入口**。
+   * 提上去的话，每加一个面板就要动一次共享状态。
+   */
+  ui_panel_requested: { panel: "backpack" | "actions" | "settings" | "chat" };
+  /** ESC 菜单请求回到标题界面（存盘之后） */
+  ui_return_to_title: Record<string, never>;
   /** 玩家按 F 请求打开工作站界面。灶台不走这条——菜是真的在锅里做的 */
   station_open_requested: {
     instanceId: string;

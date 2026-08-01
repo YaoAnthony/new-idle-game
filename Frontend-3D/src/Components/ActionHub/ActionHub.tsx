@@ -8,7 +8,7 @@ import {
   type PlayerActionEntry,
 } from "core";
 import { useEffect, useState } from "react";
-import { on } from "../../Game/EventBus";
+import { emit, on } from "../../Game/EventBus";
 import { nowMs } from "../../Game/State/clock";
 import {
   addActionEntry,
@@ -81,6 +81,24 @@ export function ActionHub() {
   const [remaining, setRemaining] = useState(0);
 
   const active = getActiveAction();
+
+  /**
+   * 这也是一块挡视线的面板，要跟着广播。
+   *
+   * 原来没发：剧情系统靠这条推迟过场，ESC 菜单靠它判断"该不该抢 ESC"——
+   * 不发的话按一次 ESC 会既关掉这个面板又弹出菜单。挡屏的面板都该报一声，
+   * 这不是给某一个消费方开的口子。
+   */
+  useEffect(() => {
+    emit("blocking_panel_changed", { open });
+  }, [open]);
+
+  useEffect(
+    () => on("ui_panel_requested", ({ panel }) => {
+      if (panel === "actions") setOpen(true);
+    }),
+    [],
+  );
 
   useEffect(() => {
     const offAction = on("action_changed", ({ status }) => {

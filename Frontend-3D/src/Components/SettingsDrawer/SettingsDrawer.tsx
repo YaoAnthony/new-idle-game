@@ -8,7 +8,7 @@ import {
   type AudioChannel,
   type StoredAudioSettings,
 } from "../../Game3D/Engine/audioSettings";
-import { emit } from "../../Game/EventBus";
+import { emit, on } from "../../Game/EventBus";
 import { t } from "../../i18n/t";
 
 /**
@@ -94,6 +94,13 @@ const itemVariants: Variants = {
 
 export function SettingsDrawer() {
   const [open, setOpen] = useState(false);
+
+  useEffect(
+    () => on("ui_panel_requested", ({ panel }) => {
+      if (panel === "settings") setOpen(true);
+    }),
+    [],
+  );
   const [settings, setSettings] = useState<StoredAudioSettings>(() =>
     loadAudioSettings(),
   );

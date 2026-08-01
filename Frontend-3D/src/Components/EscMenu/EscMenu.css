@@ -1,0 +1,260 @@
+/*
+ * ESC 侧边菜单的样式。**照抄 Oldfrontend 的 GameEscMenu.css**——
+ * 那 4300 行里绝大部分是任务、商店、联机、相册那些子面板的皮肤，
+ * 这个项目里没有对应的东西。这里留的是抽屉本身：
+ * 遮罩、面板、背景层、头部、统计条、区块标题、磁贴网格、页脚。
+ *
+ * 尺寸一律用 clamp + vh，和那边一样——这套菜单要在很扁的窗口里也站得住，
+ * 固定 px 会在 16:10 以外的比例上炸开。
+ */
+
+.esc-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  pointer-events: auto;
+  contain: layout paint;
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.esc-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(clamp(340px, 24vw, 430px), 100vw);
+  max-width: 100%;
+  pointer-events: auto;
+  border-left: 1px solid rgba(225, 204, 146, 0.34);
+  background: transparent;
+  box-shadow: -28px 0 70px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  will-change: transform, opacity;
+}
+
+/* 单独一层，clip-path 的圆从右上角那个点铺开 */
+.esc-panel__background {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 80% 8%, rgba(226, 191, 102, 0.2), transparent 30%),
+    radial-gradient(circle at 25% 0%, rgba(119, 158, 255, 0.14), transparent 32%),
+    linear-gradient(180deg, rgba(21, 22, 28, 0.96), rgba(8, 10, 16, 0.97));
+}
+
+.esc-panel__content {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(14px, 2.1vh, 22px) clamp(14px, 1.1vw, 20px) clamp(12px, 1.8vh, 18px);
+  overflow-y: auto;
+}
+
+/* 斜切高光 + 细网格。低多边形画风里这层纹理让面板不像一块纯色贴纸 */
+.esc-panel__content::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(115deg, transparent 0 28%, rgba(255, 255, 255, 0.055) 28.2% 28.5%, transparent 28.7%),
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: auto, 34px 34px, 34px 34px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.95), rgba(0, 0, 0, 0.2));
+}
+
+.esc-profile,
+.esc-stats,
+.esc-current,
+.esc-grid,
+.esc-footer {
+  position: relative;
+  z-index: 1;
+}
+
+.esc-profile {
+  display: grid;
+  grid-template-columns: clamp(46px, 6vh, 58px) minmax(0, 1fr) clamp(30px, 4.2vh, 38px);
+  align-items: center;
+  gap: clamp(9px, 1.4vh, 13px);
+}
+
+.esc-profile__avatar {
+  display: grid;
+  place-items: center;
+  width: clamp(46px, 6vh, 58px);
+  height: clamp(46px, 6vh, 58px);
+  border: 1px solid rgba(238, 221, 173, 0.58);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.82);
+  font-size: clamp(18px, 2.4vh, 22px);
+  overflow: hidden;
+}
+
+.esc-profile__text {
+  min-width: 0;
+  display: grid;
+  gap: clamp(3px, 0.6vh, 5px);
+}
+
+.esc-profile__text strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: clamp(18px, 2.35vh, 22px);
+  line-height: 1.1;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.esc-profile__text span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: clamp(10px, 1.35vh, 12px);
+  color: rgba(237, 220, 166, 0.82);
+}
+
+.esc-close {
+  display: grid;
+  place-items: center;
+  width: clamp(30px, 4.2vh, 34px);
+  height: clamp(30px, 4.2vh, 34px);
+  font-size: clamp(12px, 1.65vh, 14px);
+  border: 1px solid rgba(238, 221, 173, 0.32);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.82);
+  cursor: pointer;
+}
+
+.esc-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(7px, 1vh, 10px);
+  margin-top: clamp(12px, 2vh, 20px);
+  padding: clamp(8px, 1.5vh, 13px) 0;
+  border-top: 1px solid rgba(238, 221, 173, 0.18);
+  border-bottom: 1px solid rgba(238, 221, 173, 0.18);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.esc-stats div {
+  min-width: 0;
+  display: grid;
+  gap: clamp(2px, 0.5vh, 4px);
+}
+
+.esc-stats span,
+.esc-section-title span {
+  font-size: clamp(9.5px, 1.25vh, 11px);
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.48);
+}
+
+.esc-stats strong {
+  font-size: clamp(15px, 2vh, 18px);
+  color: #f1d890;
+}
+
+.esc-current {
+  margin-top: clamp(10px, 1.8vh, 18px);
+  padding-top: clamp(8px, 1.2vh, 12px);
+}
+
+.esc-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(8px, 1vh, 12px);
+}
+
+.esc-section-title em {
+  font-style: normal;
+  font-size: clamp(11px, 1.4vh, 13px);
+  color: #f1d890;
+}
+
+.esc-current__body {
+  margin-top: clamp(5px, 0.8vh, 8px);
+  font-size: clamp(12px, 1.6vh, 14px);
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.esc-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(7px, 1vh, 10px);
+  margin-top: clamp(12px, 2vh, 20px);
+}
+
+.esc-tile {
+  position: relative;
+  display: grid;
+  grid-template-rows: minmax(0, auto) auto;
+  place-items: center;
+  align-content: center;
+  gap: clamp(3px, 0.65vh, 6px);
+  min-height: clamp(74px, 10.5vh, 106px);
+  min-width: 0;
+  padding: clamp(8px, 1.25vh, 12px) clamp(5px, 0.7vw, 8px) clamp(11px, 1.55vh, 15px);
+  border: 1px solid rgba(238, 221, 173, 0.25);
+  border-radius: 6px;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.035)),
+    rgba(0, 0, 0, 0.12);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: clamp(11px, 1.4vh, 13px);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.esc-tile:hover,
+.esc-tile:focus-visible {
+  border-color: color-mix(in srgb, var(--tile-accent) 68%, white);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.05)),
+    rgba(0, 0, 0, 0.18);
+  outline: none;
+}
+
+.esc-tile__icon {
+  display: grid;
+  place-items: center;
+  width: clamp(28px, 4.3vh, 36px);
+  height: clamp(28px, 4.3vh, 36px);
+  color: var(--tile-accent);
+  font-size: clamp(20px, 3.15vh, 25px);
+  line-height: 1;
+}
+
+.esc-footer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: clamp(6px, 0.8vh, 8px);
+  align-items: center;
+  margin-top: auto;
+  padding-top: clamp(10px, 1.7vh, 16px);
+  font-size: clamp(10px, 1.3vh, 12px);
+  color: rgba(255, 255, 255, 0.48);
+}
+
+.esc-footer span {
+  padding: 2px 7px;
+  border: 1px solid rgba(238, 221, 173, 0.32);
+  border-radius: 4px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.esc-footer em {
+  font-style: normal;
+}

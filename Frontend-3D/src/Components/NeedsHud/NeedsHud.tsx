@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { on } from "../../Game/EventBus";
+import { t } from "../../i18n/t";
 import { getNeeds } from "../../Game/State/needs";
 
 /** 左下角饥饿/疲劳条（全局状态固定屏幕角落，不浮空） */
@@ -24,8 +25,8 @@ export function NeedsHud() {
 
   return (
     <div className="absolute bottom-4 left-4 z-10 flex flex-col gap-1 rounded-lg bg-black/35 px-2.5 py-2 backdrop-blur-sm">
-      {bar("饱食", needs.hunger, "#e8a33c")}
-      {bar("精力", needs.fatigue, "#7cb45f")}
+      {bar(t("ui.needs.hunger"), needs.hunger, "#e8a33c")}
+      {bar(t("ui.needs.fatigue"), needs.fatigue, "#7cb45f")}
     </div>
   );
 }

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { TitleScreen } from "./Components/TitleScreen";
 import { TITLE_SCREEN_CONFIG } from "./Components/TitleScreen/config";
 import { getSaveRepository, hydrateGameSave, setBaseline } from "./Data/Save";
+import { saveNow } from "./Data/Save/autosave";
+import { on } from "./Game/EventBus";
 import { GameView } from "./Game3D";
 
 /**
@@ -19,6 +21,22 @@ function App() {
   /** 传给 GameView：true 表示存档已经灌进运行时，不要再铺开局摆设和开场剧情 */
   const [loadedFromSave, setLoadedFromSave] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+
+  /**
+   * ESC 菜单的"回到标题"。**先存盘再切**——切回标题会把整个 GameView
+   * 卸掉，运行时状态跟着没，不先落盘就等于丢掉这一段游玩。
+   */
+  useEffect(
+    () =>
+      on("ui_return_to_title", () => {
+        void saveNow().then(() => {
+          setLoadedFromSave(false);
+          setCanContinue(true);
+          setStage("title");
+        });
+      }),
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;

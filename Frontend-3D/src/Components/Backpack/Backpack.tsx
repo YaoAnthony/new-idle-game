@@ -56,6 +56,25 @@ const TAB_KEY: Record<string, string> = {
 
 export function Backpack() {
   const [open, setOpen] = useState(false);
+
+  // ESC 菜单里那一格也能开背包——B 键之外的第二个入口，开关仍归这里管
+  /**
+   * 这也是一块挡视线的面板，要跟着广播。
+   *
+   * 原来没发：剧情系统靠这条推迟过场，ESC 菜单靠它判断"该不该抢 ESC"——
+   * 不发的话按一次 ESC 会既关掉这个面板又弹出菜单。挡屏的面板都该报一声，
+   * 这不是给某一个消费方开的口子。
+   */
+  useEffect(() => {
+    emit("blocking_panel_changed", { open });
+  }, [open]);
+
+  useEffect(
+    () => on("ui_panel_requested", ({ panel }) => {
+      if (panel === "backpack") setOpen(true);
+    }),
+    [],
+  );
   const [slots, setSlots] = useState(getBackpack());
   const [hotbarSlots, setHotbarSlots] = useState(getHotbar());
   const [tab, setTab] = useState<ItemCategory | null>(null);

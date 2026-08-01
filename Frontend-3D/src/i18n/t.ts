@@ -198,6 +198,26 @@ const ZH: Record<string, string> = {
   "ui.craft": "制作",
   "ui.cooking": "烹饪",
   "ui.close": "关闭",
+  // 需求条的标签。原来写死在 NeedsHud 组件里——用户可见文案不该躺在组件里，
+  // ESC 菜单也要用同一份，写死的话两处迟早说不一样的词
+  "ui.needs.hunger": "饱食",
+  "ui.needs.fatigue": "精力",
+
+  // 屋子风格。ESC 菜单拿它当标题，之前一条文案都没有，直接漏出了 key
+  "room_style.forest_cottage": "林间小屋",
+  "room_style.ocean_cottage": "海边小屋",
+  "room_style.stone_cottage": "石砌小屋",
+
+  // ESC 侧边菜单
+  "ui.esc.title": "菜单",
+  "ui.esc.backpack": "背包",
+  "ui.esc.actions": "行动",
+  "ui.esc.chat": "消息",
+  "ui.esc.settings": "设置",
+  "ui.esc.return_title": "回到标题",
+  "ui.esc.current_action": "正在进行的行动",
+  "ui.esc.no_action": "现在什么都没在做",
+  "ui.esc.close_hint": "关闭菜单",
 
   // 家具交互气泡（走近时浮在家具上方）
   "hint.stove": "做饭",

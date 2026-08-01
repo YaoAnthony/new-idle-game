@@ -89,6 +89,16 @@ export function ChatPanel() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open]);
 
+  useEffect(
+    () => on("ui_panel_requested", ({ panel }) => {
+      if (panel === "chat") {
+        setDraft("");
+        setOpen(true);
+      }
+    }),
+    [],
+  );
+
   useEffect(() => {
     if (!open) return;
     inputRef.current?.focus();

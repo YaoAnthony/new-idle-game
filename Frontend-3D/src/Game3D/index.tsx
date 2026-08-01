@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { ActionHub } from "../Components/ActionHub/ActionHub";
 import { t } from "../i18n/t";
 import { ChatPanel } from "../Components/Chat/ChatPanel";
+import { EscMenu } from "../Components/EscMenu/EscMenu";
 import { SpeechBubble } from "../Components/Chat/SpeechBubble";
 import { Backpack } from "../Components/Backpack/Backpack";
 import { RewardPanel } from "../Components/RewardPanel/RewardPanel";
@@ -505,6 +506,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
           标题界面上还没有世界，开个输入框对着空气打字没有意义 */}
       <ChatPanel />
       <SpeechBubble scene={scene} />
+      <EscMenu />
     </>
   );
 }

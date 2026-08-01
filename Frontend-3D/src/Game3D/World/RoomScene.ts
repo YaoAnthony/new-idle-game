@@ -36,7 +36,8 @@ type HintTarget = {
   hint: InteractHint;
   world: Vector3;
 };
-import { PlacementSurface } from "core";
+import { PlacementSurface, findPlaceableItem } from "core";
+import { getHeld } from "../../Game/State/heldItem";
 import { emit, on, type StationCapability } from "../../Game/EventBus";
 import { getPet, getPets, tickPets } from "../../Game/State/petsRuntime";
 import {
@@ -236,12 +237,21 @@ export class RoomScene {
       }),
     );
 
-    // 布置模式抬高俯角：低视角瞄不到远处的地面格
+    /**
+     * 手上拿着能摆的东西 → 虚影跟着鼠标；换成别的 → 收起来。
+     *
+     * **这是"在不在摆"的唯一来源**。原来要按 F 才进布置模式，于是
+     * "拿着落地灯"和"拿着落地灯且按过 F"是两个状态，而屏幕上没有任何东西
+     * 告诉玩家现在是哪个。市面上角色在场的布置类（星露谷、动森、Minecraft）
+     * 都没有这个模式：拿着就是能放。有布置模式的是模拟人生那一类，
+     * 但那是整个游戏切进建造模式，是一个章节，不是每摆一件按一次键。
+     *
+     * 镜头**不再**跟着自动抬俯角了。抬俯角原来挂在"进入模式"上，而现在
+     * 没有进入这个动作了——挂到选中格上的话，快捷栏划过一把椅子镜头就荡一下。
+     * 低视角够不到远处地面格这件事由方向键微调解决（它本来就是为此加的）。
+     */
     this.offEventListeners.push(
-      on("placement_mode_changed", ({ active }) => {
-        if (active) this.rig.enterDecorate();
-        else this.rig.exitDecorate();
-      }),
+      on("held_changed", () => this.syncPlacementToHeld()),
     );
 
     // 对话期间锁移动 + 镜头推近（动森式，说话的人占满画面）
@@ -341,6 +351,10 @@ export class RoomScene {
 
     this.detachInput = this.attachInput();
 
+    // 补一次初始同步。**必须在 placement 建好之后**——读档进来时手上可能
+    // 已经拿着家具了，而 held_changed 早在场景构造之前就发完了
+    this.syncPlacementToHeld();
+
     this.applyEnvironment();
     this.resize();
 
@@ -371,7 +385,13 @@ export class RoomScene {
         if (event.key === "ArrowLeft") this.placement.nudge(-1, 0);
         if (event.key === "ArrowRight") this.placement.nudge(1, 0);
       }
-      if (event.key === "Escape") this.placement.cancel();
+      /**
+       * Esc 不再管布置了。
+       *
+       * 它原来的职责是"退出布置模式"，而现在没有模式可退——真按下去只会
+       * 把虚影藏起来，然后下一次 held_changed 又给放出来，留下一个只有
+       * 半秒寿命的状态。不想摆就换一格快捷栏，虚影本身不点击也不会落地。
+       */
       // 配错了的出口：倒掉锅里的东西，锅还在（还没有垃圾桶这件家具）
       if (key === "g") {
         const slot = this.nearestKitchenSlot();
@@ -426,14 +446,12 @@ export class RoomScene {
       }
 
       /**
-       * 附近没有可交互目标时，F = **用手上那件东西**（吃掉 / 进布置模式）。
+       * 附近没有可交互目标时，F = **用手上那件东西**（现在只剩"吃"）。
        *
-       * 原来这两件事绑在"按数字键选中快捷栏"上，于是想看看 3 号格是什么，
+       * 原来这件事绑在"按数字键选中快捷栏"上，于是想看看 3 号格是什么，
        * 一按就把菜吃了。选中和使用是两回事，帮助行里写的也一直是"F 使用"。
        */
-      if (key === "f") {
-        useHeldItem({ onPlacement: (itemId) => this.placement.begin(itemId) });
-      }
+      if (key === "f") useHeldItem();
     };
 
     const onWheel = (event: WheelEvent) => {
@@ -1192,8 +1210,13 @@ export class RoomScene {
     this.outdoor.setCelestial(body, progress);
   }
 
-  beginPlacement(furnitureId: string): void {
-    this.placement.begin(furnitureId);
+  /** 手上拿的是能摆的东西 → 出虚影；换成别的或空手 → 收起来 */
+  private syncPlacementToHeld(): void {
+    const held = getHeld();
+    const placeable = held ? findPlaceableItem(held.itemId) : undefined;
+
+    if (placeable) this.placement.begin(placeable.id);
+    else this.placement.cancel();
   }
 
   rotate(direction: 1 | -1): void {

@@ -4,7 +4,7 @@ import {
   findItemDefinition,
   type StorySignalKind,
 } from "core";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ActionHub } from "../Components/ActionHub/ActionHub";
 import { Backpack } from "../Components/Backpack/Backpack";
 import { RewardPanel } from "../Components/RewardPanel/RewardPanel";
@@ -115,11 +115,6 @@ type GameViewProps = {
 export function GameView({ loadedFromSave = false }: GameViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scene, setScene] = useState<RoomScene | null>(null);
-
-  const handleSelect = useCallback(
-    (furnitureId: string) => scene?.beginPlacement(furnitureId),
-    [scene],
-  );
 
   useEffect(() => {
     const container = containerRef.current;
@@ -440,7 +435,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       <InteractHint />
       {/* 家具从背包也能直接进布置模式了——原来只有快捷栏能进，
           得先把家具拖到快捷栏才摆得了，白绕一步 */}
-      <Backpack onPlacement={handleSelect} />
+      <Backpack />
       <StationPanel />
       <StoragePanel />
       <DialoguePanel />

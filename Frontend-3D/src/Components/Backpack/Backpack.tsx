@@ -51,12 +51,7 @@ const TAB_KEY: Record<string, string> = {
   [ItemCategory.Quest]: "ui.category.quest",
 };
 
-type BackpackProps = {
-  /** 点了"布置到屋里"。不传就不显示那个按钮 */
-  onPlacement?: (itemId: string) => void;
-};
-
-export function Backpack({ onPlacement }: BackpackProps) {
+export function Backpack() {
   const [open, setOpen] = useState(false);
   const [slots, setSlots] = useState(getBackpack());
   const [hotbarSlots, setHotbarSlots] = useState(getHotbar());
@@ -252,7 +247,6 @@ export function Backpack({ onPlacement }: BackpackProps) {
                 itemId={pickedStack?.itemId ?? null}
                 count={pickedStack?.count ?? 0}
                 slotRef={pickedStack ? picked : null}
-                onPlacement={onPlacement}
                 onUsed={() => setPicked(null)}
               />
             </div>
@@ -310,14 +304,12 @@ function ItemDetail({
   itemId,
   count,
   slotRef,
-  onPlacement,
   onUsed,
 }: {
   itemId: string | null;
   count: number;
   /** 这件东西在哪一格。"拿到手上"要靠它做槽位移动 */
   slotRef: SlotRef | null;
-  onPlacement?: (itemId: string) => void;
   onUsed: () => void;
 }) {
   const item = itemId ? findItemDefinition(itemId) : null;
@@ -338,7 +330,6 @@ function ItemDetail({
     );
   }
 
-  const placeable = Boolean(item.placement);
   const edible = Boolean(item.food);
 
   return (
@@ -370,21 +361,15 @@ function ItemDetail({
         {t(`${item.localizationKey}.desc`)}
       </p>
 
-      {/* 动作按钮。能做什么由物品能力决定，和 itemUse 的分派顺序一致 */}
+      {/*
+       * 动作按钮。能做什么由物品能力决定。
+       *
+       * **没有"放置"按钮了**：拿到手上就是在摆（虚影直接跟着鼠标），
+       * 再给一个"放置"就等于同一件事有两个入口，而两个入口迟早会
+       * 各自维护一套"现在在不在摆"的状态。
+       */}
       <div className="mt-3 flex flex-wrap gap-2">
-        {placeable && onPlacement && (
-          <button
-            type="button"
-            className="ui-pack-action px-3 py-1.5 text-[13px] font-bold"
-            onClick={() => {
-              useInventoryItem(itemId, { onPlacement });
-              onUsed();
-            }}
-          >
-            {t("ui.backpack.place")}
-          </button>
-        )}
-        {!placeable && edible && (
+        {edible && (
           <button
             type="button"
             className="ui-pack-action px-3 py-1.5 text-[13px] font-bold"
@@ -403,8 +388,10 @@ function ItemDetail({
          * 手上拿的就是选中那一格，所以这个动作是一次普通的槽位移动，
          * 不再是"从背包扣掉、塞进一个叫手的地方"。
          * 已经在快捷栏里的东西不显示这个按钮——它本来就够得着。
+         *
+         * 家具也走这个按钮：拿到手上，虚影就出来了。
          */}
-        {!placeable && slotRef?.container === "backpack" && (
+        {slotRef?.container === "backpack" && (
           <button
             type="button"
             className="ui-pack-action px-3 py-1.5 text-[13px] font-bold"

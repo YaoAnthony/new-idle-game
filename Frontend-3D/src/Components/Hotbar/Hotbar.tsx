@@ -6,6 +6,7 @@ import {
   HOTBAR_SIZE,
   selectHotbarSlot,
 } from "../../Game/State/inventory";
+import { t } from "../../i18n/t";
 import { ItemTooltip, SlotCell, useTooltip } from "../Inventory/slots";
 
 /**
@@ -75,7 +76,7 @@ export function Hotbar() {
             ))}
           </div>
           <div className="pointer-events-none absolute bottom-[86px] left-1/2 z-10 -translate-x-1/2 text-[11px] text-white/55">
-            B 背包 · F 使用 · 拖动左键转镜头 · 滚轮缩放 · 右键拿起家具 · 布置时 ↑↓←→ 微调 · R 旋转 · Esc 取消
+            {t("ui.help.controls")}
           </div>
         </>
       )}

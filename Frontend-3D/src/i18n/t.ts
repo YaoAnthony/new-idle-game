@@ -214,6 +214,9 @@ const ZH: Record<string, string> = {
   "hint.floor_lamp": "开灯 / 关灯",
   "hint.potted_plant": "浇点水",
   "ui.pickup_hint": "右键拿起",
+  // 操作提示行。原来直接写死在 Hotbar 组件里——用户可见文案不该躺在组件里
+  "ui.help.controls":
+    "B 背包 · F 使用 · 拖动左键转镜头 · 滚轮缩放 · 右键拿起家具 · 手上拿着家具时左键放下 · ↑↓←→ 微调 · R 旋转",
   "ui.cooking_in_progress": "烹饪中…",
 
   // ---- 生活感扩充：物品 ----
@@ -480,7 +483,6 @@ const ZH: Record<string, string> = {
   "ui.backpack.empty_title": "还没有选中东西",
   "ui.backpack.empty_hint": "点一下格子看看它是什么",
   "ui.backpack.take": "拿到手上",
-  "ui.backpack.place": "布置到屋里",
   "ui.backpack.eat": "吃掉",
   "ui.backpack.capacity": "格子",
   "ui.backpack.sort": "整理",

@@ -83,6 +83,15 @@ export class PlacementController {
   }
 
   begin(itemId: string): void {
+    /**
+     * 已经在摆同一件东西就什么都不做。
+     *
+     * 这个方法现在由 `held_changed` 驱动，而那个事件的触发面比"换了手上
+     * 拿什么"宽得多（数量变了也发）。不挡一下的话，每摆下一件都会重建一次
+     * 虚影——玩家按 R 转好的朝向会在落地的瞬间被打回北向。
+     */
+    if (this.itemId === itemId && this.ghost) return;
+
     this.cancel();
 
     if (getCount(itemId) <= 0) return;

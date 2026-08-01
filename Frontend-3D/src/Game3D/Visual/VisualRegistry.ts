@@ -219,6 +219,21 @@ export function buildItemVisual(itemId: string): Object3D | null {
  * 是个平衡决定——哪天给生鸡蛋开了个生食玩法加上 food，锅里的蛋就会
  * 悄悄从切块变回整颗。一次平衡改动不该改掉一个视觉决定。
  */
+/**
+ * 锅里 / 盘里那一份画多大。
+ *
+ * 手持尺寸是照 Q 版体型定的（番茄 35 厘米），而炒锅内径只有 0.4 米——
+ * 照手上那个尺寸画，一份番茄就盖住整口锅。所以锅里这一份单独缩一次。
+ *
+ * 值取成"缩回大约 9~13 厘米"：三份并排还塞得下，又不至于小到看不清。
+ */
+const POT_PORTION_SCALE = 0.27;
+
+function asPortion(object: Object3D | null): Object3D | null {
+  object?.scale.multiplyScalar(POT_PORTION_SCALE);
+  return object;
+}
+
 export function buildPortionVisual(itemId: string): Object3D | null {
   const item = findItemDefinition(itemId);
   if (!item) {
@@ -227,18 +242,21 @@ export function buildPortionVisual(itemId: string): Object3D | null {
   }
 
   // 做好的菜整个装在锅里，不切——它已经是成品了
-  if (getItemTags(itemId).includes("dish")) return buildItemVisual(itemId);
+  if (getItemTags(itemId).includes("dish")) return asPortion(buildItemVisual(itemId));
 
   // 配方自己声明了下锅形态就用它（米就是这么免掉切块的）
   if (item.visual.preppedId) {
-    return buildVisual(item.visual.preppedId) ?? placeholderFor(itemId, item.visual.preppedId);
+    return asPortion(
+      buildVisual(item.visual.preppedId) ??
+        placeholderFor(itemId, item.visual.preppedId),
+    );
   }
 
   // 没声明就从整形态的主色自动生成切块，不需要为每样食材再建一个模型
   const color = dominantColor(item.visual.id);
-  if (!color) return placeholderFor(itemId, item.visual.id);
+  if (!color) return asPortion(placeholderFor(itemId, item.visual.id));
 
-  return buildChopped(itemId, color);
+  return asPortion(buildChopped(itemId, color));
 }
 
 // ---- 缺配方时的兜底 ----

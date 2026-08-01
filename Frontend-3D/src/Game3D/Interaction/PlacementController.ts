@@ -245,12 +245,20 @@ export class PlacementController {
     if (!this.active || !this.ghost?.visible) return false;
     if (!this.itemId || !this.valid) return true;
 
+    /**
+     * 先把 id 抄下来再摆。
+     *
+     * `placeFromItem` 会同步触发 held_changed，而那条链现在会回头调
+     * `cancel()`（摆完最后一件手上就空了）——等它跑完 `this.itemId`
+     * 已经是 null 了，再拿它去查数量就是在读一个刚被清掉的字段。
+     */
+    const itemId = this.itemId;
     const target = this.currentTarget();
-    const placed = target ? placeFromItem(this.itemId, target) : false;
+    const placed = target ? placeFromItem(itemId, target) : false;
 
     // 物品用完自动退出布置模式，否则留在模式里连续摆
-    if (placed && getCount(this.itemId) <= 0) this.cancel();
-    else this.refresh();
+    if (placed && getCount(itemId) <= 0) this.cancel();
+    else if (this.active) this.refresh();
 
     return true;
   }

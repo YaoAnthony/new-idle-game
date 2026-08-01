@@ -5,7 +5,6 @@ import {
   type HeldStack,
   type InventoryStack,
 } from "core";
-import { emit } from "../EventBus";
 import {
   addItem,
   consumeSelectedOne,
@@ -152,5 +151,6 @@ export function restoreHeld(saved: InventoryStack | null | undefined): void {
     expiresAtUtc: saved.state?.expiresAtUtc,
     container: saved.state?.container,
   });
-  emit("held_changed", {});
+  // 不用自己发 held_changed：placeInFirstFreeSlot 里那条广播会判断
+  // 落点是不是选中格，是的话它自己发（见 inventory.ts 的 syncHeld）
 }

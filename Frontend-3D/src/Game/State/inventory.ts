@@ -116,6 +116,45 @@ function slots(container: SlotContainer): SlotStack[] {
   return container === "hotbar" ? hotbar : backpack;
 }
 
+// ---- 变更广播 ----
+
+/**
+ * 手上那一格现在长什么样。整份实例状态参与比较（和 sameKind 同一个路子），
+ * 所以以后往 SlotStack 上加字段这里零改动。
+ */
+function heldSignature(): string {
+  return stableKey(hotbar[selectedHotbarIndex] ?? null);
+}
+
+/** 上一次广播出去的样子 */
+let lastHeld = "null";
+
+/**
+ * 手上那一格真的变了才广播。
+ *
+ * **"手上拿的就是选中那一格"是个派生事实，所以通知也必须是派生的。**
+ * 原来 held_changed 靠各个函数自己记得发：selectHotbarSlot、setSelectedStack、
+ * consumeSelectedOne 发了，removeItem / moveStack / sortBackpack /
+ * restoreInventory / replaceCounts 全都没发。于是背包里最后一件家具摆下去
+ * 之后，状态上手已经空了，手上那个模型和右下角那张卡还挂着——
+ * 因为扣物品的是 removeItem，而它只喊了一声 inventory_changed。
+ *
+ * 谁改到了选中格由这里算，不由调用方记得。
+ */
+function syncHeld(): void {
+  const signature = heldSignature();
+  if (signature === lastHeld) return;
+
+  lastHeld = signature;
+  emit("held_changed", {});
+}
+
+/** 库存变了走这里，**不要直接 emit** ——直接 emit 就绕过了上面那条推导 */
+function announce(reason: string): void {
+  emit("inventory_changed", { reason });
+  syncHeld();
+}
+
 export function getHotbar(): SlotStack[] {
   return hotbar.map((stack) => (stack ? { ...stack } : null));
 }
@@ -136,6 +175,9 @@ export function selectHotbarSlot(index: number): void {
   if (index === selectedHotbarIndex) return;
 
   selectedHotbarIndex = index;
+  // 无条件发：快捷栏的选中高亮听的就是这一条，而两格恰好装着一模一样的
+  // 东西时签名不变，靠推导就漏掉了。记账是为了下一次 announce 不重复发
+  lastHeld = heldSignature();
   emit("held_changed", {});
 }
 
@@ -153,7 +195,7 @@ export function placeInFirstFreeSlot(stack: NonNullable<SlotStack>): boolean {
     for (let i = 0; i < list.length; i += 1) {
       if (list[i]) continue;
       list[i] = { ...stack };
-      emit("inventory_changed", { reason: "restore" });
+      announce("restore");
       return true;
     }
   }
@@ -163,8 +205,7 @@ export function placeInFirstFreeSlot(stack: NonNullable<SlotStack>): boolean {
 /** 直接改写选中格。厨房交互用（把锅端起来、把锅放下） */
 export function setSelectedStack(next: SlotStack): void {
   hotbar[selectedHotbarIndex] = next;
-  emit("inventory_changed", { reason: "selected" });
-  emit("held_changed", {});
+  announce("selected");
 }
 
 /**
@@ -183,8 +224,7 @@ export function consumeSelectedOne(): void {
     hotbar[selectedHotbarIndex] = null;
   }
 
-  emit("inventory_changed", { reason: "consumed" });
-  emit("held_changed", {});
+  announce("consumed");
 }
 
 function stackLimit(itemId: string): number {
@@ -244,7 +284,7 @@ export function addItem(
     }
   }
 
-  emit("inventory_changed", { reason: "add" });
+  announce("add");
 }
 
 /**
@@ -268,7 +308,7 @@ export function spoilExpiredFood(worldDayId: string): number {
     }
   }
 
-  if (spoiled > 0) emit("inventory_changed", { reason: "spoiled" });
+  if (spoiled > 0) announce("spoiled");
   return spoiled;
 }
 
@@ -303,7 +343,7 @@ export function removeItem(itemId: string, quantity = 1): boolean {
     }
   }
 
-  emit("inventory_changed", { reason: "remove" });
+  announce("remove");
   return true;
 }
 
@@ -320,7 +360,7 @@ export function removeFromSlot(ref: SlotRef, quantity = 1): boolean {
   stack.count -= quantity;
   if (stack.count <= 0) list[ref.index] = null;
 
-  emit("inventory_changed", { reason: "remove" });
+  announce("remove");
   return true;
 }
 
@@ -335,7 +375,7 @@ export function replaceCounts(next: ItemCounts): void {
     else if (delta < 0) removeItemSilent(itemId, -delta);
   }
 
-  emit("inventory_changed", { reason: "replace" });
+  announce("replace");
 }
 
 function addItemSilent(itemId: string, quantity: number): void {
@@ -407,7 +447,7 @@ export function moveStack(from: SlotRef, to: SlotRef): void {
     fromList[from.index] = target;
   }
 
-  emit("inventory_changed", { reason: "move" });
+  announce("move");
 }
 
 // ---- 存档 ----
@@ -466,7 +506,7 @@ export function restoreInventory(stacks: InventoryStack[]): void {
     };
   }
 
-  emit("inventory_changed", { reason: "restore" });
+  announce("restore");
 }
 
 // ---- 整理 ----
@@ -516,7 +556,7 @@ export function sortBackpack(): void {
     backpack[i] = merged[i] ?? null;
   }
 
-  emit("inventory_changed", { reason: "sort" });
+  announce("sort");
 }
 
 /**
@@ -597,6 +637,6 @@ export function seedInitialInventory(): void {
     backpack[index] = { itemId, count };
   });
 
-  emit("inventory_changed", { reason: "seed" });
+  announce("seed");
 }
 

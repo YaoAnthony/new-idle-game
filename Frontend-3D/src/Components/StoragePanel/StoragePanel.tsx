@@ -1,7 +1,12 @@
 import { findPlaceableItem } from "core";
 import { useEffect, useState } from "react";
 import { emit, on } from "../../Game/EventBus";
-import { addItem, getBackpack, removeItem } from "../../Game/State/inventory";
+import {
+  getBackpack,
+  isLoadedWare,
+  placeInFirstFreeSlot,
+  setStackAt,
+} from "../../Game/State/inventory";
 import {
   STORAGE_SIZE,
   addToStorage,
@@ -89,20 +94,56 @@ export function StoragePanel() {
     findPlaceableItem(target.furnitureId)?.localizationKey ??
     "item.furniture_storage_chest";
 
-  /** 箱子 → 背包 */
+  /**
+   * 箱子 → 背包。
+   *
+   * 走 `placeInFirstFreeSlot` 而不是 `addItem`：后者会拿今天的世界日
+   * **重算保质期**，等于把一盘快馊的菜放进箱子再拿出来就变新鲜了。
+   * 箱子不是冰箱，存进去多久出来还是多久。
+   */
   const takeOut = (index: number): void => {
     const slot = slots[index];
     if (!slot) return;
 
-    addItem(slot.itemId, slot.count, slot.quality);
-    setStorageSlot(inventoryId, index, null);
+    const placed = placeInFirstFreeSlot({
+      itemId: slot.itemId,
+      count: slot.count,
+      quality: slot.quality,
+      expiresAtUtc: slot.expiresAtUtc,
+    });
+    // 背包满了就留在箱子里。先清槽再发现放不下的话东西就没了
+    if (placed) setStorageSlot(inventoryId, index, null);
   };
 
-  /** 背包 → 箱子 */
-  const putIn = (itemId: string, count: number): void => {
-    const leftover = addToStorage(inventoryId, itemId, count);
-    const moved = count - leftover;
-    if (moved > 0) removeItem(itemId, moved);
+  /**
+   * 背包 → 箱子。
+   *
+   * **按格子搬，不按 itemId 搬**。原来是 `removeItem(itemId, moved)`，
+   * 而 removeItem 会跳过装着东西的容器（那是背包那边的保护），
+   * 于是点一口煮着蛋的锅：箱子里多一口空锅，背包里那口原样还在——
+   * 一次点击凭空变出一口锅。改成直接改写点中的那一格，
+   * "搬走的"和"扣掉的"从此不可能是两件东西。
+   *
+   * 装着东西的容器**直接不让进**（和背包合堆规则一致）：箱子按 itemId
+   * 合堆，要支持容器就得把整套合堆规则重写一遍，代价和收益不成比例。
+   */
+  const putIn = (index: number): void => {
+    const stack = backpack[index];
+    if (!stack || isLoadedWare(stack)) return;
+
+    const leftover = addToStorage(
+      inventoryId,
+      stack.itemId,
+      stack.count,
+      stack.quality,
+      stack.expiresAtUtc,
+    );
+    if (leftover === stack.count) return;
+
+    setStackAt(
+      { container: "backpack", index },
+      leftover > 0 ? { ...stack, count: leftover } : null,
+    );
   };
 
   return (
@@ -161,10 +202,14 @@ export function StoragePanel() {
               <button
                 key={index}
                 type="button"
-                className="ui-slot relative grid h-[46px] w-[46px] place-items-center"
-                onClick={() => {
-                  if (stack) putIn(stack.itemId, stack.count);
-                }}
+                /*
+                 * 装着东西的容器点了没反应，所以让它**看起来**就点不动。
+                 * 不弹提示——盛着菜的盘子长什么样玩家自己看得见，
+                 * 一个压暗的格子已经把"这个不行"说完了。
+                 */
+                disabled={isLoadedWare(stack)}
+                className="ui-slot relative grid h-[46px] w-[46px] place-items-center disabled:cursor-not-allowed disabled:opacity-45"
+                onClick={() => putIn(index)}
                 onPointerEnter={(event) => {
                   if (stack) show(stack.itemId, event.currentTarget);
                 }}

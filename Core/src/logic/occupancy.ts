@@ -45,6 +45,16 @@ export type RoomOccupancy = {
   occupied: Record<FloorLayer, Set<CellKey>>;
   wallOccupied: Map<string, Set<CellKey>>;
   blocked: Set<CellKey>;
+
+  /**
+   * 每个阻挡格的台面高度（家具的 `surfaceHeight`）。
+   *
+   * 和 `blocked` 分开而不是合成一张表：走路只关心"能不能过"，一个 Set
+   * 查得最快，而且玩家和宠物的判定一个字都不用改；会飞的东西才需要问
+   * "挡到多高"。**没有条目 = 挡到顶**，扔什么都弹回来。
+   */
+  surfaces: Map<CellKey, number>;
+
   targets: InteractionTarget[];
 };
 
@@ -62,6 +72,7 @@ function createEmptyOccupancy(roomId: RoomId): RoomOccupancy {
     },
     wallOccupied: new Map<string, Set<CellKey>>(),
     blocked: new Set<CellKey>(),
+    surfaces: new Map<CellKey, number>(),
     targets: [],
   };
 }
@@ -109,7 +120,19 @@ export function buildRoomOccupancy(
     for (const cell of cells) occupancy.occupied[layer].add(cellKey(cell));
 
     if (definition.blocksMovement) {
-      for (const cell of cells) occupancy.blocked.add(cellKey(cell));
+      for (const cell of cells) {
+        const key = cellKey(cell);
+        occupancy.blocked.add(key);
+
+        // 同一格被多件家具压住时留**最矮**的那个台面：
+        // 扔过去的东西该落在先够得着的那一层，而不是穿过它落到更高的一层
+        if (definition.surfaceHeight !== undefined) {
+          const current = occupancy.surfaces.get(key);
+          if (current === undefined || definition.surfaceHeight < current) {
+            occupancy.surfaces.set(key, definition.surfaceHeight);
+          }
+        }
+      }
     }
 
     for (const capability of TARGET_CAPABILITIES) {

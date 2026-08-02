@@ -1,3 +1,4 @@
+import { findPlaceableItem } from "core";
 import { Object3D } from "three";
 import { PALETTE } from "../palette.js";
 import { box, cylinder, group } from "../primitives.js";
@@ -12,11 +13,24 @@ import { box, cylinder, group } from "../primitives.js";
  * 长边贴北墙（-Z 方向），短边往南折成半岛——**半岛不是墙**：
  * 开放式厨房的分界靠家具，视线要能越过它看到落地窗。
  *
- * 台面高 0.9（和旧灶台一致，锅的槽位高度不用改）。
+ * 台面高度**从注册表读**（`placement.surfaceHeight`），不在这里写死。
+ *
+ * 原来是反的：0.9 写在这个文件里，注册表那边的灶眼 offset 抄一份跟着走，
+ * 注释还写着"那边改了这里也要改"。现在扔出去的东西要靠 surfaceHeight
+ * 判断是撞台沿还是落在台面上——同一个物理面再有两个出处，
+ * 迟早出现"看着落在台面上、判定却穿过去了"。
  */
 
-const COUNTER_HEIGHT = 0.9;
+/** 台面顶面离地多高。注册表没有就退回 0.98（原来的值），模型不至于塌掉 */
+const COUNTER_SURFACE =
+  findPlaceableItem("furniture_kitchen_counter")?.placement.surfaceHeight ??
+  0.98;
+
+/** 台面板厚度。这个是纯建模细节，注册表不关心 */
 const COUNTER_TOP = 0.08;
+
+/** 柜体高度 = 台面顶面 - 板厚 */
+const COUNTER_HEIGHT = COUNTER_SURFACE - COUNTER_TOP;
 
 /** 柜体：带踢脚凹进的箱体，和室内木构架的语言一致 */
 function cabinet(

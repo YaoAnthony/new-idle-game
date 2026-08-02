@@ -141,6 +141,8 @@ export const itemDefinitions = [
       capabilities: [FurnitureCapability.Cooking],
       floorLayer: FloorLayer.Object,
       blocksMovement: true,
+      /** 台面。灶眼槽位的 1.03 是灶圈顶面，架在这上面 */
+      surfaceHeight: 0.98,
       interactHint: {
         localizationKey: "hint.stove",
         action: "interact",
@@ -192,6 +194,8 @@ export const itemDefinitions = [
       capabilities: [FurnitureCapability.Crafting],
       floorLayer: FloorLayer.Object,
       blocksMovement: true,
+      /** 工作台面 */
+      surfaceHeight: 0.91,
       interactHint: {
         localizationKey: "hint.workbench",
         action: "interact",
@@ -212,6 +216,8 @@ export const itemDefinitions = [
       capabilities: [FurnitureCapability.Study],
       floorLayer: FloorLayer.Object,
       blocksMovement: true,
+      /** 桌面 */
+      surfaceHeight: 0.83,
     },
   },
   {
@@ -227,6 +233,8 @@ export const itemDefinitions = [
       capabilities: [FurnitureCapability.Sitting],
       floorLayer: FloorLayer.Object,
       blocksMovement: true,
+      /** 座面。1.045 是椅背顶，站不住东西 */
+      surfaceHeight: 0.49,
       interactHint: {
         localizationKey: "hint.chair",
         action: "interact",
@@ -330,6 +338,8 @@ export const itemDefinitions = [
       capabilities: [FurnitureCapability.Storage],
       floorLayer: FloorLayer.Object,
       blocksMovement: true,
+      /** 箱盖顶 */
+      surfaceHeight: 0.76,
       interactHint: {
         localizationKey: "hint.chest",
         action: "interact",
@@ -350,6 +360,8 @@ export const itemDefinitions = [
       capabilities: [FurnitureCapability.Sleep, FurnitureCapability.Rest],
       floorLayer: FloorLayer.Object,
       blocksMovement: true,
+      /** 床垫面 */
+      surfaceHeight: 0.64,
       interactHint: {
         localizationKey: "hint.bed",
         action: "sleep",
@@ -373,6 +385,8 @@ export const itemDefinitions = [
       capabilities: [FurnitureCapability.Sitting],
       floorLayer: FloorLayer.Object,
       blocksMovement: true,
+      /** 凳面 */
+      surfaceHeight: 0.565,
       interactHint: {
         localizationKey: "hint.stool",
         action: "interact",
@@ -541,6 +555,8 @@ export const itemDefinitions = [
       capabilities: [FurnitureCapability.Sitting],
       floorLayer: FloorLayer.Object,
       blocksMovement: true,
+      /** 坐垫面 */
+      surfaceHeight: 0.42,
       interactHint: {
         localizationKey: "hint.sofa",
         action: "interact",
@@ -587,6 +603,8 @@ export const itemDefinitions = [
       capabilities: [FurnitureCapability.Study],
       floorLayer: FloorLayer.Object,
       blocksMovement: true,
+      /** 书桌面 */
+      surfaceHeight: 0.805,
     },
   },
   {
@@ -602,6 +620,8 @@ export const itemDefinitions = [
       capabilities: [],
       floorLayer: FloorLayer.Object,
       blocksMovement: true,
+      /** 茶几面 */
+      surfaceHeight: 0.45,
     },
   },
 
@@ -898,6 +918,8 @@ export const itemDefinitions = [
       capabilities: [FurnitureCapability.Cooking],
       floorLayer: FloorLayer.Object,
       blocksMovement: true,
+      /** 和橱柜同高，两者能拼在一起 */
+      surfaceHeight: 0.98,
       interactHint: {
         localizationKey: "hint.stove",
         action: "interact",
@@ -932,6 +954,8 @@ export const itemDefinitions = [
       capabilities: [FurnitureCapability.Unpack],
       floorLayer: FloorLayer.Object,
       blocksMovement: true,
+      /** 箱顶 */
+      surfaceHeight: 0.76,
       interactHint: { localizationKey: "hint.unpack", action: "interact" },
     },
   },
@@ -948,6 +972,8 @@ export const itemDefinitions = [
       capabilities: [FurnitureCapability.Unpack],
       floorLayer: FloorLayer.Object,
       blocksMovement: true,
+      /** 上面那只箱子的顶 */
+      surfaceHeight: 1.306,
       interactHint: { localizationKey: "hint.unpack", action: "interact" },
     },
   },

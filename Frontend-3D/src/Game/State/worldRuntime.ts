@@ -1,12 +1,15 @@
 import {
+  BLOCKED_TO_TOP,
   Facing,
   PlacementSurface,
   buildRoomOccupancy,
+  canPassAt,
   checkPlacement,
   findPlaceableItem,
   footprintCells,
   generateHouse,
   roomStyleDefinitions,
+  surfaceHeightAt,
   type GridPosition,
   type PlaceableItem,
   type HeldStack,
@@ -406,6 +409,42 @@ export function advanceSlotHeat(
   if (!container) return;
 
   container.heatSeconds += seconds;
+}
+
+/** 连续坐标 → 格子。房间原点在中心，所以要先平移半个房间 */
+function cellAt(x: number, z: number): { x: number; y: number } {
+  return {
+    x: Math.floor(x + room.floorGrid.width / 2),
+    y: Math.floor(z + room.floorGrid.height / 2),
+  };
+}
+
+/** 房间边界之外（撞墙） */
+function outOfRoom(x: number, z: number): boolean {
+  return (
+    Math.abs(x) > room.floorGrid.width / 2 ||
+    Math.abs(z) > room.floorGrid.height / 2
+  );
+}
+
+/**
+ * 这个位置的落脚面有多高：地板 0，台面就是台面高度，
+ * 挡到顶的家具和墙是 `BLOCKED_TO_TOP`。规则在 Core，这里只做坐标换算。
+ */
+export function surfaceAt(x: number, z: number): number {
+  if (outOfRoom(x, z)) return BLOCKED_TO_TOP;
+  return surfaceHeightAt(occupancy, cellAt(x, z));
+}
+
+/**
+ * 处在高度 y 的东西能不能待在这个位置。
+ *
+ * 和 `isWalkable` 是两件事：走路的人永远贴着地面，一个布尔就够；
+ * 会飞的东西越过台沿之后，同一格的答案会从"不行"变成"行"。
+ */
+export function canPassAtHeight(x: number, z: number, y: number): boolean {
+  if (outOfRoom(x, z)) return false;
+  return canPassAt(occupancy, cellAt(x, z), y);
 }
 
 /** 连续坐标下的通行检测：角色/宠物的圆形碰撞体压到的格子都不能是阻挡格 */

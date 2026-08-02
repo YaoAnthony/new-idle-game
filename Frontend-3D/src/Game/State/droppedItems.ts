@@ -1,5 +1,6 @@
 import type { DroppedItem } from "core";
 import { emit } from "../EventBus";
+import { canPassAtHeight, surfaceAt } from "./worldRuntime";
 
 /**
  * 扔在地上的东西。
@@ -28,6 +29,19 @@ const GROUND_DRAG = 0.02;
 
 /** 慢到这个程度就判定停住，免得永远在算一个看不见的滑行 */
 const REST_SPEED = 0.05;
+
+/**
+ * 撞到家具侧面弹回来时留下多少速度。
+ *
+ * 0.45 是"砸在柜门上闷一声弹开半格"，不是皮球。这类装满东西的袋子和罐子
+ * 本来就不弹——弹性再高一点，扔偏的东西会一路弹到屋子另一头，
+ * 玩家得追着捡；再低就变成贴着柜子滑下来，看不出"被挡住了"。
+ *
+ * 和 GRAVITY / GROUND_DRAG 放在一起：这些是**手感参数**，
+ * 调它们是在调"扔起来爽不爽"。规则（哪一格挡到多高）在 Core 的
+ * logic/projectile 里，那边才是联机时服务端要读的东西。
+ */
+const BOUNCE_RESTITUTION = 0.45;
 
 /**
  * 刚扔出去的东西，这段时间内不会被**扔它的人**捡回来。
@@ -138,17 +152,34 @@ export function removeDroppedItem(id: string): DroppedEntity | undefined {
   return entity;
 }
 
-/** 已经落地、而且过了拾取保护期的那些 */
+/**
+ * 已经停稳、而且过了拾取保护期的那些。
+ *
+ * 判的是"落在它脚下那个面上"而不是"y 等于 0"——东西现在可以停在台面上，
+ * 按 y<=0 判的话落在灶台上的米永远捡不回来，只能眼看着它躺在那儿。
+ */
 export function isPickable(entity: DroppedEntity): boolean {
-  return entity.pickupLock <= 0 && entity.vy === 0 && entity.y <= 0.0001;
+  return (
+    entity.pickupLock <= 0 &&
+    entity.vy === 0 &&
+    entity.y <= surfaceAt(entity.x, entity.z) + 0.0001
+  );
 }
 
 /**
- * 推进一帧。抛物线 + 落地摩擦，没有碰撞体——扔到墙里最多是贴着墙躺着，
- * 为这个做一套碰撞不值当（房间是凸的，走两步就捡得到）。
+ * 推进一帧：抛物线 + 撞家具 + 落地摩擦。
+ *
+ * "地面"不再恒等于 0——扔到灶台上就落在 0.98 米高的台面上，扔到桌上就落在
+ * 桌面上。哪一格挡到多高由 `surfaceAt` 从占用图查（规则在 Core 的
+ * logic/projectile），这个文件只负责积分和手感。
+ *
+ * 横向撞墙 / 撞柜体按**轴分离**处理，和角色走路撞墙是同一套：沿 x 撞了就
+ * 只把 x 的速度弹回来，z 照走。合在一起判的话，斜着扔到墙角会整个反向弹出来，
+ * 看着像被墙推了一把。
  *
  * 落地那一刻会喊一声 `dropped_item_landed`，锅吸食材就挂在那个事件上，
- * 而不是每帧去问"附近有没有锅"。
+ * 而不是每帧去问"附近有没有锅"。台面上落地也算落地，所以扔上灶台
+ * 照样触发——吸进锅的那段逻辑一行都不用改。
  */
 export function tickDroppedItems(deltaSeconds: number): void {
   if (entities.length === 0) return;
@@ -156,13 +187,15 @@ export function tickDroppedItems(deltaSeconds: number): void {
   for (const entity of entities) {
     if (entity.pickupLock > 0) entity.pickupLock -= deltaSeconds;
 
-    const airborne = entity.y > 0 || entity.vy !== 0;
+    const ground = surfaceAt(entity.x, entity.z);
+    const airborne = entity.y > ground || entity.vy !== 0;
+
     if (airborne) {
       entity.vy -= GRAVITY * deltaSeconds;
       entity.y += entity.vy * deltaSeconds;
 
-      if (entity.y <= 0) {
-        entity.y = 0;
+      if (entity.y <= ground) {
+        entity.y = ground;
         entity.vy = 0;
         /**
          * 触地那一下把横向动量吃掉大半。
@@ -186,8 +219,14 @@ export function tickDroppedItems(deltaSeconds: number): void {
       }
     }
 
-    entity.x += entity.vx * deltaSeconds;
-    entity.z += entity.vz * deltaSeconds;
+    const nextX = entity.x + entity.vx * deltaSeconds;
+    const nextZ = entity.z + entity.vz * deltaSeconds;
+
+    if (canPassAtHeight(nextX, entity.z, entity.y)) entity.x = nextX;
+    else entity.vx *= -BOUNCE_RESTITUTION;
+
+    if (canPassAtHeight(entity.x, nextZ, entity.y)) entity.z = nextZ;
+    else entity.vz *= -BOUNCE_RESTITUTION;
   }
 }
 

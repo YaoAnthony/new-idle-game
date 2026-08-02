@@ -543,7 +543,10 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
 
   return (
     <>
-      <div ref={containerRef} className="absolute inset-0 overflow-hidden" />
+      <div
+        ref={containerRef}
+        className="game-canvas absolute inset-0 overflow-hidden"
+      />
       {/* 快捷栏只管选中；"使用"（吃 / 进布置模式）统一走 F，见 RoomScene */}
       <Hotbar />
       <HeldItem />
@@ -555,10 +558,28 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       <StoragePanel />
       <DialoguePanel />
       <ActionHub />
-      <NeedsHud />
+      {/*
+        左上角这一列：触摸端把教程提示条和需求条交给同一个 flex 列排。
+        两者的高度都跟着文案走（提示条会换行、语言切换后行数也变），
+        各自写死 top 的话必然有一天撞上——实测竖屏 375 宽限宽后提示条
+        换到三行，正好压在需求条上。让布局去算，比调一个魔数稳。
+
+        桌面维持原样（需求条在左下角）：那儿宽度富余、不撞，而且改了会
+        动到玩家已经熟悉的位置，没必要为一个手机问题去动它。
+      */}
+      {touchMode ? (
+        <div className="pointer-events-none absolute left-4 top-4 z-10 flex flex-col items-start gap-2 [&>*]:pointer-events-auto">
+          <TutorialGuide stacked />
+          <NeedsHud stacked />
+        </div>
+      ) : (
+        <>
+          <NeedsHud />
+          <TutorialGuide />
+        </>
+      )}
       <WorldClock />
       <SettingsDrawer />
-      <TutorialGuide />
       <SleepOverlay />
       <RewardPanel />
       <StoryToast />

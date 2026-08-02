@@ -137,13 +137,23 @@ export function SettingsDrawer() {
       <button
         type="button"
         aria-label={t("ui.settings.title")}
-        className="ui-wood-btn absolute right-4 top-4 z-30 grid h-[38px] w-[38px] place-items-center text-[16px]"
+        className={`ui-wood-btn absolute right-4 top-4 ${open ? "z-50" : "z-30"} grid h-[38px] w-[38px] place-items-center text-[16px]`}
         onClick={() => {
           unlockAudio();
           setOpen((value) => !value);
         }}
       >
-        {/* 齿轮：用 SVG 而不是 emoji（这个项目不用 emoji 当图标） */}
+        {/*
+          齿轮：用 SVG 而不是 emoji（这个项目不用 emoji 当图标）。
+
+          z **跟着抽屉的开关走**，不常驻顶层：
+          - 开着时 z-50，因为它同时是抽屉的**关闭键**（抽屉正文那个 `pt-16`
+            就是给它让出来的位置），抽屉在 z-40，不上去就被盖住，只剩
+            "点遮罩关闭"这一条不明显的出路
+          - 关着时回 z-30，老老实实待在 HUD 那一层。写死 z-50 的话它会
+            浮在背包和 ESC 菜单（都是 z-40 的全屏覆盖）上面——那两个界面
+            里本来就各有自己的设置入口，多一个悬空齿轮既多余又挡内容
+        */}
         <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
           <path
             fill="currentColor"
@@ -160,9 +170,16 @@ export function SettingsDrawer() {
       <AnimatePresence>
         {open && (
           <>
-            {/* 点空白处关掉 */}
+            {/*
+              点空白处关掉。
+
+              z-40 而不是 20：抽屉带全屏遮罩，按仓库既有分层
+              （HUD 和侧栏 z-30、全屏覆盖 z-40、拖拽幽灵 z-50）它算全屏覆盖，
+              和背包一档。留在 z-20 的话会被 z-30 的快捷栏压住——横屏上
+              快捷栏正好横穿抽屉，那排格子浮在设置项上面（实测 667x375）。
+            */}
             <motion.div
-              className="absolute inset-0 z-20 bg-black/35"
+              className="absolute inset-0 z-40 bg-black/35"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -171,7 +188,7 @@ export function SettingsDrawer() {
             />
 
             <motion.aside
-              className="absolute right-0 top-0 z-20 flex h-full w-[min(360px,86vw)] flex-col"
+              className="absolute right-0 top-0 z-40 flex h-full w-[min(360px,86vw)] flex-col"
               initial="closed"
               animate="open"
               exit="closed"

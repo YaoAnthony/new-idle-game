@@ -14,7 +14,15 @@ function matches(trigger: StoryTrigger, signal: StorySignal): boolean {
   return true;
 }
 
-export function TutorialGuide() {
+type Props = {
+  /**
+   * 由外层的"左上角列"托管定位。见 Game3D/index.tsx 里那段注释：
+   * 触摸端这条和需求条要按顺序堆叠，自己写死 top 会撞。
+   */
+  stacked?: boolean;
+};
+
+export function TutorialGuide({ stacked = false }: Props) {
   const [stepIndex, setStepIndex] = useState(0);
   const [dismissed, setDismissed] = useState(false);
 
@@ -43,7 +51,18 @@ export function TutorialGuide() {
   const finished = stepIndex >= steps.length;
 
   return (
-    <div className="absolute left-4 top-4 z-10 max-w-[300px] rounded-lg border-2 border-[#8a6239] bg-[#f6ecd0]/95 px-3.5 py-2.5 shadow-lg">
+    /*
+     * 限宽要跟着视口走：写死 300px 时，375 宽的手机上这条会伸到 x=267，
+     * 而右上角的时钟从 227 起、"行动"按钮从 245 起——提示条 DOM 靠后，
+     * 直接把两者盖掉半截（实测竖屏 375x812）。
+     * 减掉的 160px = 时钟面板 136 + 间隙，宽屏上 300px 仍然生效。
+     */
+    <div
+      className={[
+        "z-10 max-w-[min(300px,calc(100vw-160px))] rounded-lg border-2 border-[#8a6239] bg-[#f6ecd0]/95 px-3.5 py-2.5 shadow-lg",
+        stacked ? "" : "absolute left-4 top-4",
+      ].join(" ")}
+    >
       {finished ? (
         <div className="text-[13px] leading-relaxed text-[#4a3020]">
           {t(tutorialDefinition.completedLocalizationKey)}

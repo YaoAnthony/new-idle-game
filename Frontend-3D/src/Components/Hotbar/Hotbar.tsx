@@ -72,10 +72,8 @@ export function Hotbar() {
           */}
           <div
             className={[
-              "ui-bar absolute left-1/2 z-10 flex -translate-x-1/2 rounded-xl",
-              touch
-                ? "bottom-[calc(96px+env(safe-area-inset-bottom,0px))] gap-1 p-1.5"
-                : "bottom-3 gap-1.5 p-2",
+              "ui-bar absolute left-1/2 flex -translate-x-1/2 rounded-xl",
+              touch ? "touch-hotbar gap-1 p-1.5" : "bottom-3 z-10 gap-1.5 p-2",
             ].join(" ")}
           >
             {slots.map((stack, index) => (

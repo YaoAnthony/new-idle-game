@@ -20,10 +20,20 @@ body {
    * 触摸端必须锁住页面本身的滚动和橡皮筋回弹，否则：
    * 拖镜头会变成拖页面、下拉会触发浏览器刷新、双指缩放会缩放整个 DOM。
    * 这是全屏游戏的标准处理，不是可选的优化。
+   *
+   * **但 `touch-action: none` 不能写在这里。** 它不是普通的继承属性——
+   * 浏览器判一个手势允不允许，取的是命中元素**到根**这一整条链的交集，
+   * 祖先是 none 就把整棵子树全禁了，子元素再写 auto 也救不回来。
+   * 写在 body 上的后果是：设置抽屉、背包格子区、消息记录**在手机上全都
+   * 滑不动**（实测抽屉内容 619px、可视 375px，下面那截永远够不着，
+   * 看起来就像"被裁掉了"）。
+   *
+   * 页面本身的滚动由上面的 `overflow: hidden` 挡，橡皮筋由
+   * `overscroll-behavior` 挡，两者已经够了。真正需要吃掉全部手势的只有
+   * 3D 画布和触摸控件，各自在自己身上写（见 .game-canvas / Mobile.css）。
    */
   overflow: hidden;
   overscroll-behavior: none;
-  touch-action: none;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -34,6 +44,15 @@ input {
 
 #root {
   min-height: 100dvh;
+}
+
+/*
+ * 3D 画布：这里才是要吃掉全部触摸手势的地方——转视角、双指缩放都是
+ * 我们自己算的，交给浏览器会变成拖页面 / 缩放 DOM。
+ * 从 body 挪下来的就是这一条，见上面那段注释。
+ */
+.game-canvas {
+  touch-action: none;
 }
 
 /* ---- 游戏 UI 皮肤 ----
@@ -62,7 +81,13 @@ input {
     0 1px 0 rgb(255 255 255 / 0.35);
   cursor: pointer;
   user-select: none;
-  touch-action: none;
+  /*
+   * `manipulation` 而不是 `none`：去掉双击缩放那 300ms 的点击延迟，但**保留
+   * 滚动**。格子铺满整个背包的可滚动区，写 none 的话手指落在格子上就滑不动
+   * 列表——而格子占了那块区域 95% 的面积，等于背包在手机上翻不了页。
+   * 格子本身没有指针拖拽（拖到快捷栏走的是别的路径），没有要保护的手势。
+   */
+  touch-action: manipulation;
   transition: border-color 90ms ease-out, filter 90ms ease-out;
 }
 
@@ -98,6 +123,32 @@ input {
     0 16px 36px rgb(0 0 0 / 0.5),
     inset 0 2px 0 rgb(255 255 255 / 0.18),
     inset 0 -4px 0 rgb(0 0 0 / 0.2);
+}
+
+/*
+ * 矮屏（横屏手机、或者被压扁的桌面窗口）把背包改成左右分栏。
+ *
+ * 原来只有 `md:flex-row`（768px）这一个断点，判的是**宽度**；而横屏手机
+ * 667x375 宽度没到 768，于是竖着排——格子区只剩 139px 高、露一行半，
+ * 右边 300 多像素的宽度全空着。真正决定该不该分栏的是"高度够不够"，
+ * 所以按高度判，并加一个 560px 的宽度下限（再窄分栏两边都太挤）。
+ *
+ * 写成 CSS 而不是 Tailwind 的任意变体：这条要同时约束父容器和两个子项的
+ * flex 比例，三处散着写更难对上，而且这不是触摸专属行为——桌面窗口压矮
+ * 一样该分栏，所以放在通用皮肤里，不进 Mobile.css。
+ */
+@media (max-height: 500px) and (min-width: 560px) {
+  .pack-body {
+    flex-direction: row;
+  }
+  .pack-body > .pack-grid {
+    flex: 3 3 0%;
+    min-width: 0;
+  }
+  .pack-body > .pack-detail {
+    flex: 2 2 0%;
+    min-width: 0;
+  }
 }
 
 /* 羊皮纸内衬：格子和详情卡都躺在它上面 */

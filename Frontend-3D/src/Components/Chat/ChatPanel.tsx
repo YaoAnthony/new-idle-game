@@ -7,11 +7,13 @@ import {
   type Completion,
 } from "../../Game/CommandLine/suggest";
 import { emit, on } from "../../Game/EventBus";
+import "../Mobile/Mobile.css";
 import {
   listChatMessages,
   pushChatMessage,
   pushSystemMessage,
 } from "../../Game/State/chatLog";
+import { isTouchMode } from "../../Game/State/touchMode";
 import { t } from "../../i18n/t";
 
 /**
@@ -205,6 +207,12 @@ export function ChatPanel() {
   const shown = open ? messages : messages.slice(-IDLE_VISIBLE);
 
   if (!open && (messages.length === 0 || faded)) {
+    /*
+     * 触摸端不显示这条提示：它讲的是"回车说话 · / 开命令"，手机上两个
+     * 键都不存在，而它正好压在摇杆的感应区上。等真做了触摸端的聊天入口
+     * （某个按钮）再把提示换成那一套说法。
+     */
+    if (isTouchMode()) return null;
     return (
       <div className="pointer-events-none absolute bottom-3 left-3 z-20 rounded bg-black/40 px-2 py-1 font-mono text-[11px] text-white/55">
         {t("ui.chat.closed_hint")}
@@ -212,8 +220,30 @@ export function ChatPanel() {
     );
   }
 
+  /*
+   * 关着时整个外壳都要 `pointer-events-none`，不只是里面那个列表。
+   *
+   * 之前只给列表加了，外壳（定位盒，触摸端 414x117 那么大一块）仍然吃指针
+   * 事件——它透明、看不出来，但正好压在左下角摇杆的感应区上，实测**摇杆推不动**。
+   * 透明 ≠ 不挡：只要 pointer-events 是 auto，命中测试就算它。
+   * 开着的时候要能点补全项、能选中文字，所以只在关着时关掉。
+   */
   return (
-    <div className="absolute bottom-3 left-3 z-20 w-[min(560px,62vw)] font-mono">
+    <div
+      className={[
+        "absolute z-20 font-mono",
+        open ? "" : "pointer-events-none",
+        /*
+         * 触摸端整条挪到快捷栏上方居中（几何写在 Mobile.css 里，和摇杆、
+         * 按钮那些尺寸放一起）。留在左下角的话会跟摇杆、快捷栏糊成一团——
+         * 横屏只有 375px 高，底部那条带同时要塞摇杆、快捷栏、动作按钮，
+         * 再叠一个五行的消息流是排不下的。
+         */
+        isTouchMode()
+          ? `touch-chatlog${open ? "" : " touch-chatlog--idle"}`
+          : "bottom-3 left-3 w-[min(560px,62vw)]",
+      ].join(" ")}
+    >
       <div
         ref={listRef}
         className={`mb-1 flex flex-col gap-0.5 overflow-y-auto rounded px-2 py-1 text-[12px] leading-relaxed transition-opacity ${

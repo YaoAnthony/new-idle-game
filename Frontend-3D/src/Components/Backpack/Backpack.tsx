@@ -161,7 +161,13 @@ export function Backpack() {
           if (event.target === event.currentTarget) setOpen(false);
         }}
       >
-        <div className="ui-pack flex max-h-full w-[min(1100px,96vw)] flex-col p-3 sm:p-4">
+        {/*
+          `min-h-0` 不能省：外层是 grid 居中，而 grid 项的 `min-height` 默认是
+          `auto`——意思是"不许收缩到内容最小高度以下"，它会**直接顶掉
+          `max-h-full`**。横屏手机（高 414）上实测面板撑到 603px，底部整排
+          格子被裁在屏幕外，而且因为面板自己没超出，内层的 overflow 也不触发。
+        */}
+        <div className="ui-pack flex max-h-full min-h-0 w-[min(1100px,96vw)] flex-col p-3 sm:p-4">
           {/*
            * 标题行。**窄屏拆成两行**：标题+关闭一行、页签自己一行。
            * 挤在一行的话页签会换行，把标题顶得上下不着边。
@@ -233,8 +239,8 @@ export function Backpack() {
            * 格子小到点不准；竖排则是格子在上、详情在下，各自拿满宽度。
            * 只有一个滚动条（整块主体），格子和详情各自不再单独滚。
            */}
-          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto md:flex-row">
-            <div className="ui-parchment p-2 sm:p-3 md:flex-[3]">
+          <div className="pack-body flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto md:flex-row">
+            <div className="pack-grid ui-parchment p-2 sm:p-3 md:flex-[3]">
               {/* 手机 4 列、平板以上 6 列。格子是流体的，跟着列宽走 */}
               <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-6 sm:gap-2">
                 {visible.map((stack, index) => {
@@ -264,7 +270,7 @@ export function Backpack() {
               )}
             </div>
 
-            <div className="md:flex-[2]">
+            <div className="pack-detail md:flex-[2]">
               <ItemDetail
                 stack={pickedStack ?? null}
                 count={pickedStack?.count ?? 0}

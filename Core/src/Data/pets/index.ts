@@ -34,6 +34,31 @@ export const petDefinitions = [
     visualId: "ember_wisp",
     species: "wisp",
   },
+
+  /**
+   * 舒舒：一只两个人那么大的巨猫，几乎总在地上睡（对照 整体架构.md
+   * 开头那句"一只龙猫正躺在角落里呼呼大睡"——就是这个位置的生物）。
+   *
+   * 它和 wisp 是刻意的两极：wisp 小、无碰撞、飘来飘去；舒舒巨大、
+   * 挡路、一动不动。屋子里有个又大又懒的东西躺着，空间才有"被住着"的感觉。
+   */
+  {
+    id: "shushu",
+    localizationKey: "pet.shushu",
+    defaultNicknameKey: "pet.shushu.nickname",
+    visualId: "shushu",
+    species: "giant_cat",
+    behavior: {
+      /** 大家伙迈不开步。快了像滑行，慢下来每一步才显得沉 */
+      moveSpeed: 0.85,
+      /** 懒到家：闲下来十次有八次选择接着睡 */
+      sleepiness: 0.8,
+      /** 一觉几分钟（现实时间）。醒来溜达一圈，很快又困了 */
+      napSeconds: [90, 240],
+    },
+    /** 体宽约 1.6 米，圆形碰撞半径取到肩宽略收——蹭着毛边走得过去 */
+    collisionRadius: 0.95,
+  },
 ] satisfies PetDefinition[];
 
 export function findPetDefinition(id: string): PetDefinition | undefined {
@@ -90,6 +115,20 @@ export const petTastes: Record<string, PetTaste> = {
     // 汤会浇灭它。挑食，所以 fallback 也落在不喜欢那一档
     disliked: ["baby_cabbage_soup", "baby_cabbage", "tomato", "cheese"],
     inedible: ["egg", "rice", "pork"],
+    fallback: GiftTier.Disliked,
+  },
+
+  shushu: {
+    /**
+     * 猫的口味从物种直接推：荤的爱，素的懒得碰。
+     * 煎蛋和青椒炒肉是它的心头好——热乎的、油润的、有肉的。
+     * 汤太清淡，喝两口就走；皮蛋那股味它闻一下就把头扭开。
+     */
+    loved: ["fried_egg", "pepper_pork"],
+    liked: ["fried_tomato_egg", "cooked_rice", "cheese"],
+    disliked: ["tomato", "baby_cabbage", "green_pepper", "baby_cabbage_soup", "century_egg"],
+    inedible: ["egg", "rice", "pork"],
+    /** 没见过的东西先闻闻再说，不挑衅也不热情 */
     fallback: GiftTier.Disliked,
   },
 };

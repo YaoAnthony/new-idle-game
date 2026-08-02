@@ -16,6 +16,24 @@ export enum AffectionStage {
   Family = "family",
 }
 
+/**
+ * 性情侧写：这只生物平时怎么过日子。**全是数据，不在运行时写 if (是猫)**——
+ * 加一只新物种时改的是这几个数字，不是行为代码。
+ *
+ * 不填的字段落到 wisp 们现在的默认值，所以三只小家伙一个字都不用动。
+ */
+export type PetBehavior = {
+  /** 移动速度（米/秒）。大家伙走得慢才有分量感 */
+  moveSpeed?: number;
+  /**
+   * 睡意（0~1）：闲下来时选择打盹而不是溜达的概率。
+   * 0 = 从不睡（wisp 的现状），0.8 = 懒到家。
+   */
+  sleepiness?: number;
+  /** 一觉睡多久（秒），[最短, 最长] 之间随机 */
+  napSeconds?: [number, number];
+};
+
 export type PetDefinition = {
   id: PetDefinitionId;
   /** 物种名（图鉴上的名字），不是玩家叫它的名字 */
@@ -25,6 +43,17 @@ export type PetDefinition = {
   /** 造型由表现层的 VisualRegistry 解析：先程序化，以后换精模只改那一张表 */
   visualId: VisualId;
   species: string;
+
+  behavior?: PetBehavior;
+
+  /**
+   * 碰撞半径（米）。不填 = 不挡路（wisp 那种能穿过去的小团子）。
+   *
+   * 填了就是**真实的障碍**：玩家撞上会被挡住，放家具会避开它。
+   * 巨型生物没有碰撞的话，玩家第一次从它身体里穿过去，
+   * "这是个活物"的错觉就当场碎了。
+   */
+  collisionRadius?: number;
 };
 
 // ---- 喜好与送礼 ----
@@ -82,4 +111,11 @@ export type PetSave = {
    * 存**日**而不是时间戳——玩家改设备时区不会凭空多出或少掉一次机会。
    */
   lastGiftWorldDayId?: string;
+
+  /**
+   * 存盘那一刻在不在睡觉。不存的话读档后大猫总是站着醒来——
+   * 它明明一天睡 20 个小时，每次进游戏都精神抖擞反而出戏。
+   * 纯新增可选字段：老存档读出来 undefined → 醒着。
+   */
+  sleeping?: boolean;
 };

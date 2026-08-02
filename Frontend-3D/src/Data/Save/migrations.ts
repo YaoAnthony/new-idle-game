@@ -499,6 +499,14 @@ export const migrations: Migration[] = [
       return save;
     },
   },
+
+  // v14（2026-08-02 舒舒）：PetSave 多了 sleeping。数据本身不用动
+  //（可选字段，undefined = 醒着），推版本号还是那个老理由：旧客户端读到
+  // 新档会把字段丢掉再存回去。丢的只是"这一觉"，但规矩不因小而破。
+  {
+    to: 14,
+    migrate: (save) => save,
+  },
 ];
 
 /**

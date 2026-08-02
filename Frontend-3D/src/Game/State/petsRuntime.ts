@@ -2,19 +2,32 @@ import {
   AffectionStage,
   facingToHeading,
   findPath,
+  findPetDefinition,
   headingToFacing,
   type GridPosition,
   type PetSave,
 } from "core";
 import { emit } from "../EventBus";
-import { getWorld } from "./worldRuntime";
+import {
+  getWorld,
+  isWalkable,
+  removeCreatureObstacle,
+  setCreatureObstacle,
+} from "./worldRuntime";
 
 /**
  * 宠物运行时。移动用 Core 的格子 A*（和放置系统共用同一张占用图），
  * 表现层每帧直接读位置渲染，不走事件（离散状态变化才走事件）。
  */
 
-export type PetState = "hidden" | "entering" | "idle" | "wander" | "approach";
+export type PetState =
+  | "hidden"
+  | "entering"
+  | "idle"
+  | "wander"
+  | "approach"
+  /** 睡着了。挡路照挡（碰撞不看状态），但不理人、不游荡 */
+  | "sleeping";
 
 export type PetRuntime = {
   petId: string;
@@ -35,9 +48,59 @@ export type PetRuntime = {
   /** idle 倒计时，归零后随机走一段 */
   idleTimer: number;
   moving: boolean;
+
+  // ---- 从 PetDefinition 抄下来的性情（spawn/restore 时查一次表，tick 里不再查） ----
+  /** 移动速度（米/秒） */
+  speed: number;
+  /** 碰撞半径。0 = 不挡路（wisp 那种能穿过去的小团子） */
+  radius: number;
+  /** 睡意 0~1：闲下来时打盹的概率 */
+  sleepiness: number;
+  /** 一觉的时长范围（秒） */
+  napSeconds: [number, number];
+  /** 睡着时的剩余秒数 */
+  sleepTimer: number;
 };
 
-const SPEED = 1.7;
+const DEFAULT_SPEED = 1.7;
+
+/** 性情字段的展开。查表放在 spawn/restore，tick 每帧跑，别在热路径里查注册表 */
+function temperamentOf(definitionId: string): {
+  speed: number;
+  radius: number;
+  sleepiness: number;
+  napSeconds: [number, number];
+} {
+  const definition = findPetDefinition(definitionId);
+  return {
+    speed: definition?.behavior?.moveSpeed ?? DEFAULT_SPEED,
+    radius: definition?.collisionRadius ?? 0,
+    sleepiness: definition?.behavior?.sleepiness ?? 0,
+    napSeconds: definition?.behavior?.napSeconds ?? [60, 120],
+  };
+}
+
+function napDuration(pet: PetRuntime): number {
+  const [min, max] = pet.napSeconds;
+  return min + Math.random() * (max - min);
+}
+
+/** 睡下 / 醒来只走这两条路，碰撞登记和事件广播才不会漏 */
+function fallAsleep(pet: PetRuntime): void {
+  pet.state = "sleeping";
+  pet.sleepTimer = napDuration(pet);
+  pet.path = [];
+  pet.pathIndex = 0;
+  pet.moving = false;
+  emit("pet_changed", { petId: pet.petId, reason: "sleep" });
+}
+
+function wakeUp(pet: PetRuntime): void {
+  pet.state = "idle";
+  // 醒来先愣一会儿再决定干什么——猫不会睁眼就走
+  pet.idleTimer = 2 + Math.random() * 3;
+  emit("pet_changed", { petId: pet.petId, reason: "wake" });
+}
 
 const pets = new Map<string, PetRuntime>();
 
@@ -125,7 +188,13 @@ export function spawnPet(petId: string, definitionId: string): PetRuntime {
     pathIndex: 0,
     idleTimer: 2,
     moving: false,
+    ...temperamentOf(definitionId),
+    sleepTimer: 0,
   };
+
+  // 挡路的活物从出现那一刻就要挡：等第一帧 tick 才登记的话，
+  // 玩家恰好站在登场路线上会被它穿过去一次
+  if (pet.radius > 0) setCreatureObstacle(pet.petId, pet.x, pet.z, pet.radius);
 
   // 走到房间中部一个空格
   const target = randomFreeCell() ?? { x: 6, y: 6 };
@@ -168,6 +237,8 @@ export function snapshotPets(): Record<string, PetSave> {
       needs: {},
       nickname: pet.nickname,
       lastGiftWorldDayId: pet.lastGiftWorldDayId,
+      // undefined 而不是 false：醒着是默认态，别往每份存档里写一排 false
+      sleeping: pet.state === "sleeping" ? true : undefined,
     };
   }
 
@@ -175,14 +246,20 @@ export function snapshotPets(): Record<string, PetSave> {
 }
 
 export function restorePets(saved: Record<string, PetSave>): void {
+  // 上一个世界的活物障碍要跟着清，不然读档后空气里留着一圈看不见的墙
+  for (const pet of pets.values()) {
+    if (pet.radius > 0) removeCreatureObstacle(pet.petId);
+  }
   pets.clear();
 
   for (const entry of Object.values(saved)) {
-    pets.set(entry.petId, {
+    const temperament = temperamentOf(entry.definitionId);
+    const pet: PetRuntime = {
       petId: entry.petId,
       definitionId: entry.definitionId,
-      // 读档时宠物已经在屋里了，不重放"从门口走进来"的登场过场
-      state: "idle",
+      // 读档时宠物已经在屋里了，不重放"从门口走进来"的登场过场。
+      // 存盘时睡着的接着睡（时长重掷）——大猫每次读档都精神抖擞反而出戏
+      state: entry.sleeping ? "sleeping" : "idle",
       x: entry.position.x,
       z: entry.position.y,
       heading: facingToHeading(entry.position.facing),
@@ -193,9 +270,34 @@ export function restorePets(saved: Record<string, PetSave>): void {
       pathIndex: 0,
       idleTimer: 1 + Math.random() * 3,
       moving: false,
-    });
+      ...temperament,
+      sleepTimer: 0,
+    };
+    if (pet.state === "sleeping") pet.sleepTimer = napDuration(pet);
+    if (pet.radius > 0) setCreatureObstacle(pet.petId, pet.x, pet.z, pet.radius);
+
+    pets.set(entry.petId, pet);
     emit("pet_changed", { petId: entry.petId, reason: "restored" });
   }
+}
+
+/**
+ * 调试用：把一只宠物直接放到某个坐标（跳过登场过场）。
+ * 只给 /pet 命令用——正式的登场永远走 spawnPet 的"从门口进来"。
+ */
+export function debugPlacePet(petId: string, x: number, z: number): void {
+  const pet = pets.get(petId);
+  if (!pet) return;
+
+  pet.x = x;
+  pet.z = z;
+  pet.state = "idle";
+  pet.path = [];
+  pet.pathIndex = 0;
+  pet.moving = false;
+  pet.idleTimer = 1.5;
+  if (pet.radius > 0) setCreatureObstacle(pet.petId, pet.x, pet.z, pet.radius);
+  emit("pet_changed", { petId, reason: "restored" });
 }
 
 export function tickPets(deltaSeconds: number, player: { x: number; z: number }): void {
@@ -211,6 +313,15 @@ function tickPet(
 ): void {
   if (pet.state === "hidden") return;
 
+  // 挡路的活物每帧上报自己的圆。睡着也照挡——碰撞跟状态无关
+  if (pet.radius > 0) setCreatureObstacle(pet.petId, pet.x, pet.z, pet.radius);
+
+  if (pet.state === "sleeping") {
+    pet.sleepTimer -= deltaSeconds;
+    if (pet.sleepTimer <= 0) wakeUp(pet);
+    return;
+  }
+
   // 沿路径移动
   if (pet.pathIndex < pet.path.length) {
     const [tx, tz] = gridToWorldXZ(pet.path[pet.pathIndex]);
@@ -222,9 +333,31 @@ function tickPet(
     if (distance < 0.06) {
       pet.pathIndex += 1;
     } else {
-      const step = Math.min(SPEED * deltaSeconds, distance);
-      pet.x += (dx / distance) * step;
-      pet.z += (dz / distance) * step;
+      const step = Math.min(pet.speed * deltaSeconds, distance);
+      const nextX = pet.x + (dx / distance) * step;
+      const nextZ = pet.z + (dz / distance) * step;
+
+      if (pet.radius > 0) {
+        /**
+         * 大家伙的圆比一格宽，A* 按格算的路它未必挤得过去——
+         * 沿路径每一步再做轴分离的圆碰撞（和玩家同一套）。
+         * 两个轴都走不动就放弃这条路原地歇着，别顶着墙口无限蹭。
+         */
+        const okX = isWalkable(nextX, pet.z, pet.radius, pet.petId);
+        const okZ = isWalkable(pet.x, nextZ, pet.radius, pet.petId);
+        if (okX) pet.x = nextX;
+        if (okZ) pet.z = nextZ;
+        if (!okX && !okZ) {
+          pet.path = [];
+          pet.pathIndex = 0;
+          pet.moving = false;
+          pet.idleTimer = 2 + Math.random() * 3;
+          return;
+        }
+      } else {
+        pet.x = nextX;
+        pet.z = nextZ;
+      }
 
       const targetHeading = Math.atan2(dx, dz);
       let diff = targetHeading - pet.heading;
@@ -249,6 +382,12 @@ function tickPet(
   // 熟悉后偶尔主动走向玩家（好感度的空间表现）
   pet.idleTimer -= deltaSeconds;
   if (pet.idleTimer > 0) return;
+
+  // 睡意优先于一切安排：懒的家伙闲下来大概率直接躺下
+  if (pet.sleepiness > 0 && Math.random() < pet.sleepiness) {
+    fallAsleep(pet);
+    return;
+  }
 
   const nearPlayer =
     Math.hypot(player.x - pet.x, player.z - pet.z) < 2.2;

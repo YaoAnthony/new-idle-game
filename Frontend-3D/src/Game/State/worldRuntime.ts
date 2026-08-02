@@ -87,7 +87,71 @@ export function getDefinition(
 /** 角色（将来还有宠物）当前压住的格子。放置校验要避开活物，否则会把人封进家具里 */
 let actorCells = new Set<string>();
 
+/**
+ * 会挡路的活物（圆形碰撞体）。键是谁（玩家 / petId），值是圆心和半径。
+ *
+ * 和格子占用图分开存：家具是**格**（放下就不动，按格查最快），
+ * 活物是**圆**（每帧都在动，圆对圆一步算完）。硬把活物塞进格子里，
+ * 每帧都要重建 Set，还会把 0.95 半径的猫量化成一格半的锯齿。
+ */
+type CreatureObstacle = { x: number; z: number; radius: number };
+const creatureObstacles = new Map<string, CreatureObstacle>();
+
+export const PLAYER_OBSTACLE_ID = "player";
+
+export function setCreatureObstacle(
+  id: string,
+  x: number,
+  z: number,
+  radius: number,
+): void {
+  const existing = creatureObstacles.get(id);
+  if (existing) {
+    // 原地改不新建：每帧都在调，别给 GC 添垃圾
+    existing.x = x;
+    existing.z = z;
+    existing.radius = radius;
+  } else {
+    creatureObstacles.set(id, { x, z, radius });
+  }
+}
+
+export function removeCreatureObstacle(id: string): void {
+  creatureObstacles.delete(id);
+}
+
+/** 这个圆撞没撞上别的活物。ignoreId 是"我自己"，不然谁都被自己挡住 */
+function hitsCreature(
+  x: number,
+  z: number,
+  radius: number,
+  ignoreId?: string,
+): boolean {
+  for (const [id, obstacle] of creatureObstacles) {
+    if (id === ignoreId) continue;
+    const gap = radius + obstacle.radius;
+    // 先比平方省一次开方；每帧好几次的热路径
+    const dx = x - obstacle.x;
+    const dz = z - obstacle.z;
+    if (dx * dx + dz * dz < gap * gap) return true;
+  }
+  return false;
+}
+
+/** 某个格子有没有被活物的圆压住（放置校验用，格中心对圆判距离） */
+function cellHitsCreature(key: string): boolean {
+  const [gx, gy] = key.split(",").map(Number);
+  const centerX = gx - room.floorGrid.width / 2 + 0.5;
+  const centerZ = gy - room.floorGrid.height / 2 + 0.5;
+  // 半格余量：圆刚擦着格角时也算占，宁可少一格可放位置，不要放进毛里
+  return hitsCreature(centerX, centerZ, 0.5, PLAYER_OBSTACLE_ID);
+}
+
 export function setActorFootprint(x: number, z: number, radius: number): void {
+  // 玩家同时也是一个圆形活物障碍：大猫溜达时不该从人身上碾过去。
+  // 反过来玩家自己的 isWalkable 会传 PLAYER_OBSTACLE_ID 把自己排除掉
+  setCreatureObstacle(PLAYER_OBSTACLE_ID, x, z, radius);
+
   const halfW = room.floorGrid.width / 2;
   const halfD = room.floorGrid.height / 2;
   const next = new Set<string>();
@@ -153,6 +217,9 @@ export function checkPlacementTarget(
     );
     for (const key of cells) {
       if (actorCells.has(key)) return { ok: false, reason: "cell_occupied" };
+      // 大猫压着的格子也不能放：把柜子放进睡着的活物身体里，
+      // 醒来那一刻两个碰撞体就互相卡死了
+      if (cellHitsCreature(key)) return { ok: false, reason: "cell_occupied" };
     }
   }
 
@@ -483,7 +550,15 @@ export function downhillDirection(
 }
 
 /** 连续坐标下的通行检测：角色/宠物的圆形碰撞体压到的格子都不能是阻挡格 */
-export function isWalkable(x: number, z: number, radius: number): boolean {
+export function isWalkable(
+  x: number,
+  z: number,
+  radius: number,
+  /** 走路的人自己是谁（玩家传 PLAYER_OBSTACLE_ID，宠物传 petId），别被自己挡住 */
+  selfId?: string,
+): boolean {
+  if (hitsCreature(x, z, radius, selfId)) return false;
+
   const halfW = room.floorGrid.width / 2;
   const halfD = room.floorGrid.height / 2;
 

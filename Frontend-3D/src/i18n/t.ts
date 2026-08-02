@@ -109,6 +109,8 @@ const ZH: Record<string, string> = {
   "pet.foam_wisp.nickname": "沫沫",
   "pet.ember_wisp": "烬灵",
   "pet.ember_wisp.nickname": "小烬",
+  "pet.shushu": "岩绒巨猫",
+  "pet.shushu.nickname": "舒舒",
 
   // 对话（苔苔初见）。调子是好奇话痨——它把你当"外面世界"的信息源。
   // n5 是全作的题眼：你递过去的是现实行动换来的东西，而它连见都没见过

@@ -5,7 +5,11 @@ import {
   getLocalTransform,
   setLocalTransform,
 } from "../../Game/State/participants";
-import { isWalkable, setActorFootprint } from "../../Game/State/worldRuntime";
+import {
+  PLAYER_OBSTACLE_ID,
+  isWalkable,
+  setActorFootprint,
+} from "../../Game/State/worldRuntime";
 import { DEFAULT_POSTURE, isSupportedPosture } from "../Visual/poses.js";
 import type { CharacterRig } from "../World/CharacterView";
 import { animateCharacter, applyPose } from "../World/CharacterView";
@@ -158,9 +162,9 @@ export class CharacterController {
 
       // 轴分离：撞墙时沿另一轴滑动。
       // 如果当前已经卡在阻挡格里（比如家具放在了人身上），放开限制让人走出来
-      const stuck = !isWalkable(this.x, this.z, RADIUS);
-      if (stuck || isWalkable(this.x + stepX, this.z, RADIUS)) this.x += stepX;
-      if (stuck || isWalkable(this.x, this.z + stepZ, RADIUS)) this.z += stepZ;
+      const stuck = !isWalkable(this.x, this.z, RADIUS, PLAYER_OBSTACLE_ID);
+      if (stuck || isWalkable(this.x + stepX, this.z, RADIUS, PLAYER_OBSTACLE_ID)) this.x += stepX;
+      if (stuck || isWalkable(this.x, this.z + stepZ, RADIUS, PLAYER_OBSTACLE_ID)) this.z += stepZ;
 
       const targetAngle = Math.atan2(worldX, worldZ);
       let delta = targetAngle - this.headingAngle;

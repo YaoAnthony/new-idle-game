@@ -2,6 +2,7 @@ import {
   DayPhaseId,
   WeatherKind,
   findItemDefinition,
+  petDefinitions,
   itemDefinitions,
   type StorySignalKind,
 } from "core";
@@ -40,6 +41,7 @@ import {
   startClock,
 } from "../Game/State/clock";
 import { getHeld } from "../Game/State/heldItem";
+import { debugPlacePet, spawnPet } from "../Game/State/petsRuntime";
 import {
   debugClearWeather,
   debugForceWeather,
@@ -176,6 +178,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
     window.addEventListener("resize", onResize);
 
     const ok = (message: string): CommandResult => ({ ok: true, message });
+    const fail = (message: string): CommandResult => ({ ok: false, message });
 
     const unregister = [
       registerCommand({
@@ -351,6 +354,29 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
             return { ok: false, message: `${itemId} 放不进这个槽位` };
           }
           return ok(`已把 ${itemId} 放到 ${ref.instanceId} / ${ref.slotId}`);
+        },
+      }),
+      registerCommand({
+        name: "pet",
+        arguments: [
+          {
+            name: "物种",
+            suggest: () =>
+              asSuggestions(petDefinitions.map((pet) => pet.id)),
+          },
+        ],
+        usage: "pet <物种id>",
+        description: "召一只生物到屋子中间（调试用，跳过登场过场）",
+        handler: (args) => {
+          const definition = petDefinitions.find((pet) => pet.id === args[0]);
+          if (!definition) return fail(`没有这种生物：${args[0] ?? "(空)"}`);
+
+
+          const petId = `pet-${definition.id}`;
+          spawnPet(petId, definition.id);
+          // 门口挤不下大家伙，直接放到屋子中部空地
+          debugPlacePet(petId, 0, 4);
+          return ok(`${definition.id} 来了`);
         },
       }),
       registerCommand({

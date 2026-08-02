@@ -447,6 +447,41 @@ export function canPassAtHeight(x: number, z: number, y: number): boolean {
   return canPassAt(occupancy, cellAt(x, z), y);
 }
 
+/**
+ * 从这个位置往哪个方向能滑下去（单位向量），已经在最低处就返回 null。
+ *
+ * 给"东西停在家具上了"兜底用：台面不接东西（见 droppedItems 的弹开规则），
+ * 但垂直落下的东西横向速度是 0，弹到没劲还是会停在上面。这时候按占用图
+ * 找一格更矮的邻居推它一把，让它自己滑下去。
+ *
+ * 只看四邻不看斜角：斜着滑要同时穿过两个格子的角，容易卡在缝里。
+ */
+export function downhillDirection(
+  x: number,
+  z: number,
+): { x: number; z: number } | null {
+  const here = surfaceAt(x, z);
+  if (here <= 0) return null;
+
+  let best: { x: number; z: number } | null = null;
+  let bestHeight = here;
+
+  for (const [dx, dz] of [
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1],
+  ] as const) {
+    const height = surfaceAt(x + dx, z + dz);
+    if (height < bestHeight) {
+      bestHeight = height;
+      best = { x: dx, z: dz };
+    }
+  }
+
+  return best;
+}
+
 /** 连续坐标下的通行检测：角色/宠物的圆形碰撞体压到的格子都不能是阻挡格 */
 export function isWalkable(x: number, z: number, radius: number): boolean {
   const halfW = room.floorGrid.width / 2;

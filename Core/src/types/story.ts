@@ -146,7 +146,16 @@ export type StoryEffect =
       jitterMs?: number;
     }
   | { kind: "start_dialogue"; dialogueId: DialogueId; petId?: PetId; delayMs?: number }
-  | { kind: "show_toast"; localizationKey: LocalizationKey; durationMs?: number };
+  | { kind: "show_toast"; localizationKey: LocalizationKey; durationMs?: number }
+  /**
+   * 把睡着的宠物叫醒。**戳醒舒舒**这类"对话推进到某一步、活物要跟着变"
+   * 的场合用它——对话节点只管报告"戳到了"（emitEventId），
+   * 真正让它睁眼是这条效果，睡/醒终归是宠物自己的状态，不该让对话
+   * 系统直接伸手去改运行时的宠物对象。
+   */
+  | { kind: "pet_wake"; petId: PetId }
+  /** 让宠物躺下睡着。舒舒送礼收尾那句"说着说着又睡着了"就是它 */
+  | { kind: "pet_sleep"; petId: PetId };
 
 export type StoryRuleId = string;
 

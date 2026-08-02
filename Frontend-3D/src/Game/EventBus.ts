@@ -88,6 +88,11 @@ export type GameEvents = {
   kitchen_changed: { instanceId: string; slotId: string };
   /** 宠物离散状态变化（出场 / 好感度） */
   pet_changed: { petId: string; reason: string };
+  /**
+   * 让某只宠物演一下一次性动作（摇头之类）。纯表现层，PetView 转发给
+   * 造型自己的 `userData.playGesture`——没实现对应手势的物种静默不理。
+   */
+  pet_gesture: { petId: string; gesture: string };
   /** 对话开关 / 节点推进 */
   dialogue_changed: { open: boolean };
   /** 事件阶段推进 */

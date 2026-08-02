@@ -48,6 +48,20 @@ export const eventDefinitions = [
       { stageId: "repaired", localizationKey: "event.mom_gift.repaired" },
     ],
   },
+  {
+    /**
+     * 舒舒的初见：戳醒 → 送礼认作朋友。三段结构照抄 pet_arrival，
+     * 但推进方式不同——它不是"造出来才出现"，是搬进来那天就已经在
+     * 屋里睡着了，met 由玩家戳醒它触发，不是任何制作行为。
+     */
+    id: "shushu_bond",
+    localizationKey: "event.shushu_bond",
+    stages: [
+      { stageId: "not_met", localizationKey: "event.shushu_bond.not_met" },
+      { stageId: "met", localizationKey: "event.shushu_bond.met" },
+      { stageId: "gifted", localizationKey: "event.shushu_bond.gifted" },
+    ],
+  },
 ] satisfies EventDefinition[];
 
 export function findEventDefinition(id: string): EventDefinition | undefined {

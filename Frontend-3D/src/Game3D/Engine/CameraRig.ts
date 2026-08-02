@@ -258,12 +258,16 @@ export class CameraRig {
   /**
    * 对话镜头：比专注模式更近，让说话的人占满画面下半部分（动森式）。
    * 对话框占屏幕下方约三分之一，所以视线中心要稍微抬高。
+   *
+   * `distance` 可覆盖默认的 3.4——舒舒这种体宽 1.6 米以上的对话对象
+   * 贴着这个距离取景会把镜头怼进它身体里（调用方按对话对象的
+   * 碰撞半径放宽，见 RoomScene 的 `dialogue_changed` 处理）。
    */
-  enterDialogue(): void {
+  enterDialogue(distance = 3.4): void {
     if (this.distanceBeforeFocus === null) {
       this.distanceBeforeFocus = this.desiredDistance;
     }
-    this.desiredDistance = Math.max(this.minDistance, 3.4);
+    this.desiredDistance = Math.max(this.minDistance, distance);
     this.mode = "cutscene";
   }
 

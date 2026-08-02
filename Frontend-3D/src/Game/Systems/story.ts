@@ -9,7 +9,7 @@ import {
 import { emit, on } from "../EventBus";
 import { getClock } from "../State/clock";
 import { addItem, getCounts, removeItem } from "../State/inventory";
-import { setPetAffection, spawnPet } from "../State/petsRuntime";
+import { getPet, setPetAffection, spawnPet } from "../State/petsRuntime";
 import { getWeather } from "../State/weather";
 import { startDialogue } from "./dialogue";
 import { getEventStage, setEventStage, unlockFeature } from "./events";
@@ -112,6 +112,15 @@ function runEffect(effect: StoryEffect): void {
       else run();
       break;
     }
+
+    // 睡/醒终归是宠物自己的状态，剧情只负责喊一声"该醒了/该睡了"
+    case "pet_wake":
+      getPet(effect.petId)?.wakeUp();
+      break;
+
+    case "pet_sleep":
+      getPet(effect.petId)?.fallAsleep();
+      break;
 
     case "show_toast":
       emit("story_toast", {

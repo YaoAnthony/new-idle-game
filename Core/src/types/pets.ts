@@ -4,6 +4,8 @@ import type {
   VisualId,
   WorldPosition,
 } from "./base.js";
+import type { DialogueId } from "./dialogue.js";
+import type { EventId } from "./events.js";
 import type { ItemId } from "./items.js";
 
 export type PetId = string;
@@ -62,6 +64,25 @@ export type PetDefinition = {
    * "这是个活物"的错觉就当场碎了。
    */
   collisionRadius?: number;
+
+  /**
+   * F 交互该打开哪段对话。**这里是唯一权威**——原来 RoomScene 的 F 键
+   * 处理直接写死了 `moss_wisp_first_meet` / `moss_wisp_casual` 两个
+   * 字面量 id，加舒舒就要么在同一处 if 上再叠一层，要么复制一份
+   * 几乎一样的处理逻辑。两条路都是"每加一只宠物就要回去改交互代码"，
+   * 而对话选哪一段本来就是这只宠物的内容，不是交互系统的逻辑。
+   */
+  dialogues?: {
+    firstMeet?: DialogueId;
+    casual?: DialogueId;
+  };
+
+  /**
+   * "已经认识"这件事挂在哪个事件的哪个阶段上（约定：到 "gifted" 才算数）。
+   * F 交互用它在 firstMeet / casual 之间选——不填就永远打开 firstMeet，
+   * 适合那种没有"初见剧情"、见面就唠家常的宠物。
+   */
+  bondEventId?: EventId;
 };
 
 // ---- 喜好与送礼 ----

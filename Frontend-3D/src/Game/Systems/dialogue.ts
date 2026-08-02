@@ -72,6 +72,19 @@ export function visibleChoices(): DialogueChoice[] {
   return node.choices.filter((choice) => conditionsMet(choice.conditions));
 }
 
+/**
+ * 进入一个节点该发生的两件"报告"：事件系统的信号、对话对象的一次性动作。
+ * `enterNode` 和 `startDialogue`（entryNode 也是一个节点）都要做同一件事，
+ * 抽出来是因为已经在这上面漏过一次——加 petGesture 时如果各自忘记一处，
+ * 效果就是"从选项进去会摇头，直接开场进去就不会"，两条路本该长一样。
+ */
+function announceNode(node: DialogueNode, petId: string | null): void {
+  if (node.emitEventId) signal("dialogue_event", node.emitEventId);
+  if (node.petGesture && petId) {
+    emit("pet_gesture", { petId, gesture: node.petGesture });
+  }
+}
+
 function enterNode(nodeId: string): void {
   if (!active) return;
 
@@ -83,7 +96,7 @@ function enterNode(nodeId: string): void {
   }
 
   active = { ...active, nodeId };
-  if (node.emitEventId) signal("dialogue_event", node.emitEventId);
+  announceNode(node, active.petId);
   emit("dialogue_changed", { open: true });
 }
 
@@ -93,7 +106,7 @@ export function startDialogue(dialogueId: string, petId: string | null): boolean
 
   active = { dialogueId, nodeId: definition.entryNodeId, petId };
   const entry = definition.nodes[definition.entryNodeId];
-  if (entry?.emitEventId) signal("dialogue_event", entry.emitEventId);
+  if (entry) announceNode(entry, petId);
   emit("dialogue_changed", { open: true });
   return true;
 }

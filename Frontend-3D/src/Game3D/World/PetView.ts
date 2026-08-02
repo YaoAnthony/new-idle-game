@@ -1,5 +1,6 @@
 import { findPetDefinition } from "core";
 import { Object3D } from "three";
+import { on } from "../../Game/EventBus";
 import { getPets } from "../../Game/State/petsRuntime";
 import { addOutline } from "../Engine/Outline.js";
 import { buildVisual } from "../Visual/VisualRegistry.js";
@@ -32,9 +33,24 @@ export class PetView {
 
   private readonly views = new Map<string, Object3D>();
   private elapsed = 0;
+  private readonly unsubscribe: () => void;
 
   constructor() {
     this.root.name = "pets";
+
+    // 一次性动作（摇头之类）转发给对应造型自己的 playGesture。
+    // 没实现的物种（大多数）静默不理，不是错误
+    this.unsubscribe = on("pet_gesture", ({ petId, gesture }) => {
+      const view = this.views.get(petId);
+      const play = view?.userData.playGesture as
+        | ((name: string) => void)
+        | undefined;
+      play?.(gesture);
+    });
+  }
+
+  dispose(): void {
+    this.unsubscribe();
   }
 
   update(deltaSeconds: number): void {

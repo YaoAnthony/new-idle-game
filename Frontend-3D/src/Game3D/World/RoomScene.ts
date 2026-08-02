@@ -5,6 +5,7 @@ import {
   FurnitureCapability,
   WeatherKind,
   findPath,
+  findPetDefinition,
 } from "core";
 import type { InteractHint } from "core";
 import { Raycaster, Scene, Vector2, Vector3 } from "three";
@@ -59,7 +60,12 @@ import {
   tickItemPickup,
 } from "../../Game/Systems/dropping";
 import { emit, on, type StationCapability } from "../../Game/EventBus";
-import { getPet, getPets, tickPets } from "../../Game/State/petsRuntime";
+import {
+  getPet,
+  getPets,
+  seedInitialPets,
+  tickPets,
+} from "../../Game/State/petsRuntime";
 import {
   getDefinition,
   getRoomStyle,
@@ -67,7 +73,7 @@ import {
   seedInitialFurniture,
 } from "../../Game/State/worldRuntime";
 import { getActiveAction } from "../../Game/Systems/actions";
-import { startDialogue } from "../../Game/Systems/dialogue";
+import { getActiveDialogue, startDialogue } from "../../Game/Systems/dialogue";
 import { getEventStage } from "../../Game/Systems/events";
 import {
   describeKitchenSlot,
@@ -197,7 +203,11 @@ export class RoomScene {
     options: { seedFurniture?: boolean } = {},
   ) {
     // 读档时屋里的东西来自存档，不能再铺一次房东留下的旧家具和纸箱
-    if (options.seedFurniture !== false) seedInitialFurniture();
+    if (options.seedFurniture !== false) {
+      seedInitialFurniture();
+      // 家具先摆好，舒舒挑角落时才能避开纸箱占的格子
+      seedInitialPets();
+    }
 
     const { room } = getWorld();
     this.built = buildHouse(room);
@@ -293,8 +303,23 @@ export class RoomScene {
         if (this.cutscenePetId) return;
 
         this.controller.enabled = !open;
-        if (open) this.rig.enterDialogue();
-        else this.rig.exitDialogue();
+        if (open) {
+          /**
+           * 对话对象体型比人宽得多的话，默认距离（3.4）会把镜头怼进
+           * 它身体里——舒舒体宽 1.6 米，贴着玩家取景时人和它站得又近
+           * （交互半径本来就够不到 1.9 米外），画面下半部分全是它的肚子。
+           * 按碰撞半径放宽距离；没有半径的小家伙（wisp）不变。
+           */
+          const dialoguePetId = getActiveDialogue()?.petId;
+          const dialoguePet = dialoguePetId ? getPet(dialoguePetId) : undefined;
+          const distance =
+            dialoguePet && dialoguePet.radius > 0
+              ? 3.4 + dialoguePet.radius * 2.4
+              : undefined;
+          this.rig.enterDialogue(distance);
+        } else {
+          this.rig.exitDialogue();
+        }
       }),
     );
 
@@ -467,12 +492,28 @@ export class RoomScene {
             });
           }
         } else {
-          // 初见走完整对话，之后是日常寒暄
-          const gifted = getEventStage("pet_arrival") === "gifted";
-          startDialogue(
-            gifted ? "moss_wisp_casual" : "moss_wisp_first_meet",
-            this.interactTarget.petId,
-          );
+          /**
+           * 对话选哪一段是**这只宠物的内容**，不是交互系统的逻辑——
+           * 原来这里直接写死 moss_wisp_first_meet/casual 两个字面量 id，
+           * 加舒舒发现这处理只认得苔灵一个物种。现在按 PetDefinition
+           * 声明的 dialogues/bondEventId 查，加宠物不用回来改这段。
+           */
+          const petId = this.interactTarget.petId;
+          const pet = getPet(petId);
+          const definition = pet ? findPetDefinition(pet.definitionId) : undefined;
+          const known = definition?.bondEventId
+            ? getEventStage(definition.bondEventId) === "gifted"
+            : true;
+          const dialogueId = known
+            ? definition?.dialogues?.casual
+            : definition?.dialogues?.firstMeet;
+
+          if (dialogueId) {
+            // 已经认识、还在睡的话先醒过来再聊——日常寒暄没有专门的
+            // "戳醒"仪式，那是初见剧情自己的桥段
+            if (known && pet?.state === "sleeping") pet.wakeUp();
+            startDialogue(dialogueId, petId);
+          }
         }
         return;
       }
@@ -1204,7 +1245,11 @@ export class RoomScene {
     // 往里推而不是让音景去问控制器——控制器是 Interaction 层的，反向依赖会绕一圈
     updateListener(this.controller.x, this.controller.z, deltaSeconds);
 
-    tickPets(deltaSeconds, { x: this.controller.x, z: this.controller.z });
+    tickPets(
+      deltaSeconds,
+      { x: this.controller.x, z: this.controller.z },
+      getActiveDialogue()?.petId,
+    );
     this.petView.update(deltaSeconds);
 
     // 火候：只有架在灶眼上、且内容匹配到配方的锅才会走进度
@@ -1220,7 +1265,18 @@ export class RoomScene {
       const pet = getPet(this.cutscenePetId);
       if (pet) this.rig.lookAtPoint(pet.x, pet.z);
     } else {
-      this.rig.lookAtPoint(this.controller.x, this.controller.z);
+      const dialoguePetId = getActiveDialogue()?.petId;
+      const dialoguePet = dialoguePetId ? getPet(dialoguePetId) : undefined;
+      if (dialoguePet && dialoguePet.radius > 0) {
+        // 对着体型比人大得多的对象说话：镜头看两者中点，不然贴着玩家
+        // 取景会让镜头埋进它身体里（配合上面 enterDialogue 放宽的距离）
+        this.rig.lookAtPoint(
+          (this.controller.x + dialoguePet.x) / 2,
+          (this.controller.z + dialoguePet.z) / 2,
+        );
+      } else {
+        this.rig.lookAtPoint(this.controller.x, this.controller.z);
+      }
     }
     this.rig.update(deltaSeconds);
 
@@ -1373,6 +1429,7 @@ export class RoomScene {
     this.cookwareView.dispose();
     this.heldItemView.dispose();
     this.droppedItemView.dispose();
+    this.petView.dispose();
     this.renderer.stop();
     this.renderer.dispose();
   }

@@ -1,4 +1,7 @@
-import { findDialogueDefinition } from "../Data/dialogues/index.js";
+import {
+  dialogueDefinitions,
+  findDialogueDefinition,
+} from "../Data/dialogues/index.js";
 import { findEventDefinition } from "../Data/events/index.js";
 import { findItemDefinition } from "../Data/items/index.js";
 import { findPetDefinition } from "../Data/pets/index.js";
@@ -107,6 +110,26 @@ function auditTrigger(where: string, trigger: StoryTrigger): string[] {
   return problems;
 }
 
+/**
+ * 每条 `dialogue_event` 触发器认得哪些 subject——**跨对话/剧情文件收集**。
+ *
+ * 校验 emitEventId 有没有着落要用到它：一个节点 `emitEventId: "x"`，
+ * 但从来没有 `{signal:"dialogue_event", subject:"x"}` 的触发器，
+ * 这个信号发出去等于对着空气喊。已经真实存在一例（mom_first_call 的
+ * m4 节点 `emitEventId: "mom_promised_machine"`，从写下那天起没人接过）。
+ */
+function listeningDialogueEventSubjects(): Set<string> {
+  const subjects = new Set<string>();
+  for (const rule of storyRules) {
+    for (const trigger of rule.triggers) {
+      if (trigger.signal === "dialogue_event" && trigger.subject) {
+        subjects.add(trigger.subject);
+      }
+    }
+  }
+  return subjects;
+}
+
 export function auditStoryContent(options: AuditOptions = {}): string[] {
   const problems: string[] = [];
   const { hasLocalizationKey } = options;
@@ -116,6 +139,66 @@ export function auditStoryContent(options: AuditOptions = {}): string[] {
       problems.push(`${where}：文案键 "${key}" 没有条目`);
     }
   };
+
+  const listeningSubjects = listeningDialogueEventSubjects();
+  const checkEmitEventId = (where: string, emitEventId: string | undefined): void => {
+    if (emitEventId && !listeningSubjects.has(emitEventId)) {
+      problems.push(
+        `${where}：emitEventId "${emitEventId}" 没有任何剧情规则在监听，发出去没人接`,
+      );
+    }
+  };
+
+  for (const dialogue of dialogueDefinitions) {
+    const dialogueWhere = `对话 ${dialogue.id}`;
+    const nodeIds = new Set(Object.keys(dialogue.nodes));
+
+    if (!nodeIds.has(dialogue.entryNodeId)) {
+      problems.push(
+        `${dialogueWhere}：entryNodeId "${dialogue.entryNodeId}" 不是任何节点`,
+      );
+    }
+    if (dialogue.speakerNameKey) checkText(dialogueWhere, dialogue.speakerNameKey);
+
+    // 走完全图，确认每一条跳转都落在真实存在的节点上——
+    // 手写几十个节点最容易犯的错就是某个 nextNodeId 抄漏或抄错一个字
+    const checkNodeRef = (where: string, field: string, target: string): void => {
+      if (!nodeIds.has(target)) {
+        problems.push(`${where}：${field} "${target}" 不是这段对话里的节点`);
+      }
+    };
+
+    for (const node of Object.values(dialogue.nodes)) {
+      const where = `${dialogueWhere} 节点 ${node.nodeId}`;
+      checkText(where, node.localizationKey);
+      checkEmitEventId(where, node.emitEventId);
+
+      if (node.nextNodeId) checkNodeRef(where, "nextNodeId", node.nextNodeId);
+
+      for (const choice of node.choices ?? []) {
+        const choiceWhere = `${where} 选项 ${choice.choiceId}`;
+        checkText(choiceWhere, choice.localizationKey);
+        checkEmitEventId(choiceWhere, choice.emitEventId);
+        if (choice.nextNodeId) {
+          checkNodeRef(choiceWhere, "nextNodeId", choice.nextNodeId);
+        }
+      }
+
+      if (node.itemRequest) {
+        const requestWhere = `${where} 送礼`;
+        for (const [tier, target] of Object.entries(node.itemRequest.onTierNodeId)) {
+          checkNodeRef(requestWhere, `onTierNodeId.${tier}`, target);
+        }
+        if (node.itemRequest.onDeclineNodeId) {
+          checkNodeRef(
+            requestWhere,
+            "onDeclineNodeId",
+            node.itemRequest.onDeclineNodeId,
+          );
+        }
+      }
+    }
+  }
 
   const seen = new Set<string>();
   for (const rule of storyRules) {

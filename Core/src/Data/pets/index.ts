@@ -19,6 +19,13 @@ export const petDefinitions = [
     defaultNicknameKey: "pet.moss_wisp.nickname",
     visualId: "moss_wisp",
     species: "wisp",
+    /**
+     * 原来这两个对话 id 和 pet_arrival 事件是直接写死在 RoomScene 的
+     * F 键处理里的——加舒舒才发现那处理只认得苔灵一个物种。挪进这里，
+     * F 交互只需要问"这只宠物的对话在哪"，不需要知道有几种宠物。
+     */
+    dialogues: { firstMeet: "moss_wisp_first_meet", casual: "moss_wisp_casual" },
+    bondEventId: "pet_arrival",
   },
   {
     id: "foam_wisp",
@@ -58,6 +65,8 @@ export const petDefinitions = [
     },
     /** 体宽约 1.6 米，圆形碰撞半径取到肩宽略收——蹭着毛边走得过去 */
     collisionRadius: 0.95,
+    dialogues: { firstMeet: "shushu_first_meet", casual: "shushu_casual" },
+    bondEventId: "shushu_bond",
   },
 ] satisfies PetDefinition[];
 
@@ -120,13 +129,19 @@ export const petTastes: Record<string, PetTaste> = {
 
   shushu: {
     /**
-     * 猫的口味从物种直接推：荤的爱，素的懒得碰。
-     * 煎蛋和青椒炒肉是它的心头好——热乎的、油润的、有肉的。
-     * 汤太清淡，喝两口就走；皮蛋那股味它闻一下就把头扭开。
+     * 猫的口味从物种直接推：荤的爱，素的懒得碰——**除了番茄**。
+     *
+     * 2026-08-02 改过一次：原来番茄和青椒白菜一起归在 disliked（"素的懒得碰"
+     * 那条通则）。写初见剧情时发现这条通则和剧情本身打架——新手开局
+     * 背包里唯一现成能送的就是番茄，初见那段写的是它眼睛一亮、
+     * 从没吃过这么好吃的东西、当场认你做朋友，这必须是 loved 档的反应
+     * （四档回应的措辞是按档位写的，塞一份 loved 的台词给 disliked 判定
+     * 会文不对题）。所以破例：番茄挪进 loved，其余素菜维持不喜欢。
+     * 不是每一条通则都要一路贯彻到底——剧情需要的具体反应优先于分类的整洁。
      */
-    loved: ["fried_egg", "pepper_pork"],
+    loved: ["fried_egg", "pepper_pork", "tomato"],
     liked: ["fried_tomato_egg", "cooked_rice", "cheese"],
-    disliked: ["tomato", "baby_cabbage", "green_pepper", "baby_cabbage_soup", "century_egg"],
+    disliked: ["baby_cabbage", "green_pepper", "baby_cabbage_soup", "century_egg"],
     inedible: ["egg", "rice", "pork"],
     /** 没见过的东西先闻闻再说，不挑衅也不热情 */
     fallback: GiftTier.Disliked,

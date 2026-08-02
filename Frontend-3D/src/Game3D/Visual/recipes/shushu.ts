@@ -339,6 +339,24 @@ export function buildShuShu(): Object3D {
 
   const smooth = (t: number): number => t * t * (3 - 2 * t);
 
+  /**
+   * 一次性动作（对话驱动，见 PetView 的 `pet_gesture`）。**只有摇头**——
+   * 没实现的手势名 `playGesture` 直接不理，调用方（对话数据）不需要
+   * 关心某个物种到底支不支持某个手势。
+   *
+   * 时长表按名字查，而不是把 0.7 这个数字散在 animate 里到处比较：
+   * 以后加第二个手势时，这里加一行，下面判断逻辑一行都不用碰。
+   */
+  const GESTURE_DURATION: Record<string, number> = { shake_head: 0.7 };
+  let gestureName: string | null = null;
+  let gestureElapsed = 0;
+
+  root.userData.playGesture = (name: string): void => {
+    if (!(name in GESTURE_DURATION)) return;
+    gestureName = name;
+    gestureElapsed = 0;
+  };
+
   root.userData.animate = (
     deltaSeconds: number,
     pet: { state: string; moving: boolean },
@@ -400,6 +418,23 @@ export function buildShuShu(): Object3D {
       (0.55 + Math.sin(elapsed * 8) * 0.1) * busyBlend +
       Math.sin(phase * Math.PI * 4) * 0.02 * walkAmp;
     headPivot.rotation.z = Math.sin(elapsed * 0.6) * 0.025 * (1 - eased);
+
+    // 摇头：叠在头部旋转上的一次性插播，播完自动清零（不清的话
+    // 播完那一帧的角度会被"焊死"在 rotation.y 上，因为没有别处会写它）
+    let gestureYaw = 0;
+    if (gestureName) {
+      gestureElapsed += deltaSeconds;
+      const duration = GESTURE_DURATION[gestureName];
+      const t = gestureElapsed / duration;
+      if (t >= 1) {
+        gestureName = null;
+      } else if (gestureName === "shake_head") {
+        // 两个来回，sin(πt) 当包络掐头去尾，起止都回到正对着你
+        const envelope = Math.sin(Math.PI * t);
+        gestureYaw = Math.sin(t * Math.PI * 4) * 0.32 * envelope;
+      }
+    }
+    headPivot.rotation.y = gestureYaw;
 
     // 耳朵：偶尔抖一下（左右不同周期，免得像机械钟）。睡着大幅收敛
     const flickL = elapsed % 6.4;

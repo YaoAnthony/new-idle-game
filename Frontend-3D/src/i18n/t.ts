@@ -78,6 +78,7 @@ const ZH: Record<string, string> = {
     "苔苔的卷芽支棱起来：下次我出去，一定给你带点你那边没有的东西回来！",
   "story.pet_missing": "醒来时墙角空空的——苔苔不见了。窗外好像有什么声音……",
   "story.day_one_wrap": "第一天就这样过去了。这个小家，之后慢慢布置吧。",
+  "story.shushu_bond": "舒舒打了个哈欠，把脑袋蹭了蹭你的手：「你是我的好朋友了。」",
 
   // 教程步骤（tutorialDefinition）
   "tutorial.unpack": "走到门口的箱子旁边按 F，把行李拆开",
@@ -159,8 +160,55 @@ const ZH: Record<string, string> = {
     "（认真地看了半天，摇摇头把东西推回来）这个真的吃不了呀。不过你拿来给我看，我很高兴。",
   "dlg.casual.c_bye": "那你去忙吧！我就在这儿。",
 
+  // 对话（舒舒初见）。它是被戳醒的，不是主动搭话的——两轮"喂"都不理，
+  // 第三次才真的醒。四档回应只有 loved/liked 两档真的吃了（giftConsumesItem），
+  // 所以只有这两档接上"认作朋友"的收尾；disliked/inedible 汇到 s12_mild，
+  // 睡意照样上来，但这次不算数，下次戳醒它可以重新试。
+  "dlg.shushu.s1": "喂",
+  "dlg.shushu.s2": "（它没有理会。呼吸均匀，睡得很沉）",
+  "dlg.shushu.c_leave": "不管它",
+  "dlg.shushu.c_call_again": "继续叫它",
+  "dlg.shushu.s3": "喂～",
+  "dlg.shushu.s4": "（它打了个鼾声，像是在回应你——但眼睛还没睁开）",
+  "dlg.shushu.c_poke": "用手戳戳",
+  "dlg.shushu.s5":
+    "（你伸手戳了戳它。它迷迷糊糊地睁开眼，看了看你这边，慢吞吞地坐了起来）",
+  "dlg.shushu.s6": "……怎么了？",
+  "dlg.shushu.s7": "我是刚搬进来的租客，你是？",
+  "dlg.shushu.s8": "租客……？",
+  "dlg.shushu.s9": "没听过。好吃吗？",
+  "dlg.shushu.s10":
+    "（你满头黑线。但听它开口就要好吃的，你忽然想起背包里正好有个番茄）",
+  "dlg.shushu.s11": "（它眼巴巴地盯着你，等你回应）",
+  "dlg.shushu.s12_loved": "你把番茄递了过去。它眼睛一下睁大了，抢过去就吃了起来。",
+  "dlg.shushu.s13_loved": "哇，这是什么好吃的？我怎么从来没吃过？",
+  "dlg.shushu.s14_loved": "你得意地笑了笑：「那肯定，这可是只有我能搞到的东西。」",
+  "dlg.shushu.s12_liked": "你把东西递了过去。它凑近闻了闻，慢悠悠地吃掉了。",
+  "dlg.shushu.s13_liked": "唔……还行，算是能吃的东西。",
+  "dlg.shushu.s15_bond": "我承认你是我的好朋友了！给好吃的就是我的好朋友。",
+  "dlg.shushu.s16_bond": "等我睡醒了，也给我的好朋友带点好吃的……",
+  "dlg.shushu.s17_bond": "你笑了笑。它没说完，又一头栽下去，睡着了。",
+  "dlg.shushu.s12_mild": "你把东西递了过去。它凑过来闻了闻，没什么兴趣地摇了摇头。",
+  "dlg.shushu.s13_mild": "……这个还是算了。",
+  "dlg.shushu.s14_mild": "它打了个哈欠，缩成一团，又睡着了。",
+  "dlg.shushu.s_bye":
+    "它盯着你看了一会儿，见你没有要给的意思，打了个哈欠，又躺下睡着了。",
+
+  // 舒舒的日常寒暄（已经认识之后）
+  "dlg.shushu_casual.sc1": "（打了个哈欠，眯着眼看你）",
+  "dlg.shushu_casual.sc_gift": "给它点吃的",
+  "dlg.shushu_casual.sc_bye": "让它继续睡",
+  "dlg.shushu_casual.sc_give": "（凑近闻了闻，等着看你手上有什么）",
+  "dlg.shushu_casual.sc_loved":
+    "呼噜噜——就爱这个！\n（三两口吃完，舔了舔嘴角，又趴回去）",
+  "dlg.shushu_casual.sc_liked": "还行，吃了。（慢悠悠地嚼完，打了个哈欠）",
+  "dlg.shushu_casual.sc_disliked": "（闻了闻，没什么兴趣地转开头）",
+  "dlg.shushu_casual.sc_inedible": "（看了看，没有要吃的意思）",
+  "dlg.shushu_casual.sc_end": "（又闭上眼睛，呼吸渐渐均匀）",
+
   // 事件
   "event.pet_arrival": "角落里的小家伙",
+  "event.shushu_bond": "睡在角落的大家伙",
 
   // 行动：四大分类（图里的卡片标题用「…任务」，正文里用短名）
   "action.work_study": "工作或学习任务",

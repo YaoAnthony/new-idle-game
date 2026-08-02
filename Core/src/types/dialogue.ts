@@ -8,6 +8,18 @@ export type DialogueId = string;
 export type DialogueNodeId = string;
 export type DialogueChoiceId = string;
 
+/**
+ * 一次性播放的宠物动作（摇头、点头……）。**不是姿态**——
+ * 姿态（PoseId）是"此刻是什么状态"的持续量，这是"演一下就完"的插播，
+ * 播完自动回到原来在做的事，动画层自己管定时器。
+ *
+ * 开成 string 而不是枚举：这是纯表现层的名字，物种想叫什么都行，
+ * Core 不需要知道到底有哪些手势——校验不了就不校验，比按枚举锁死
+ * "以后每加一个动作都要回来改 Core 类型"划算。造型没实现对应手势时
+ * 静默不播，不是错误。
+ */
+export type PetGestureId = string;
+
 /** 选项或节点的显示条件，全部满足才生效 */
 export type DialogueCondition =
   | { kind: "affection_at_least"; stage: AffectionStage }
@@ -61,6 +73,9 @@ export type DialogueNode = {
    * 不写宠物记忆——那些后果统一由事件系统处理，避免两套效果系统。
    */
   emitEventId?: EventId;
+
+  /** 进入该节点时让对话对象（宠物）演一下这个动作。不填就什么都不做 */
+  petGesture?: PetGestureId;
 };
 
 export type DialogueDefinition = {

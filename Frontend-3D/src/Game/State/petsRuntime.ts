@@ -1,6 +1,9 @@
 import {
   AffectionStage,
+  cellHasClearance,
+  findPetDefinition,
   type GiftTier,
+  type GridPosition,
   type PetSave,
 } from "core";
 import { emit } from "../EventBus";
@@ -86,11 +89,84 @@ export function debugPlacePet(petId: string, x: number, z: number): void {
   emit("pet_changed", { petId, reason: "restored" });
 }
 
+/**
+ * 新游戏开局：舒舒已经在屋里睡着了。
+ *
+ * 和 `spawnPet` 是两条不同的路——那条是"从门口走进来"的登场过场（苔苔的
+ * 首次登场用），舒舒不是这样认识的：搬家那天它就已经在角落里呼呼大睡，
+ * 剧情的开头是"叫不叫得醒"，不是"看它走进来"。所以这里直接放置 + 立刻
+ * 睡下，不走 beginEntering()，也不发 pet_spawned/pet_entered（那两个信号
+ * 语义就是"刚从门口进来"，舒舒从来没经历过这件事）。
+ *
+ * 调用时机和 `seedInitialFurniture()` 一样：只在真正的新游戏跑，
+ * 读档走 restorePets 那条路。
+ */
+export function seedInitialPets(): void {
+  if (pets.size > 0) return;
+
+  const definitionId = "shushu";
+  const radius = findPetDefinition(definitionId)?.collisionRadius ?? 0;
+  const { room, occupancy } = getWorld();
+
+  // 偏南偏东的一角：远离玄关那两个箱子（西墙门口）和北墙的落地窗，
+  // 大家伙缩在角落睡觉，不挡新手教程的必经之路
+  const preferred: GridPosition[] = [
+    { x: 19, y: 15 },
+    { x: 18, y: 16 },
+    { x: 20, y: 14 },
+    { x: 6, y: 15 },
+  ];
+
+  let cell = preferred.find((candidate) =>
+    cellHasClearance(room.floorGrid, occupancy, candidate, radius),
+  );
+
+  // 首选角落被占了（户型变了、家具改了）就退到随机扫描，
+  // 和 PetAgent 挑游荡目标用的是同一套逻辑，总能落地
+  if (!cell) {
+    for (let attempt = 0; attempt < 30 && !cell; attempt += 1) {
+      const candidate = {
+        x: 1 + Math.floor(Math.random() * (room.floorGrid.width - 2)),
+        y: 1 + Math.floor(Math.random() * (room.floorGrid.height - 2)),
+      };
+      if (cellHasClearance(room.floorGrid, occupancy, candidate, radius)) {
+        cell = candidate;
+      }
+    }
+  }
+
+  // 房间小到连一格都放不下它的极端情况：安静跳过，总比硬塞进墙里好
+  if (!cell) return;
+
+  const pet = new PetAgent(`pet-${definitionId}`, definitionId, {
+    x: cell.x - room.floorGrid.width / 2 + 0.5,
+    z: cell.y - room.floorGrid.height / 2 + 0.5,
+    heading: 0,
+  });
+  pet.fallAsleep();
+
+  pets.set(pet.petId, pet);
+  emit("pet_changed", { petId: pet.petId, reason: "seeded" });
+}
+
+/**
+ * `frozenPetId`：正在跟它对话的那一只不推进。
+ *
+ * 这是实测撞出来的坑：对话打开时玩家的移动会锁（RoomScene 的
+ * `dialogue_changed` 处理），但宠物的自主行为原来没有对应的锁——
+ * 舒舒被戳醒、聊到一半，它自己的 idleTimer 归零、80% 睡意一掷，
+ * 它就在对话文字还没讲完的时候自己躺回去睡着了，和屏幕上"你笑了笑，
+ * 它没说完又睡着了"这句台词各自发生、时间对不上。对话本身是一段
+ * "时间暂停"的场景，正在被谈论的那个对象不该在这段时间里自己乱走。
+ * 场上其它宠物不受影响，照常过日子。
+ */
 export function tickPets(
   deltaSeconds: number,
   player: { x: number; z: number },
+  frozenPetId?: string | null,
 ): void {
   for (const pet of pets.values()) {
+    if (pet.petId === frozenPetId) continue;
     pet.tick(deltaSeconds, player);
   }
 }

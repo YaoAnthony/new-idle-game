@@ -112,6 +112,23 @@ export class CharacterController {
     this.keys.delete(event.key.toLowerCase());
   };
 
+  /**
+   * 摇杆推的方向（各轴 -1~1，和 WASD 同一套语义：z 为负是往前）。
+   *
+   * **和键盘并存、取绝对值大的那个**，不是二选一也不是相加：
+   * - 相加的话，同时按 W 和把摇杆推到底会得到 2，人物瞬间加速一倍
+   * - 二选一要判"现在是哪种输入设备"，而二合一设备上这个判断没有正确答案
+   * 取绝对值大的既保证了单独用任一种都是满速，也让两种输入自然共存。
+   */
+  private externalX = 0;
+  private externalZ = 0;
+
+  /** 摇杆每帧写这里。松手传 (0, 0) */
+  setExternalMove(x: number, z: number): void {
+    this.externalX = x;
+    this.externalZ = z;
+  }
+
   attach(): () => void {
     window.addEventListener("keydown", this.onKeyDown);
     window.addEventListener("keyup", this.onKeyUp);
@@ -143,6 +160,10 @@ export class CharacterController {
       if (this.keys.has("s")) inputZ += 1;
       if (this.keys.has("a")) inputX -= 1;
       if (this.keys.has("d")) inputX += 1;
+
+      // 摇杆和键盘取绝对值大的那个（见 externalX 的注释）
+      if (Math.abs(this.externalX) > Math.abs(inputX)) inputX = this.externalX;
+      if (Math.abs(this.externalZ) > Math.abs(inputZ)) inputZ = this.externalZ;
     }
 
     const moving = inputX !== 0 || inputZ !== 0;
@@ -156,9 +177,18 @@ export class CharacterController {
       const worldX = inputX * cos + inputZ * sin;
       const worldZ = -inputX * sin + inputZ * cos;
 
+      /**
+       * **方向归一化，大小保留**（上限 1）。
+       *
+       * 原来是无脑除以模长，也就是任何输入都当满速——键盘只有 0/1/√2
+       * 三种模长，这么算是对的（斜着走不该比直着走快 41%）。但摇杆是模拟量，
+       * 那样写会让"轻轻推一点"和"推到底"跑得一样快，摇杆就退化成了八向摇杆。
+       * 夹在 1 以内既保住了键盘斜走不加速，也让摇杆的力度真的有意义。
+       */
       const length = Math.hypot(worldX, worldZ);
-      const stepX = (worldX / length) * SPEED * deltaSeconds;
-      const stepZ = (worldZ / length) * SPEED * deltaSeconds;
+      const throttle = Math.min(1, length) / length;
+      const stepX = worldX * throttle * SPEED * deltaSeconds;
+      const stepZ = worldZ * throttle * SPEED * deltaSeconds;
 
       // 轴分离：撞墙时沿另一轴滑动。
       // 如果当前已经卡在阻挡格里（比如家具放在了人身上），放开限制让人走出来

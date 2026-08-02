@@ -450,91 +450,24 @@ export class RoomScene {
        * 半秒寿命的状态。不想摆就换一格快捷栏，虚影本身不点击也不会落地。
        */
       // 配错了的出口：倒掉锅里的东西，锅还在（还没有垃圾桶这件家具）
-      if (key === "g") {
-        const slot = this.nearestKitchenSlot();
-        if (slot) dumpKitchenSlot(slot);
-      }
-
-      // 坐着 / 躺着时 F 的含义变了，先在这里截住
-      if (key === "f" && isResting()) {
-        this.interactWhileResting();
-        return;
-      }
-
-      if (key === "f" && this.interactTarget) {
-        if (this.interactTarget.kind === "station") {
-          if (this.interactTarget.capability === "sleep") {
-            // 床先躺下，躺着再按 F 才睡觉（睡觉是躺着之后的第二步）
-            this.restAtTarget(BodyPosture.Lie);
-          } else if (this.interactTarget.capability === "storage") {
-            const { instanceId } = this.interactTarget;
-            emit("storage_open_requested", {
-              instanceId,
-              furnitureId:
-                getWorld().placedFurniture.find(
-                  (item) => item.instanceId === instanceId,
-                )?.furnitureId ?? "",
-            });
-          } else if (this.interactTarget.capability === "sitting") {
-            this.restAtTarget(BodyPosture.Sit);
-          } else if (this.interactTarget.capability === "unpack") {
-            // 纸箱/奖励箱：弹领取面板，收下才真的入包并消失
-            openUnpack(this.interactTarget.instanceId);
-          } else if (this.interactTarget.capability === "cooking") {
-            // 灶台不开面板：菜是真的在锅里做出来的。
-            // 对着离自己最近的那个灶眼操作（放锅 / 投料 / 起锅 / 端起来）
-            const slot = this.nearestKitchenSlot();
-            if (slot) interactWithKitchenSlot(slot);
-          } else {
-            emit("station_open_requested", {
-              instanceId: this.interactTarget.instanceId,
-              capability: this.interactTarget.capability,
-            });
-          }
-        } else {
-          /**
-           * 对话选哪一段是**这只宠物的内容**，不是交互系统的逻辑——
-           * 原来这里直接写死 moss_wisp_first_meet/casual 两个字面量 id，
-           * 加舒舒发现这处理只认得苔灵一个物种。现在按 PetDefinition
-           * 声明的 dialogues/bondEventId 查，加宠物不用回来改这段。
-           */
-          const petId = this.interactTarget.petId;
-          const pet = getPet(petId);
-          const definition = pet ? findPetDefinition(pet.definitionId) : undefined;
-          const known = definition?.bondEventId
-            ? getEventStage(definition.bondEventId) === "gifted"
-            : true;
-          const dialogueId = known
-            ? definition?.dialogues?.casual
-            : definition?.dialogues?.firstMeet;
-
-          if (dialogueId) {
-            // 已经认识、还在睡的话先醒过来再聊——日常寒暄没有专门的
-            // "戳醒"仪式，那是初见剧情自己的桥段
-            if (known && pet?.state === "sleeping") pet.wakeUp();
-            startDialogue(dialogueId, petId);
-          }
-        }
-        return;
-      }
-
-      /**
-       * 附近没有可交互目标时，F = **用手上那件东西**（现在只剩"吃"）。
-       *
-       * 原来这件事绑在"按数字键选中快捷栏"上，于是想看看 3 号格是什么，
-       * 一按就把菜吃了。选中和使用是两回事，帮助行里写的也一直是"F 使用"。
-       */
-      if (key === "f") eatHeldItem();
-
-      // Q = 把手上那一份扔出去
-      if (key === "q") {
-        throwHeldItem({
-          x: this.controller.x,
-          z: this.controller.z,
-          heading: this.controller.heading,
-        });
-      }
+      if (key === "g") this.dumpKitchen();
+      if (key === "f") this.interact();
+      if (key === "q") this.throwHeld();
     };
+
+    /**
+     * 触摸按钮走这条路，**不伪造 KeyboardEvent**。
+     *
+     * 合成的键盘事件 `isTrusted` 是 false，解锁不了音频（本项目踩过这个坑），
+     * 而且等于把"按了哪个键"和"要做什么"焊死——键位以后要可重映射。
+     */
+    const offAction = on("game_action_requested", ({ action }) => {
+      if (action === "interact") this.interact();
+      else if (action === "throw") this.throwHeld();
+      else if (action === "rotate_placement") this.placement.rotate();
+      else if (action === "dump_kitchen") this.dumpKitchen();
+    });
+    this.offEventListeners.push(offAction);
 
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
@@ -572,22 +505,96 @@ export class RoomScene {
 
     const DRAG_THRESHOLD_PIXELS = 4;
 
+    /**
+     * 还按着的手指。**触摸没有右键也没有滚轮**，这两件事要靠手势补：
+     * 双指捏合 = 缩放，长按 = 拿起家具。
+     * 用 Map 而不是数组：pointerup 时按 id 删，不用线性查找。
+     */
+    const activePointers = new Map<number, { x: number; y: number }>();
+
+    /** 长按拿起的计时器和起点（手指挪动超过阈值就取消，那是在拖镜头） */
+    let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+    const LONG_PRESS_MS = 500;
+
+    const cancelLongPress = (): void => {
+      if (longPressTimer !== null) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+    };
+
+    /** 双指之间的距离。捏合缩放靠它的变化量 */
+    let pinchDistance = 0;
+    const distanceBetweenPointers = (): number => {
+      const points = [...activePointers.values()];
+      if (points.length < 2) return 0;
+      return Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+    };
+
     const onPointerDown = (event: PointerEvent) => {
-      if (event.button !== 0) return;
+      // 鼠标只认左键；触摸和笔没有 button 的概念（一律是 0）
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+
+      activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+      // 第二根手指落下 = 进入捏合，记基准距离并放弃这一次的拖拽/点击
+      if (activePointers.size === 2) {
+        pinchDistance = distanceBetweenPointers();
+        cancelLongPress();
+        dragPointerId = null;
+        return;
+      }
+      if (activePointers.size > 2) return;
+
       dragPointerId = event.pointerId;
       dragLastX = event.clientX;
       dragLastY = event.clientY;
       dragDistance = 0;
       canvas.setPointerCapture(event.pointerId);
+
+      /**
+       * 触摸的长按 = 鼠标的右键。摆放模式下不接管——那时候按住是在瞄位置，
+       * 长按弹出"拿起别的家具"会把正在摆的那件挤掉。
+       */
+      if (event.pointerType !== "mouse" && !this.placement.active) {
+        const { clientX, clientY } = event;
+        longPressTimer = setTimeout(() => {
+          longPressTimer = null;
+          if (this.pickFurnitureAt(clientX, clientY)) {
+            // 拿起来了就取消这一次的点击，否则抬手会立刻把它放回去
+            dragPointerId = null;
+          }
+        }, LONG_PRESS_MS);
+      }
     };
 
     const onPointerMove = (event: PointerEvent) => {
+      const tracked = activePointers.get(event.pointerId);
+      if (tracked) {
+        tracked.x = event.clientX;
+        tracked.y = event.clientY;
+      }
+
+      // 双指：捏合缩放，不转镜头（两根手指同时转会又转又缩，很难控制）
+      if (activePointers.size >= 2) {
+        const next = distanceBetweenPointers();
+        if (pinchDistance > 0 && next > 0) {
+          // 张开（next 变大）= 拉近，和滚轮上推拉近保持一致
+          this.rig.zoom((pinchDistance - next) * 0.02);
+        }
+        pinchDistance = next;
+        return;
+      }
+
       if (dragPointerId === event.pointerId) {
         const dx = event.clientX - dragLastX;
         const dy = event.clientY - dragLastY;
         dragLastX = event.clientX;
         dragLastY = event.clientY;
         dragDistance += Math.abs(dx) + Math.abs(dy);
+
+        // 手指挪了就不是长按了，是在拖镜头
+        if (dragDistance > DRAG_THRESHOLD_PIXELS) cancelLongPress();
 
         if (dragDistance > DRAG_THRESHOLD_PIXELS) {
           this.rig.orbit(dx, dy);
@@ -600,39 +607,48 @@ export class RoomScene {
     };
 
     const onPointerUp = (event: PointerEvent) => {
+      activePointers.delete(event.pointerId);
+      // 松到只剩一根手指：重新记基准，否则下一帧会按"双指距离突变"猛缩一下
+      pinchDistance = activePointers.size >= 2 ? distanceBetweenPointers() : 0;
+      cancelLongPress();
+
       if (dragPointerId !== event.pointerId) return;
       if (canvas.hasPointerCapture(event.pointerId)) {
         canvas.releasePointerCapture(event.pointerId);
       }
+
+      /**
+       * 触摸落座家具前要先把虚影挪到手指位置。
+       *
+       * 鼠标一直在动，`onPointerMove` 早就把虚影喂到位了；手指是"点下去
+       * 才第一次有位置"，不补这一下的话，第一次点击会把家具放到**上一次**
+       * 手指抬起的地方——而那通常是屏幕另一头。
+       */
+      if (
+        dragDistance <= DRAG_THRESHOLD_PIXELS &&
+        event.pointerType !== "mouse" &&
+        this.placement.active
+      ) {
+        this.placement.onPointerMove(event);
+      }
+
       // 拖过就不是点击了
       if (dragDistance <= DRAG_THRESHOLD_PIXELS) this.placement.onClick();
       dragPointerId = null;
     };
 
-    // 右键拿起家具（V0.2：右键举起）
+    const onPointerCancel = (event: PointerEvent) => {
+      activePointers.delete(event.pointerId);
+      pinchDistance = 0;
+      cancelLongPress();
+      if (dragPointerId === event.pointerId) dragPointerId = null;
+    };
+
+    // 右键拿起家具（V0.2：右键举起）。触摸那边是长按，见 onPointerDown
     const onContextMenu = (event: MouseEvent) => {
       event.preventDefault();
       if (this.placement.active) return;
-
-      const rect = canvas.getBoundingClientRect();
-      this.pickPointer.set(
-        ((event.clientX - rect.left) / rect.width) * 2 - 1,
-        -((event.clientY - rect.top) / rect.height) * 2 + 1,
-      );
-      this.pickRaycaster.setFromCamera(this.pickPointer, this.rig.camera);
-
-      const hits = this.pickRaycaster.intersectObject(
-        this.furnitureView.root,
-        true,
-      );
-      for (const hit of hits) {
-        let node: typeof hit.object | null = hit.object;
-        while (node && !node.userData.instanceId) node = node.parent;
-        if (node?.userData.instanceId) {
-          pickupFurniture(node.userData.instanceId as string);
-          return;
-        }
-      }
+      this.pickFurnitureAt(event.clientX, event.clientY);
     };
 
     window.addEventListener("keydown", onKeyDown);
@@ -640,17 +656,47 @@ export class RoomScene {
     canvas.addEventListener("pointerdown", onPointerDown);
     canvas.addEventListener("pointermove", onPointerMove);
     canvas.addEventListener("pointerup", onPointerUp);
+    canvas.addEventListener("pointercancel", onPointerCancel);
     canvas.addEventListener("contextmenu", onContextMenu);
 
     return () => {
       detachController();
+      cancelLongPress();
       window.removeEventListener("keydown", onKeyDown);
       this.container.removeEventListener("wheel", onWheel);
       canvas.removeEventListener("pointerdown", onPointerDown);
       canvas.removeEventListener("pointermove", onPointerMove);
       canvas.removeEventListener("pointerup", onPointerUp);
+      canvas.removeEventListener("pointercancel", onPointerCancel);
       canvas.removeEventListener("contextmenu", onContextMenu);
     };
+  }
+
+  /**
+   * 屏幕坐标处有家具就拿起来，返回拿没拿到。
+   * 鼠标右键和触摸长按共用——两条路要选中同一件东西。
+   */
+  private pickFurnitureAt(clientX: number, clientY: number): boolean {
+    const rect = this.renderer.renderer.domElement.getBoundingClientRect();
+    this.pickPointer.set(
+      ((clientX - rect.left) / rect.width) * 2 - 1,
+      -((clientY - rect.top) / rect.height) * 2 + 1,
+    );
+    this.pickRaycaster.setFromCamera(this.pickPointer, this.rig.camera);
+
+    const hits = this.pickRaycaster.intersectObject(
+      this.furnitureView.root,
+      true,
+    );
+    for (const hit of hits) {
+      let node: typeof hit.object | null = hit.object;
+      while (node && !node.userData.instanceId) node = node.parent;
+      if (node?.userData.instanceId) {
+        pickupFurniture(node.userData.instanceId as string);
+        return true;
+      }
+    }
+    return false;
   }
 
   /** 行动开始：A* 走到支撑家具旁的空格，面向家具，进入专注 */
@@ -929,6 +975,115 @@ export class RoomScene {
      * 家具数据表达不了的那几句：起来、睡吧。
      */
     return null;
+  }
+
+  /**
+   * 主交互（键盘 F / 手机上的主按钮）。
+   *
+   * 从 onKeyDown 的 if 链里抽出来的：键盘和触摸按钮要走**同一条路**，
+   * 否则手机上那套要么复制一份逻辑（两边迟早漂），要么伪造 KeyboardEvent
+   * （合成事件 isTrusted 为 false，解锁不了音频——这个坑本项目踩过）。
+   *
+   * 优先级：坐着躺着时含义变了（起身 / 睡觉）→ 附近有目标就操作目标 →
+   * 都没有就用手上那件东西。
+   */
+  interact(): void {
+    if (isResting()) {
+      this.interactWhileResting();
+      return;
+    }
+
+    if (this.interactTarget) {
+      if (this.interactTarget.kind === "station") {
+        if (this.interactTarget.capability === "sleep") {
+          // 床先躺下，躺着再按 F 才睡觉（睡觉是躺着之后的第二步）
+          this.restAtTarget(BodyPosture.Lie);
+        } else if (this.interactTarget.capability === "storage") {
+          const { instanceId } = this.interactTarget;
+          emit("storage_open_requested", {
+            instanceId,
+            furnitureId:
+              getWorld().placedFurniture.find(
+                (item) => item.instanceId === instanceId,
+              )?.furnitureId ?? "",
+          });
+        } else if (this.interactTarget.capability === "sitting") {
+          this.restAtTarget(BodyPosture.Sit);
+        } else if (this.interactTarget.capability === "unpack") {
+          // 纸箱/奖励箱：弹领取面板，收下才真的入包并消失
+          openUnpack(this.interactTarget.instanceId);
+        } else if (this.interactTarget.capability === "cooking") {
+          // 灶台不开面板：菜是真的在锅里做出来的。
+          // 对着离自己最近的那个灶眼操作（放锅 / 投料 / 起锅 / 端起来）
+          const slot = this.nearestKitchenSlot();
+          if (slot) interactWithKitchenSlot(slot);
+        } else {
+          emit("station_open_requested", {
+            instanceId: this.interactTarget.instanceId,
+            capability: this.interactTarget.capability,
+          });
+        }
+      } else {
+        /**
+         * 对话选哪一段是**这只宠物的内容**，不是交互系统的逻辑——
+         * 原来这里直接写死 moss_wisp_first_meet/casual 两个字面量 id，
+         * 加舒舒发现这处理只认得苔灵一个物种。现在按 PetDefinition
+         * 声明的 dialogues/bondEventId 查，加宠物不用回来改这段。
+         */
+        const petId = this.interactTarget.petId;
+        const pet = getPet(petId);
+        const definition = pet ? findPetDefinition(pet.definitionId) : undefined;
+        const known = definition?.bondEventId
+          ? getEventStage(definition.bondEventId) === "gifted"
+          : true;
+        const dialogueId = known
+          ? definition?.dialogues?.casual
+          : definition?.dialogues?.firstMeet;
+
+        if (dialogueId) {
+          // 已经认识、还在睡的话先醒过来再聊——日常寒暄没有专门的
+          // "戳醒"仪式，那是初见剧情自己的桥段
+          if (known && pet?.state === "sleeping") pet.wakeUp();
+          startDialogue(dialogueId, petId);
+        }
+      }
+      return;
+    }
+
+    /**
+     * 附近没有可交互目标时，F = **用手上那件东西**（现在只剩"吃"）。
+     *
+     * 原来这件事绑在"按数字键选中快捷栏"上，于是想看看 3 号格是什么，
+     * 一按就把菜吃了。选中和使用是两回事，帮助行里写的也一直是"F 使用"。
+     */
+    eatHeldItem();
+  }
+
+  /**
+   * 摇杆推的方向（各轴 -1~1）。触摸层每帧喂进来，键盘那侧不受影响。
+   *
+   * 走这里而不是让 UI 直接摸 `controller`：控制器是 Interaction 层的内部
+   * 实现，React 组件不该知道它存在——同理，将来换成手柄摇杆也是喂这一个口。
+   */
+  setMoveInput(x: number, z: number): void {
+    this.controller.setExternalMove(x, z);
+    // 坐着躺着时摇杆推不动人，得先起身——和键盘 WASD 那条一样的处理
+    if ((x !== 0 || z !== 0) && isResting()) standUp("moved");
+  }
+
+  /** 把手上那一份扔出去（键盘 Q / 手机上的扔出按钮） */
+  throwHeld(): void {
+    throwHeldItem({
+      x: this.controller.x,
+      z: this.controller.z,
+      heading: this.controller.heading,
+    });
+  }
+
+  /** 配错了的出口：倒掉锅里的东西，锅还在（还没有垃圾桶这件家具） */
+  dumpKitchen(): void {
+    const slot = this.nearestKitchenSlot();
+    if (slot) dumpKitchenSlot(slot);
   }
 
   /** 走到跟前按 F：占用目标家具上离自己最近的空锚点 */

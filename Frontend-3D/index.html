@@ -2,7 +2,16 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      viewport-fit=cover：内容铺到刘海/圆角下面，配合 CSS 的 safe-area-inset
+      自己决定哪些元素要避让。不加的话全面屏上下会有两条黑边。
+      user-scalable=no：这是个全屏游戏，双指是捏合镜头缩放，
+      不该同时把整个页面也缩放了。
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no"
+    />
     <title>frontend</title>
   </head>
   <body>

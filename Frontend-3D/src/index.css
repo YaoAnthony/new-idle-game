@@ -16,6 +16,15 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100%;
+  /*
+   * 触摸端必须锁住页面本身的滚动和橡皮筋回弹，否则：
+   * 拖镜头会变成拖页面、下拉会触发浏览器刷新、双指缩放会缩放整个 DOM。
+   * 这是全屏游戏的标准处理，不是可选的优化。
+   */
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 button,

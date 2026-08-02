@@ -11,6 +11,13 @@ import { ActionHub } from "../Components/ActionHub/ActionHub";
 import { t } from "../i18n/t";
 import { ChatPanel } from "../Components/Chat/ChatPanel";
 import { EscMenu } from "../Components/EscMenu/EscMenu";
+import {
+  isTouchMode,
+  setTouchOverride,
+  startTouchModeWatch,
+} from "../Game/State/touchMode";
+import { Joystick } from "../Components/Mobile/Joystick";
+import { TouchActions } from "../Components/Mobile/TouchActions";
 import { SpeechBubble } from "../Components/Chat/SpeechBubble";
 import { Backpack } from "../Components/Backpack/Backpack";
 import { RewardPanel } from "../Components/RewardPanel/RewardPanel";
@@ -132,6 +139,20 @@ type GameViewProps = {
 export function GameView({ loadedFromSave = false }: GameViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scene, setScene] = useState<RoomScene | null>(null);
+  const [touchMode, setTouchMode] = useState(isTouchMode());
+
+  /**
+   * 触摸模式是会变的：平板插上妙控键盘那一刻 `pointer` 就从 coarse 变 fine，
+   * 不跟着变的话摇杆会一直杵在那儿。手动覆盖（调试命令）也走这条事件。
+   */
+  useEffect(() => {
+    const stop = startTouchModeWatch();
+    const off = on("touch_mode_changed", ({ touch }) => setTouchMode(touch));
+    return () => {
+      stop();
+      off();
+    };
+  }, []);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -380,6 +401,19 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
         },
       }),
       registerCommand({
+        name: "touch",
+        arguments: [
+          { name: "开关", suggest: () => asSuggestions(["on", "off", "auto"]) },
+        ],
+        usage: "touch <on|off|auto>",
+        description: "强制开关触摸操作（摇杆+按钮），auto 交还给设备判定",
+        handler: (args) => {
+          const value = parseEnum(args[0], ["on", "off", "auto"] as const, "开关");
+          setTouchOverride(value === "auto" ? null : value === "on");
+          return ok(`触摸操作已设为 ${value}`);
+        },
+      }),
+      registerCommand({
         name: "state",
         usage: "state",
         description: "打印当前场景状态",
@@ -533,6 +567,16 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       <ChatPanel />
       <SpeechBubble scene={scene} />
       <EscMenu />
+      {/*
+        触摸操作只在触摸设备上出现（判据见 State/touchMode）。
+        桌面上挂着一个摇杆纯属碍事，而且它的感应区会吃掉左下角的点击。
+      */}
+      {touchMode && scene && (
+        <>
+          <Joystick onMove={(x, z) => scene.setMoveInput(x, z)} />
+          <TouchActions />
+        </>
+      )}
     </>
   );
 }

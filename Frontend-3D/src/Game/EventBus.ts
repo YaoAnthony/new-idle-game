@@ -103,6 +103,18 @@ export type GameEvents = {
   action_changed: { status: "started" | "completed" | "cancelled" };
   /** 挡视线的面板开关（工作台等）。剧情用它推迟宠物登场这类过场 */
   blocking_panel_changed: { open: boolean };
+  /** 该不该显示触摸操作（设备变化或手动覆盖） */
+  touch_mode_changed: { touch: boolean };
+  /**
+   * 请求执行一个玩法动作。**键盘和触摸按钮走同一条路**——
+   * 手机上的按钮不去伪造 KeyboardEvent，那种合成事件 `isTrusted` 是 false，
+   * 解锁不了音频（本项目已经踩过"音频解锁必须真实手势"的坑），
+   * 而且等于把"按了哪个键"和"要做什么"这两件事永久焊死。
+   * 键位以后可重映射（V0.2 要求），届时改的只有键盘那一侧的映射表。
+   */
+  game_action_requested: {
+    action: "interact" | "throw" | "rotate_placement" | "dump_kitchen";
+  };
   /** 行动清单增删（分类卡角标要重算） */
   action_entries_changed: Record<string, never>;
   /** 睡眠开始 / 结束 */

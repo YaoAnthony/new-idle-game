@@ -1,0 +1,126 @@
+/*
+ * 触摸操作层：左下摇杆 + 右下动作按钮。
+ *
+ * 配色沿用全局那套手绘皮肤（羊皮纸 + 木框），不引第三方组件就是为了这个——
+ * 摇杆要看起来像这个游戏里的东西，不是贴上去的一个控件。
+ *
+ * 所有尺寸带 `env(safe-area-inset-*)`：全面屏底部那条 Home 指示条会盖住
+ * 贴边的元素，摇杆按不动、按钮点不到。这不是"锦上添花的适配"，
+ * 是不加就真的用不了。
+ */
+
+/* ---- 摇杆 ---- */
+
+.joystick-zone {
+  position: fixed;
+  left: 0;
+  bottom: 0;
+  /*
+   * 感应区：左下角一大片。比摇杆本身大得多是故意的——手机是盲操作，
+   * 拇指落点每次都不一样，感应区小了就会"按了没反应"。
+   * 上边界留出空间给快捷栏，右边界不过屏幕中线（那边是动作按钮的地盘）。
+   */
+  width: min(46vw, 320px);
+  height: min(42vh, 300px);
+  z-index: 20;
+  /* 不加的话拖摇杆会被浏览器当成滚动页面 */
+  touch-action: none;
+  /* 感应区本身不可见：画出来会挡住半个屏幕的画面 */
+  background: transparent;
+}
+
+.joystick-base {
+  position: fixed;
+  width: 128px;
+  height: 128px;
+  margin-left: -64px;
+  margin-top: -64px;
+  border-radius: 50%;
+  pointer-events: none;
+  border: 2px solid rgb(224 169 74 / 0.5);
+  background: radial-gradient(
+    circle at 50% 45%,
+    rgb(60 48 34 / 0.42),
+    rgb(28 22 16 / 0.5)
+  );
+  box-shadow: inset 0 2px 10px rgb(0 0 0 / 0.35);
+}
+
+.joystick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 56px;
+  height: 56px;
+  margin-left: -28px;
+  margin-top: -28px;
+  border-radius: 50%;
+  border: 2px solid #b08a55;
+  background: linear-gradient(180deg, #ecdcbb 0%, #dbc59a 100%);
+  box-shadow:
+    inset 0 2px 4px rgb(255 255 255 / 0.35),
+    0 2px 6px rgb(0 0 0 / 0.4);
+}
+
+/* ---- 动作按钮 ---- */
+
+.touch-actions {
+  position: fixed;
+  right: calc(14px + env(safe-area-inset-right, 0px));
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  touch-action: none;
+}
+
+.touch-button {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 2px solid #b08a55;
+  background: linear-gradient(180deg, #ecdcbb 0%, #dbc59a 100%);
+  color: #4a3b2a;
+  box-shadow:
+    inset 0 2px 4px rgb(255 255 255 / 0.3),
+    0 2px 8px rgb(0 0 0 / 0.35);
+  /* 长按不要弹出系统的"复制/搜索"菜单 */
+  -webkit-touch-callout: none;
+  user-select: none;
+  touch-action: none;
+}
+
+/*
+ * 44px 是可点区域的下限（Apple HIG / Material 都是这个数）。
+ * 小按钮 52、主按钮 68——主按钮是最常按的那个，值得大一圈。
+ */
+.touch-button--small {
+  width: 52px;
+  height: 52px;
+  font-size: 19px;
+}
+
+.touch-button--primary {
+  width: 68px;
+  height: 68px;
+  font-size: 26px;
+}
+
+/* 按下去要有反馈：手机上没有 hover，不给按压态就完全不知道点没点上 */
+.touch-button:active {
+  filter: brightness(0.92);
+  transform: translateY(1px);
+}
+
+/*
+ * 附近有可交互目标时主按钮亮起来。手机上没有键盘提示行，
+ * "现在能不能按"只能写在按钮本身上。
+ */
+.touch-button--ready {
+  border-color: #e0a94a;
+  background: linear-gradient(180deg, #fff1cf 0%, #f8dfa9 100%);
+  box-shadow:
+    0 0 0 3px rgb(224 169 74 / 0.35),
+    0 2px 10px rgb(0 0 0 / 0.4);
+}

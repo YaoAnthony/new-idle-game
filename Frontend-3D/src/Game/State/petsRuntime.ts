@@ -1,5 +1,6 @@
 import {
   AffectionStage,
+  cellHasClearance,
   facingToHeading,
   findPath,
   findPetDefinition,
@@ -143,7 +144,10 @@ function worldToGrid(x: number, z: number): GridPosition {
   };
 }
 
-function randomFreeCell(): GridPosition | null {
+/** 挑一个这只生物**真站得进去**的格子。按体型过滤——
+ * 给 0.95 半径的巨猫挑一个一格宽的缝当目标，A* 要么白搜全图要么
+ * 规划出一条走不完的路，表现就是顶着门框反复卡死 */
+function randomFreeCell(radius: number): GridPosition | null {
   const { room, occupancy } = getWorld();
 
   for (let attempt = 0; attempt < 24; attempt += 1) {
@@ -151,14 +155,21 @@ function randomFreeCell(): GridPosition | null {
       x: 1 + Math.floor(Math.random() * (room.floorGrid.width - 2)),
       y: 1 + Math.floor(Math.random() * (room.floorGrid.height - 2)),
     };
-    if (!occupancy.blocked.has(`${cell.x},${cell.y}`)) return cell;
+    if (cellHasClearance(room.floorGrid, occupancy, cell, radius)) return cell;
   }
   return null;
 }
 
 function startPath(pet: PetRuntime, goal: GridPosition): boolean {
   const { room, occupancy } = getWorld();
-  const path = findPath(room.floorGrid, occupancy, worldToGrid(pet.x, pet.z), goal);
+  const path = findPath(
+    room.floorGrid,
+    occupancy,
+    worldToGrid(pet.x, pet.z),
+    goal,
+    // A* 按这只的体型算路：大家伙不会再被规划进挤不过去的缝
+    { clearanceRadius: pet.radius },
+  );
   if (!path || path.length < 2) return false;
 
   pet.path = path;
@@ -197,7 +208,7 @@ export function spawnPet(petId: string, definitionId: string): PetRuntime {
   if (pet.radius > 0) setCreatureObstacle(pet.petId, pet.x, pet.z, pet.radius);
 
   // 走到房间中部一个空格
-  const target = randomFreeCell() ?? { x: 6, y: 6 };
+  const target = randomFreeCell(pet.radius) ?? { x: 6, y: 6 };
   pets.set(petId, pet);
   startPath(pet, target);
   emit("pet_changed", { petId, reason: "spawn" });
@@ -406,7 +417,7 @@ function tickPet(
     }
   }
 
-  const target = randomFreeCell();
+  const target = randomFreeCell(pet.radius);
   if (target && startPath(pet, target)) {
     pet.state = "wander";
   }

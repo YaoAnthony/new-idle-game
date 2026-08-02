@@ -77,7 +77,21 @@ export function startAutosave(): () => void {
     on("inventory_changed", ({ reason }) => {
       if (reason !== "restore") schedule();
     }),
-    on("event_progress_changed", () => schedule()),
+    /**
+     * 事件阶段推进**立即写，不防抖**。
+     *
+     * 这是唯一不走 `schedule()` 的信号。它代表的是剧情/主线节点
+     * （送礼认作朋友、任务阶段完成……），低频、重要，和"移动了一件
+     * 家具"这种高频小动作性质不一样，不该用同一条 2.5 秒防抖合并。
+     *
+     * 实测撞过一次：舒舒的初见对话走完，`shushu_bond` 推进到
+     * "gifted"，但玩家在防抖窗口内就刷新了页面——`pagehide` 兜底
+     * 会尝试立即存盘，但那是**异步**写 IndexedDB，页面卸载过程中
+     * 经常来不及跑完（这是 `pagehide`/`beforeunload` 里做异步存储的
+     * 通病，不是这一处独有）。结果是刚认完的朋友，读档后又要重新哄一遍。
+     * 触发点从"等 2.5 秒后台写"挪到"当场写"，把这个窗口压到最小。
+     */
+    on("event_progress_changed", () => void saveNow()),
     on("pet_changed", ({ reason }) => {
       if (reason !== "restored") schedule();
     }),

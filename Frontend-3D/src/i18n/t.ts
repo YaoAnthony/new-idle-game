@@ -287,7 +287,7 @@ const ZH: Record<string, string> = {
   "ui.pickup_hint": "右键拿起",
   // 操作提示行。原来直接写死在 Hotbar 组件里——用户可见文案不该躺在组件里
   "ui.help.controls":
-    "B 背包 · F 使用 · Q 扔出 · 拖动左键转镜头 · 滚轮缩放 · 右键拿起家具 · 手上拿着家具时左键放下 · ↑↓←→ 微调 · R 旋转",
+    "B 背包 · F 使用 · Q 扔出 · 拖动左键转镜头 · 滚轮缩放（摆放家具时转方向）· 右键拿起家具 · 手上拿着家具时左键放下 · ↑↓←→ 微调 · R 旋转",
   "ui.cooking_in_progress": "烹饪中…",
   // 消息面板
   "ui.chat.closed_hint": "回车说话 · / 开命令",

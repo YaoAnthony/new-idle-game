@@ -538,6 +538,19 @@ export class RoomScene {
 
     const onWheel = (event: WheelEvent) => {
       event.preventDefault();
+
+      /**
+       * 摆放模式下滚轮身兼两职：转方向，不缩放镜头。
+       *
+       * 摆家具时手在滚轮上找角度是很自然的动作（不用先松开鼠标去按 R），
+       * 而这时候镜头缩放反而不太会用到——虚影已经贴着鼠标了，画面远近
+       * 不影响摆放判断。两者选一个的话转向更常用，缩放让位。
+       */
+      if (this.placement.active) {
+        this.placement.rotate(event.deltaY > 0 ? 1 : -1);
+        return;
+      }
+
       this.rig.zoom(event.deltaY * 0.01);
     };
 

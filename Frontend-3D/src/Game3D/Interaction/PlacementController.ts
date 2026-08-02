@@ -172,12 +172,19 @@ export class PlacementController {
     this.refresh();
   }
 
-  /** 墙饰的朝向由墙决定，转不了；R 只对地面家具有效 */
-  rotate(): void {
+  /**
+   * 墙饰的朝向由墙决定，转不了；R 只对地面家具有效。
+   *
+   * 带方向参数是为了配合滚轮——滚轮天然有"往前/往后"两个手感，
+   * 只能单向转的话，往下滚一格转过头，用户还得往下滚三格才能转回来。
+   * R 键不传参数，默认还是原来的单向循环，行为不变。
+   */
+  rotate(direction: 1 | -1 = 1): void {
     if (this.surface === PlacementSurface.Wall) return;
 
     const index = ROTATE_ORDER.indexOf(this.facing);
-    this.facing = ROTATE_ORDER[(index + 1) % ROTATE_ORDER.length];
+    const next = (index + direction + ROTATE_ORDER.length) % ROTATE_ORDER.length;
+    this.facing = ROTATE_ORDER[next];
     this.refresh();
   }
 

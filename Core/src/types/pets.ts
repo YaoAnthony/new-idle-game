@@ -32,6 +32,14 @@ export type PetBehavior = {
   sleepiness?: number;
   /** 一觉睡多久（秒），[最短, 最长] 之间随机 */
   napSeconds?: [number, number];
+
+  /**
+   * 饱食 / 水分每小时掉多少点（满 100）。不填用默认（8 / 12）——
+   * 掉到阈值以下它会自己找地上的吃的、去水源喝水。
+   * 故意调得很慢：宠物是陪伴不是电子鸡，玩家忘了喂不该是一种惩罚。
+   */
+  hungerPerHour?: number;
+  thirstPerHour?: number;
 };
 
 export type PetDefinition = {
@@ -118,4 +126,11 @@ export type PetSave = {
    * 纯新增可选字段：老存档读出来 undefined → 醒着。
    */
   sleeping?: boolean;
+
+  /**
+   * 心情（0~100）。所有物种统一的档案属性：由吃喝睡是否被照顾到推着走，
+   * 送对了礼物也会涨。表现层和对话条件以后读它。
+   * 老存档没有 → 取默认 70。
+   */
+  mood?: number;
 };

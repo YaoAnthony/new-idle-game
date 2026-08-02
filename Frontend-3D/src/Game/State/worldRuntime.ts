@@ -147,6 +147,21 @@ function cellHitsCreature(key: string): boolean {
   return hitsCreature(centerX, centerZ, 0.5, PLAYER_OBSTACLE_ID);
 }
 
+/**
+ * 只查活物、不查家具和墙。给"沿 A* 路径走"的家伙用：
+ * 静态几何 A* 已经按体型算过了，重复查会在**两格心之间的线段中点**误杀——
+ * 圆到障碍的距离沿线段是凸函数，中点可以比两个端点都更贴近障碍，
+ * 于是 A* 说能走、步进说不能，大家伙就 moving=true 原地空转。
+ */
+export function creatureBlockedAt(
+  x: number,
+  z: number,
+  radius: number,
+  selfId: string,
+): boolean {
+  return hitsCreature(x, z, radius, selfId);
+}
+
 export function setActorFootprint(x: number, z: number, radius: number): void {
   // 玩家同时也是一个圆形活物障碍：大猫溜达时不该从人身上碾过去。
   // 反过来玩家自己的 isWalkable 会传 PLAYER_OBSTACLE_ID 把自己排除掉

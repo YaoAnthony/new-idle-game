@@ -9,7 +9,7 @@ import type { GameSave } from "core";
 export type SaveMode = "local_only" | "cloud_sync" | "multiplayer_session";
 
 /** 当前存档结构版本。每改一次 GameSave 的形状就 +1 并补一条迁移 */
-export const SAVE_SCHEMA_VERSION = 14;
+export const SAVE_SCHEMA_VERSION = 15;
 
 /**
  * 键名结构对齐 V0.8，以后接云同步不用重构。

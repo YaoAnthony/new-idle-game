@@ -138,7 +138,9 @@ export const itemDefinitions = [
       [0, 0], [1, 0], [2, 0], [3, 0], [4, 0], [5, 0],
       [5, 1], [5, 2], [5, 3],
     ],
-      capabilities: [FurnitureCapability.Cooking],
+      // 台面短边有水槽，所以同时是水源——宠物渴了会走过来喝。
+      // 独立灶台（stove）没有水槽，不挂这个能力
+      capabilities: [FurnitureCapability.Cooking, FurnitureCapability.WaterSource],
       floorLayer: FloorLayer.Object,
       blocksMovement: true,
       /** 台面。灶眼槽位的 1.03 是灶圈顶面，架在这上面 */

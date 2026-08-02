@@ -507,6 +507,15 @@ export const migrations: Migration[] = [
     to: 14,
     migrate: (save) => save,
   },
+
+  // v15（2026-08-02 宠物档案）：growth / needs 从占位（恒 0 / 恒空表）
+  // 变成真数据，新增 mood。老档读出来按默认补（饿 80 / 渴 80 / 心情 70），
+  // 不在这里写死默认值——那是 PetAgent.fromSave 的事，写两处迟早漂。
+  // 推版本号防旧客户端把攒下的成长值抹回 0 再存回去。
+  {
+    to: 15,
+    migrate: (save) => save,
+  },
 ];
 
 /**

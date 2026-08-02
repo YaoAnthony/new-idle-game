@@ -332,6 +332,7 @@ export function buildShuShu(): Object3D {
 
   let sleepBlend = 0;
   let walkAmp = 0;
+  let busyBlend = 0;
   let phase = 0;
   let elapsed = 0;
   let initialized = false;
@@ -363,6 +364,10 @@ export function buildShuShu(): Object3D {
     walkAmp += ((pet.moving ? 1 : 0) - walkAmp) * Math.min(1, deltaSeconds * 6);
     if (pet.moving) phase += deltaSeconds * 3.6;
 
+    // 吃/喝：头埋下去的量。渐入渐出，抬头不会一帧弹回来
+    const busy = pet.state === "eat" || pet.state === "drink";
+    busyBlend += ((busy ? 1 : 0) - busyBlend) * Math.min(1, deltaSeconds * 5);
+
     // 呼吸：睡着深而慢（这是"睡得香"的主要信号），醒着浅而快
     const breathRate = 1.7 + (1 - eased) * 1.6;
     const breath = Math.sin(elapsed * breathRate) * (0.006 + eased * 0.02);
@@ -391,6 +396,8 @@ export function buildShuShu(): Object3D {
     headPivot.position.z = 0.5 - 0.12 * eased;
     headPivot.rotation.x =
       0.38 * eased +
+      // 埋头啃/舔：低下去再加一点小幅点头的节律，一看就是在吃东西
+      (0.55 + Math.sin(elapsed * 8) * 0.1) * busyBlend +
       Math.sin(phase * Math.PI * 4) * 0.02 * walkAmp;
     headPivot.rotation.z = Math.sin(elapsed * 0.6) * 0.025 * (1 - eased);
 
@@ -405,7 +412,9 @@ export function buildShuShu(): Object3D {
       (1 - eased * 0.8);
 
     // 尾巴：醒着慢扫，走路大摆；睡着收到身侧卷起来
+    // 吃着东西尾巴高兴地扫快一点
     tail.rotation.x = -0.12 * (1 - eased) - 1.05 * eased;
+    tail.rotation.z = Math.sin(elapsed * 5) * 0.14 * busyBlend;
     tail.rotation.y =
       1.25 * eased +
       (Math.sin(elapsed * 0.9) * 0.22 + Math.sin(phase * Math.PI * 2) * 0.28 * walkAmp) *

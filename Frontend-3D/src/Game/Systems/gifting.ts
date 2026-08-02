@@ -9,7 +9,7 @@ import {
 import { emit } from "../EventBus";
 import { getClock } from "../State/clock";
 import { getStackAt, removeFromSlot, type SlotRef } from "../State/inventory";
-import { getPet, markPetGifted } from "../State/petsRuntime";
+import { feedPet, getPet, markPetGifted } from "../State/petsRuntime";
 
 /**
  * 送礼。判定全在 Core 的 `resolveGiftTier`（联机时服务端跑同一份），
@@ -60,7 +60,12 @@ export function offerGift(petId: string, ref: SlotRef): GiftResult {
   const consumed = giftConsumesItem(tier);
 
   // 不喜欢/不能吃不扣东西——「闻一闻就放下」的意思就是它还在你手上
-  if (consumed) removeFromSlot(ref, 1);
+  if (consumed) {
+    removeFromSlot(ref, 1);
+    // 真吃下去的才走进食结算：饱食、心情、成长值和"自己捡地上吃"同一条路。
+    // 只闻不吃的两档不结算——没吃进肚子就不该长个子
+    feedPet(petId, stack.itemId, tier);
+  }
 
   /**
    * 节流按"递出去过"算，不按"收下了"算。

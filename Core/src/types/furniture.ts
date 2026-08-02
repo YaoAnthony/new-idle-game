@@ -46,6 +46,12 @@ export enum FurnitureCapability {
   Sitting = "sitting",
   Ambience = "ambience",
   /**
+   * 有水可喝。宠物渴了会走过来喝（水槽、以后的饮水碗）。
+   * 是能力不是物种逻辑：谁带这个标签谁就是水源，加一件新家具零代码。
+   */
+  WaterSource = "water_source",
+
+  /**
    * 一次性容器：按 F 打开，内容进背包，家具本身消失。
    * 搬家纸箱、任务奖励箱都是它——**装什么由实例的 lootTableId 决定**，
    * 不写死在家具定义里，同一种纸箱才能装不同的东西。

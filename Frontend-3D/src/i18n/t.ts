@@ -198,6 +198,7 @@ const ZH: Record<string, string> = {
   "ui.craft": "制作",
   "ui.cooking": "烹饪",
   "ui.close": "关闭",
+  "ui.loading.world": "正在加载您的世界...",
   // 需求条的标签。原来写死在 NeedsHud 组件里——用户可见文案不该躺在组件里，
   // ESC 菜单也要用同一份，写死的话两处迟早说不一样的词
   "ui.needs.hunger": "饱食",

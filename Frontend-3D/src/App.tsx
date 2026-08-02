@@ -1,19 +1,26 @@
+import { AnimatePresence } from "motion/react";
 import { useCallback, useEffect, useState } from "react";
+import { LoadingScreen } from "./Components/Loading/LoadingScreen";
 import { TitleScreen } from "./Components/TitleScreen";
 import { TITLE_SCREEN_CONFIG } from "./Components/TitleScreen/config";
 import { getSaveRepository, hydrateGameSave, setBaseline } from "./Data/Save";
 import { saveNow } from "./Data/Save/autosave";
 import { on } from "./Game/EventBus";
 import { GameView } from "./Game3D";
+import { preloadWorldAudio } from "./Game3D/Engine/worldPreload";
 
 /**
- * 顶层流程：标题页 → （新游戏 / 继续游戏）→ 房间。
+ * 顶层流程：标题页 → 加载 → 房间。
  *
  * "继续游戏"只在本地真的有可读存档时出现（V0.1 的可选小号入口）。
  * 从备份回退时必须明确告诉玩家——治愈游戏里悄悄回退比丢档更糟。
+ *
+ * 加载这一步**在存档灌进运行时之后**：要先知道这是哪个地区、屋里摆了
+ * 哪些会响的家具，才知道该预热哪些素材（见 Game3D/Engine/worldPreload）。
+ * 顺序反了就只能全量加载，加载时间会随内容量一直涨。
  */
 
-type Stage = "title" | "playing";
+type Stage = "title" | "loading" | "playing";
 
 function App() {
   const [stage, setStage] = useState<Stage>("title");
@@ -21,6 +28,43 @@ function App() {
   /** 传给 GameView：true 表示存档已经灌进运行时，不要再铺开局摆设和开场剧情 */
   const [loadedFromSave, setLoadedFromSave] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+
+  /**
+   * 进世界前把这个世界的声音解码好。
+   *
+   * 只有**加载页在场**的时候才跑：stage 是别的值时提前返回，
+   * 免得回到标题再进来时叠一份还在跑的预载。
+   */
+  useEffect(() => {
+    if (stage !== "loading") return;
+
+    let cancelled = false;
+    setProgress(0);
+
+    void preloadWorldAudio((done, total) => {
+      if (cancelled) return;
+      // 一条素材都不用加载时 total 是 0，别算出 NaN
+      setProgress(total === 0 ? 1 : done / total);
+    }).then(() => {
+      if (cancelled) return;
+      setProgress(1);
+      /**
+       * 填满之后停一下再进去。
+       *
+       * 不是拖时间——clip-path 是 spring 推的，进度跳到 1 的那一帧
+       * 动画才刚开始追，立刻切场景的话玩家看到的是"填到一半就没了"。
+       * 这段刚好够那条 spring 走完。
+       */
+      setTimeout(() => {
+        if (!cancelled) setStage("playing");
+      }, 420);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [stage]);
 
   /**
    * ESC 菜单的"回到标题"。**先存盘再切**——切回标题会把整个 GameView
@@ -53,7 +97,7 @@ function App() {
   const startNewGame = useCallback(() => {
     setBaseline(null);
     setLoadedFromSave(false);
-    setStage("playing");
+    setStage("loading");
   }, []);
 
   const continueGame = useCallback(async () => {
@@ -67,7 +111,8 @@ function App() {
       if (outcome.source === "backup") {
         setNotice("主存档损坏，已从备份恢复到上一次保存的进度。");
       }
-      setStage("playing");
+      // hydrate 已经跑完，这时候才问得出"这个世界要预热什么"
+      setStage("loading");
       return;
     }
 
@@ -92,6 +137,15 @@ function App() {
       ) : (
         <GameView loadedFromSave={loadedFromSave} />
       )}
+
+      {/*
+        加载页盖在最上层，而不是替换 GameView。
+        GameView 挂载本身要花几百毫秒（建模、建场景），盖着的话这段时间
+        玩家看到的还是加载页；替换的话会先黑一下再突然出现房间。
+      */}
+      <AnimatePresence>
+        {stage === "loading" && <LoadingScreen key="loading" progress={progress} />}
+      </AnimatePresence>
 
       {notice ? (
         <div

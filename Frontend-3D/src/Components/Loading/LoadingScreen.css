@@ -1,0 +1,73 @@
+/*
+ * 加载页样式。结构照搬参考实现（底层字 + clip-path 填充层），
+ * 三处按这个项目改了：
+ *
+ * 1. **不引 Google Fonts 的 Unbounded**。那套字没有中文字形，
+ *    "正在加载您的世界"会整句 fallback，引它等于白发一个网络请求；
+ *    而加载页恰恰是最不该等网络的一屏。用系统字。
+ * 2. 去掉 `text-transform: uppercase` 和负字距——那是给拉丁字母排的，
+ *    中文用上负字距会挤成一坨。
+ * 3. 颜色换成蓝色系（见下）。
+ */
+
+.loading-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  /*
+   * 底色比标题页那块 #232b3d 更深更蓝，中间透一点光。
+   * 纯色平铺会让这一屏像"卡住了"，一层极淡的径向渐变就够撑出空间感。
+   */
+  background:
+    radial-gradient(circle at 50% 45%, rgba(56, 118, 214, 0.16), transparent 55%),
+    #0e1626;
+}
+
+.loading-text-container {
+  position: relative;
+  /* 小屏上按视宽收，长句子不会被切掉 */
+  font-size: clamp(22px, 4.2vw, 42px);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.loading-text {
+  position: relative;
+  line-height: 1.2;
+}
+
+.loading-text--bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  /*
+   * 未填充态。参考实现是同色 0.2 透明度；这里给它一点偏冷的灰蓝，
+   * 纯白压到 20% 在深蓝底上会发脏。
+   */
+  color: #7f9dc4;
+  opacity: 0.28;
+}
+
+.loading-text--fill {
+  position: relative;
+  z-index: 1;
+  clip-path: inset(0 100% 0 0);
+  /* 每帧都在改 clip-path，提前提层，免得整块文字反复重绘 */
+  will-change: clip-path;
+
+  /*
+   * 填充色：亮蓝到浅青的横向渐变，配一层同色辉光。
+   * 单一实色也能用，但填充边缘会显得很硬——有渐变的话
+   * "刚被填到"的那几个字最亮，视线自然跟着推进的边缘走。
+   */
+  background: linear-gradient(90deg, #4d9bff 0%, #7fd0ff 60%, #a8e4ff 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 18px rgba(77, 155, 255, 0.45));
+}

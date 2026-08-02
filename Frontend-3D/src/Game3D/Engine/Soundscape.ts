@@ -8,7 +8,6 @@ import {
   findActionDefinition,
   findAudioProfileDefinition,
   regionAmbienceProfileIds,
-  weatherDefinitions,
   zoneAt,
   zoneAudioProfiles,
   zoneFootstepProfileIds,
@@ -34,7 +33,6 @@ import {
   isAudioUnlocked,
   playLoop,
   playOneShot,
-  preloadProfiles,
   setTaggedVolume,
   stopAllAudio,
   stopLoop,
@@ -394,34 +392,17 @@ function syncThunder(): void {
   scheduleNext();
 }
 
-/**
- * 开机预载：把**一定会用到的**素材先解码进缓存。
+/*
+ * 这里原来有 preloadEssentialAudio()：在标题页把底噪和雨声先解码好。
+ * 删掉了，因为它跑得**太早**——标题页那会儿存档还没灌进运行时，
+ * getRoomStyle() 还是默认的森林小屋，海边存档在这一页白下一条 5 MB 的
+ * 森林底噪，真正要用的海浪声一个字节都没热。
  *
- * 素材保持 WAV 不压缩（定案，见音景文档第六节），单个循环音 5 MB，
- * 等到要播时才 fetch + decode 就是切完天气盯着静默好几秒。
- * 玩家在标题页停留的那几秒正好够用。
- *
- * 只热底噪和天气——家具音按需加载就行，玩家不一定摆壁炉。
- * "一定会用到的是哪几条"是规则层的知识，所以这个函数在这儿不在 AudioEngine。
+ * 预热挪到了标题页之后的加载页（Game3D/Engine/worldPreload），
+ * 那时候世界已经就位，问得出"这个世界会用到哪些声音"，
+ * 而且顺带能报进度。
  */
-export function preloadEssentialAudio(): void {
-  /**
-   * 雨声的 profileId **从天气注册表查**，不写字面量：
-   * 硬编码 "weather_audio_rain" 的话，将来那条 profile 改名不会报错，
-   * 只是预载悄悄落空、退回"进屋才开始加载"，是最难发现的那种退化。
-   */
-  const rainProfile = weatherDefinitions.find(
-    (weather) => weather.kind === WeatherKind.Rain,
-  )?.audioProfileId;
 
-  const essentials = [
-    regionAmbienceProfileIds[getRoomStyle().regionId],
-    rainProfile,
-  ].filter((id): id is string => Boolean(id) && id !== "weather_audio_none");
-
-  // 刻意不 await：预载是尽力而为，不该挡着玩家进游戏
-  void preloadProfiles(essentials);
-}
 
 export function startSoundscape(): () => void {
   sync();

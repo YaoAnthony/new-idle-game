@@ -256,7 +256,16 @@ async function fetchAndDecode(path: string): Promise<AudioBuffer | null> {
  * **不 await 全部**：一条素材卡住不该拖着整局进不去，所以用 allSettled
  * 而且调用方不应该 await 这个 Promise——预载是尽力而为，不是前置条件。
  */
-export function preloadProfiles(profileIds: string[]): Promise<void> {
+export function preloadProfiles(
+  profileIds: string[],
+  /**
+   * 每加载完一条素材喊一声（done / total）。给加载页画进度用。
+   *
+   * 报的是**素材条数**不是字节数：字节要先发 HEAD 才知道，而且大文件解码
+   * 比下载还慢，按字节走的进度条会在 99% 停住很久。条数至少是均匀跳的。
+   */
+  onProgress?: (done: number, total: number) => void,
+): Promise<void> {
   const paths = profileIds.flatMap((profileId) => {
     const profile = findAudioProfileDefinition(profileId);
     if (!profile) return [];
@@ -266,9 +275,21 @@ export function preloadProfiles(profileIds: string[]): Promise<void> {
       : profile.resourcePath;
   });
 
-  return Promise.allSettled(paths.map((path) => loadBuffer(path))).then(
-    () => undefined,
-  );
+  // 同一条素材可能被多个 profile 引用，去重之后进度才不会虚高
+  const unique = [...new Set(paths)];
+  const total = unique.length;
+  let done = 0;
+  onProgress?.(0, total);
+
+  return Promise.allSettled(
+    unique.map((path) =>
+      // 失败也算走完一条：卡住的素材不该让进度条永远停在半路
+      loadBuffer(path).finally(() => {
+        done += 1;
+        onProgress?.(done, total);
+      }),
+    ),
+  ).then(() => undefined);
 }
 
 function busOf(profileId: string): GainNode | null {

@@ -3,7 +3,6 @@ import { XMarkIcon } from "@heroicons/react/24/solid";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { unlockAudio } from "../../Game3D/Engine/AudioEngine";
-import { preloadEssentialAudio } from "../../Game3D/Engine/Soundscape";
 import { applyAudioSettings } from "../../Game3D/Engine/audioSettings";
 import { GameBtn } from "../GameBtn";
 import {
@@ -95,16 +94,15 @@ export function TitleScreen({
     document.documentElement.lang = activeLocale.htmlLanguage;
   }, [activeLocale, config.persistence.localeKey, locale]);
 
-  /**
-   * 趁玩家还在看标题页，把底噪和雨声先解码好。
+  /*
+   * 这里原来会 preloadEssentialAudio() 预热底噪和雨声。删掉了：
+   * 标题页跑得**太早**——存档还没灌进运行时，getRoomStyle() 还是默认的
+   * 森林小屋，于是海边存档在这一页白下一条 5 MB 的森林底噪，
+   * 真正要用的海浪声一个字节都没预热。
    *
-   * 素材保持 WAV 不压缩（定案），单条 5 MB，进屋才开始加载就是
-   * 头几秒一片死寂。玩家在这一页停留的那几秒正好够热完。
-   * 只跑一次，也不 await——预载失败不该挡着开始游戏。
+   * 预热挪到了标题页之后的加载页（App 的 loading 阶段 →
+   * Game3D/Engine/worldPreload），那时候才知道这是哪个世界。
    */
-  useEffect(() => {
-    preloadEssentialAudio();
-  }, []);
 
   const closeDialog = () => {
     setActiveDialog(null);

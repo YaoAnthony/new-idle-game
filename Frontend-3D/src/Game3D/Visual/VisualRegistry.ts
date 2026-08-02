@@ -12,6 +12,7 @@ import {
   buildFoamWisp,
   buildMossWisp,
 } from "./recipes/creatures.js";
+import { buildShuShu } from "./recipes/shushu.js";
 import {
   buildCurtain,
   buildPictureFrame,
@@ -167,6 +168,8 @@ const REGISTRY: Record<string, VisualEntry> = {
   fried_tomato_egg: { kind: "procedural", build: buildFriedTomatoEgg },
   baby_cabbage_soup: { kind: "procedural", build: buildBabyCabbageSoup },
   mystery_stew: { kind: "procedural", build: buildMysteryStew },
+
+  shushu: { kind: "procedural", build: buildShuShu },
 
   // 墙饰
   picture_frame: { kind: "procedural", build: buildPictureFrame },

@@ -30,7 +30,10 @@ export function addOutline(target: Object3D, options: OutlineOptions = {}): void
 
   const meshes: Mesh[] = [];
   target.traverse((node) => {
-    if (node instanceof Mesh && node.name !== OUTLINE_NAME) meshes.push(node);
+    if (!(node instanceof Mesh) || node.name === OUTLINE_NAME) return;
+    // 眼珠、胡须这类小件可以声明不要描边：反相外壳在小尺寸上是一粒粒黑渣
+    if (node.userData.noOutline) return;
+    meshes.push(node);
   });
 
   for (const mesh of meshes) {

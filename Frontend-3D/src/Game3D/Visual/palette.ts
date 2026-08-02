@@ -44,6 +44,17 @@ export const PALETTE = {
   mossBody: "#6f8f5a",
   mossLight: "#8bab72",
   mossSprout: "#b9d18a",
+
+  // ---- 舒舒（岩绒巨猫）：照着蓝灰龙猫的毛色配的 ----
+  // 灰里压一点薰衣草紫，纯灰会像石雕；肚皮奶油白是"绒"的关键——
+  // 深浅两层毛色的交界线本身就在画蓬松感
+  shuFur: "#a8a4bf",
+  shuMantle: "#8d89a8",
+  shuFace: "#cbc8da",
+  shuCream: "#f2eee6",
+  shuInnerEar: "#dfa9b4",
+  shuNose: "#b28494",
+  shuClosedEye: "#5b5568",
   mossSeed: "#2c3524",
 
   foamBody: "#8fc4d4",

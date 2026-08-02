@@ -1,12 +1,16 @@
 import {
+  signalCountKeysFor,
   storyRules,
+  triggerMatches,
+  type StoryContext,
   type StorySignal,
-  type StoryTrigger,
   type StoryEffect,
 } from "core";
 import { emit, on } from "../EventBus";
-import { addItem } from "../State/inventory";
+import { getClock } from "../State/clock";
+import { addItem, getCounts, removeItem } from "../State/inventory";
 import { setPetAffection, spawnPet } from "../State/petsRuntime";
+import { getWeather } from "../State/weather";
 import { startDialogue } from "./dialogue";
 import { getEventStage, setEventStage, unlockFeature } from "./events";
 
@@ -40,23 +44,27 @@ function whenPanelsClear(run: () => void): void {
   }, 250);
 }
 
-function triggerMatches(trigger: StoryTrigger, signal: StorySignal): boolean {
-  if (trigger.signal !== signal.kind) return false;
-  if (trigger.subject && trigger.subject !== signal.subject) return false;
+/**
+ * 各信号累计发生过多少次。`signalCount` 触发条件查它。
+ *
+ * 进存档：关掉游戏再打开，「已经做完的两个任务」不该白做。
+ */
+let signalCounts: Record<string, number> = {};
 
-  if (
-    trigger.requiresEventUntriggered &&
-    getEventStage(trigger.requiresEventUntriggered) !== null
-  ) {
-    return false;
-  }
-
-  if (trigger.requiresEventStage) {
-    const { eventId, stageId } = trigger.requiresEventStage;
-    if (getEventStage(eventId) !== stageId) return false;
-  }
-
-  return true;
+/**
+ * 判定要用到的外部状态，每次派发现取。
+ *
+ * 判定本身在 Core（logic/storyTriggers）——那是规则不是表现，
+ * 联机时服务端要用同一份校验访客报上来的推进。
+ */
+function currentContext(): StoryContext {
+  return {
+    worldDayId: getClock().worldDayId,
+    weatherId: getWeather().id,
+    itemCounts: getCounts(),
+    signalCounts,
+    eventStage: getEventStage,
+  };
 }
 
 function runEffect(effect: StoryEffect): void {
@@ -79,6 +87,10 @@ function runEffect(effect: StoryEffect): void {
 
     case "give_item":
       addItem(effect.itemId, effect.quantity);
+      break;
+
+    case "consume_item":
+      removeItem(effect.itemId, effect.quantity);
       break;
 
     case "spawn_pet": {
@@ -111,9 +123,21 @@ function runEffect(effect: StoryEffect): void {
 }
 
 function handleSignal(signal: StorySignal): void {
+  /**
+   * **先计数再派发**。顺序反了的话 `signalCount: 1` 要等到第二次才成立——
+   * "做完一个任务"这种最常见的写法会整体差一拍。
+   */
+  for (const key of signalCountKeysFor(signal)) {
+    signalCounts[key] = (signalCounts[key] ?? 0) + 1;
+  }
+
+  const context = currentContext();
+
   for (const rule of storyRules) {
     if ((rule.once ?? true) && firedRules.has(rule.id)) continue;
-    if (!rule.triggers.some((trigger) => triggerMatches(trigger, signal))) {
+    if (
+      !rule.triggers.some((trigger) => triggerMatches(trigger, signal, context))
+    ) {
       continue;
     }
 
@@ -134,6 +158,17 @@ export function getFiredStoryRuleIds(): string[] {
 export function restoreFiredStoryRules(ids: string[]): void {
   firedRules.clear();
   for (const id of ids) firedRules.add(id);
+}
+
+export function getSignalCounts(): Record<string, number> {
+  return { ...signalCounts };
+}
+
+/** 老存档没有这一段 → 从零开始数，不需要迁移 */
+export function restoreSignalCounts(
+  counts: Record<string, number> | undefined,
+): void {
+  signalCounts = { ...(counts ?? {}) };
 }
 
 let detach: (() => void) | null = null;

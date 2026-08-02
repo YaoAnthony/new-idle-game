@@ -512,3 +512,13 @@ const ZH: Record<string, string> = {
 export function t(key: string): string {
   return ZH[key] ?? key;
 }
+
+/**
+ * 这个键有没有文案。给注册表自检用（见 main.tsx 的 auditStoryContent）。
+ *
+ * `t()` 查不到会原样返回键名，界面上就是一串 `story.pet_promise`——
+ * 不报错、不留空，所以只靠玩是发现不了的，得在开机时点名。
+ */
+export function hasLocalizationKey(key: string): boolean {
+  return key in ZH;
+}

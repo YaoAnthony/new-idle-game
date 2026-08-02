@@ -12,4 +12,6 @@ export * from "./pathfinding.js";
 export * from "./placement.js";
 export * from "./projectile.js";
 export * from "./roomGeometry.js";
+export * from "./storyAudit.js";
+export * from "./storyTriggers.js";
 export * from "./weather.js";

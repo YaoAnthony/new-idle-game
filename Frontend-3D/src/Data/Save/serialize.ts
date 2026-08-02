@@ -49,7 +49,9 @@ import {
 } from "../../Game/Systems/events";
 import {
   getFiredStoryRuleIds,
+  getSignalCounts,
   restoreFiredStoryRules,
+  restoreSignalCounts,
 } from "../../Game/Systems/story";
 import { SAVE_SCHEMA_VERSION } from "./types";
 
@@ -150,6 +152,7 @@ export function serializeGameSave(previous?: GameSave): GameSave {
         unlockedFeatureIds: getUnlockedFeatures(),
         events: getEventProgress(),
         firedStoryRuleIds: getFiredStoryRuleIds(),
+        signalCounts: getSignalCounts(),
       },
     },
   };
@@ -204,6 +207,7 @@ export function hydrateGameSave(save: GameSave): void {
     unlockedFeatureIds: save.ownWorld.progression.unlockedFeatureIds,
   });
   restoreFiredStoryRules(save.ownWorld.progression.firedStoryRuleIds ?? []);
+  restoreSignalCounts(save.ownWorld.progression.signalCounts);
 
   // 行动最后恢复：它可能立刻结算并发奖励，需要背包已经就位
   restoreActionEntries(save.player.actionEntries);

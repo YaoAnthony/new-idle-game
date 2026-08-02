@@ -487,6 +487,18 @@ export const migrations: Migration[] = [
       return save;
     },
   },
+
+  // v13（2026-08-02 事件系统）：progression 多了 signalCounts。
+  // 和 v10/v11 同理——补这一条是为了**版本号跟着动**：不动的话旧客户端
+  // 会认得这份档、把 signalCounts 整个丢掉再存回去，玩家攒的进度
+  // （"已经做完两个任务"）就这么归零，而且全程不报错。
+  {
+    to: 13,
+    migrate: (save) => {
+      save.ownWorld.progression.signalCounts ??= {};
+      return save;
+    },
+  },
 ];
 
 /**

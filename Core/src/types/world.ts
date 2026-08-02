@@ -96,6 +96,15 @@ export type WorldSave = {
      * `StoryRule.once` 会重新成立，开场提示和宠物登场会再演一遍。
      */
     firedStoryRuleIds?: StoryRuleId[];
+
+    /**
+     * 各剧情信号累计发生过多少次（键见 logic/storyTriggers 的 signalCountKey）。
+     *
+     * `StoryTrigger.signalCount` 查它。**必须进存档**——"前两个任务做完之后
+     * 妈妈会打电话"，玩家做完一个就关了游戏，第二天回来那一个不该白做。
+     * 老存档没有这一段，读出来当空表。
+     */
+    signalCounts?: Record<string, number>;
   };
 
   // activeActionProcess 搬去 PlayerSave 了（save v12）。

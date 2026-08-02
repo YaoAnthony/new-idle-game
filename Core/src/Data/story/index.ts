@@ -115,7 +115,10 @@ export const tutorialDefinition: TutorialDefinition = {
     {
       stepId: "workbench",
       localizationKey: "tutorial.workbench",
-      completedBy: { signal: "furniture_placed", subject: "ordinary_workbench" },
+      // furniture_workbench，不是 V0.4 之前的 ordinary_workbench。
+      // 写错时这一步会静默地永远等不到信号，教程卡在这里——
+      // 现在开机的 auditStoryContent 会点名，见 logic/storyAudit
+      completedBy: { signal: "furniture_placed", subject: "furniture_workbench" },
     },
     {
       stepId: "craft",

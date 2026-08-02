@@ -3,6 +3,8 @@ import type { DialogueId } from "./dialogue.js";
 import type { EventId, EventStageId } from "./events.js";
 import type { ItemId } from "./items.js";
 import type { AffectionStage, PetId } from "./pets.js";
+import type { WorldDayId } from "./time.js";
+import type { WeatherId } from "./weather.js";
 
 /**
  * 剧情编排的数据契约。铁律：剧情内容零硬编码——
@@ -58,7 +60,13 @@ export type StorySignal = {
   subject?: string;
 };
 
-/** 触发条件：信号种类匹配 + 可选的 subject 匹配 + 可选的前置状态 */
+/**
+ * 触发条件：信号种类匹配 + 一组可选的附加条件，**全部满足**才算命中。
+ *
+ * 条件是"与"不是"或"：要"或"就写成两条 trigger（`triggers` 之间是或）。
+ * 这样每个字段只有一种读法，不需要在数据里表达布尔表达式——
+ * 一旦开始表达 and/or 嵌套，注册表就变成了一门要调试的语言。
+ */
 export type StoryTrigger = {
   signal: StorySignalKind;
   /** 不填表示任意 subject 都匹配 */
@@ -68,6 +76,46 @@ export type StoryTrigger = {
   requiresEventUntriggered?: EventId;
   /** 该事件必须已处于某阶段 */
   requiresEventStage?: { eventId: EventId; stageId: EventStageId };
+
+  /**
+   * 这个信号（**连同上面的 subject 一起算**）累计发生过多少次才算数。
+   *
+   * 「前两个任务做完之后妈妈会打电话」就靠它。没有这个字段的话只能拿
+   * N 个链式事件硬凑——写三次任务就得造三个事件 id，而且改成"三个任务"
+   * 要重排整条链。
+   *
+   * 计数进存档：关掉游戏再打开，做过的任务不该白做。
+   */
+  signalCount?: number;
+
+  /**
+   * 世界日不早于这一天（V0.2 的「最早可触发的 WorldDayId」）。
+   *
+   * 注意它**只是让事件"可以触发"**，不是自动触发——现实日期到了但玩家
+   * 没进游戏、没做那个交互，事件仍然停在原地（V0.2 明写：不应一次性
+   * 自动补播多段剧情）。
+   */
+  minWorldDayId?: WorldDayId;
+
+  /** 当时的天气。「某一天暴雨时门口有敲门声」用它 */
+  weatherIs?: WeatherId;
+
+  /**
+   * 身上得有这些东西。修理类交互的前置——**光有条件不够，
+   * 要真的消耗掉得配 `consume_item` 效果**，两者分开是因为
+   * "看得见但做不了"和"做了并扣掉"是两件事：条件决定选项显不显示，
+   * 效果决定代价。
+   */
+  requiresItem?: { itemId: ItemId; quantity: number };
+
+  /**
+   * 命中概率（0~1，不填 = 必中）。
+   *
+   * 「某一天暴雨时」这种没法用确定条件表达的桥段用它。**每次信号
+   * 独立掷点**，不做保底——保底要存"已经错过几次"，而这类事件本来就
+   * 该是撞见的，不是攒出来的。
+   */
+  chance?: number;
 };
 
 /** 事件后果。所有剧情效果都必须表达成这些声明之一 */
@@ -76,6 +124,13 @@ export type StoryEffect =
   | { kind: "set_affection"; petId: PetId; stage: AffectionStage }
   | { kind: "unlock_feature"; featureId: FeatureId }
   | { kind: "give_item"; itemId: ItemId; quantity: number }
+  /**
+   * 扣掉背包里的东西。修理、交付、以物易物都要它。
+   *
+   * 和 `requiresItem` 条件成对使用：条件保证扣得动，效果负责扣。
+   * 只写效果不写条件的话，材料不够时会扣成负数或者静默少扣。
+   */
+  | { kind: "consume_item"; itemId: ItemId; quantity: number }
   | {
       kind: "spawn_pet";
       petId: PetId;

@@ -15,6 +15,7 @@ import { getClock } from "../../Game/State/clock";
 import { getNeeds } from "../../Game/State/needs";
 import { getRoomStyle } from "../../Game/State/worldRuntime";
 import { getActiveAction } from "../../Game/Systems/actions";
+import { isTouchMode } from "../../Game/State/touchMode";
 import { t } from "../../i18n/t";
 import "./EscMenu.css";
 
@@ -291,10 +292,17 @@ export function EscMenu() {
                 ))}
               </motion.nav>
 
-              <motion.footer className="esc-footer" variants={itemVariants}>
-                <span>ESC</span>
-                <em>{t("ui.esc.close_hint")}</em>
-              </motion.footer>
+              {/*
+                "ESC 关闭菜单"在手机上没有意义——没有 ESC 键，而关闭走的是
+                右上角那个 ✕。它还正好是这个面板在 iPhone SE 横屏上多出来的
+                那 21px，摘掉就不用滑了。
+              */}
+              {!isTouchMode() && (
+                <motion.footer className="esc-footer" variants={itemVariants}>
+                  <span>ESC</span>
+                  <em>{t("ui.esc.close_hint")}</em>
+                </motion.footer>
+              )}
             </motion.div>
           </motion.aside>
         </motion.div>

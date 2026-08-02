@@ -200,7 +200,16 @@ export function ActionHub() {
       )}
 
       {open && (
-        <div className="absolute inset-0 z-30 grid place-items-center bg-black/45 px-6">
+        /*
+         * z-40 而不是 30：这是全屏模态，按仓库既有分层（HUD 和侧栏 z-30、
+         * 全屏覆盖 z-40）该和背包一档。留在 z-30 会和右上角的设置齿轮同层，
+         * 齿轮 DOM 靠后就赢——横屏上它正好压在面板的 ✕ 上（实测 667x375）。
+         *
+         * `min-h-0` 同背包那处：grid 项的 min-height 默认是 auto，会顶掉
+         * 子元素的 max-height，面板撑高后牌匾（-translate-y-1/2 挂在上边缘外）
+         * 直接被顶出屏幕。
+         */
+        <div className="absolute inset-0 z-40 grid min-h-0 place-items-center bg-black/45 px-6 py-7">
           {screen.kind === "grid" && (
             <CategoryGrid
               onClose={() => setOpen(false)}
@@ -328,25 +337,46 @@ function CategoryGrid({
                 {count}
               </span>
 
+              {/*
+                标题**从角标下方起头**（角标 top-2.5 + 高 28 = 到 38px，
+                pt-5 的 20 再加 mt-5 的 20 正好让开），这样整个卡片宽度都能用。
+
+                试过改成左右各留 28px 给角标——iPhone SE 横屏卡片只有 123px 宽，
+                让完只剩 67px，"工作或学习任务"被挤成四行「工作/或学/习任/务」，
+                比原来的重叠还难看。横向挤不过就往纵向让。
+              */}
               <span
                 className={[
-                  "text-[15px] font-bold",
+                  "mt-5 px-1 text-center text-[15px] font-bold",
                   unlocked ? "text-[#5c3a1d]" : "text-[#6f6a62]",
                 ].join(" ")}
               >
                 {t(definition.localizationKey)}
               </span>
 
+              {/*
+                插图在矮屏上要小一圈：110px 是给桌面定的，iPhone SE 横屏
+                只有 375px 高，四张卡加牌匾根本排不下。缩放规则按**高度**判
+                （见 index.css 的 .action-card__art）——用 Tailwind 的 sm: 会
+                踩坑，那是 640px 的**宽度**断点，横屏 667 宽照样命中，
+                等于没缩。
+
+                `onError` 用 display 而不是 visibility——这几张图现在还没画
+                （public/ui 里没有 action-*.png），visibility:hidden 会**隐藏
+                但照样占位**，实测每张卡白占 142px（图 110 + my-4 的 32），
+                占卡片总高的 57%，面板因此撑到 362px 把牌匾顶出屏幕。
+                看不见的东西不该占地方。
+              */}
               <img
                 src={`/ui/action-${category}.png`}
                 alt=""
                 className={[
-                  "my-4 h-[110px] w-[110px] object-contain",
+                  "action-card__art my-4 h-[110px] w-[110px] object-contain",
                   unlocked ? "" : "opacity-60 grayscale",
                 ].join(" ")}
                 style={{ imageRendering: "pixelated" }}
                 onError={(event) => {
-                  event.currentTarget.style.visibility = "hidden";
+                  event.currentTarget.style.display = "none";
                 }}
               />
 

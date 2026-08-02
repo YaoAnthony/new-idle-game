@@ -151,6 +151,19 @@ input {
   }
 }
 
+/*
+ * 行动卡的插图在矮屏上缩一圈。和上面的 .pack-body 一样按高度判：
+ * 决定装不装得下的是高度，不是宽度。
+ */
+@media (max-height: 500px) {
+  .action-card__art {
+    height: 64px;
+    width: 64px;
+    margin-top: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+}
+
 /* 羊皮纸内衬：格子和详情卡都躺在它上面 */
 .ui-parchment {
   border: 3px solid #a8834f;

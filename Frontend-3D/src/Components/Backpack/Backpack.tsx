@@ -15,6 +15,7 @@ import {
 import { eatInventoryItem } from "../../Game/Systems/itemUse";
 import { eatFromWare } from "../../Game/Systems/servedDish";
 import { presentedItemId, servedDish } from "../../Game/Systems/servedDish";
+import { isTouchMode } from "../../Game/State/touchMode";
 import { t } from "../../i18n/t";
 import { DragGhost, ItemIcon, SlotCell } from "../Inventory/slots";
 
@@ -311,7 +312,7 @@ export function Backpack() {
 
           {/* ---- 底栏：操作提示 + 容量 ---- */}
           <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[12px] text-[#e6d2ac]">
-            <span>{t("ui.backpack.hint")}</span>
+            <span>{t(isTouchMode() ? "ui.backpack.hint_touch" : "ui.backpack.hint")}</span>
             <span className="font-bold">
               {t("ui.backpack.capacity")} {used} / {BACKPACK_SIZE}
             </span>

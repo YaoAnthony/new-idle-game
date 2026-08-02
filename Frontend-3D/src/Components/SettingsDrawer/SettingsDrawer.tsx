@@ -9,6 +9,7 @@ import {
   type StoredAudioSettings,
 } from "../../Game3D/Engine/audioSettings";
 import { emit, on } from "../../Game/EventBus";
+import { isTouchMode } from "../../Game/State/touchMode";
 import { t } from "../../i18n/t";
 
 /**
@@ -257,6 +258,14 @@ export function SettingsDrawer() {
                   ))}
                 </motion.section>
 
+                {/*
+                  键位段**只给键盘用户看**：整段列的是 WASD/F/B/G/滚轮/R，
+                  手机上一个都按不了，纯占篇幅。而它正好是抽屉在 iPhone SE
+                  横屏（375px 高）上撑出那 244px 溢出的主要来源——摘掉之后
+                  剩下的内容自己就装得下，不用再靠"往下滑"去够关闭按钮。
+                  等触摸端有了自己的操作说明再按同一个位置补回来。
+                */}
+                {!isTouchMode() && (
                 <motion.section variants={itemVariants} className="flex flex-col gap-2">
                   <h3 className="text-[12px] tracking-widest text-white/45">
                     {t("ui.settings.controls")}
@@ -281,6 +290,7 @@ export function SettingsDrawer() {
                     </div>
                   ))}
                 </motion.section>
+                )}
 
                 <motion.button
                   variants={itemVariants}

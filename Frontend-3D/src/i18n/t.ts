@@ -560,6 +560,8 @@ const ZH: Record<string, string> = {
   "ui.backpack.capacity": "格子",
   "ui.backpack.sort": "整理",
   "ui.backpack.hint": "点击查看 · 拖到下面那排快捷栏 · Esc / B 关闭",
+  // 触摸版：去掉 Esc / B（手机上没这两个键），关闭改指右上角那个 ✕
+  "ui.backpack.hint_touch": "点一下查看 · 拖到下面那排快捷栏 · 右上角 ✕ 关闭",
   "ui.backpack.filter_empty": "这一类还什么都没有",
 };
 

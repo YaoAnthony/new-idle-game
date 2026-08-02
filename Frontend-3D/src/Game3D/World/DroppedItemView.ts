@@ -1,6 +1,6 @@
 import { Object3D } from "three";
 import { on } from "../../Game/EventBus";
-import { listDroppedItems } from "../../Game/State/droppedItems";
+import { isAirborne, listDroppedItems } from "../../Game/State/droppedItems";
 import { buildItemVisual } from "../Visual/VisualRegistry.js";
 
 /**
@@ -72,8 +72,9 @@ export class DroppedItemView {
 
       view.root.position.set(entity.x, entity.y, entity.z);
 
-      const airborne = entity.y > 0 || entity.vy !== 0;
-      if (airborne) {
+      // "还在飞吗"由 State 那边定义，这里不重新推一遍——
+      // 停在台面上的东西高度不是 0，自己判会转个没完
+      if (isAirborne(entity)) {
         view.spin += SPIN_SPEED * deltaSeconds;
         view.root.rotation.set(view.spin * 0.6, view.spin, 0);
       }

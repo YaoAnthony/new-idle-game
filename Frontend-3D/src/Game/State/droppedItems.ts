@@ -153,17 +153,21 @@ export function removeDroppedItem(id: string): DroppedEntity | undefined {
 }
 
 /**
- * 已经停稳、而且过了拾取保护期的那些。
+ * 还在空中吗。
  *
- * 判的是"落在它脚下那个面上"而不是"y 等于 0"——东西现在可以停在台面上，
- * 按 y<=0 判的话落在灶台上的米永远捡不回来，只能眼看着它躺在那儿。
+ * **只此一处**。物理要它决定加不加重力，表现层要它决定转不转——
+ * 两边各写一遍 `y > 0` 的下场刚发生过：物理这边改成"高于脚下那个面"，
+ * 渲染那边没跟上，停在灶台上的东西就永远转下去。
+ *
+ * 判的是"脚下那个面"而不是"y 等于 0"：东西现在可以停在台面上。
  */
+export function isAirborne(entity: DroppedEntity): boolean {
+  return entity.vy !== 0 || entity.y > surfaceAt(entity.x, entity.z) + 0.0001;
+}
+
+/** 已经停稳、而且过了拾取保护期的那些 */
 export function isPickable(entity: DroppedEntity): boolean {
-  return (
-    entity.pickupLock <= 0 &&
-    entity.vy === 0 &&
-    entity.y <= surfaceAt(entity.x, entity.z) + 0.0001
-  );
+  return entity.pickupLock <= 0 && !isAirborne(entity);
 }
 
 /**
@@ -188,9 +192,8 @@ export function tickDroppedItems(deltaSeconds: number): void {
     if (entity.pickupLock > 0) entity.pickupLock -= deltaSeconds;
 
     const ground = surfaceAt(entity.x, entity.z);
-    const airborne = entity.y > ground || entity.vy !== 0;
 
-    if (airborne) {
+    if (isAirborne(entity)) {
       entity.vy -= GRAVITY * deltaSeconds;
       entity.y += entity.vy * deltaSeconds;
 

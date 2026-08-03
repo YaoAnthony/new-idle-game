@@ -49,7 +49,10 @@ type HintTarget = {
   world: Vector3;
 };
 import { PlacementSurface, findPlaceableItem } from "core";
+import { ChatMessageKind } from "core";
 import { getAvatar } from "../../Game/State/avatar";
+import { pushChatMessage } from "../../Game/State/chatLog";
+import { t } from "../../i18n/t";
 import {
   findDoorAgent,
   initDoors,
@@ -166,7 +169,9 @@ export class RoomScene {
   private readonly outdoor: OutdoorScene;
   /** 外门门板 + 它的逻辑实体，视图每帧照实体画 */
   private readonly doorViews: { view: DoorView; agent: DoorAgent | undefined }[] = [];
-  private readonly roomDoorViews: RoomDoorView[] = [];
+  private readonly roomDoorViews = new Map<string, RoomDoorView>();
+  /** 上次报"锁着"的时刻。连按 F 只晃门不刷屏（见 interact 里的注释） */
+  private lastLockedNoticeAt = 0;
   private readonly furnitureView: FurnitureView;
   private readonly cookwareView: CookwareView;
   private readonly droppedItemView: DroppedItemView;
@@ -249,7 +254,7 @@ export class RoomScene {
       const agent = findDoorAgent(doorway.doorwayId);
       if (!agent) continue;
       const view = new RoomDoorView(doorway, agent, room.floorGrid);
-      this.roomDoorViews.push(view);
+      this.roomDoorViews.set(doorway.doorwayId, view);
       this.scene.add(view.root);
     }
 
@@ -908,15 +913,15 @@ export class RoomScene {
       );
       if (distance >= bestHintDistance) continue;
       bestHintDistance = distance;
+      /*
+       * 锁着的门也照常显示"开门"——F 试图做的正是开门这件事。
+       * 写"锁着"是提前替玩家把门试过了。
+       */
       bestHint = {
         instanceId: door.refId,
         hint: {
-          localizationKey: door.locked
-            ? "door.hint.locked"
-            : door.open
-              ? "door.hint.close"
-              : "door.hint.open",
-          action: door.locked ? undefined : "interact",
+          localizationKey: door.open ? "door.hint.close" : "door.hint.open",
+          action: "interact",
         },
         world: new Vector3(door.center.x, 1.7, door.center.z),
       };
@@ -1068,9 +1073,27 @@ export class RoomScene {
 
     if (this.interactTarget) {
       if (this.interactTarget.kind === "door") {
-        const agent = findDoorAgent(this.interactTarget.refId);
-        // 锁着时 interact 返回 "locked"，气泡本来就显示着"锁着"，不再弹条
-        agent?.interact();
+        const { refId } = this.interactTarget;
+        const agent = findDoorAgent(refId);
+        if (agent?.interact() === "locked") {
+          /*
+           * 锁着不是靠气泡预告的，是**推一下才发现**：门板顶一下弹回来，
+           * 同时旁白说一句。预先在气泡上写"锁着"等于替玩家把门试过了，
+           * 那扇门就再也没有"咦"的一下。
+           *
+           * 门每次都晃（物理反馈该跟手），话有 2 秒冷却——连按 F 时
+           * 同一句话刷满消息栏，比不说还糟。
+           */
+          this.roomDoorViews.get(refId)?.nudge();
+          const now = performance.now();
+          if (now - this.lastLockedNoticeAt > 2000) {
+            this.lastLockedNoticeAt = now;
+            pushChatMessage({
+              kind: ChatMessageKind.Story,
+              text: t("door.locked_feedback"),
+            });
+          }
+        }
         return;
       }
       if (this.interactTarget.kind === "station") {
@@ -1563,7 +1586,7 @@ export class RoomScene {
       view.setOpen(agent?.open ?? false);
       view.update(deltaSeconds);
     }
-    for (const view of this.roomDoorViews) view.update(deltaSeconds);
+    for (const view of this.roomDoorViews.values()) view.update(deltaSeconds);
   }
 
   private applyEnvironment(): void {

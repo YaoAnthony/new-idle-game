@@ -569,7 +569,8 @@ const ZH: Record<string, string> = {
   "door.room_door": "房门",
   "door.hint.open": "开门",
   "door.hint.close": "关门",
-  "door.hint.locked": "锁着",
+  // 推不开时的旁白。不预告"锁着"，让玩家自己推一下才发现
+  "door.locked_feedback": "你推了推门——似乎锁住了。",
 
   // ---- 捏脸 ----
   "ui.creator.title": "捏一个自己",

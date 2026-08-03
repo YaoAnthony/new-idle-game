@@ -11,6 +11,17 @@ const DOOR_HEIGHT = 2;
 const OPEN_ANGLE = Math.PI * 0.56;
 
 /**
+ * 推锁着的门时门板晃动的幅度和时长。
+ *
+ * 5° 是"被锁舌顶住"的量——再大就不像锁住了，像门没锁好。
+ * 出去快（NUDGE_SPEED 远高于常规开合速度）、回来按常规速度，
+ * 这个不对称就是"撞上阻力"的手感；两边一样快会像门在自己扇风。
+ */
+const NUDGE_ANGLE = Math.PI * 0.028;
+const NUDGE_SPEED = 24;
+const NUDGE_SECONDS = 0.14;
+
+/**
  * 内墙门洞上的双开门板。
  *
  * **视图只画不判断**：每帧读 Door 实体的 open 平滑开合——谁开的门、
@@ -28,6 +39,8 @@ export class RoomDoorView {
   /** 门板枢轴。单扇门只有一个，双扇是左右各一 */
   private readonly pivots: Object3D[] = [];
   private angle = 0;
+  /** 推门反馈的剩余时长（秒）。>0 时门板顶向 NUDGE_ANGLE */
+  private nudgeRemaining = 0;
 
   constructor(
     doorway: InteriorDoorway,
@@ -98,9 +111,26 @@ export class RoomDoorView {
     }
   }
 
+  /**
+   * 推了一下但没推开（门锁着）。
+   *
+   * 由 RoomScene 在 interact 返回 "locked" 时调用——视图仍然不判断
+   * 锁没锁，只是被告知"演一下推不开"。
+   */
+  nudge(): void {
+    this.nudgeRemaining = NUDGE_SECONDS;
+  }
+
   update(deltaSeconds: number): void {
-    const target = this.agent.open ? OPEN_ANGLE : 0;
-    const speed = this.agent.definition.behavior?.swingSpeed ?? 6;
+    let target = this.agent.open ? OPEN_ANGLE : 0;
+    let speed = this.agent.definition.behavior?.swingSpeed ?? 6;
+
+    if (this.nudgeRemaining > 0) {
+      this.nudgeRemaining = Math.max(0, this.nudgeRemaining - deltaSeconds);
+      target = NUDGE_ANGLE;
+      speed = NUDGE_SPEED;
+    }
+
     const smoothing = 1 - Math.exp(-speed * deltaSeconds);
     this.angle += (target - this.angle) * smoothing;
 

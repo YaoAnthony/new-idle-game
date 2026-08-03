@@ -6,6 +6,7 @@ import {
   type AvatarConfig,
 } from "core";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { isTouchMode } from "../../Game/State/touchMode";
 import { t } from "../../i18n/t";
 import { CreatorPreview } from "./CreatorPreview";
 
@@ -118,8 +119,28 @@ export function CharacterCreator({ initial, onConfirm, onBack }: Props) {
           ref={canvasRef}
           className="h-full w-full touch-none cursor-grab active:cursor-grabbing"
         />
-        <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 text-[12px] text-[#8a6a45]">
-          {t("ui.creator.drag_hint")}
+        {/*
+          提示和"回正"排在同一行、居中成组，不各自贴角。
+          分开贴的话横屏（预览区只有 ~330px 宽）两者会叠在一起——
+          按钮正好压住提示文字（实测 667x375）。
+        */}
+        <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2.5 whitespace-nowrap">
+          <span className="pointer-events-none text-[12px] text-[#8a6a45]">
+            {t(
+              isTouchMode()
+                ? "ui.creator.drag_hint_touch"
+                : "ui.creator.drag_hint",
+            )}
+          </span>
+          {/* 转迷路了一键回初始机位。轨道相机没有"归位"出口的话，
+              玩家转到人物背面又拉太近时只能靠手感往回凑 */}
+          <button
+            type="button"
+            className="ui-wood-btn px-3 py-1.5 text-[13px] font-bold"
+            onClick={() => previewRef.current?.resetView()}
+          >
+            {t("ui.creator.reset_view")}
+          </button>
         </div>
         <button
           type="button"

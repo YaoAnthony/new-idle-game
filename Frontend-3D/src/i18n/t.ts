@@ -568,7 +568,9 @@ const ZH: Record<string, string> = {
   "ui.creator.title": "捏一个自己",
   "ui.creator.back": "回标题",
   "ui.creator.confirm": "就这样出发",
-  "ui.creator.drag_hint": "拖一拖，转个圈看看",
+  "ui.creator.drag_hint": "拖动转视角 · 滚轮拉近拉远",
+  "ui.creator.drag_hint_touch": "拖动转视角 · 双指捏合拉近拉远",
+  "ui.creator.reset_view": "回正",
 
   "avatar.slot.face": "脸型",
   "avatar.slot.hair": "发型",

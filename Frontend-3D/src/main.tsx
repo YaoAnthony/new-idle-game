@@ -2,7 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
-import { auditStoryContent } from 'core'
+import { auditAvatarContent, auditStoryContent } from 'core'
 import { auditItemVisuals } from './Game3D/Visual/VisualRegistry.ts'
 import { hasLocalizationKey } from './i18n/t.ts'
 
@@ -22,6 +22,14 @@ if (import.meta.env.DEV) {
   if (problems.length > 0) {
     console.warn(
       `[story] 剧情数据有 ${problems.length} 处对不上：\n  ${problems.join('\n  ')}`,
+    )
+  }
+
+  // 捏人注册表同一套体检：零件 id、调色板、默认配置全是字符串引用
+  const avatarProblems = auditAvatarContent({ hasLocalizationKey })
+  if (avatarProblems.length > 0) {
+    console.warn(
+      `[avatar] 捏人注册表有 ${avatarProblems.length} 处对不上：\n  ${avatarProblems.join('\n  ')}`,
     )
   }
 }

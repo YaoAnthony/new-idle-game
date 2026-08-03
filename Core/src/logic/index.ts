@@ -1,4 +1,5 @@
 export * from "./anchors.js";
+export * from "./avatarAudit.js";
 export * from "./chat.js";
 export * from "./clock.js";
 export * from "./cookingRules.js";

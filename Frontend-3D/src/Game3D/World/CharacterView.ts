@@ -1,4 +1,4 @@
-import type { AvatarConfig, PoseId } from "core";
+import { defaultAvatarConfig, type AvatarConfig, type PoseId } from "core";
 import { Object3D } from "three";
 import { addOutline } from "../Engine/Outline.js";
 import {
@@ -47,20 +47,7 @@ export type CharacterRig = {
   };
 };
 
-export const DEFAULT_AVATAR: AvatarConfig = {
-  bodyId: "body_default",
-  hairId: "hair_bob",
-  topId: "top_dress",
-  bottomId: "bottom_plain",
-  shoesId: "shoes_plain",
-  colors: {
-    skin: "#f2c9a4",
-    hair: "#4a3226",
-    top: "#c8564f",
-    bottom: "#6b4a30",
-    shoes: "#3a2a1c",
-  },
-};
+
 
 const LEG_HEIGHT = 0.34;
 const BODY_HEIGHT = 0.52;
@@ -83,7 +70,14 @@ export const HEAD_TOP_HEIGHT = SHOULDER_HEIGHT + 0.56;
 /** 手臂展开的半宽。横向采样用 */
 export const BODY_HALF_WIDTH = 0.28;
 
-export function buildCharacter(avatar: AvatarConfig = DEFAULT_AVATAR): CharacterRig {
+/*
+ * 默认外观从注册表取，不在这里再抄一份——这里和 serialize.ts 曾各有一份
+ * 对不上的 DEFAULT_AVATAR（hair_bob vs hair_default），注册表就是为了
+ * 终结这种漂移。
+ */
+export function buildCharacter(
+  avatar: AvatarConfig = defaultAvatarConfig(),
+): CharacterRig {
   const skin = ownMaterial(avatar.colors.skin ?? "#f2c9a4");
   const hairColor = avatar.colors.hair ?? "#4a3226";
   const topColor = avatar.colors.top ?? "#c8564f";

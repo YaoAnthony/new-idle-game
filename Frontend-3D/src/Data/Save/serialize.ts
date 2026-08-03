@@ -1,4 +1,5 @@
-import { createSingleRoomMap, type GameSave } from "core";
+import {
+  defaultAvatarConfig, createSingleRoomMap, type GameSave } from "core";
 import { restoreClock, snapshotClock } from "../../Game/State/clock";
 import {
   restoreChatLog,
@@ -69,15 +70,7 @@ import { SAVE_SCHEMA_VERSION } from "./types";
 const MAIN_MAP_ID = "home";
 const WORLD_ID = "world";
 
-/** 捏人系统还没做，先给一套默认外观；接 CharacterCreator 时从那里读 */
-const DEFAULT_AVATAR = {
-  bodyId: "body_default",
-  hairId: "hair_default",
-  topId: "top_default",
-  bottomId: "bottom_default",
-  shoesId: "shoes_default",
-  colors: {},
-};
+
 
 function nowUtc(): string {
   return new Date().toISOString();
@@ -98,7 +91,7 @@ export function serializeGameSave(previous?: GameSave): GameSave {
 
     player: {
       name: previous?.player.name ?? "旅人",
-      avatar: previous?.player.avatar ?? DEFAULT_AVATAR,
+      avatar: previous?.player.avatar ?? defaultAvatarConfig(),
       missions: previous?.player.missions ?? { daily: [], primary: [] },
       character: {
         inventory: snapshotInventory(),

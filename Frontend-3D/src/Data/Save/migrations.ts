@@ -516,6 +516,46 @@ export const migrations: Migration[] = [
     to: 15,
     migrate: (save) => save,
   },
+
+  // v16（2026-08-03 捏脸）：AvatarConfig 长出脸部四槽（face/eyes/mouth/nose）
+  // 和整套颜色键。老档一律补成"经典脸"——和 CharacterView 一直画的那张
+  // 一样，玩家读档不会觉得自己被换了头。
+  //
+  // 值**冻结在这里，不从注册表推导**（同 LEGACY_FURNITURE_ID 那条铁律）。
+  // 旧档里的零件 id 是 serialize 老版本写死的 *_default 系列，注册表里
+  // 没有这些 id，按下表映射到真零件；colors 只补缺的键，玩家真捏过的
+  // 颜色（虽然老版本捏不了，但规矩要立对）不覆盖。
+  {
+    to: 16,
+    migrate: (save) => {
+      const legacyPartId: Record<string, string> = {
+        hair_default: "hair_bob",
+        top_default: "top_dress",
+        bottom_default: "bottom_plain",
+        shoes_default: "shoes_plain",
+      };
+      const avatar = save.player.avatar as Record<string, unknown>;
+      for (const slotKey of ["hairId", "topId", "bottomId", "shoesId"]) {
+        const value = avatar[slotKey];
+        if (typeof value === "string" && legacyPartId[value]) {
+          avatar[slotKey] = legacyPartId[value];
+        }
+      }
+      avatar.faceId ??= "face_round";
+      avatar.eyesId ??= "eyes_round";
+      avatar.mouthId ??= "mouth_smile";
+      avatar.noseId ??= "nose_triangle";
+      const colors = (avatar.colors ?? {}) as Record<string, string>;
+      colors.skin ??= "#f2c9a4";
+      colors.hair ??= "#4a3226";
+      colors.eyes ??= "#2b2422";
+      colors.top ??= "#c8564f";
+      colors.bottom ??= "#6b4a30";
+      colors.shoes ??= "#3a2a1c";
+      avatar.colors = colors;
+      return save;
+    },
+  },
 ];
 
 /**

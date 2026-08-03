@@ -33,6 +33,7 @@ export type GameEvents = {
         capability: StationCapability;
       }
     | { kind: "pet"; petId: string }
+    | { kind: "door"; refId: string }
     | null;
   /** 一次性容器（纸箱/奖励箱）的领取面板开合 */
   unpack_changed: { open: boolean };

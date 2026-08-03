@@ -50,7 +50,13 @@ type HintTarget = {
 };
 import { PlacementSurface, findPlaceableItem } from "core";
 import { getAvatar } from "../../Game/State/avatar";
-import { initDoors, tickDoors } from "../../Game/State/doorsRuntime";
+import {
+  findDoorAgent,
+  initDoors,
+  listDoors,
+  tickDoors,
+} from "../../Game/State/doorsRuntime";
+import type { Door as DoorAgent } from "../../Game/State/doorAgent";
 import { getHeld } from "../../Game/State/heldItem";
 import {
   findDroppedItem,
@@ -131,7 +137,13 @@ import {
   slotWorldPosition,
 } from "./FurnitureView.js";
 import { HeldItemView } from "./HeldItemView.js";
-import { DoorView, WindowView, buildHouse, type BuiltHouse } from "./House/index.js";
+import {
+  DoorView,
+  RoomDoorView,
+  WindowView,
+  buildHouse,
+  type BuiltHouse,
+} from "./House/index.js";
 import { OutdoorScene } from "./OutdoorScene.js";
 
 export type SceneDebugState = {
@@ -152,7 +164,9 @@ export class RoomScene {
   private readonly built: BuiltHouse;
   private readonly windowViews: WindowView[] = [];
   private readonly outdoor: OutdoorScene;
-  private readonly doorViews: DoorView[] = [];
+  /** 外门门板 + 它的逻辑实体，视图每帧照实体画 */
+  private readonly doorViews: { view: DoorView; agent: DoorAgent | undefined }[] = [];
+  private readonly roomDoorViews: RoomDoorView[] = [];
   private readonly furnitureView: FurnitureView;
   private readonly cookwareView: CookwareView;
   private readonly droppedItemView: DroppedItemView;
@@ -180,6 +194,7 @@ export class RoomScene {
         capability: StationCapability;
       }
     | { kind: "pet"; petId: string }
+    | { kind: "door"; refId: string }
     | null = null;
   private interactCheckTimer = 0;
   /** 遮挡检测的限流计时。射线不必每帧打，镜头转得再快也跟得上 */
@@ -225,8 +240,17 @@ export class RoomScene {
     // 门板：没有它门洞会直接透出背景色
     for (const anchor of this.built.doors) {
       const door = new DoorView(anchor);
-      this.doorViews.push(door);
+      this.doorViews.push({ view: door, agent: findDoorAgent(anchor.openingId) });
       this.scene.add(door.root);
+    }
+
+    // 内墙门洞的门板，由 Door 实体驱动（自动开关、锁都在逻辑层）
+    for (const doorway of room.interiorDoorways ?? []) {
+      const agent = findDoorAgent(doorway.doorwayId);
+      if (!agent) continue;
+      const view = new RoomDoorView(doorway, agent, room.floorGrid);
+      this.roomDoorViews.push(view);
+      this.scene.add(view.root);
     }
 
     for (const anchor of this.built.windows) {
@@ -814,8 +838,22 @@ export class RoomScene {
           capability: StationCapability;
         }
       | { kind: "pet"; petId: string }
+      | { kind: "door"; refId: string }
       | null = null;
     let bestDistance = 1.9;
+
+    // 门和宠物/工作站平级，按距离竞争。没有格子的门（大门）不参与近身交互
+    for (const door of listDoors()) {
+      if (door.cells.length === 0) continue;
+      const distance = Math.hypot(
+        door.center.x - this.controller.x,
+        door.center.z - this.controller.z,
+      );
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = { kind: "door", refId: door.refId };
+      }
+    }
 
     // 宠物优先级和工作站平级，按距离竞争
     for (const pet of getPets()) {
@@ -859,6 +897,28 @@ export class RoomScene {
           definition.placement.interactHint.anchorHeight ?? 1.2,
           center.z,
         ),
+      };
+    }
+    // 门的气泡和家具提示竞争同一个位置：开门/关门/锁着，随实体状态换词
+    for (const door of listDoors()) {
+      if (door.cells.length === 0) continue;
+      const distance = Math.hypot(
+        door.center.x - this.controller.x,
+        door.center.z - this.controller.z,
+      );
+      if (distance >= bestHintDistance) continue;
+      bestHintDistance = distance;
+      bestHint = {
+        instanceId: door.refId,
+        hint: {
+          localizationKey: door.locked
+            ? "door.hint.locked"
+            : door.open
+              ? "door.hint.close"
+              : "door.hint.open",
+          action: door.locked ? undefined : "interact",
+        },
+        world: new Vector3(door.center.x, 1.7, door.center.z),
       };
     }
     this.hintTarget = bestHint;
@@ -933,7 +993,9 @@ export class RoomScene {
         ? "none"
         : target.kind === "pet"
           ? `pet:${target.petId}`
-          : `station:${target.instanceId}:${target.capability}`;
+          : target.kind === "door"
+            ? `door:${target.refId}`
+            : `station:${target.instanceId}:${target.capability}`;
 
     if (keyOf(best) === keyOf(this.interactTarget)) return;
 
@@ -943,6 +1005,8 @@ export class RoomScene {
       emit("interact_target_changed", null);
     } else if (best.kind === "pet") {
       emit("interact_target_changed", { kind: "pet", petId: best.petId });
+    } else if (best.kind === "door") {
+      emit("interact_target_changed", { kind: "door", refId: best.refId });
     } else {
       emit("interact_target_changed", {
         kind: "station",
@@ -1003,6 +1067,12 @@ export class RoomScene {
     }
 
     if (this.interactTarget) {
+      if (this.interactTarget.kind === "door") {
+        const agent = findDoorAgent(this.interactTarget.refId);
+        // 锁着时 interact 返回 "locked"，气泡本来就显示着"锁着"，不再弹条
+        agent?.interact();
+        return;
+      }
       if (this.interactTarget.kind === "station") {
         if (this.interactTarget.capability === "sleep") {
           // 床先躺下，躺着再按 F 才睡觉（睡觉是躺着之后的第二步）
@@ -1484,16 +1554,16 @@ export class RoomScene {
     for (const view of this.windowViews) view.update(deltaSeconds);
     this.outdoor.update(deltaSeconds);
 
-    // 宠物走到门口 1.2 格内时门自动打开（派遣出门的仪式感）
-    for (const door of this.doorViews) {
-      const nearPet = getPets().some(
-        (pet) =>
-          Math.hypot(pet.x - door.root.position.x, pet.z - door.root.position.z) <
-          1.2,
-      );
-      door.setOpen(nearPet);
-      door.update(deltaSeconds);
+    /*
+     * 门板全部照 Door 实体画。原来这里硬编码"宠物距门 1.2 格就开"——
+     * 那份逻辑已经收进注册表（front_door.behavior）由 doorsRuntime 驱动，
+     * 视图只负责把 open 画成摆角。
+     */
+    for (const { view, agent } of this.doorViews) {
+      view.setOpen(agent?.open ?? false);
+      view.update(deltaSeconds);
     }
+    for (const view of this.roomDoorViews) view.update(deltaSeconds);
   }
 
   private applyEnvironment(): void {
@@ -1575,6 +1645,11 @@ export class RoomScene {
 
   zoomToFit(): void {
     this.rig.zoomToFit();
+  }
+
+  /** 调试传送（/tp 命令用）。走 controller 的 teleport，位置同步进 participants */
+  debugTeleport(x: number, z: number): void {
+    this.controller.teleport(x, z);
   }
 
   getDebugState(): SceneDebugState {

@@ -1,6 +1,7 @@
 import {
   findDoorDefinition,
   findDoors,
+  type DoorDefinition,
   type DoorSave,
   type GridPosition,
 } from "core";
@@ -18,6 +19,21 @@ import { getWorld, setDoorBlocker } from "./worldRuntime";
  */
 
 const doors = new Map<string, Door>();
+
+/**
+ * 按注册表字段选类：有自动开半径的门就是 RoomDoor，没有的是纯基类。
+ * 类的选择也由数据驱动——这里不出现任何具体门的 id。
+ */
+function makeDoor(
+  refId: string,
+  definition: DoorDefinition,
+  cells: readonly GridPosition[],
+  center: { x: number; z: number },
+  savedLocked?: boolean,
+): Door {
+  const DoorClass = definition.behavior?.autoOpenRadius ? RoomDoor : Door;
+  return new DoorClass(refId, definition, cells, center, savedLocked);
+}
 
 /** hydrate 先到、房间几何后到，锁定状态在这里等着被 init 认领 */
 let pendingSaves: DoorSave[] | null = null;
@@ -60,7 +76,7 @@ export function initDoors(): void {
       z: doorway.cell.y + (doorway.axis === "y" ? doorway.span / 2 : 0.5) - halfD,
     };
 
-    const door = new RoomDoor(
+    const door = makeDoor(
       doorway.doorwayId,
       definition,
       cells,
@@ -75,11 +91,12 @@ export function initDoors(): void {
   if (frontDefinition) {
     for (const opening of findDoors(room)) {
       /*
-       * 大门是纯 Door 基类：能锁、F 开关，没有自动行为。
        * cells 留空——外墙格本来就不可走，不需要它再挡一次；
-       * center 只给将来的交互扫描用（西墙开口沿 z 轴排布）。
+       * center 给自动开关和交互扫描用（西墙开口沿 z 轴排布）。
+       * 大门在注册表里也带自动开半径（收得很小），所以 makeDoor
+       * 会给它 RoomDoor：派遣出门的开门仪式就是这一条行为。
        */
-      const door = new Door(
+      const door = makeDoor(
         opening.openingId,
         frontDefinition,
         [],
@@ -117,22 +134,6 @@ export function listDoors(): Door[] {
 
 export function findDoorAgent(refId: string): Door | undefined {
   return doors.get(refId);
-}
-
-/** 玩家附近最近的一扇门（F 交互扫描用）。超出 radius 返回 null */
-export function doorNear(x: number, z: number, radius: number): Door | null {
-  let best: Door | null = null;
-  let bestDistance = radius;
-  for (const door of doors.values()) {
-    // 大门这类没有格子的门不参与近身交互（V1 出不了屋）
-    if (door.cells.length === 0) continue;
-    const distance = Math.hypot(door.center.x - x, door.center.z - z);
-    if (distance < bestDistance) {
-      best = door;
-      bestDistance = distance;
-    }
-  }
-  return best;
 }
 
 export function snapshotDoors(): DoorSave[] {

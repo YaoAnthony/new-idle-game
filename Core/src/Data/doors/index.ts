@@ -10,11 +10,18 @@ export const doorDefinitions: DoorDefinition[] = [
     visualId: "door_front",
     localizationKey: "door.front_door",
     /*
-     * 大门能锁但不自动开：它是"家的边界"，宠物出入走派遣流程
-     * （那边有自己的开门仪式），平时不该被路过的宠物碰开。
+     * 大门的自动开半径收得很小（1.2，房门是 1.6）：只在宠物真的走到
+     * 门口那一步才开——这就是派遣出门的仪式感，原来硬编码在 RoomScene
+     * 的渲染循环里（距离 1.2 写死），现在收进注册表由同一套 RoomDoor
+     * 行为驱动。路过的宠物（≥1.2）不会碰开家门。
      */
     lockable: true,
     defaultLocked: false,
+    behavior: {
+      autoOpenRadius: 1.2,
+      autoCloseRadius: 1.8,
+      swingSpeed: 6,
+    },
   },
   {
     id: "room_door",

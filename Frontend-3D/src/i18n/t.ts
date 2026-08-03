@@ -567,6 +567,9 @@ const ZH: Record<string, string> = {
   // ---- 门 ----
   "door.front_door": "大门",
   "door.room_door": "房门",
+  "door.hint.open": "开门",
+  "door.hint.close": "关门",
+  "door.hint.locked": "锁着",
 
   // ---- 捏脸 ----
   "ui.creator.title": "捏一个自己",

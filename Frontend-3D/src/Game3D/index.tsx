@@ -402,6 +402,21 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
         },
       }),
       registerCommand({
+        name: "tp",
+        arguments: [{ name: "x" }, { name: "z" }],
+        usage: "tp <x> <z>",
+        description: "把角色传送到世界坐标（调试用）",
+        handler: (args) => {
+          const x = Number(args[0]);
+          const z = Number(args[1]);
+          if (!Number.isFinite(x) || !Number.isFinite(z)) {
+            return fail("用法：tp <x> <z>");
+          }
+          scene.debugTeleport(x, z);
+          return ok(`传送到 (${x}, ${z})`);
+        },
+      }),
+      registerCommand({
         name: "door",
         arguments: [
           { name: "操作", suggest: () => asSuggestions(["list", "lock", "unlock"]) },

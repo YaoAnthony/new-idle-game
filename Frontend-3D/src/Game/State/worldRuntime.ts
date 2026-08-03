@@ -564,6 +564,19 @@ export function downhillDirection(
   return best;
 }
 
+/**
+ * "关着的门挡路"的判定回调，由 doorsRuntime 在 initDoors 时注册。
+ * 回调而不是直接 import——doorsRuntime 需要这边的 getWorld，
+ * 反向 import 是循环依赖。
+ */
+let doorBlocker: ((gx: number, gy: number) => boolean) | null = null;
+
+export function setDoorBlocker(
+  fn: ((gx: number, gy: number) => boolean) | null,
+): void {
+  doorBlocker = fn;
+}
+
 /** 连续坐标下的通行检测：角色/宠物的圆形碰撞体压到的格子都不能是阻挡格 */
 export function isWalkable(
   x: number,
@@ -594,6 +607,8 @@ export function isWalkable(
   for (let gy = minGY; gy <= maxGY; gy += 1) {
     for (let gx = minGX; gx <= maxGX; gx += 1) {
       if (occupancy.blocked.has(`${gx},${gy}`)) return false;
+      // 关着的门占的格子。不进 occupancy：开合是高频状态，塞进去每次都要重建占用图
+      if (doorBlocker?.(gx, gy)) return false;
     }
   }
 

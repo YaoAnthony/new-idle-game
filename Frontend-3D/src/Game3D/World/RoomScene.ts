@@ -50,6 +50,7 @@ type HintTarget = {
 };
 import { PlacementSurface, findPlaceableItem } from "core";
 import { getAvatar } from "../../Game/State/avatar";
+import { initDoors, tickDoors } from "../../Game/State/doorsRuntime";
 import { getHeld } from "../../Game/State/heldItem";
 import {
   findDroppedItem,
@@ -213,6 +214,11 @@ export class RoomScene {
     }
 
     const { room } = getWorld();
+    /*
+     * 门实例在这儿建：要读房间几何（门洞在哪），几何刚在上面就位。
+     * 读档时锁定状态已由 hydrate 寄存进 doorsRuntime，init 会认领。
+     */
+    initDoors();
     this.built = buildHouse(room);
     this.scene.add(this.built.root);
 
@@ -1421,6 +1427,8 @@ export class RoomScene {
       { x: this.controller.x, z: this.controller.z },
       getActiveDialogue()?.petId,
     );
+    // 宠物走完再让门看一眼谁靠近了——同帧的位置，门不会慢半拍
+    tickDoors();
     this.petView.update(deltaSeconds);
 
     // 火候：只有架在灶眼上、且内容匹配到配方的锅才会走进度

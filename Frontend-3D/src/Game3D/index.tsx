@@ -47,6 +47,7 @@ import {
   getClock,
   startClock,
 } from "../Game/State/clock";
+import { findDoorAgent, listDoors } from "../Game/State/doorsRuntime";
 import { getHeld } from "../Game/State/heldItem";
 import { debugPlacePet, spawnPet } from "../Game/State/petsRuntime";
 import {
@@ -398,6 +399,38 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
           // 门口挤不下大家伙，直接放到屋子中部空地
           debugPlacePet(petId, 0, 4);
           return ok(`${definition.id} 来了`);
+        },
+      }),
+      registerCommand({
+        name: "door",
+        arguments: [
+          { name: "操作", suggest: () => asSuggestions(["list", "lock", "unlock"]) },
+          {
+            name: "哪扇门",
+            suggest: () => asSuggestions(listDoors().map((door) => door.refId)),
+          },
+        ],
+        usage: "door <list|lock|unlock> [refId]",
+        description: "查看/锁定门。锁玩法（钥匙、剧情锁门）接上前的调试口",
+        handler: (args) => {
+          const action = parseEnum(
+            args[0] ?? "list",
+            ["list", "lock", "unlock"] as const,
+            "操作",
+          );
+          if (action === "list") {
+            const lines = listDoors().map(
+              (door) =>
+                `${door.refId} [${door.definition.id}] ` +
+                `${door.open ? "开" : "关"}${door.locked ? "·锁" : ""}`,
+            );
+            return ok(lines.length ? lines.join("\n") : "屋里没有门");
+          }
+          const door = args[1] ? findDoorAgent(args[1]) : undefined;
+          if (!door) return fail(`没有这扇门：${args[1] ?? "(未指定)"}`);
+          if (action === "lock") door.lock();
+          else door.unlock();
+          return ok(`${door.refId} 已${action === "lock" ? "上锁" : "解锁"}`);
         },
       }),
       registerCommand({

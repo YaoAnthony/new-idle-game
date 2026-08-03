@@ -26,6 +26,7 @@ import {
 } from "../../Game/State/inventory";
 import { getNeeds, restoreNeeds } from "../../Game/State/needs";
 import { restoreAvatar, snapshotAvatar } from "../../Game/State/avatar";
+import { restoreDoors, snapshotDoors } from "../../Game/State/doorsRuntime";
 import { restorePets, snapshotPets } from "../../Game/State/petsRuntime";
 import {
   getRoomStyle,
@@ -134,6 +135,7 @@ export function serializeGameSave(previous?: GameSave): GameSave {
 
       maps: { [MAIN_MAP_ID]: createSingleRoomMap(MAIN_MAP_ID, world.room) },
       pets: snapshotPets(),
+      doors: snapshotDoors(),
       placedFurniture: world.placedFurniture,
       // 地上扔着的东西也是世界的一部分，不存就等于关一次游戏丢一次货
       droppedItems: snapshotDroppedItems(),
@@ -195,6 +197,8 @@ export function hydrateGameSave(save: GameSave): void {
   // 带上上次存盘的时刻，startNeeds 的首次 tick 才能补算离线期间的衰减
   restoreNeeds(save.player.character.needs, save.meta?.updatedAtUtc);
   restorePets(save.ownWorld.pets);
+  // 只寄存锁定状态；门实例要等 RoomScene 拿到房间几何后 initDoors 才建
+  restoreDoors(save.ownWorld.doors);
 
   restoreProgression({
     events: save.ownWorld.progression.events,

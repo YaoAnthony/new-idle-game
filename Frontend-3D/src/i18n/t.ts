@@ -565,6 +565,11 @@ const ZH: Record<string, string> = {
   "ui.backpack.filter_empty": "这一类还什么都没有",
 
   // ---- 捏脸 ----
+  "ui.creator.title": "捏一个自己",
+  "ui.creator.back": "回标题",
+  "ui.creator.confirm": "就这样出发",
+  "ui.creator.drag_hint": "拖一拖，转个圈看看",
+
   "avatar.slot.face": "脸型",
   "avatar.slot.hair": "发型",
   "avatar.slot.eyes": "眼睛",

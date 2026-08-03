@@ -508,6 +508,14 @@ input {
   box-shadow: none;
 }
 
+/* 选中态（捏脸页的槽位标签用）：亮起来，和 .ui-slot--selected 一个语言 */
+.ui-wood-btn--active {
+  border-color: #e0a94a;
+  background: linear-gradient(180deg, #fff1cf 0%, #f8dfa9 100%);
+  color: #5c3a1d;
+  box-shadow: 0 0 0 2px rgb(224 169 74 / 0.45);
+}
+
 /* 绿钮（添加行动 / 保存 / 开始） */
 .ui-green-btn {
   background: linear-gradient(180deg, #7d9c4e 0%, #63803a 100%);

@@ -1,11 +1,13 @@
 import { AnimatePresence } from "motion/react";
 import { useCallback, useEffect, useState } from "react";
+import { CharacterCreator } from "./Components/CharacterCreator/CharacterCreator";
 import { LoadingScreen } from "./Components/Loading/LoadingScreen";
 import { RotatePrompt } from "./Components/Mobile/RotatePrompt";
 import { TitleScreen } from "./Components/TitleScreen";
 import { TITLE_SCREEN_CONFIG } from "./Components/TitleScreen/config";
 import { getSaveRepository, hydrateGameSave, setBaseline } from "./Data/Save";
 import { saveNow } from "./Data/Save/autosave";
+import { setAvatar } from "./Game/State/avatar";
 import { on } from "./Game/EventBus";
 import { GameView } from "./Game3D";
 import { preloadWorldAudio } from "./Game3D/Engine/worldPreload";
@@ -21,7 +23,7 @@ import { preloadWorldAudio } from "./Game3D/Engine/worldPreload";
  * 顺序反了就只能全量加载，加载时间会随内容量一直涨。
  */
 
-type Stage = "title" | "loading" | "playing";
+type Stage = "title" | "creator" | "loading" | "playing";
 
 function App() {
   const [stage, setStage] = useState<Stage>("title");
@@ -95,7 +97,16 @@ function App() {
     };
   }, []);
 
+  /**
+   * 开新档先过捏脸页。外观在确认那一刻写进运行时（avatar 状态），
+   * 之后的 serialize 自然把它带进新存档——捏脸页自己不碰存档。
+   */
   const startNewGame = useCallback(() => {
+    setStage("creator");
+  }, []);
+
+  const confirmCreation = useCallback((config: Parameters<typeof setAvatar>[0]) => {
+    setAvatar(config);
     setBaseline(null);
     setLoadedFromSave(false);
     setStage("loading");
@@ -134,6 +145,11 @@ function App() {
           canContinue={canContinue}
           onContinue={() => void continueGame()}
           onSessionSelected={startNewGame}
+        />
+      ) : stage === "creator" ? (
+        <CharacterCreator
+          onConfirm={confirmCreation}
+          onBack={() => setStage("title")}
         />
       ) : (
         <GameView loadedFromSave={loadedFromSave} />

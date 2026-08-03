@@ -7,9 +7,11 @@ import { TitleScreen } from "./Components/TitleScreen";
 import { TITLE_SCREEN_CONFIG } from "./Components/TitleScreen/config";
 import { getSaveRepository, hydrateGameSave, setBaseline } from "./Data/Save";
 import { saveNow } from "./Data/Save/autosave";
+import { getProfileStore } from "./Game/Profile/profileStore";
 import { setAvatar } from "./Game/State/avatar";
 import { on } from "./Game/EventBus";
 import { GameView } from "./Game3D";
+import type { AvatarConfig } from "core";
 import { preloadWorldAudio } from "./Game3D/Engine/worldPreload";
 
 /**
@@ -31,6 +33,8 @@ function App() {
   /** 传给 GameView：true 表示存档已经灌进运行时，不要再铺开局摆设和开场剧情 */
   const [loadedFromSave, setLoadedFromSave] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  /** 上次捏好的形象（本地 profile），捏脸页拿它当底稿 */
+  const [profileAvatar, setProfileAvatar] = useState<AvatarConfig | null>(null);
   const [progress, setProgress] = useState(0);
 
   /**
@@ -102,11 +106,15 @@ function App() {
    * 之后的 serialize 自然把它带进新存档——捏脸页自己不碰存档。
    */
   const startNewGame = useCallback(() => {
+    // 底稿异步取：取不到也先进页面（默认外观），取到了再重挂成上次的形象
+    void getProfileStore().load().then(setProfileAvatar);
     setStage("creator");
   }, []);
 
-  const confirmCreation = useCallback((config: Parameters<typeof setAvatar>[0]) => {
+  const confirmCreation = useCallback((config: AvatarConfig) => {
     setAvatar(config);
+    // 同时记成"我的形象"：下次开新档从这套开始，删档不删脸
+    void getProfileStore().save(config);
     setBaseline(null);
     setLoadedFromSave(false);
     setStage("loading");
@@ -148,6 +156,12 @@ function App() {
         />
       ) : stage === "creator" ? (
         <CharacterCreator
+          /*
+            key 让"底稿到货"那一刻重挂组件：底稿是异步读的，进页面时多半
+            还没到；不重挂的话 useState 的初值已经定格在默认外观上了
+          */
+          key={profileAvatar ? "profile" : "default"}
+          initial={profileAvatar ?? undefined}
           onConfirm={confirmCreation}
           onBack={() => setStage("title")}
         />

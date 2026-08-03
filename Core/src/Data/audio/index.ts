@@ -144,6 +144,32 @@ export const audioProfileDefinitions = [
     loop: true,
     audibleRadius: 4.5,
   },
+  // ---- 门 ----
+  //
+  // 一次性、有位置：半径 9 比壁炉（7）大一圈——关门声本来就传得远，
+  // 屋子对角约 15 格，站在客厅另一头听得见卧室门响是对的，
+  // 但整栋楼都听见就假了。
+  //
+  // 开和关分两条档案而不是一条带变体：它们是**不同的事件**，
+  // 音量和音高抖动将来多半要各调各的（关门通常更响更实）。
+  {
+    id: "door_wood_open",
+    busId: AudioBusId.Effects,
+    resourcePath: "/audio/furniture/door/door_open.wav",
+    localizationKey: "audio.door_open",
+    loop: false,
+    audibleRadius: 9,
+    pitchVariance: 0.05,
+  },
+  {
+    id: "door_wood_close",
+    busId: AudioBusId.Effects,
+    resourcePath: "/audio/furniture/door/door_close.wav",
+    localizationKey: "audio.door_close",
+    loop: false,
+    audibleRadius: 9,
+    pitchVariance: 0.05,
+  },
 ] satisfies AudioProfileDefinition[];
 
 export function findAudioProfileDefinition(

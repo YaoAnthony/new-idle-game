@@ -22,6 +22,7 @@ export const doorDefinitions: DoorDefinition[] = [
       autoCloseRadius: 1.8,
       swingSpeed: 6,
     },
+    sounds: { open: "door_wood_open", close: "door_wood_close" },
   },
   {
     id: "room_door",
@@ -39,6 +40,7 @@ export const doorDefinitions: DoorDefinition[] = [
       autoCloseRadius: 2.4,
       swingSpeed: 6,
     },
+    sounds: { open: "door_wood_open", close: "door_wood_close" },
   },
   {
     /*
@@ -57,6 +59,7 @@ export const doorDefinitions: DoorDefinition[] = [
       autoCloseRadius: 2.4,
       swingSpeed: 6,
     },
+    sounds: { open: "door_wood_open", close: "door_wood_close" },
   },
 ];
 

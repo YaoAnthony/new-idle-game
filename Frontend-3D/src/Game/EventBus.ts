@@ -35,6 +35,11 @@ export type GameEvents = {
     | { kind: "pet"; petId: string }
     | { kind: "door"; refId: string }
     | null;
+  /**
+   * 某扇门开了或关了。带世界坐标——听感要按距离衰减，
+   * 而订阅方（音景）不该反过来去查门在哪。
+   */
+  door_toggled: { refId: string; open: boolean; x: number; z: number };
   /** 一次性容器（纸箱/奖励箱）的领取面板开合 */
   unpack_changed: { open: boolean };
   /**

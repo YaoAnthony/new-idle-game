@@ -1,4 +1,4 @@
-import type { VisualId } from "./base.js";
+import type { AudioProfileId, VisualId } from "./base.js";
 
 /**
  * 门实体的定义层。
@@ -64,6 +64,21 @@ export type DoorDefinition = {
   defaultLocked?: boolean;
 
   behavior?: DoorBehavior;
+
+  /**
+   * 开合的声音。**挂在门种上**——木门吱呀、推拉门滑响、以后的铁门哐当，
+   * 那是这一类门的材质决定的，不是某一扇门的属性。
+   *
+   * 值是 AudioProfileId，音量/半径/音高抖动全在音频注册表那边定，
+   * 这里只说"这种门用哪条档案"，两边各管各的一层。
+   *
+   * 缺省 = 没声音。将来的软门帘就该什么都不填，不需要为"静音"造一条
+   * 空档案。
+   */
+  sounds?: {
+    open?: AudioProfileId;
+    close?: AudioProfileId;
+  };
 };
 
 /**

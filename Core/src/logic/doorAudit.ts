@@ -1,3 +1,4 @@
+import { findAudioProfileDefinition } from "../Data/audio/index.js";
 import { doorDefinitions } from "../Data/doors/index.js";
 
 /**
@@ -22,6 +23,18 @@ export function auditDoorContent(options: DoorAuditOptions = {}): string[] {
       problems.push(
         `门 ${definition.id} 的文案键 ${definition.localizationKey} 没有对应文案`,
       );
+    }
+
+    /*
+     * 声音档案引用。拼错的表现是"这扇门没声音"——比开不了门更难发现，
+     * 因为没人会怀疑是 id 写错了，只会以为素材还没做。
+     */
+    for (const [when, profileId] of Object.entries(definition.sounds ?? {})) {
+      if (profileId && !findAudioProfileDefinition(profileId)) {
+        problems.push(
+          `门 ${definition.id} 的${when}声引用了不存在的音频档案 ${profileId}`,
+        );
+      }
     }
 
     const behavior = definition.behavior;

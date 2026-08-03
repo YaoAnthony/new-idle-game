@@ -1,4 +1,5 @@
 import {
+  findDoorDefinition,
   findPlaceableItem,
   regionAmbienceProfileIds,
   weatherDefinitions,
@@ -60,6 +61,24 @@ function profilesForCurrentWorld(): string[] {
     const profile = audio?.ambient ?? audio?.active;
     if (profile) ids.add(profile);
   }
+
+  /*
+   * 门的开合声。**按屋里实际装了哪几种门收集**，不是把注册表里所有
+   * 门种的声音都拉进来——和上面家具那段同一个原则：预载的是"这个世界
+   * 会用到的"，不是"内容库里有的"。
+   *
+   * 门声必须预载：它是玩家进屋头几秒就会碰到的交互，现加载的话第一次
+   * 开门是静音的，而那一次恰恰是最需要反馈的一次。
+   */
+  for (const doorway of getWorld().room.interiorDoorways ?? []) {
+    if (!doorway.doorId) continue;
+    const sounds = findDoorDefinition(doorway.doorId)?.sounds;
+    if (sounds?.open) ids.add(sounds.open);
+    if (sounds?.close) ids.add(sounds.close);
+  }
+  const frontSounds = findDoorDefinition("front_door")?.sounds;
+  if (frontSounds?.open) ids.add(frontSounds.open);
+  if (frontSounds?.close) ids.add(frontSounds.close);
 
   return [...ids];
 }

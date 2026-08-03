@@ -5,6 +5,7 @@ import {
   type DoorSave,
   type GridPosition,
 } from "core";
+import { emit } from "../EventBus";
 import { Door, RoomDoor } from "./doorAgent";
 import { getPets } from "./petsRuntime";
 import { getWorld, setDoorBlocker } from "./worldRuntime";
@@ -115,6 +116,9 @@ export function initDoors(): void {
   }
 
   pendingSaves = null;
+  // 基线跟着门一起重建，否则换房间后第一帧会拿旧门的状态比对
+  lastOpen.clear();
+  for (const door of doors.values()) lastOpen.set(door.refId, door.open);
 
   /*
    * 把"关着的门挡路"注册进 isWalkable。回调注册而不是让 worldRuntime
@@ -128,11 +132,34 @@ export function initDoors(): void {
   });
 }
 
+/**
+ * 上一帧每扇门的开合状态。用来在**一个地方**检测跳变——
+ * 门可能被玩家按 F 开、被宠物自动开、以后还可能被剧情开，
+ * 各处自己发事件迟早会漏掉一条路径。比对状态则不管谁改的都抓得到。
+ */
+const lastOpen = new Map<string, boolean>();
+
 /** 每帧驱动自动开关。生物 = 宠物这类非玩家活物；玩家开门永远走 F */
 export function tickDoors(): void {
   if (doors.size === 0) return;
   const creatures = getPets().map((pet) => ({ x: pet.x, z: pet.z }));
-  for (const door of doors.values()) door.tick(creatures);
+  for (const door of doors.values()) {
+    door.tick(creatures);
+
+    const previous = lastOpen.get(door.refId);
+    if (previous !== door.open) {
+      lastOpen.set(door.refId, door.open);
+      // 首帧（previous 是 undefined）不发：那是初始化不是"门动了"
+      if (previous !== undefined) {
+        emit("door_toggled", {
+          refId: door.refId,
+          open: door.open,
+          x: door.center.x,
+          z: door.center.z,
+        });
+      }
+    }
+  }
 }
 
 export function listDoors(): Door[] {

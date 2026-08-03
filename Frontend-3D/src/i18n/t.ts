@@ -564,6 +564,9 @@ const ZH: Record<string, string> = {
   "ui.backpack.hint_touch": "点一下查看 · 拖到下面那排快捷栏 · 右上角 ✕ 关闭",
   "ui.backpack.filter_empty": "这一类还什么都没有",
 
+  "audio.door_open": "开门声",
+  "audio.door_close": "关门声",
+
   // ---- 门 ----
   "door.front_door": "大门",
   "door.room_door": "房门",

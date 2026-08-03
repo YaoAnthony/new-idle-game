@@ -16,6 +16,7 @@ import {
 } from "core";
 import { on } from "../../Game/EventBus";
 import { getClock } from "../../Game/State/clock";
+import { findDoorAgent } from "../../Game/State/doorsRuntime";
 import { getDefinition, getRoomStyle, getWorld } from "../../Game/State/worldRuntime";
 import { getWeather } from "../../Game/State/weather";
 import { getActiveAction } from "../../Game/Systems/actions";
@@ -186,6 +187,37 @@ type DesiredLoop = {
    */
   positional?: boolean;
 };
+
+/**
+ * 有位置的一次性音。
+ *
+ * `playOneShot` 本身不认识位置——音量由调用方给。屋里的一次性音
+ * （开关门、以后的抽屉、开关灯）都需要"离得远就轻"，各处自己算距离
+ * 会写出好几份不一样的衰减曲线，所以收在这里：**和循环音用同一条
+ * `(1-d/r)²`**，同一段距离听感才一致。
+ *
+ * 半径从档案里取（`audibleRadius`），没填就当全局音原样播——
+ * 那是档案作者的选择，不是这里该猜的。
+ */
+export function playOneShotAt(
+  profileId: string,
+  at: { x: number; z: number },
+  volume = 1,
+): void {
+  const profile = findAudioProfileDefinition(profileId);
+  const radius = profile?.audibleRadius;
+
+  if (!radius || !hasListener) {
+    playOneShot(profileId, volume);
+    return;
+  }
+
+  const distance = Math.hypot(at.x - listenerX, at.z - listenerZ);
+  if (distance >= radius) return;
+
+  const falloff = 1 - distance / radius;
+  playOneShot(profileId, volume * falloff * falloff);
+}
 
 /**
  * 玩家离这件家具**发声的地方**有多远。
@@ -425,6 +457,18 @@ export function startSoundscape(): () => void {
       if (open) playOneShot("sfx_unpack", 0.9);
     }),
     on("storage_open_requested", () => playOneShot("sfx_storage_open", 0.8)),
+    /*
+     * 门响。声音查的是**门种**的注册表（DoorDefinition.sounds），
+     * 这里不认识任何一扇具体的门——将来加铁门只在 Core 填一行。
+     * 查不到就静音（软门帘那种本来就不该响）。
+     */
+    on("door_toggled", ({ refId, open, x, z }) => {
+      const definition = findDoorAgent(refId)?.definition;
+      const profileId = open
+        ? definition?.sounds?.open
+        : definition?.sounds?.close;
+      if (profileId) playOneShotAt(profileId, { x, z });
+    }),
   ];
 
   return () => {

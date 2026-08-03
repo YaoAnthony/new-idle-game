@@ -1,5 +1,4 @@
-import {
-  defaultAvatarConfig, createSingleRoomMap, type GameSave } from "core";
+import { createSingleRoomMap, type GameSave } from "core";
 import { restoreClock, snapshotClock } from "../../Game/State/clock";
 import {
   restoreChatLog,
@@ -26,6 +25,7 @@ import {
   snapshotInventory,
 } from "../../Game/State/inventory";
 import { getNeeds, restoreNeeds } from "../../Game/State/needs";
+import { restoreAvatar, snapshotAvatar } from "../../Game/State/avatar";
 import { restorePets, snapshotPets } from "../../Game/State/petsRuntime";
 import {
   getRoomStyle,
@@ -91,7 +91,7 @@ export function serializeGameSave(previous?: GameSave): GameSave {
 
     player: {
       name: previous?.player.name ?? "旅人",
-      avatar: previous?.player.avatar ?? defaultAvatarConfig(),
+      avatar: snapshotAvatar(),
       missions: previous?.player.missions ?? { daily: [], primary: [] },
       character: {
         inventory: snapshotInventory(),
@@ -184,6 +184,7 @@ export function hydrateGameSave(save: GameSave): void {
     save.ownWorld.placedFurniture.map((item) => item.instanceId),
   );
 
+  restoreAvatar(save.player.avatar);
   restoreInventory(save.player.character.inventory);
   restoreHeld(save.player.character.heldItem);
   // 位置要在 GameView 挂载之前就位：CharacterController 的构造函数从这里读初值

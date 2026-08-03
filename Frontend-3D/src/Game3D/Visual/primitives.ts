@@ -15,6 +15,11 @@ import {
 /**
  * 低多边形图元工厂。整套画风不用贴图、不用 PBR——
  * 所有形体都由这几个图元拼出来，靠平面着色和色块区分面。
+ *
+ * **例外：角色的皮肤走平滑着色**（见 ownSmoothMaterial）。
+ * 平面着色让每个面各自受光，家具和树因此有方块味；但同一套规则用在
+ * 脸上就是满脸棱面。动森那种光滑脸 = 顶点法线插值 + 足够细分，
+ * 家具保持 flat、皮肤单独 smooth，两种味道各归各的。
  */
 
 const materialCache = new Map<string, MeshLambertMaterial>();
@@ -46,6 +51,22 @@ export function ownMaterial(
   return new MeshLambertMaterial({
     color: value,
     flatShading: true,
+    side: doubleSide ? DoubleSide : FrontSide,
+  });
+}
+
+/**
+ * 平滑着色版（顶点法线插值）。给角色的皮肤、头发这类有机形体用——
+ * 配合足够的球面细分（脸 24×18 起）才有效果：着色只抹平面与面的
+ * 光照跳变，轮廓的多边形折线要靠细分本身。
+ */
+export function ownSmoothMaterial(
+  value: ColorRepresentation | Color,
+  doubleSide = false,
+): MeshLambertMaterial {
+  return new MeshLambertMaterial({
+    color: value,
+    flatShading: false,
     side: doubleSide ? DoubleSide : FrontSide,
   });
 }

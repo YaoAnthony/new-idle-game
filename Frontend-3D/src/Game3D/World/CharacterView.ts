@@ -2,11 +2,27 @@ import { defaultAvatarConfig, type AvatarConfig, type PoseId } from "core";
 import { Object3D } from "three";
 import { addOutline } from "../Engine/Outline.js";
 import {
+  buildEyesGeom,
+  buildFaceGeom,
+  buildHairGeom,
+  buildHipGeom,
+  buildLegGeom,
+  buildMouthGeom,
+  buildNoseGeom,
+  buildTopGeom,
+} from "../Visual/avatarParts.js";
+import {
   findActivity,
   findPosture,
   type PosePartName,
 } from "../Visual/poses.js";
-import { box, group, ownMaterial, sphere } from "../Visual/primitives.js";
+import {
+  box,
+  group,
+  ownMaterial,
+  ownSmoothMaterial,
+  sphere,
+} from "../Visual/primitives.js";
 
 /**
  * 角色由零件槽位拼装（捏人架构的硬约束）：
@@ -78,28 +94,47 @@ export const BODY_HALF_WIDTH = 0.28;
 export function buildCharacter(
   avatar: AvatarConfig = defaultAvatarConfig(),
 ): CharacterRig {
-  const skin = ownMaterial(avatar.colors.skin ?? "#f2c9a4");
+  const skinColor = avatar.colors.skin ?? "#f2c9a4";
   const hairColor = avatar.colors.hair ?? "#4a3226";
+  const eyesColor = avatar.colors.eyes ?? "#2b2422";
   const topColor = avatar.colors.top ?? "#c8564f";
   const bottomColor = avatar.colors.bottom ?? "#6b4a30";
   const shoeColor = avatar.colors.shoes ?? "#3a2a1c";
+  /*
+   * 皮肤走平滑着色（脸和手共用一份材质）。平面着色让每个面各自受光，
+   * 用在脸上就是满脸棱面——就是被玩家点名的那个"很大的边"。
+   * 家具照旧 flat，方块味是它们该有的。
+   */
+  const skin = ownSmoothMaterial(skinColor);
 
   // 腿和身体都挂在 posture 节点里，所以这里的 y 相对**胯部**而不是地面
-  const legLeft = buildLeg(bottomColor, shoeColor);
+  const legLeft = buildLegGeom(
+    avatar.bottomId,
+    bottomColor,
+    skinColor,
+    avatar.shoesId,
+    shoeColor,
+  );
   legLeft.position.set(-0.11, 0, 0);
 
-  const legRight = buildLeg(bottomColor, shoeColor);
+  const legRight = buildLegGeom(
+    avatar.bottomId,
+    bottomColor,
+    skinColor,
+    avatar.shoesId,
+    shoeColor,
+  );
   legRight.position.set(0.11, 0, 0);
 
   const body = new Object3D();
   body.name = "slot-body";
   body.position.y = 0;
 
-  const torso = box([0.46, BODY_HEIGHT, 0.3], {
-    color: topColor,
-    position: [0, BODY_HEIGHT / 2, 0],
-  });
-  body.add(torso);
+  body.add(buildTopGeom(avatar.topId, topColor));
+
+  // 裙摆这类"属于下装但挂在身体上"的部分（进腿槽会跟着单腿甩）
+  const hipExtra = buildHipGeom(avatar.bottomId, bottomColor);
+  if (hipExtra) body.add(hipExtra);
 
   const armLeft = buildArm(topColor, skin);
   armLeft.position.set(-0.28, BODY_HEIGHT - 0.06, 0);
@@ -113,35 +148,14 @@ export function buildCharacter(
   head.name = "slot-head";
   head.position.y = BODY_HEIGHT;
 
-  const face = sphere(0.3, 10, 8, {
-    color: avatar.colors.skin ?? "#f2c9a4",
-    position: [0, 0.26, 0],
-  });
-  face.material = skin;
-  head.add(face);
+  head.add(buildFaceGeom(avatar.faceId, skin));
 
-  const hair = new Object3D();
-  hair.name = "slot-hair";
-  const hairCap = sphere(0.32, 10, 8, {
-    color: hairColor,
-    position: [0, 0.3, -0.04],
-  });
-  hairCap.scale.y = 0.82;
-  hair.add(hairCap);
+  const hair = buildHairGeom(avatar.hairId, hairColor, avatar.faceId);
   head.add(hair);
 
-  const eyeLeft = sphere(0.035, 6, 5, {
-    color: "#241d1a",
-    position: [-0.11, 0.22, 0.27],
-    castShadow: false,
-  });
-  const eyeRight = sphere(0.035, 6, 5, {
-    color: "#241d1a",
-    position: [0.11, 0.22, 0.27],
-    castShadow: false,
-  });
-  head.add(eyeLeft);
-  head.add(eyeRight);
+  head.add(buildEyesGeom(avatar.eyesId, eyesColor));
+  head.add(buildMouthGeom(avatar.mouthId));
+  head.add(buildNoseGeom(avatar.noseId, skinColor));
 
   body.add(head);
 
@@ -173,25 +187,6 @@ export function buildCharacter(
   };
 }
 
-function buildLeg(bottomColor: string, shoeColor: string): Object3D {
-  const leg = new Object3D();
-  leg.name = "slot-leg";
-
-  const thigh = box([0.14, LEG_HEIGHT, 0.16], {
-    color: bottomColor,
-    position: [0, -LEG_HEIGHT / 2, 0],
-  });
-
-  const shoe = box([0.15, 0.09, 0.24], {
-    color: shoeColor,
-    position: [0, -LEG_HEIGHT + 0.045, 0.03],
-  });
-
-  leg.add(thigh);
-  leg.add(shoe);
-  return leg;
-}
-
 function buildArm(
   topColor: string,
   skin: ReturnType<typeof ownMaterial>,
@@ -204,7 +199,8 @@ function buildArm(
     position: [0, -0.15, 0],
   });
 
-  const hand = sphere(0.06, 6, 5, {
+  // 手和脸共用平滑皮肤材质，细分也要跟上——粗球配平滑着色只平光不平轮廓
+  const hand = sphere(0.06, 10, 8, {
     color: "#f2c9a4",
     position: [0, -0.34, 0],
   });

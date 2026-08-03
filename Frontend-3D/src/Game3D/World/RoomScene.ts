@@ -49,6 +49,7 @@ type HintTarget = {
   world: Vector3;
 };
 import { PlacementSurface, findPlaceableItem } from "core";
+import { getAvatar } from "../../Game/State/avatar";
 import { getHeld } from "../../Game/State/heldItem";
 import {
   findDroppedItem,
@@ -154,7 +155,9 @@ export class RoomScene {
   private readonly furnitureView: FurnitureView;
   private readonly cookwareView: CookwareView;
   private readonly droppedItemView: DroppedItemView;
-  private readonly characterRig = buildCharacter();
+  // 外观从运行时状态读：hydrate 已在场景构建之前把存档灌进去，
+  // 新档则是捏脸界面（或默认值）写入的
+  private readonly characterRig = buildCharacter(getAvatar());
   private readonly heldItemView: HeldItemView;
   private readonly controller: CharacterController;
   private readonly placement: PlacementController;

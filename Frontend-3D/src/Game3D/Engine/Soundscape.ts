@@ -7,7 +7,7 @@ import {
   defaultZoneAudioProfile,
   findActionDefinition,
   findAudioProfileDefinition,
-  regionAmbienceProfileIds,
+  resolveRegionAmbienceProfileId,
   zoneAt,
   zoneAudioProfiles,
   zoneFootstepProfileIds,
@@ -270,8 +270,17 @@ function desiredLoops(): Map<string, DesiredLoop> {
 
   // 地区底噪。stone 地区没素材 → 查不到就没有这一层，静音而不是报错
   // 压到 0 时干脆不要这一层，省得留一条听不见的循环占着解码
+  //
+  // **tag 就是 profileId 本身**：昼夜切换时 profileId 跟着变
+  // （ambience_forest_day → ambience_forest_night），tag 也跟着变，
+  // sync() 因此把旧 tag 当成"不该再响了"淡出、把新 tag 当成"新出现的"
+  // 淡入——白天到黑夜换成两条不同的素材，听感却是一次平滑的交叉淡化，
+  // 不用在这里额外写任何交叉淡化逻辑。
   if (ambienceVolume > 0.001) {
-    const regionProfile = regionAmbienceProfileIds[getRoomStyle().regionId];
+    const regionProfile = resolveRegionAmbienceProfileId(
+      getRoomStyle().regionId,
+      phase,
+    );
     if (regionProfile) {
       desired.set(regionProfile, { profileId: regionProfile, volume: ambienceVolume });
     }

@@ -519,7 +519,8 @@ const ZH: Record<string, string> = {
   "weather.storm": "暴雨",
 
   // 音频（注册表里的 localizationKey，将来做音量面板分组用）
-  "audio.ambience_forest": "森林",
+  "audio.ambience_forest_day": "森林（白天）",
+  "audio.ambience_forest_night": "森林（夜晚）",
   "audio.ambience_sea": "海边",
   "audio.weather_rain": "雨声",
   "audio.weather_storm": "暴雨",

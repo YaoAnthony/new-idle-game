@@ -4,6 +4,7 @@ import {
   type AudioProfileDefinition,
 } from "../../types/audio.js";
 import { HouseZoneKind } from "../../types/map.js";
+import { DayPhaseId } from "../../types/time.js";
 
 /**
  * 音频注册表。
@@ -17,12 +18,24 @@ import { HouseZoneKind } from "../../types/map.js";
  * 和"什么时候响"能各自演进。
  */
 export const audioProfileDefinitions = [
-  // ---- 地区环境底噪（按 roomStyle.regionId 选） ----
+  // ---- 地区环境底噪（按 roomStyle.regionId + 昼夜选，见 resolveRegionAmbienceProfileId） ----
+  //
+  // 森林分了昼/夜两条素材——鸟鸣虫鸣这类环境音白天黑夜的声景确实不一样，
+  // 分开录比"一条循环从头放到尾"更真实。海边暂时只有一条（ambience_sea），
+  // 昼夜不分是**素材现状**，不是架构限制：哪天有夜潮声了，照森林这个样子
+  // 补一条 ambience_sea_night，resolveRegionAmbienceProfileId 自动认出来。
   {
-    id: "ambience_forest",
+    id: "ambience_forest_day",
     busId: AudioBusId.Ambience,
-    resourcePath: "/audio/system/environment/forest.mp3",
-    localizationKey: "audio.ambience_forest",
+    resourcePath: "/audio/system/environment/forest_morning.wav",
+    localizationKey: "audio.ambience_forest_day",
+    loop: true,
+  },
+  {
+    id: "ambience_forest_night",
+    busId: AudioBusId.Ambience,
+    resourcePath: "/audio/system/environment/forest_night.wav",
+    localizationKey: "audio.ambience_forest_night",
     loop: true,
   },
   {
@@ -183,11 +196,48 @@ export function findAudioProfileDefinition(
  *
  * `stone` 地区没有素材，故意不列——查不到就静音。
  * 这比"随便挑一个凑数"诚实，也比抛错友好。
+ *
+ * `day` / `night` 是可选的：森林两条都有，海边只有 `default` 一条。
+ * **不强求每个地区都分昼夜**——短的那一路缺素材时 `resolveRegionAmbienceProfileId`
+ * 会自动落回 `default`，不是每加一个地区就得先憋出两条素材才能用。
  */
-export const regionAmbienceProfileIds: Record<string, string> = {
-  forest: "ambience_forest",
-  ocean: "ambience_sea",
+export type RegionAmbienceProfile = {
+  /** 没有分时段素材、或分时段素材缺了一段时用它兜底 */
+  default: string;
+  /** 昼：dawn + day 共用同一条 */
+  day?: string;
+  /** 夜：dusk + night 共用同一条 */
+  night?: string;
 };
+
+export const regionAmbienceProfiles: Record<string, RegionAmbienceProfile> = {
+  forest: {
+    default: "ambience_forest_day",
+    day: "ambience_forest_day",
+    night: "ambience_forest_night",
+  },
+  ocean: {
+    default: "ambience_sea",
+  },
+};
+
+/**
+ * 按地区 + 当前时段挑一条环境底噪档案。
+ *
+ * dawn/day 归"昼"、dusk/night 归"夜"——四个时段只用天亮天黑这一条最粗的线
+ * 分成两段，因为素材现在也只有两条；哪天录了黎明/黄昏专属的，
+ * 这个函数是唯一要改的地方，调用方（Soundscape、worldPreload）一行不动。
+ */
+export function resolveRegionAmbienceProfileId(
+  regionId: string,
+  phase: DayPhaseId,
+): string | undefined {
+  const profile = regionAmbienceProfiles[regionId];
+  if (!profile) return undefined;
+
+  const isDaylight = phase === DayPhaseId.Dawn || phase === DayPhaseId.Day;
+  return (isDaylight ? profile.day : profile.night) ?? profile.default;
+}
 
 /**
  * 分区声音档案：站在屋里不同地方，外面的声音该有多响。

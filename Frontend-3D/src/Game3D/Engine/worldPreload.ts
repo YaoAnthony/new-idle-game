@@ -1,7 +1,7 @@
 import {
   findDoorDefinition,
   findPlaceableItem,
-  regionAmbienceProfileIds,
+  regionAmbienceProfiles,
   weatherDefinitions,
 } from "core";
 import { getRoomStyle, getWorld } from "../../Game/State/worldRuntime";
@@ -16,7 +16,8 @@ import { preloadProfiles } from "./AudioEngine.js";
  * 挪到进门前统一付掉，进去之后所有切换都是即时的。
  *
  * 加载什么**全部从注册表推**，一个字面量 id 都没有：
- * - 地区底噪：按屋子风格的 regionId 查
+ * - 地区底噪：按屋子风格的 regionId 查，昼夜两条**都**拿上——和天气同一个
+ *   理由：白天进的门，玩到晚上天黑，那一刻切到夜曲不该现解码
  * - 天气层：把注册表里所有天气的 audioProfileId 都拿上——天气是会变的，
  *   只加载"现在这种"等于把卡顿留给第一次变天
  * - 家具持续音：只加载**屋里真有的**那几件。全量加载会把还没解锁的家具
@@ -45,8 +46,12 @@ import { preloadProfiles } from "./AudioEngine.js";
 function profilesForCurrentWorld(): string[] {
   const ids = new Set<string>();
 
-  const regionProfile = regionAmbienceProfileIds[getRoomStyle().regionId];
-  if (regionProfile) ids.add(regionProfile);
+  const regionProfile = regionAmbienceProfiles[getRoomStyle().regionId];
+  if (regionProfile) {
+    ids.add(regionProfile.default);
+    if (regionProfile.day) ids.add(regionProfile.day);
+    if (regionProfile.night) ids.add(regionProfile.night);
+  }
 
   for (const weather of weatherDefinitions) {
     // "无声"是一条占位档案，没有素材可加载

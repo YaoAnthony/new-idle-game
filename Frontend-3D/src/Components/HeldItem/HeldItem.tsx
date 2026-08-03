@@ -3,7 +3,9 @@ import { useEffect, useState } from "react";
 import { emit, on } from "../../Game/EventBus";
 import { getHeld, returnToBackpack } from "../../Game/State/heldItem";
 import { eatFromHand, storeHeldContents } from "../../Game/Systems/kitchen";
+import { isTouchMode } from "../../Game/State/touchMode";
 import { t } from "../../i18n/t";
+import "../Mobile/Mobile.css";
 import { ItemIcon } from "../Inventory/slots";
 
 /**
@@ -28,7 +30,17 @@ export function HeldItem() {
   );
 
   return (
-    <div className="ui-bar absolute bottom-3 right-3 z-10 flex items-center gap-2.5 rounded-xl p-2 pr-3">
+    /*
+     * 触摸端挪到快捷栏上方那条带（几何在 Mobile.css）：它和按钮组原本都
+     * 钉在右下角同一个点上，直接叠成一团——手上拿着东西的时候，"扔掉/放下"
+     * 那几个按钮正好被这块牌子压住。
+     */
+    <div
+      className={[
+        "ui-bar absolute z-10 flex items-center gap-2.5 rounded-xl p-2 pr-3",
+        isTouchMode() ? "touch-held" : "bottom-3 right-3",
+      ].join(" ")}
+    >
       <div className="flex flex-col items-center">
         <span className="text-[10px] tracking-widest text-white/55">
           {t("ui.held.title")}

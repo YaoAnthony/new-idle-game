@@ -148,18 +148,98 @@
  * 两者在 600px 以下开始相交。
  */
 /*
- * 竖屏窄屏是按钮从右下压上来，横屏矮屏是按钮**从右边**压过来——
- * 两种都要抬。上一版只写了 max-width，667x375 的横屏（宽度没触发断点）
- * 快捷栏留在底部，右边两格正好被动作按钮盖住；而快捷栏 z 比按钮高，
- * 结果是**按钮点不到**，比格子点不到更糟。
+ * 什么时候该把快捷栏抬起来：**只看宽度**。
  *
- * 96px 是量出来的：抬起后快捷栏下沿落在 y=279，动作按钮上沿 289，
+ * 抬起来是为了躲开右下角的动作按钮，那是个横向冲突，跟屏幕高矮无关。
+ * 上一版把 `max-height: 500px` 也写成了触发条件，结果宽屏横屏
+ * （比如 1200x400）明明快捷栏在 425..775、按钮在 1000 开外根本不碰，
+ * 也照样抬 96px，快捷栏浮在画面正中间。
+ *
+ * 断点是算出来的，不是试出来的：快捷栏居中、半宽约 175px，按钮组占右侧
+ * 约 200px，相撞的条件是 vw/2 + 175 > vw - 200，解出 vw < 750。
+ *
+ * 96px 这个抬升量也是量出来的：抬起后快捷栏下沿 y=279，动作按钮上沿 289，
  * 差 10px 刚好不碰。
  */
-@media (max-width: 560px), (max-height: 500px) {
+@media (max-width: 750px) {
   .touch-hotbar {
     bottom: calc(96px + env(safe-area-inset-bottom, 0px));
   }
+}
+
+/*
+ * 手上拿着的东西：触摸端挪到**快捷栏上方**那条带。
+ *
+ * 它原来贴在 right-3 bottom-3，和动作按钮是同一个角，直接压在一起——
+ * 手上拿着东西的时候，"扔掉/放下"那几个按钮正好被这块牌子盖住。
+ *
+ * 试过只抬到 96px（和快捷栏同一条带），但两者都靠这条带就会撞：横屏下
+ * 快捷栏居中占到 x=509，这块牌子从 x=503 起，压住最后一格。375px 高
+ * 塞不下第四条水平带，所以它去和消息字幕共用一条——字幕是临时的、
+ * 而且不吃指针，让一让没有代价。
+ *
+ * 160 = 96（快捷栏抬升）+ 56（快捷栏高）+ 8（间隙）。
+ *
+ * z 要压过字幕（z-20）：这块牌子上有"吃掉/收起来"两个真按钮，
+ * 被半透明字幕盖住会看不清也点不准。
+ */
+.touch-held {
+  bottom: calc(160px + env(safe-area-inset-bottom, 0px));
+  right: calc(14px + env(safe-area-inset-right, 0px));
+  z-index: 25;
+}
+
+/* ---- 竖屏拦截 ---- */
+
+.rotate-prompt {
+  position: fixed;
+  inset: 0;
+  /* 比任何面板都高：它要拦住的正是"面板在竖屏下没法用"这件事 */
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+  text-align: center;
+  background: #232b3d;
+  color: #e8d9b8;
+  /* 盖住底下的一切输入：竖屏时任何操作都是误触 */
+  touch-action: none;
+  user-select: none;
+}
+
+.rotate-prompt__icon {
+  width: 108px;
+  height: 108px;
+  color: #e0a94a;
+  /* 慢慢摆一下，暗示"转"这个动作。不循环得太快，免得像在报错 */
+  animation: rotate-prompt-hint 2.6s ease-in-out infinite;
+}
+
+@keyframes rotate-prompt-hint {
+  0%, 55%, 100% { transform: rotate(0deg); }
+  75%, 90% { transform: rotate(-90deg); }
+}
+
+/* 跟随系统的"减少动态效果"：前庭敏感的人看旋转会不适 */
+@media (prefers-reduced-motion: reduce) {
+  .rotate-prompt__icon {
+    animation: none;
+  }
+}
+
+.rotate-prompt__title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.rotate-prompt__body {
+  margin: 0;
+  font-size: 14px;
+  opacity: 0.7;
 }
 
 /* ---- 触摸端的消息流 ---- */

@@ -1,6 +1,7 @@
 import { AnimatePresence } from "motion/react";
 import { useCallback, useEffect, useState } from "react";
 import { LoadingScreen } from "./Components/Loading/LoadingScreen";
+import { RotatePrompt } from "./Components/Mobile/RotatePrompt";
 import { TitleScreen } from "./Components/TitleScreen";
 import { TITLE_SCREEN_CONFIG } from "./Components/TitleScreen/config";
 import { getSaveRepository, hydrateGameSave, setBaseline } from "./Data/Save";
@@ -146,6 +147,13 @@ function App() {
       <AnimatePresence>
         {stage === "loading" && <LoadingScreen key="loading" progress={progress} />}
       </AnimatePresence>
+
+      {/*
+        竖屏拦截挂在**最顶层**、盖住标题页和游戏两种阶段。
+        只在标题页拦的话，玩家竖着点了"开始游戏"进来才被拦住，白等一次加载；
+        只在游戏里拦，标题页又会给出"竖屏也能用"的错误暗示。
+      */}
+      <RotatePrompt />
 
       {notice ? (
         <div

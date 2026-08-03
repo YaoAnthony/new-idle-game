@@ -18,14 +18,15 @@ const OPEN_ANGLE = Math.PI * 0.56;
  * 这里连一个 if 都不该多。开合速度也来自注册表（behavior.swingSpeed），
  * 换一种"慢悠悠的老木门"只改数据。
  *
- * 双扇对开而不是单扇：门洞 2 格宽（2 米），单扇门板 2 米宽转起来
- * 扫过的弧比玩家还大，视觉上像一堵墙在转；对开每扇 1 米，正常。
+ * 扇数来自注册表（definition.leaves）：双扇对开是内门默认——门洞 2 格宽
+ * （2 米），单扇门板转起来扫过的弧比玩家还大，视觉上像一堵墙在转，
+ * 对开每扇 1 米才正常。要单开的门在注册表里写 leaves: 1，这里照做。
  */
 export class RoomDoorView {
   readonly root: Object3D;
 
-  private readonly leftPivot: Object3D;
-  private readonly rightPivot: Object3D;
+  /** 门板枢轴。单扇门只有一个，双扇是左右各一 */
+  private readonly pivots: Object3D[] = [];
   private angle = 0;
 
   constructor(
@@ -56,7 +57,9 @@ export class RoomDoorView {
       this.root.rotation.y = Math.PI / 2;
     }
 
-    const leafWidth = gap / 2 - 0.08;
+    const leaves = agent.definition.leaves ?? 2;
+    // 单扇要覆盖整个洞口，双扇各占一半
+    const leafWidth = (leaves === 1 ? gap : gap / 2) - 0.08;
     const leafHeight = DOOR_HEIGHT - 0.12;
 
     const buildLeaf = (mirror: 1 | -1): Object3D => {
@@ -86,10 +89,13 @@ export class RoomDoorView {
       return pivot;
     };
 
-    this.leftPivot = buildLeaf(1);
-    this.rightPivot = buildLeaf(-1);
-    this.root.add(this.leftPivot);
-    this.root.add(this.rightPivot);
+    // 单扇统一挂在左侧合页（和大门 DoorView 一致），双扇左右对开
+    const mirrors: (1 | -1)[] = leaves === 1 ? [1] : [1, -1];
+    for (const mirror of mirrors) {
+      const pivot = buildLeaf(mirror);
+      this.pivots.push(pivot);
+      this.root.add(pivot);
+    }
   }
 
   update(deltaSeconds: number): void {
@@ -98,8 +104,11 @@ export class RoomDoorView {
     const smoothing = 1 - Math.exp(-speed * deltaSeconds);
     this.angle += (target - this.angle) * smoothing;
 
-    // 两扇往同一侧（局部 +z）对开，角度镜像
-    this.leftPivot.rotation.y = -this.angle;
-    this.rightPivot.rotation.y = this.angle;
+    /*
+     * 门板往同一侧（局部 +z）开。双扇时两边角度镜像才是"对开"；
+     * 单扇只有一片，直接用左侧那一路的符号。
+     */
+    this.pivots[0].rotation.y = -this.angle;
+    if (this.pivots[1]) this.pivots[1].rotation.y = this.angle;
   }
 }

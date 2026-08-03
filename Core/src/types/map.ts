@@ -70,6 +70,16 @@ export type InteriorDoorway = {
   span: number;
   /** 装哪种门（Data/doors 的 id）。不填 = 空门洞，不装门 */
   doorId?: string;
+
+  /**
+   * 这一扇门初始锁着。
+   *
+   * 和 DoorDefinition.defaultLocked 的分工：那个说的是"这**种**门默认锁"，
+   * 这个说的是"这**扇**门锁着"。次卧锁着是户型的设定，不是"单开门这个
+   * 品类默认锁"——写进定义的话，以后再放一扇不锁的单开门就得多造一个
+   * 门种。存档里的 DoorSave.locked 优先于这两者（玩家开过的锁不会复原）。
+   */
+  initiallyLocked?: boolean;
 };
 
 export enum HouseZoneKind {

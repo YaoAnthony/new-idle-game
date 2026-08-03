@@ -596,6 +596,31 @@ export const migrations: Migration[] = [
       return save;
     },
   },
+
+  // v18（2026-08-03 次卧上锁）：次卧改单开门且初始锁着。
+  // **老档也要跟着变**——户型设定改了，已经在玩的档不该还是双开且不锁；
+  // doors[] 里那条存的 locked:false 是"上个版本的默认"，不是玩家开过锁，
+  // 所以这里一并改掉。真被玩家解锁过的门在这条迁移之后才有意义。
+  {
+    to: 18,
+    migrate: (save) => {
+      for (const map of Object.values(save.ownWorld.maps ?? {})) {
+        for (const room of Object.values(map.rooms ?? {})) {
+          for (const doorway of room.interiorDoorways ?? []) {
+            if (doorway.doorwayId !== "doorway-bedroom-b") continue;
+            doorway.doorId = "room_door_single";
+            doorway.initiallyLocked = true;
+          }
+        }
+      }
+      for (const door of save.ownWorld.doors ?? []) {
+        if (door.refId !== "doorway-bedroom-b") continue;
+        door.definitionId = "room_door_single";
+        door.locked = true;
+      }
+      return save;
+    },
+  },
 ];
 
 /**

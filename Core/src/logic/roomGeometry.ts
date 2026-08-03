@@ -249,11 +249,13 @@ export function generateHouse(params: {
       doorId: "room_door",
     },
     {
+      // 次卧：单开门且初始锁着（户型设定，将来接钥匙/剧情才打得开）
       doorwayId: "doorway-bedroom-b",
       cell: { x: 19, y: WALL_ROW },
       axis: "x",
       span: 2,
-      doorId: "room_door",
+      doorId: "room_door_single",
+      initiallyLocked: true,
     },
   ];
 

@@ -30,9 +30,15 @@ function makeDoor(
   cells: readonly GridPosition[],
   center: { x: number; z: number },
   savedLocked?: boolean,
+  initiallyLocked?: boolean,
 ): Door {
   const DoorClass = definition.behavior?.autoOpenRadius ? RoomDoor : Door;
-  return new DoorClass(refId, definition, cells, center, savedLocked);
+  /*
+   * 锁定的优先级：存档 > 这一扇的设定 > 这一种门的默认。
+   * 存档最优先是关键——玩家拿钥匙开过的锁，读档不该自己合上。
+   */
+  const locked = savedLocked ?? initiallyLocked ?? definition.defaultLocked;
+  return new DoorClass(refId, definition, cells, center, locked);
 }
 
 /** hydrate 先到、房间几何后到，锁定状态在这里等着被 init 认领 */
@@ -82,6 +88,7 @@ export function initDoors(): void {
       cells,
       center,
       savedByRef.get(doorway.doorwayId)?.locked,
+      doorway.initiallyLocked,
     );
     doors.set(door.refId, door);
   }

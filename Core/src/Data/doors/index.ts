@@ -40,6 +40,24 @@ export const doorDefinitions: DoorDefinition[] = [
       swingSpeed: 6,
     },
   },
+  {
+    /*
+     * 单开的内门。行为和 room_door 一模一样，差别只在结构（一扇）——
+     * 所以是另一条注册表项而不是另一个类：Door/RoomDoor 只解释字段，
+     * "长几扇门板"是表现层查 leaves 画出来的。
+     */
+    id: "room_door_single",
+    visualId: "door_interior_single",
+    localizationKey: "door.room_door",
+    leaves: 1,
+    lockable: true,
+    defaultLocked: false,
+    behavior: {
+      autoOpenRadius: 1.6,
+      autoCloseRadius: 2.4,
+      swingSpeed: 6,
+    },
+  },
 ];
 
 export function findDoorDefinition(

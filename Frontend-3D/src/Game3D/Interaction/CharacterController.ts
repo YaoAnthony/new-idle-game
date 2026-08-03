@@ -20,6 +20,14 @@ import { animateCharacter, applyPose } from "../World/CharacterView";
  */
 
 const SPEED = 3.1;
+
+/**
+ * 跑步倍率。1.75 不是随手定的：再高在 24×20 的屋里从这头到那头不到 3 秒，
+ * 家具之间的间隙也来不及躲；治愈类的"跑"是省掉长距离的枯燥，
+ * 不是竞速。走 3.1 / 跑 5.4，差别一眼看得出来又不失控。
+ */
+const RUN_MULTIPLIER = 1.75;
+
 const RADIUS = 0.32;
 
 export class CharacterController {
@@ -167,6 +175,12 @@ export class CharacterController {
     }
 
     const moving = inputX !== 0 || inputZ !== 0;
+    /*
+     * 按住 Shift 跑。**只影响速度和步频，不改姿态**——跑步姿势要另做
+     * 一套 pose，现在共用走路那套，加快步频已经读得出"在跑"。
+     * 坐着躺着时 moving 恒假，所以不用单独拦。
+     */
+    const running = moving && this.keys.has("shift");
 
     if (moving) {
       const azimuth = MathUtils.degToRad(cameraAzimuthDegrees);
@@ -187,8 +201,9 @@ export class CharacterController {
        */
       const length = Math.hypot(worldX, worldZ);
       const throttle = Math.min(1, length) / length;
-      const stepX = worldX * throttle * SPEED * deltaSeconds;
-      const stepZ = worldZ * throttle * SPEED * deltaSeconds;
+      const speed = running ? SPEED * RUN_MULTIPLIER : SPEED;
+      const stepX = worldX * throttle * speed * deltaSeconds;
+      const stepZ = worldZ * throttle * speed * deltaSeconds;
 
       // 轴分离：撞墙时沿另一轴滑动。
       // 如果当前已经卡在阻挡格里（比如家具放在了人身上），放开限制让人走出来
@@ -202,7 +217,12 @@ export class CharacterController {
       if (delta < -Math.PI) delta += Math.PI * 2;
       this.headingAngle += delta * Math.min(1, deltaSeconds * 12);
 
-      this.walkPhase = (this.walkPhase + deltaSeconds * 2.6) % 1;
+      /*
+       * 步频跟着速度走。不跟的话跑起来是"用走路的频率滑过去"——
+       * 脚和地面对不上，低多边形也照样看得出来。
+       */
+      this.walkPhase =
+        (this.walkPhase + deltaSeconds * 2.6 * (running ? RUN_MULTIPLIER : 1)) % 1;
     }
 
     // 坐着躺着时根节点要抬到承托面上（由 resting 系统写进 supportY）

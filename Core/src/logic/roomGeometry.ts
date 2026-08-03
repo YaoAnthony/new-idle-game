@@ -8,6 +8,7 @@ import {
   HouseZoneKind,
   WallOpeningKind,
   type HouseZone,
+  type InteriorDoorway,
   type InteriorWall,
   type MapSave,
   type RoomSave,
@@ -227,13 +228,38 @@ export function generateHouse(params: {
   };
 
   const WALL_ROW = 12;
+
+  /*
+   * 横墙的门洞（save v17 起显式入档）。三个 2 格门洞：
+   * 主卧 x4..5、洗手间 x12..13、次卧 x19..20，都装房门。
+   */
+  const interiorDoorways: InteriorDoorway[] = [
+    {
+      doorwayId: "doorway-bedroom-a",
+      cell: { x: 4, y: WALL_ROW },
+      axis: "x",
+      span: 2,
+      doorId: "room_door",
+    },
+    {
+      doorwayId: "doorway-bath",
+      cell: { x: 12, y: WALL_ROW },
+      axis: "x",
+      span: 2,
+      doorId: "room_door",
+    },
+    {
+      doorwayId: "doorway-bedroom-b",
+      cell: { x: 19, y: WALL_ROW },
+      axis: "x",
+      span: 2,
+      doorId: "room_door",
+    },
+  ];
+
   const interiorWalls: InteriorWall[] = [
-    // z=12 横墙，三个 2 格门洞：主卧 x4..5、洗手间 x12..13、次卧 x19..20
-    { from: { x: 0, y: WALL_ROW }, axis: "x", length: 4 },
-    { from: { x: 6, y: WALL_ROW }, axis: "x", length: 6 },
-    { from: { x: 14, y: WALL_ROW }, axis: "x", length: 5 },
-    { from: { x: 21, y: WALL_ROW }, axis: "x", length: 3 },
-    // 南带两道竖墙：主卧|洗手间、洗手间|次卧
+    ...wallRowSegments(WALL_ROW, size.width, interiorDoorways),
+    // 南带两道竖墙：主卧|洗手间、洗手间|次卧（整段无门洞）
     { from: { x: 10, y: 13 }, axis: "y", length: 7 },
     { from: { x: 15, y: 13 }, axis: "y", length: 7 },
   ];
@@ -247,7 +273,15 @@ export function generateHouse(params: {
     { zoneId: "ldk", kind: HouseZoneKind.Ldk, rect: { x: 0, y: 0, width: 24, height: 12 } },
   ];
 
-  return { roomId, floorGrid: size, walls, interiorWalls, zones, floor: 0 };
+  return {
+    roomId,
+    floorGrid: size,
+    walls,
+    interiorWalls,
+    interiorDoorways,
+    zones,
+    floor: 0,
+  };
 }
 
 /**
@@ -267,6 +301,35 @@ export function zoneAt(
       cell.y >= zone.rect.y &&
       cell.y < zone.rect.y + zone.rect.height,
   );
+}
+
+/**
+ * 从整行减去门洞，得到横墙的墙段。墙段和门洞由**同一份数据**推导——
+ * 原来四段墙是手写的，和注释里的门洞位置各管各；挪一个门洞要同时改
+ * 两处，错半格就是"门装在墙里"或"墙上多一条没门的缝"。
+ */
+function wallRowSegments(
+  row: number,
+  width: number,
+  doorways: InteriorDoorway[],
+): InteriorWall[] {
+  const gaps = doorways
+    .filter((doorway) => doorway.axis === "x" && doorway.cell.y === row)
+    .map((doorway) => [doorway.cell.x, doorway.cell.x + doorway.span - 1] as const)
+    .sort((a, b) => a[0] - b[0]);
+
+  const segments: InteriorWall[] = [];
+  let cursor = 0;
+  for (const [start, end] of gaps) {
+    if (start > cursor) {
+      segments.push({ from: { x: cursor, y: row }, axis: "x", length: start - cursor });
+    }
+    cursor = end + 1;
+  }
+  if (cursor < width) {
+    segments.push({ from: { x: cursor, y: row }, axis: "x", length: width - cursor });
+  }
+  return segments;
 }
 
 /** 内墙覆盖的所有格子（占用图和渲染共用同一份推导） */

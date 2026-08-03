@@ -2,7 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
-import { auditAvatarContent, auditStoryContent } from 'core'
+import { auditAvatarContent, auditDoorContent, auditStoryContent } from 'core'
 import { auditItemVisuals } from './Game3D/Visual/VisualRegistry.ts'
 import { hasLocalizationKey } from './i18n/t.ts'
 
@@ -30,6 +30,14 @@ if (import.meta.env.DEV) {
   if (avatarProblems.length > 0) {
     console.warn(
       `[avatar] 捏人注册表有 ${avatarProblems.length} 处对不上：\n  ${avatarProblems.join('\n  ')}`,
+    )
+  }
+
+  // 门注册表：自动开/关半径这类裸数字配错了是"门永远不自动开"的哑巴病
+  const doorProblems = auditDoorContent({ hasLocalizationKey })
+  if (doorProblems.length > 0) {
+    console.warn(
+      `[door] 门注册表有 ${doorProblems.length} 处对不上：\n  ${doorProblems.join('\n  ')}`,
     )
   }
 }

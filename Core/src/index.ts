@@ -5,6 +5,7 @@ export * from "./types/base.js";
 export * from "./types/chat.js";
 export * from "./types/cooking.js";
 export * from "./types/dialogue.js";
+export * from "./types/doors.js";
 export * from "./types/events.js";
 export * from "./types/furniture.js";
 export * from "./types/inventory.js";

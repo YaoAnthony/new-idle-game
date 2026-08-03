@@ -564,10 +564,14 @@ const ZH: Record<string, string> = {
   "ui.backpack.hint_touch": "点一下查看 · 拖到下面那排快捷栏 · 右上角 ✕ 关闭",
   "ui.backpack.filter_empty": "这一类还什么都没有",
 
+  // ---- 门 ----
+  "door.front_door": "大门",
+  "door.room_door": "房门",
+
   // ---- 捏脸 ----
   "ui.creator.title": "捏一个自己",
   "ui.creator.back": "回标题",
-  "ui.creator.confirm": "就这样出发",
+  "ui.creator.confirm": "出发",
   "ui.creator.drag_hint": "拖动转视角 · 滚轮拉近拉远",
   "ui.creator.drag_hint_touch": "拖动转视角 · 双指捏合拉近拉远",
   "ui.creator.reset_view": "回正",

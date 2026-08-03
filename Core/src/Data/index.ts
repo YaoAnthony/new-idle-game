@@ -3,6 +3,7 @@ export * from "./audio/index.js";
 export * from "./avatars/index.js";
 export * from "./chat/index.js";
 export * from "./cooking/index.js";
+export * from "./doors/index.js";
 export * from "./dialogues/index.js";
 export * from "./events/index.js";
 export * from "./items/index.js";

@@ -1,4 +1,5 @@
 import type { ChatMessage } from "./chat.js";
+import type { DoorSave } from "./doors.js";
 import type { FeatureId, RoomId, WorldId } from "./base.js";
 import type { EventProgressSave } from "./events.js";
 import type { StoryRuleId } from "./story.js";
@@ -68,6 +69,13 @@ export type WorldSave = {
   maps: Record<string, MapSave>;
   pets: Record<string, PetSave>;
   placedFurniture: PlacedFurniture[];
+
+  /**
+   * 门的状态（save v17）。门属于世界不属于玩家：联机时访客看到的
+   * 锁门状态必须和房主一致。老存档没有 → 运行时按定义的 defaultLocked
+   * 初始化。
+   */
+  doors?: DoorSave[];
 
   /**
    * 扔在地上的东西。**必须进存档**——不存的话关掉游戏再打开，

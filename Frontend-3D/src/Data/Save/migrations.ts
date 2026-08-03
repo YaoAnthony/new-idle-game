@@ -556,6 +556,46 @@ export const migrations: Migration[] = [
       return save;
     },
   },
+
+  // v17（2026-08-03 门）：内墙门洞显式入档（RoomSave.interiorDoorways），
+  // WorldSave.doors 存锁定状态。门洞值**冻结在这里**（同 LEGACY_FURNITURE_ID
+  // 铁律）：老档的 2LDK 户型只有这一种，三个门洞位置写死；
+  // 没有内墙的更老单间档不补——没有内墙就没有装门的地方。
+  // doors 本身不补：可选字段，运行时按定义的 defaultLocked 初始化。
+  {
+    to: 17,
+    migrate: (save) => {
+      for (const map of Object.values(save.ownWorld.maps ?? {})) {
+        for (const room of Object.values(map.rooms ?? {})) {
+          if (!room.interiorWalls?.length) continue;
+          room.interiorDoorways ??= [
+            {
+              doorwayId: "doorway-bedroom-a",
+              cell: { x: 4, y: 12 },
+              axis: "x",
+              span: 2,
+              doorId: "room_door",
+            },
+            {
+              doorwayId: "doorway-bath",
+              cell: { x: 12, y: 12 },
+              axis: "x",
+              span: 2,
+              doorId: "room_door",
+            },
+            {
+              doorwayId: "doorway-bedroom-b",
+              cell: { x: 19, y: 12 },
+              axis: "x",
+              span: 2,
+              doorId: "room_door",
+            },
+          ];
+        }
+      }
+      return save;
+    },
+  },
 ];
 
 /**

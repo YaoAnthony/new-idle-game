@@ -55,6 +55,23 @@ export type InteriorWall = {
   length: number;
 };
 
+/**
+ * 内墙上的门洞。**显式数据，不再从"墙段之间的缝"反推**——
+ * 缝隙只说明能走，说不了"这里装了哪种门、门朝哪边开"。
+ * 门实体（types/doors.ts）按 doorwayId 认领这里的几何。
+ */
+export type InteriorDoorway = {
+  doorwayId: string;
+  /** 门洞起点格（内墙行/列上，靠 x/y 小的那端） */
+  cell: GridPosition;
+  /** 沿哪个轴展开，和所在内墙一致 */
+  axis: "x" | "y";
+  /** 宽几格 */
+  span: number;
+  /** 装哪种门（Data/doors 的 id）。不填 = 空门洞，不装门 */
+  doorId?: string;
+};
+
 export enum HouseZoneKind {
   Ldk = "ldk",
   Genkan = "genkan",
@@ -83,6 +100,8 @@ export type RoomSave = {
 
   /** 内墙与分区（2LDK 户型起引入）。老存档没有 → 单间大平面 */
   interiorWalls?: InteriorWall[];
+  /** 内墙门洞（save v17 起显式入档）。老存档没有 → 由迁移按户型补 */
+  interiorDoorways?: InteriorDoorway[];
   zones?: HouseZone[];
 
   /** 楼层序号。初期只构建和渲染一层，但维度先留出来 */

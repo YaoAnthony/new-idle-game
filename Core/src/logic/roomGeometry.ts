@@ -20,6 +20,13 @@ import type { RoomStyleDefinition } from "../types/roomStyle.js";
 export const DEFAULT_ROOM_SIZE: GridFootprint = { width: 16, height: 12 };
 
 /**
+ * 出了大门能走多远（格）。院子是房子四周的一圈活动区——
+ * 只管"人能走到哪"，草地的**视觉**大小在 OutdoorScene 自己定（170×150），
+ * 比这个大得多：能看到的远处和能走到的范围本来就不该是一回事。
+ */
+export const YARD_MARGIN = 12;
+
+/**
  * 2LDK 户型的整体尺寸（2026-07-30 定稿）。
  * 1 格 = 0.625 米，24×20 格 = 15m × 12.5m = 187㎡。
  *

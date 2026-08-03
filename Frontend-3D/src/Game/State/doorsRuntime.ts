@@ -1,4 +1,5 @@
 import {
+  YARD_MARGIN,
   findDoorDefinition,
   findDoors,
   type DoorDefinition,
@@ -8,7 +9,7 @@ import {
 import { emit } from "../EventBus";
 import { Door, RoomDoor } from "./doorAgent";
 import { getPets } from "./petsRuntime";
-import { getWorld, setDoorBlocker } from "./worldRuntime";
+import { getWorld, setDoorBlocker, setOutdoorPass } from "./worldRuntime";
 
 /**
  * 门的集合管理（和 petsRuntime 同一套摆法：Agent 类管一扇门怎么动，
@@ -95,6 +96,10 @@ export function initDoors(): void {
   }
 
   // ---- 大门（外墙开口）----
+  /** 大门的穿行通道（世界 z 范围）。西墙开口沿 z 轴排布 */
+  let frontDoorRef: string | null = null;
+  let passMinZ = 0;
+  let passMaxZ = 0;
   const frontDefinition = findDoorDefinition("front_door");
   if (frontDefinition) {
     for (const opening of findDoors(room)) {
@@ -112,6 +117,9 @@ export function initDoors(): void {
         savedByRef.get(opening.openingId)?.locked,
       );
       doors.set(door.refId, door);
+      frontDoorRef = door.refId;
+      passMinZ = opening.gridPosition.x - halfD;
+      passMaxZ = passMinZ + opening.size.width;
     }
   }
 
@@ -129,6 +137,38 @@ export function initDoors(): void {
       if (door.blocksCell(gx, gy)) return true;
     }
     return false;
+  });
+
+  /*
+   * 室外通行判定（isWalkable 的边界分支走这里）。三层，由外到内：
+   * 1. 院子有边——房子四周 YARD_MARGIN 格，草地视觉更大没关系，
+   *    能看到的远处和能走到的范围不是一回事。
+   * 2. 碰撞圆不压着房子 → 院子里自由走。
+   * 3. 压着房子 = 正在穿墙，只有一种合法情况：大门开着、
+   *    且整个人都在门洞的 z 跨度里、且压的是西墙那条边。
+   *    z 校验挡住"贴着南北墙外侧蹭"，x 校验挡住"从东墙穿进来"。
+   */
+  setOutdoorPass((x, z, radius) => {
+    if (
+      x - radius < -halfW - YARD_MARGIN ||
+      x + radius > halfW + YARD_MARGIN ||
+      z - radius < -halfD - YARD_MARGIN ||
+      z + radius > halfD + YARD_MARGIN
+    ) {
+      return false;
+    }
+
+    const overlapsHouse =
+      x + radius > -halfW &&
+      x - radius < halfW &&
+      z + radius > -halfD &&
+      z - radius < halfD;
+    if (!overlapsHouse) return true;
+
+    const frontDoor = frontDoorRef ? doors.get(frontDoorRef) : undefined;
+    if (!frontDoor?.open) return false;
+    if (z - radius < passMinZ || z + radius > passMaxZ) return false;
+    return x - radius < -halfW + 0.01;
   });
 }
 

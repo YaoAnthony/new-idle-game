@@ -577,6 +577,20 @@ export function setDoorBlocker(
   doorBlocker = fn;
 }
 
+/**
+ * "这个（至少部分在屋外的）位置可走吗"，同样由 doorsRuntime 注册——
+ * 答案取决于大门开没开、门洞在哪、院子多大，全是那边的知识。
+ * 没注册（比如极早期启动阶段）就当室外全不可走，行为等同旧版。
+ */
+let outdoorPass: ((x: number, z: number, radius: number) => boolean) | null =
+  null;
+
+export function setOutdoorPass(
+  fn: ((x: number, z: number, radius: number) => boolean) | null,
+): void {
+  outdoorPass = fn;
+}
+
 /** 连续坐标下的通行检测：角色/宠物的圆形碰撞体压到的格子都不能是阻挡格 */
 export function isWalkable(
   x: number,
@@ -596,7 +610,13 @@ export function isWalkable(
     z - radius < -halfD ||
     z + radius > halfD
   ) {
-    return false;
+    /*
+     * 碰撞圆越出了房子地板——原来这里一票否决（人被锁死在屋里）。
+     * 现在交给室外通道判定：开着的大门是边界上唯一的口子，
+     * 出去之后在院子范围内自由走。完全在屋外时不查占用图
+     * （占用图只有室内格子），所以判过就直接放行。
+     */
+    return outdoorPass?.(x, z, radius) ?? false;
   }
 
   const minGX = Math.floor(x - radius + halfW);

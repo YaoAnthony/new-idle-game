@@ -4,6 +4,7 @@ import {
   Facing,
   FurnitureCapability,
   WeatherKind,
+  YARD_MARGIN,
   findPath,
   findPetDefinition,
 } from "core";
@@ -215,6 +216,9 @@ export class RoomScene {
 
   /** 坐下之前站在哪，起身时退回去 */
   private restingReturnTo: { x: number; z: number } | null = null;
+
+  /** 镜头当前用的是不是院子边界盒（玩家在屋外）。滞回用 */
+  private cameraOutdoors = false;
 
   /** 提示气泡附着的家具（独立于 interactTarget，见 refreshInteractTarget） */
   private hintTarget: HintTarget | null = null;
@@ -847,9 +851,8 @@ export class RoomScene {
       | null = null;
     let bestDistance = 1.9;
 
-    // 门和宠物/工作站平级，按距离竞争。没有格子的门（大门）不参与近身交互
+    // 门和宠物/工作站平级，按距离竞争。大门也在内——出门就靠它
     for (const door of listDoors()) {
-      if (door.cells.length === 0) continue;
       const distance = Math.hypot(
         door.center.x - this.controller.x,
         door.center.z - this.controller.z,
@@ -906,7 +909,6 @@ export class RoomScene {
     }
     // 门的气泡和家具提示竞争同一个位置：开门/关门/锁着，随实体状态换词
     for (const door of listDoors()) {
-      if (door.cells.length === 0) continue;
       const distance = Math.hypot(
         door.center.x - this.controller.x,
         door.center.z - this.controller.z,
@@ -1522,6 +1524,7 @@ export class RoomScene {
     );
     // 宠物走完再让门看一眼谁靠近了——同帧的位置，门不会慢半拍
     tickDoors();
+    this.syncCameraBounds();
     this.petView.update(deltaSeconds);
 
     // 火候：只有架在灶眼上、且内容匹配到配方的锅才会走进度
@@ -1668,6 +1671,40 @@ export class RoomScene {
 
   zoomToFit(): void {
     this.rig.zoomToFit();
+  }
+
+  /**
+   * 玩家进出屋子时切镜头边界盒。
+   *
+   * 屋内是房子的内壁盒（弹簧臂贴墙收臂那套）；屋外换成整个院子——
+   * 不切的话人一出门，镜头目标还被夹在房子里，人越走越远直到出画。
+   *
+   * 判据是玩家中心越过西墙线，不做滞回：切换的只是 desired 目标，
+   * CameraRig 的平滑插值天然把跳变抹成一段推拉，门口来回横跳
+   * 也只是镜头轻微呼吸，不值得为它加状态。
+   *
+   * 屋外的盒子把房子也包进去，代价是镜头拉远时可能穿房顶看到屋里——
+   * 治愈系的院子视角基本平视，实际很少触发；比起给房子做遮挡淡出
+   * 的第二套规则，先接受这个小瑕疵。
+   */
+  private syncCameraBounds(): void {
+    const { width, depth } = this.built.size;
+    const outdoors = this.controller.x < -width / 2;
+    if (outdoors === this.cameraOutdoors) return;
+    this.cameraOutdoors = outdoors;
+
+    if (outdoors) {
+      this.rig.setBoundsRect(
+        -width / 2 - YARD_MARGIN,
+        width / 2 + YARD_MARGIN,
+        -depth / 2 - YARD_MARGIN,
+        depth / 2 + YARD_MARGIN,
+        // 院子没有天花板，给个够拉高的天空盒
+        10,
+      );
+    } else {
+      this.rig.setRoomBounds(width, depth, this.built.wallHeight);
+    }
   }
 
   /** 调试传送（/tp 命令用）。走 controller 的 teleport，位置同步进 participants */

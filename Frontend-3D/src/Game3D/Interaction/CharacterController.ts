@@ -1,8 +1,11 @@
-import type { PoseId } from "core";
+import { GestureKind, Locomotion, type PoseId } from "core";
 import { MathUtils } from "three";
 import { getHeld } from "../../Game/State/heldItem";
 import {
+  LOCAL_PLAYER_ID,
+  emitParticipantGesture,
   getLocalTransform,
+  setLocalAppearance,
   setLocalTransform,
 } from "../../Game/State/participants";
 import {
@@ -30,6 +33,15 @@ const RUN_MULTIPLIER = 1.75;
 
 const RADIUS = 0.32;
 
+/**
+ * 跳跃是纯装饰：不改碰撞体、不改交互距离、不能用来够到平时够不到的地方。
+ * 起跳冲量和重力配出「apex ≈0.42m、全程 ≈0.5s」这个手感——数字不是拍脑袋，
+ * 是反解出来的：定了想要的顶点高度和滞空时长，用运动学公式倒推
+ * v0 = g·t/2、h = v0²/(2g) 算出这两个常量，再取整。
+ */
+const JUMP_IMPULSE = 3.3;
+const JUMP_GRAVITY = 13;
+
 export class CharacterController {
   private readonly keys = new Set<string>();
   private walkPhase = 0;
@@ -53,12 +65,28 @@ export class CharacterController {
    */
   supportY = 0;
 
+  /**
+   * 跳跃的竖直位移（叠加在 supportY 上）和当前竖直速度。
+   * 只有站着才能起跳——坐着躺着时 posture 已经不让走了，跳跃同理挡在
+   * 触发那一刻，不需要在这两个字段上另外判断。
+   */
+  private jumpHeight = 0;
+  private jumpVelocity = 0;
+  private airborne = false;
+  /** 按下空格那一帧记一下，下一次 update() 消费掉（编辑框里打字时不算，见 onKeyDown） */
+  private jumpRequested = false;
+
   /** 过场 / 对话期间锁输入 */
   enabled = true;
 
   /** 当前朝向（弧度，从 +z 轴转向 +x）。肩后相机用它决定该转到哪 */
   get heading(): number {
     return this.headingAngle;
+  }
+
+  /** 根节点实际渲染的离地高度：承托面 + 跳跃位移。调试查看用 */
+  get renderedY(): number {
+    return this.supportY + this.jumpHeight;
   }
 
   /**
@@ -69,6 +97,10 @@ export class CharacterController {
 
   /** 活动层：伏案写字等。可以和任意姿态叠加——「坐着学习」就是 sit + desk */
   activity: PoseId | null = null;
+
+  /** 上一帧推给 appearance 的姿势。只用来做变化检测，见 update 末尾 */
+  private lastPosture: PoseId | null = null;
+  private lastActivity: PoseId | null = null;
 
   /** 脚本寻路：沿格子路径走（行动开始时走到桌边） */
   private scriptedPath: Array<[number, number]> = [];
@@ -88,6 +120,10 @@ export class CharacterController {
   teleport(x: number, z: number): void {
     this.x = x;
     this.z = z;
+    // 传送不该带着半空中的动量落到新地方
+    this.airborne = false;
+    this.jumpVelocity = 0;
+    this.jumpHeight = 0;
     this.rig.root.position.set(x, 0, z);
     setLocalTransform(x, z, this.headingAngle);
   }
@@ -97,6 +133,10 @@ export class CharacterController {
     this.scriptedPath = points;
     this.scriptedIndex = 0;
     this.onScriptedArrive = onArrive;
+    // 脚本寻路（比如走到桌边坐下）不该顶着一截没落地的跳跃位移开始
+    this.airborne = false;
+    this.jumpVelocity = 0;
+    this.jumpHeight = 0;
   }
 
   cancelScriptedWalk(): void {
@@ -113,7 +153,19 @@ export class CharacterController {
   private readonly onKeyDown = (event: KeyboardEvent) => {
     const target = event.target as HTMLElement | null;
     if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA") return;
-    this.keys.add(event.key.toLowerCase());
+    const key = event.key.toLowerCase();
+    this.keys.add(key);
+
+    /*
+     * `event.repeat` 是浏览器原生的"这是不是按住不放触发的自动重复"标记——
+     * 用它做边沿检测比自己记一个"上一帧按没按"更准，不会因为渲染帧和
+     * 按键事件不同步而漏判或多判。按住空格不会连续起跳，跳一次要落地
+     * 再按一次；空格默认还会翻页/点中当前聚焦的按钮，一并按掉。
+     */
+    if (key === " " && !event.repeat) {
+      event.preventDefault();
+      this.jumpRequested = true;
+    }
   };
 
   private readonly onKeyUp = (event: KeyboardEvent) => {
@@ -151,6 +203,15 @@ export class CharacterController {
   update(deltaSeconds: number, cameraAzimuthDegrees: number): void {
     this.elapsed += deltaSeconds;
 
+    /*
+     * 在脚本寻路的早退之前就把这一帧的跳跃请求消费掉：不消费的话，
+     * 剧情正在走路（比如坐下前那几步）时按的空格会一直挂在
+     * jumpRequested 上，等剧情结束的第一帧突然蹦一下——一个和玩家
+     * 操作完全对不上的延迟反应。
+     */
+    const wantsJump = this.jumpRequested;
+    this.jumpRequested = false;
+
     // 脚本寻路优先于玩家输入
     if (this.scriptedIndex < this.scriptedPath.length) {
       this.tickScriptedWalk(deltaSeconds);
@@ -160,6 +221,32 @@ export class CharacterController {
     // 坐着 / 躺着不能走。起身由 Systems/resting 的 standUp 负责，
     // 它会把姿态改回 stand，下一帧移动自然恢复
     const seated = isSupportedPosture(this.posture);
+
+    // 跳跃只是好玩，不是玩法：站着、没在腾空、输入没被锁，才能起跳
+    if (wantsJump && this.enabled && !seated && !this.airborne) {
+      this.airborne = true;
+      this.jumpVelocity = JUMP_IMPULSE;
+      /*
+       * 起跳的**那一刻**发一次手势。
+       *
+       * 不靠远端看着 liftHeight 从 0 变正来推断起跳：那是采样出来的，
+       * 一个包丢了就整跳漏掉，而且起跳音效 / 尘土要精确对上那一帧。
+       * 持续量（人在半空多高）和瞬时事件（他起跳了）是两件事，
+       * 各走各的层——这正是 ParticipantGesture 存在的理由。
+       */
+      emitParticipantGesture(LOCAL_PLAYER_ID, GestureKind.Jump);
+    }
+
+    if (this.airborne) {
+      this.jumpVelocity -= JUMP_GRAVITY * deltaSeconds;
+      this.jumpHeight += this.jumpVelocity * deltaSeconds;
+      if (this.jumpHeight <= 0) {
+        // 落地：清干净，别留一点残余速度让下一次起跳虚高或虚低
+        this.jumpHeight = 0;
+        this.jumpVelocity = 0;
+        this.airborne = false;
+      }
+    }
 
     let inputX = 0;
     let inputZ = 0;
@@ -225,21 +312,67 @@ export class CharacterController {
         (this.walkPhase + deltaSeconds * 2.6 * (running ? RUN_MULTIPLIER : 1)) % 1;
     }
 
-    // 坐着躺着时根节点要抬到承托面上（由 resting 系统写进 supportY）
-    this.rig.root.position.set(this.x, this.supportY, this.z);
+    // 坐着躺着时根节点要抬到承托面上（由 resting 系统写进 supportY）；
+    // 跳跃的位移叠加在上面——两者不会同时发生（坐着躺着起不了跳），
+    // 加法不需要挑一个赢家
+    this.rig.root.position.set(this.x, this.supportY + this.jumpHeight, this.z);
     this.rig.heading.rotation.y = this.headingAngle;
     setActorFootprint(this.x, this.z, RADIUS);
-    // 一帧的末尾把权威状态对齐。存档和（将来的）联机都从那边读
-    setLocalTransform(this.x, this.z, this.headingAngle);
+    /*
+     * 一帧的末尾把权威状态对齐。存档和（将来的）联机都从那边读。
+     *
+     * 移动态和离地高度也一起写出去。它们原来只喂给 animateCharacter——
+     * 也就是**只有本机的渲染知道这个人在跑、在半空**，外面谁都读不到。
+     * 联机时远端玩家会因此永远是走路姿势、永远贴着地面滑行。
+     *
+     * 传 liftHeight 而不是一个 airborne 布尔：中途进房间的人得知道他
+     * 在半空的哪个高度，只给布尔的话只能从 0 重播，会看到他凭空下沉。
+     *
+     * 这两个字段**不进存档**（见 participants 的注释）：没人需要存
+     * "我正在跳跃中"。
+     */
+    setLocalTransform(
+      this.x,
+      this.z,
+      this.headingAngle,
+      moving ? (running ? Locomotion.Run : Locomotion.Walk) : Locomotion.Idle,
+      this.jumpHeight,
+    );
 
     // 站着才跑走路 / 待机呼吸；坐着躺着完全交给姿势
     const carrying = getHeld() !== null;
     if (!seated) {
-      animateCharacter(this.rig, this.walkPhase, moving, this.elapsed, carrying);
+      animateCharacter(
+        this.rig,
+        this.walkPhase,
+        moving,
+        this.elapsed,
+        carrying,
+        this.airborne,
+      );
     }
 
     // 走动时不摆活动层（伏案写字），否则边走边伏案很怪
-    applyPose(this.rig, this.posture, moving ? null : this.activity);
+    const shownActivity = moving ? null : this.activity;
+    applyPose(this.rig, this.posture, shownActivity);
+
+    /*
+     * 姿势也要进 appearance——那是别人看得见的东西（坐着 / 伏案写字）。
+     *
+     * **只在变了的时候写**，不是每帧。appearance 是低频层，它的消费方
+     * （将来的网络编码器）看到一次写入就会认为"这个人的样子变了，该发包"；
+     * 每帧无条件写等于每帧发一个内容完全相同的包。
+     *
+     * 变化检测放在这里而不是 posture 的 setter 上：这两个是公开字段，
+     * 外面（Systems/resting、剧情）直接赋值，没有可以挂钩的写入口。
+     * 与其为了埋钩子把字段改成访问器、去动所有调用方，不如在唯一
+     * 每帧都跑的地方比一下——两个字符串比较，代价可以忽略。
+     */
+    if (this.posture !== this.lastPosture || shownActivity !== this.lastActivity) {
+      this.lastPosture = this.posture;
+      this.lastActivity = shownActivity;
+      setLocalAppearance({ posture: this.posture, activity: shownActivity });
+    }
 
     // 伏案时手臂随时间轻微起伏，做出"在写"的感觉。
     // 这是姿势之上的**连续动画**，注册表只描述静态姿势，所以留在这里
@@ -277,7 +410,9 @@ export class CharacterController {
     this.rig.root.position.set(this.x, 0, this.z);
     this.rig.heading.rotation.y = this.headingAngle;
     setActorFootprint(this.x, this.z, RADIUS);
-    setLocalTransform(this.x, this.z, this.headingAngle);
+    // 剧情走位也是"在走"，远端看到的必须是走路而不是原地滑行。
+    // 脚本寻路永远是走速（上面用的就是 SPEED，没有跑的分支）
+    setLocalTransform(this.x, this.z, this.headingAngle, Locomotion.Walk, 0);
     animateCharacter(this.rig, this.walkPhase, true, this.elapsed);
   }
 }

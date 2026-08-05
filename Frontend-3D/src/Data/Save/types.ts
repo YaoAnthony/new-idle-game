@@ -8,8 +8,15 @@ import type { GameSave } from "core";
  */
 export type SaveMode = "local_only" | "cloud_sync" | "multiplayer_session";
 
-/** 当前存档结构版本。每改一次 GameSave 的形状就 +1 并补一条迁移 */
-export const SAVE_SCHEMA_VERSION = 18;
+/**
+ * 当前存档结构版本。每改一次 GameSave 的形状就 +1 并补一条迁移。
+ *
+ * **这个数必须等于迁移链里最大的 `to`。** 小于它的后果不是"少迁一次"，
+ * 而是**每次读档都把最后几条迁移重跑一遍**（migrateSave 只比较存档里
+ * 记的版本，不看这个常量）——v19 就这么漏过一次，联机之后险些把
+ * 带发号方前缀的 id 套成两层。加迁移时两处一起改。
+ */
+export const SAVE_SCHEMA_VERSION = 20;
 
 /**
  * 键名结构对齐 V0.8，以后接云同步不用重构。

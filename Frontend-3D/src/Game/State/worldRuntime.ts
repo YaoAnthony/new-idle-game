@@ -20,6 +20,7 @@ import {
   type WallId,
 } from "core";
 import { emit } from "../EventBus";
+import { nextObjectId, syncIdCounters } from "./ids";
 
 /**
  * 世界运行时状态。M2 阶段先驻内存，之后接 Data/Save 落盘——
@@ -34,7 +35,6 @@ export type WorldRuntime = {
   readonly occupancy: RoomOccupancy;
 };
 
-let instanceCounter = 0;
 
 /**
  * 当前屋子风格。**RoomSave 里只存生成结果不存风格 id**（"存结果不存配方"，
@@ -55,9 +55,18 @@ function rebuild(): RoomOccupancy {
   return buildRoomOccupancy(room, placedFurniture, findPlaceableItem);
 }
 
+/**
+ * 家具实例 id 的 kind 段。发号规则和格式见 State/ids——
+ * 结果形如 `local:furniture:furniture_chair#3`。
+ *
+ * 导出是给 v19 迁移用的：那条迁移要把老 id（`furniture_chair#3`，
+ * 只有名字没有 kind）补成新格式，两边必须用同一个字面量，
+ * 各写一份的话改一处漏一处，续号会从 1 重来直接撞上老家具。
+ */
+export const FURNITURE_ID_KIND = "furniture";
+
 function nextInstanceId(furnitureId: string): string {
-  instanceCounter += 1;
-  return `${furnitureId}#${instanceCounter}`;
+  return nextObjectId(FURNITURE_ID_KIND, furnitureId);
 }
 
 export function getWorld(): WorldRuntime {
@@ -259,6 +268,17 @@ function footprintCellKeys(
   ).map((cell) => `${cell.x},${cell.y}`);
 }
 
+/**
+ * 插入一件已经成形的家具实例。**op 通道的共用底座**：
+ * 本地放置和重放别人的放置走的都是它，区别只在上层——
+ * 本地那层发 world_op，重放那层不发（防回环，见 EventBus 注释）。
+ */
+function insertPlacedFurniture(placed: PlacedFurniture): void {
+  placedFurniture = [...placedFurniture, placed];
+  occupancy = rebuild();
+  emit("world_changed", { reason: "furniture_placed" });
+}
+
 export function placeFurnitureAt(
   furnitureId: string,
   target: PlacementTarget,
@@ -266,34 +286,41 @@ export function placeFurnitureAt(
   const check = checkPlacementTarget(furnitureId, target);
   if (!check.ok) return check;
 
-  placedFurniture = [
-    ...placedFurniture,
-    {
-      instanceId: nextInstanceId(furnitureId),
-      furnitureId,
-      placement:
-        target.kind === PlacementSurface.Floor
-          ? {
-              kind: PlacementSurface.Floor,
-              roomId: room.roomId,
-              gridPosition: target.gridPosition,
-              facing: target.facing,
-            }
-          : {
-              kind: PlacementSurface.Wall,
-              roomId: room.roomId,
-              wallId: target.wallId,
-              gridPosition: target.gridPosition,
-              facing: Facing.North,
-            },
-      state: {},
-    },
-  ];
+  const placed: PlacedFurniture = {
+    instanceId: nextInstanceId(furnitureId),
+    furnitureId,
+    placement:
+      target.kind === PlacementSurface.Floor
+        ? {
+            kind: PlacementSurface.Floor,
+            roomId: room.roomId,
+            gridPosition: target.gridPosition,
+            facing: target.facing,
+          }
+        : {
+            kind: PlacementSurface.Wall,
+            roomId: room.roomId,
+            wallId: target.wallId,
+            gridPosition: target.gridPosition,
+            facing: Facing.North,
+          },
+    state: {},
+  };
 
-  occupancy = rebuild();
-  emit("world_changed", { reason: "furniture_placed" });
+  insertPlacedFurniture(placed);
+  emit("world_op", { op: { kind: "furniture_placed", placed } });
   emit("story_signal", { kind: "furniture_placed", subject: furnitureId });
   return check;
+}
+
+/**
+ * 重放房里其他人摆的家具。不做占用校验——对方那边已经校过，
+ * 极端竞争下摆出重叠由房主的整片刷新收敛（契约里记了这条取舍）。
+ */
+export function replayPlaceFurniture(placed: PlacedFurniture): void {
+  if (placedFurniture.some((item) => item.instanceId === placed.instanceId)) return;
+  if (!findPlaceableItem(placed.furnitureId)) return;
+  insertPlacedFurniture(placed);
 }
 
 /** 地面放置的简写（开局摆设、调试命令用） */
@@ -321,7 +348,7 @@ export function clearAllFurniture(): void {
   emit("world_changed", { reason: "cleared" });
 }
 
-export function removeFurniture(instanceId: string): boolean {
+function deletePlacedFurniture(instanceId: string): boolean {
   const before = placedFurniture.length;
   placedFurniture = placedFurniture.filter(
     (item) => item.instanceId !== instanceId,
@@ -332,6 +359,18 @@ export function removeFurniture(instanceId: string): boolean {
   occupancy = rebuild();
   emit("world_changed", { reason: "furniture_removed" });
   return true;
+}
+
+export function removeFurniture(instanceId: string): boolean {
+  if (!deletePlacedFurniture(instanceId)) return false;
+  // 拆箱、收家具都从这里走——联机时别人立刻看到它消失，不等刷新
+  emit("world_op", { op: { kind: "furniture_removed", instanceId } });
+  return true;
+}
+
+/** 重放房里其他人收走的家具。不存在就当已经收走了（op 可能晚到） */
+export function replayRemoveFurniture(instanceId: string): void {
+  deletePlacedFurniture(instanceId);
 }
 
 /**
@@ -418,11 +457,9 @@ export function restoreWorld(saved: {
     findPlaceableItem(item.furnitureId),
   );
 
-  // instanceId 形如 "chair#7"，续号要从存档里的最大值往后接，避免撞号
-  instanceCounter = placedFurniture.reduce((max, item) => {
-    const suffix = Number(item.instanceId.split("#")[1]);
-    return Number.isInteger(suffix) && suffix > max ? suffix : max;
-  }, 0);
+  // 续号交给 ids 统一做。只报家具这一类，掉落物那类由 droppedItems 自己报——
+  // syncIdCounters 是累加的，不会互相清掉（清空是 resetIdCounters 的事）
+  syncIdCounters(placedFurniture.map((item) => item.instanceId));
 
   occupancy = rebuild();
   emit("world_changed", { reason: "restored" });
@@ -449,7 +486,7 @@ export function getSlotContent(
 }
 
 /** 写入槽位。null = 清空。返回是否真的写进去了 */
-export function setSlotContent(
+function writeSlotContent(
   instanceId: string,
   slotId: string,
   content: HeldStack | null,
@@ -474,6 +511,28 @@ export function setSlotContent(
   placed.state = { ...placed.state, slotContents };
   emit("kitchen_changed", { instanceId, slotId });
   return true;
+}
+
+export function setSlotContent(
+  instanceId: string,
+  slotId: string,
+  content: HeldStack | null,
+): boolean {
+  if (!writeSlotContent(instanceId, slotId, content)) return false;
+  // 投料/拿起/起锅/倒掉在数据上都是一次置位，一种 op 全兜住
+  emit("world_op", {
+    op: { kind: "kitchen_slot_set", instanceId, slotId, content },
+  });
+  return true;
+}
+
+/** 重放房里其他人的厨房操作 */
+export function replaySlotContent(
+  instanceId: string,
+  slotId: string,
+  content: HeldStack | null,
+): void {
+  writeSlotContent(instanceId, slotId, content);
 }
 
 /**
@@ -589,6 +648,35 @@ export function setOutdoorPass(
   fn: ((x: number, z: number, radius: number) => boolean) | null,
 ): void {
   outdoorPass = fn;
+}
+
+/**
+ * 院子的分区 id。
+ *
+ * 院子**不是 MapSave 里的一个 room**——它没有墙、没有地板网格，几何全在
+ * 渲染层的 OutdoorScene 里。但"这份东西掉在哪个分区"仍然需要一个答案，
+ * 而"客厅"是个错答案。
+ *
+ * 定成常量而不是顺手写字面量：将来院子真要变成一个正经 room（有围墙、
+ * 能摆东西）的时候，改这一处就够，不用去各个扔东西的地方翻。
+ */
+export const OUTDOOR_ROOM_ID = "yard";
+
+/**
+ * 这个位置在屋里吗（纯几何：碰撞点落没落在地板网格内）。
+ *
+ * 判点不判圆：调用方问的是"这个人算在屋里还是院里"，一个人不可能
+ * 半间屋半个院；而通行检测那边判的是碰撞圆压到哪些格子，是另一个问题。
+ */
+export function isIndoors(x: number, z: number): boolean {
+  const halfW = room.floorGrid.width / 2;
+  const halfD = room.floorGrid.height / 2;
+  return x >= -halfW && x <= halfW && z >= -halfD && z <= halfD;
+}
+
+/** 这个位置属于哪个分区。给掉落物这类"东西在哪"的记账用 */
+export function roomIdAt(x: number, z: number): string {
+  return isIndoors(x, z) ? room.roomId : OUTDOOR_ROOM_ID;
 }
 
 /** 连续坐标下的通行检测：角色/宠物的圆形碰撞体压到的格子都不能是阻挡格 */

@@ -1,5 +1,6 @@
 import type { DroppedItem } from "core";
 import { emit } from "../EventBus";
+import { nextObjectId, syncIdCounters } from "./ids";
 import { canPassAtHeight, downhillDirection, surfaceAt } from "./worldRuntime";
 
 /**
@@ -83,11 +84,18 @@ type DroppedEntity = {
 };
 
 let entities: DroppedEntity[] = [];
-let counter = 0;
+
+/**
+ * id 发号交给 State/ids，不再在这里数自己的数。
+ *
+ * 原来是模块级 `counter`，读档时扫存档里的最大后缀续号——单机完全正确，
+ * 联机会撞：房主和房客各自从**自己的** counter 发，两人同时扔米饭
+ * 都得到 `drop:rice#8`。带发号方前缀之后天然不撞，理由写在 ids.ts。
+ */
+const DROP_ID_KIND = "drop";
 
 function nextId(itemId: string): string {
-  counter += 1;
-  return `drop:${itemId}#${counter}`;
+  return nextObjectId(DROP_ID_KIND, itemId);
 }
 
 export function listDroppedItems(): readonly DroppedEntity[] {
@@ -104,15 +112,19 @@ export function findDroppedItem(id: string): DroppedEntity | undefined {
  * `heading` 是角色朝向的弧度，和 CharacterController 的 headingAngle 同一套
  * （0 = +Z）。速度由这里给，调用方不需要懂抛物线。
  */
-export function throwItem(options: {
-  roomId: string;
-  stack: DroppedItem["stack"];
-  from: { x: number; z: number };
-  heading: number;
-}): string {
-  const { roomId, stack, from, heading } = options;
-
-  const id = nextId(stack.itemId);
+/**
+ * 按抛掷参数造一个飞行中的实体。**op 通道的共用底座**：本地扔和
+ * 重放别人的扔都走它——同样的初速、同样的重力，各端自己积分出
+ * 同一条抛物线（世界几何一致，落点一致；毫米级浮点差由房主的
+ * 整片刷新收敛）。
+ */
+function spawnThrown(
+  id: string,
+  roomId: string,
+  stack: DroppedItem["stack"],
+  from: { x: number; z: number },
+  heading: number,
+): void {
   entities = [
     ...entities,
     {
@@ -128,45 +140,105 @@ export function throwItem(options: {
       stack,
     },
   ];
-
   emit("dropped_items_changed", { reason: "thrown" });
+}
+
+export function throwItem(options: {
+  roomId: string;
+  stack: DroppedItem["stack"];
+  from: { x: number; z: number };
+  heading: number;
+}): string {
+  const { roomId, stack, from, heading } = options;
+
+  const id = nextId(stack.itemId);
+  spawnThrown(id, roomId, stack, from, heading);
+  emit("world_op", {
+    op: { kind: "item_thrown", id, roomId, stack, from, heading },
+  });
   return id;
 }
 
+/**
+ * 重放房里其他人的抛掷。**替换而不是跳过**已存在的同 id 实体：
+ * op 和整片刷新几乎同时到，刷新那份是"位置快照、速度归零"（读档
+ * 语义），先到的话东西会冻在半空——op 带着权威的初始运动学，
+ * 无条件以它为准。实测（2026-08-04）：不替换时访客端 vx/vy 全是 0。
+ */
+export function replayThrownItem(op: {
+  id: string;
+  roomId: string;
+  stack: DroppedItem["stack"];
+  from: { x: number; z: number };
+  heading: number;
+}): void {
+  entities = entities.filter((entity) => entity.id !== op.id);
+  spawnThrown(op.id, op.roomId, op.stack, op.from, op.heading);
+}
+
 /** 把一份东西直接放在某处（读档、以后的"轻放"用），不带初速 */
+function spawnSettled(item: DroppedItem): void {
+  entities = [
+    ...entities,
+    {
+      id: item.id,
+      roomId: item.roomId,
+      x: item.position.x,
+      y: item.position.y,
+      z: item.position.z,
+      vx: 0,
+      vy: 0,
+      vz: 0,
+      pickupLock: 0,
+      stack: item.stack,
+    },
+  ];
+  emit("dropped_items_changed", { reason: "settled" });
+}
+
 export function settleItem(options: {
   roomId: string;
   stack: DroppedItem["stack"];
   at: { x: number; y: number; z: number };
 }): string {
   const id = nextId(options.stack.itemId);
-  entities = [
-    ...entities,
-    {
-      id,
-      roomId: options.roomId,
-      x: options.at.x,
-      y: options.at.y,
-      z: options.at.z,
-      vx: 0,
-      vy: 0,
-      vz: 0,
-      pickupLock: 0,
-      stack: options.stack,
-    },
-  ];
-
-  emit("dropped_items_changed", { reason: "settled" });
+  const item: DroppedItem = {
+    id,
+    roomId: options.roomId,
+    position: { ...options.at },
+    stack: options.stack,
+  };
+  spawnSettled(item);
+  emit("world_op", { op: { kind: "item_settled", item } });
   return id;
 }
 
-export function removeDroppedItem(id: string): DroppedEntity | undefined {
+/** 重放房里其他人的轻放。同 id 替换（幂等：内容相同就是原地重写） */
+export function replaySettledItem(item: DroppedItem): void {
+  entities = entities.filter((entity) => entity.id !== item.id);
+  spawnSettled(item);
+}
+
+function deleteDropped(id: string): DroppedEntity | undefined {
   const entity = entities.find((item) => item.id === id);
   if (!entity) return undefined;
 
   entities = entities.filter((item) => item.id !== id);
   emit("dropped_items_changed", { reason: "removed" });
   return entity;
+}
+
+export function removeDroppedItem(id: string): DroppedEntity | undefined {
+  const entity = deleteDropped(id);
+  if (!entity) return undefined;
+  // 捡走、被锅吸收都从这里走——联机时别人手里那份立刻消失
+  emit("world_op", { op: { kind: "item_removed", id } });
+  return entity;
+}
+
+/** 重放房里其他人的捡取/吸收。不存在就当已经没了（op 晚到） */
+export function replayRemovedItem(id: string): void {
+  deleteDropped(id);
 }
 
 /**
@@ -314,6 +386,32 @@ export function snapshotDroppedItems(): DroppedItem[] {
   }));
 }
 
+/**
+ * 联机刷新用的**对账**，不是读档的全量替换。
+ *
+ * 三条规则：服务端没有的删掉；本地没有的补上（速度未知，按静置落点
+ * 生成，悬空的由重力接管）；**两边都有的保留本地运动学**——那可能是
+ * 一份正在飞的重放实体，拿"位置快照 + 零速度"去覆盖它，东西就冻在
+ * 半空了（op 先到、刷新后到的常见时序，实测踩过）。
+ */
+export function reconcileDroppedItems(saved: DroppedItem[] | undefined): void {
+  const target = saved ?? [];
+  const targetIds = new Set(target.map((item) => item.id));
+
+  const before = entities.length;
+  entities = entities.filter((entity) => targetIds.has(entity.id));
+  let changed = entities.length !== before;
+
+  const have = new Set(entities.map((entity) => entity.id));
+  for (const item of target) {
+    if (have.has(item.id)) continue;
+    spawnSettled(item); // 自带 dropped_items_changed
+    changed = false; // spawn 已经广播过，结尾那条不用再发
+  }
+
+  if (changed) emit("dropped_items_changed", { reason: "restored" });
+}
+
 export function restoreDroppedItems(saved: DroppedItem[] | undefined): void {
   entities = (saved ?? []).map((item) => ({
     id: item.id,
@@ -330,11 +428,15 @@ export function restoreDroppedItems(saved: DroppedItem[] | undefined): void {
     stack: item.stack,
   }));
 
-  // id 形如 "drop:rice#7"，续号从存档里的最大值往后接，避免撞号
-  counter = entities.reduce((max, entity) => {
-    const suffix = Number(entity.id.split("#")[1]);
-    return Number.isInteger(suffix) && suffix > max ? suffix : max;
-  }, 0);
+  /*
+   * 续号交给 ids 那边统一做（它只认自己发的号，别人的不算）。
+   *
+   * 这里**只报掉落物这一类**，家具那类由 worldRuntime 自己报——
+   * 两边合着报的话，谁先谁后就决定了另一边会不会被清掉，
+   * 而 syncIdCounters 是清空重建的。各报各的会互相覆盖，所以
+   * 改成了累加式：见 ids.ts 的 syncIdCounters。
+   */
+  syncIdCounters(entities.map((entity) => entity.id));
 
   emit("dropped_items_changed", { reason: "restored" });
 }

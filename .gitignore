@@ -5,6 +5,9 @@ node_modules/
 dist/
 dist-ssr/
 build/
+# TypeScript 的增量编译缓存。它记的是本机的绝对路径和时间戳，
+# 提交上去只会让每个人的 diff 里多一坨噪音，还会互相覆盖
+*.tsbuildinfo
 
 # Environment files
 .env

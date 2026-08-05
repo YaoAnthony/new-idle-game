@@ -214,6 +214,11 @@ function buildArm(
 /** 端着东西时手臂前伸多少（弧度）。手掌大致落在 heldAnchor 两侧 */
 const CARRY_ARM_PITCH = -1.15;
 
+/** 腾空时腿一起往后收一点，读得出"跳起来"，不是走到一半悬在半空 */
+const JUMP_LEG_TUCK = -0.5;
+/** 空手腾空时胳膊往上摆，添一点起跳的劲头 */
+const JUMP_ARM_RAISE = -0.9;
+
 /**
  * 程序化动画：持续动作用代码直接驱动零件。
  * walkCycle 0→1 表示步态相位；speed 0 时回到待机呼吸。
@@ -227,7 +232,24 @@ export function animateCharacter(
   moving: boolean,
   timeSeconds: number,
   carrying = false,
+  jumping = false,
 ): void {
+  if (jumping) {
+    /*
+     * 腾空是个独立姿态，不套在 moving/idle 的插值逻辑里——那两套算的是
+     * "脚踩在地上时腿该摆多少"，双腿分别摆动是走路的物理，半空中还在
+     * 摆则会看成在原地凌空踏步。这里直接给一个固定的"跳起来"造型，
+     * 双腿同向收、身体上下颠也交给跳跃本身的竖直位移，不再叠一层步频颠动。
+     */
+    rig.parts.legLeft.rotation.x = JUMP_LEG_TUCK;
+    rig.parts.legRight.rotation.x = JUMP_LEG_TUCK;
+    const armPitch = carrying ? CARRY_ARM_PITCH : JUMP_ARM_RAISE;
+    rig.parts.armLeft.rotation.x = armPitch;
+    rig.parts.armRight.rotation.x = armPitch;
+    rig.parts.body.position.y = 0;
+    return;
+  }
+
   if (moving) {
     const swing = Math.sin(walkPhase * Math.PI * 2) * 0.55;
 

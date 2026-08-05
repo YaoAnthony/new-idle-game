@@ -4,14 +4,12 @@ import {
   PlacementSurface,
   GiftTier,
   cellHasClearance,
-  facingToHeading,
   findItemDefinition,
   findPath,
   findPetDefinition,
   findPetTaste,
   findPlaceableItem,
   footprintCells,
-  headingToFacing,
   type GridPosition,
   type PetSave,
 } from "core";
@@ -595,7 +593,10 @@ export class PetAgent {
         mapId: "home",
         x: this.x,
         y: this.z,
-        facing: headingToFacing(this.heading),
+        // v19 起存连续弧度。原来这里是 headingToFacing(this.heading)——
+        // agent 内部全程连续转身，只在存盘那一刹被砍成 4 档，
+        // 读档后宠物会"啪"地扭一下。同玩家那条，见 Core 的 WorldPosition
+        heading: this.heading,
       },
       affectionStage: this.affectionStage,
       growth: this.growth,
@@ -612,7 +613,7 @@ export class PetAgent {
     const agent = new PetAgent(entry.petId, entry.definitionId, {
       x: entry.position.x,
       z: entry.position.y,
-      heading: facingToHeading(entry.position.facing),
+      heading: entry.position.heading,
     });
 
     agent.affectionStage = entry.affectionStage;

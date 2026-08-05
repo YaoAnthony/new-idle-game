@@ -2,6 +2,7 @@ import {
   Facing,
   PlacementSurface,
   WallOpeningKind,
+  facingToHeading,
   findItemDefinition,
   findPlaceableItem,
   generateHouse,
@@ -13,7 +14,16 @@ import {
   BACKPACK_SIZE,
   HOTBAR_SIZE,
 } from "../../Game/State/inventory";
+import { FURNITURE_ID_KIND } from "../../Game/State/worldRuntime";
+import { LOCAL_PLAYER_ID } from "../../Game/State/participants";
 import { SAVE_SCHEMA_VERSION } from "./types";
+
+/**
+ * v19 给老 id 补的发号方前缀。老档里的东西全产自本机，所以是 local。
+ * 和 State/ids 的 issuer 默认值同源——那边换成真实 playerId 是**握手之后**
+ * 的事，只影响此后新发的号，不回头改老档。
+ */
+const LOCAL_ID_PREFIX = LOCAL_PLAYER_ID;
 
 /**
  * 在槽位式背包的序列化数组里找一个空格，返回 "backpack:N" / "hotbar:N"。
@@ -621,7 +631,146 @@ export const migrations: Migration[] = [
       return save;
     },
   },
+
+  /*
+   * v19（2026-08-03 朝向改弧度 + id 全局唯一）：为联机做的两处形状修正。
+   *
+   * **一条迁移做两件事**，因为它们都只碰"已经存下来的字段该长什么样"，
+   * 而且都必须在同一次读档里完成——分成 v19/v20 两条的话，中间那个
+   * 版本号对应的存档形状从来不会真实存在，纯粹是给迁移链凑数。
+   *
+   * ① `position.facing`（四向枚举）→ `position.heading`（弧度）。
+   *    玩家和宠物都有。量化是有损的，但**反方向无损**：四向本来就是
+   *    弧度的子集，north→0、east→π/2，还原回去正好是老档当初被砍之前
+   *    最接近的那个值。玩家不会觉得读档后转了个身。
+   *
+   * ② 掉落物 / 家具实例 id 补 `local:` 前缀。
+   *    老 id 形如 `drop:rice#8`、`chair#3`，由**本地计数器**发号。单机没事
+   *    （读档会续号），联机会撞：房主和房客各自从自己的 counter 发，
+   *    两人同时扔米饭都得到 `drop:rice#8`，服务端分不出是一份还是两份。
+   *
+   *    前缀式而不是换 UUID：扔东西必须**立刻可见**，等服务端发号要多一个
+   *    RTT（MC、Valheim 都是本地生成 + 服务端校验）。而 UUID 会把
+   *    `chair#3` 变成一串乱码，命令行和调试里全废。
+   *
+   *    家具 id 要连着改三处引用（restingOn、storage 的 inventoryId、
+   *    行动绑定的 furnitureInstanceId），漏一处就是"坐在不存在的椅子上"。
+   */
+  {
+    to: 19,
+    migrate: (save) => {
+      // ---- ① 朝向 ----
+      const toHeading = (position: LegacyPositioned | undefined): void => {
+        if (!position) return;
+        if (typeof position.heading === "number") return; // 已经是新的
+        position.heading = facingToHeading(position.facing ?? Facing.South);
+        delete position.facing;
+      };
+
+      toHeading(save.player?.character?.position as LegacyPositioned | undefined);
+      for (const pet of Object.values(save.ownWorld.pets ?? {})) {
+        toHeading(pet.position as LegacyPositioned | undefined);
+      }
+
+      /*
+       * ---- ② id 前缀 ----
+       *
+       * 目标形状是 `<issuer>:<kind>:<name>#<n>`（见 State/ids）。老档里的
+       * 东西全是这台机器上产生的，所以 issuer 一律是 local。
+       *
+       * 两类老 id 的**段数不一样**，不能共用一个"加前缀"：
+       *   掉落物 `drop:rice#8`      已经有 kind 段 → 只补 issuer
+       *   家具   `furniture_chair#3` 只有名字      → issuer 和 kind 都要补
+       * 家具那条光加前缀会得到 `local:furniture_chair#3`，只有一个冒号，
+       * parseObjectId 认不出来——读档后续号会从 1 重来，直接撞上老家具。
+       *
+       * 已经是新形状的跳过：迁移必须可重入，否则手动重放一次就成了
+       * `local:local:drop:rice#8`。
+       */
+      const withIssuer = (id: string): string =>
+        isNewObjectId(id) ? id : `${LOCAL_ID_PREFIX}:${id}`;
+
+      for (const item of save.ownWorld.droppedItems ?? []) {
+        item.id = withIssuer(item.id);
+      }
+
+      /** 家具改名表：旧 instanceId → 新 instanceId，给下面三处引用查 */
+      const renamed = new Map<string, string>();
+      for (const placed of save.ownWorld.placedFurniture ?? []) {
+        const next = isNewObjectId(placed.instanceId)
+          ? placed.instanceId
+          : `${LOCAL_ID_PREFIX}:${FURNITURE_ID_KIND}:${placed.instanceId}`;
+        renamed.set(placed.instanceId, next);
+        placed.instanceId = next;
+      }
+
+      // 储物箱的 inventoryId 就是家具的 instanceId（见 State/storage）。
+      // 不跟着改的话，箱子还在屋里但里面的东西打不开了
+      const inventories = save.ownWorld.inventories ?? {};
+      for (const [key, value] of Object.entries(inventories)) {
+        const next = renamed.get(key);
+        if (!next || next === key) continue;
+        inventories[next] = value;
+        delete inventories[key];
+      }
+
+      // 坐在哪件家具上
+      const resting = save.player?.character?.restingOn;
+      if (resting) {
+        resting.instanceId = renamed.get(resting.instanceId) ?? resting.instanceId;
+      }
+
+      // 正在进行的行动绑着的那件家具
+      const bound = save.player?.activeActionProcess;
+      if (bound?.furnitureInstanceId) {
+        bound.furnitureInstanceId =
+          renamed.get(bound.furnitureInstanceId) ?? bound.furnitureInstanceId;
+      }
+
+      return save;
+    },
+  },
+
+  /*
+   * v20（2026-08-04 每日任务机器）：PlayerSave 多了 dailyTasks、
+   * WorldSave 多了 dailyBoard。两个都是纯新增可选字段，读出来是
+   * undefined 就当"空池子 / 今天还没开始"，**数据本身不用动**。
+   *
+   * 补这一条和 v10/v11 同理：只为了把版本号推上去。不推的话旧客户端
+   * 会认得这份档、把新字段整个丢掉再存回去——玩家写了一周的任务清单
+   * 就这么没了，而且没有任何报错。
+   */
+  {
+    to: 20,
+    migrate: (save) => save,
+  },
 ];
+
+/**
+ * 迁移期间的"半新半旧"位置。存档里读出来时 facing 还在、heading 还没有，
+ * 而 Core 的 `WorldPosition` 只认新形状——这个类型就是那一刻的形状，
+ * 只给 v19 用。
+ */
+type LegacyPositioned = {
+  facing?: Facing;
+  heading?: number;
+};
+
+/**
+ * 这个 id 已经是新格式（`<发号方>:<kind>:<name>#<n>`）了吗。
+ *
+ * **判结构，不判前缀。** 第一版写的是 `id.startsWith("local:")`，
+ * 在单机下看着没问题，联机之后会**真的损坏数据**：房主开房后发号方
+ * 换成服务端给的 playerId，id 变成 `p-e2013f28:drop:pork#1`——
+ * 它不以 `local:` 开头，于是重跑迁移时又被套一层，成了
+ * `local:p-e2013f28:drop:pork#1`，解析出来 kind 是 `p-e2013f28`，彻底废掉。
+ *
+ * 正则冻结在这里、不调 State/ids 的 parseObjectId：迁移的行为必须
+ * 定格在写它的那一刻，而那个解析器是会跟着 id 格式演进的。
+ */
+function isNewObjectId(id: string): boolean {
+  return /^[^:]+:[^:]+:.+#\d+$/.test(id);
+}
 
 /**
  * 旧家具 id → 统一后的物品 id。

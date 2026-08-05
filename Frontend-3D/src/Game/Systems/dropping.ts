@@ -1,4 +1,5 @@
-import { getWorld } from "../State/worldRuntime";
+import { roomIdAt } from "../State/worldRuntime";
+import { guardWorldMutation } from "../Net/worldLock";
 import {
   consumeSelectedOne,
   getSelectedStack,
@@ -40,6 +41,9 @@ export function throwHeldItem(from: {
   z: number;
   heading: number;
 }): boolean {
+  // 权限守卫。当前策略是满权限（guardWorldMutation 恒放行），
+  // 留着是给将来的分级权限（"访客不能拆家"）当挂点
+  if (guardWorldMutation()) return false;
   const stack = getSelectedStack();
   if (!stack) return false;
 
@@ -61,7 +65,11 @@ export function throwHeldItem(from: {
   consumeSelectedOne();
 
   throwItem({
-    roomId: getWorld().room.roomId,
+    // 按**扔的人站在哪**判分区，不是无脑写主房间的 id。
+    // 原来写死 getWorld().room.roomId——在院子里扔的东西会记成掉在客厅。
+    // 目前没人按 roomId 过滤，所以看不出来；等真有了多房间，
+    // "院子里那袋米在客厅"就会变成一个查不出源头的怪 bug
+    roomId: roomIdAt(from.x, from.z),
     stack: thrown,
     from: { x: from.x, z: from.z },
     heading: from.heading,
@@ -71,6 +79,10 @@ export function throwHeldItem(from: {
 
 /** 把地上那一份收回背包。带容器的走整格塞入，其余的正常合堆 */
 export function pickUpDroppedItem(id: string): boolean {
+  // 权限守卫。当前策略是满权限（guardWorldMutation 恒放行），
+  // 留着是给将来的分级权限（"访客不能拆家"）当挂点
+  if (guardWorldMutation()) return false;
+
   const entity = removeDroppedItem(id);
   if (!entity) return false;
 

@@ -1,4 +1,5 @@
 import type { ChatMessage } from "./chat.js";
+import type { DailyBoardSave } from "./dailyTasks.js";
 import type { DoorSave } from "./doors.js";
 import type { FeatureId, RoomId, WorldId } from "./base.js";
 import type { EventProgressSave } from "./events.js";
@@ -94,6 +95,15 @@ export type WorldSave = {
 
   /** 储物箱等容器的内容，键为 InventoryId */
   inventories: Record<string, InventorySave>;
+
+  /**
+   * 每日任务的**共享进度**（V0.11）。属于这个家，不属于哪一台机器——
+   * 摆几台每日任务机器都只有这一份，机器只是它的显示器和出口。
+   *
+   * 联机时进度加在房主的世界上：两个人各打一个勾就是 2/4。
+   * 老存档没有这个字段，读出来当"今天还没开始"。
+   */
+  dailyBoard?: DailyBoardSave;
 
   progression: {
     unlockedFeatureIds: FeatureId[];

@@ -8,7 +8,16 @@ import {
   restoreDroppedItems,
   snapshotDroppedItems,
 } from "../../Game/State/droppedItems";
+import {
+  restoreDailyBoard,
+  snapshotDailyBoard,
+} from "../../Game/State/dailyBoard";
+import {
+  restoreDailyTasks,
+  snapshotDailyTasks,
+} from "../../Game/State/dailyTasks";
 import { restoreHeld, snapshotHeld } from "../../Game/State/heldItem";
+import { resetIdCounters } from "../../Game/State/ids";
 import {
   restoreLocalPosition,
   snapshotLocalPosition,
@@ -109,6 +118,8 @@ export function serializeGameSave(previous?: GameSave): GameSave {
       actionEntries: snapshotActionEntries(),
       // 正在做的那条也跟着人走（v12 从 WorldSave 搬来，见 PlayerSave 的注释）
       activeActionProcess: snapshotAction(),
+      // 每日任务的池子和今日抽签跟着玩家走：做客时看到的还是自己的待办
+      dailyTasks: snapshotDailyTasks(),
     },
 
     ownWorld: {
@@ -133,6 +144,19 @@ export function serializeGameSave(previous?: GameSave): GameSave {
       clock: snapshotClock(),
       weather: snapshotWeather(),
 
+      /*
+       * `maps` 是 Record<MapId, MapSave>，这里只塞一张。
+       *
+       * **现在是对的，但它是一条会到期的假设。** 今天全世界只有一个
+       * room（院子没有几何、活在渲染层的 OutdoorScene 里），所以"整份
+       * maps 就是主房间那一张"成立。等真有了二楼 / 独立的院子 room，
+       * 这一行会**静默丢掉除主房间外的一切**——不报错、不崩，只是存盘
+       * 之后那些房间没了，是最难查的那种数据丢失。
+       *
+       * 没有现在就改成多 map，是因为改它要先定"谁持有多张 map 的运行时
+       * 状态"（现在 worldRuntime 只有单个 `room`），那是比存档大得多的
+       * 一次重构，不该顺手做。留这段注释，加上下面的读回对称写法。
+       */
       maps: { [MAIN_MAP_ID]: createSingleRoomMap(MAIN_MAP_ID, world.room) },
       pets: snapshotPets(),
       doors: snapshotDoors(),
@@ -142,6 +166,8 @@ export function serializeGameSave(previous?: GameSave): GameSave {
       // 消息记录只留最近几个世界日，裁剪规则在 Core 的 trimChatLog
       chatLog: snapshotChatLog(),
       inventories: snapshotStorages(),
+      // 每日任务的**共享进度**属于这个家，不属于哪台机器（V0.11）
+      dailyBoard: snapshotDailyBoard(),
 
       progression: {
         unlockedFeatureIds: getUnlockedFeatures(),
@@ -158,8 +184,26 @@ export function serializeGameSave(previous?: GameSave): GameSave {
  * 宠物快照要读房间尺寸做坐标换算，房间没就位会算错格子。
  */
 export function hydrateGameSave(save: GameSave): void {
-  const room = Object.values(save.ownWorld.maps)[0]?.rooms;
-  const firstRoom = room ? Object.values(room)[0] : undefined;
+  /*
+   * 取主 map 的第一个 room。
+   *
+   * 按 MAIN_MAP_ID 取而不是 `Object.values(...)[0]`：后者依赖对象键的
+   * 遍历顺序，多 map 的那天会随机读到二楼。存的时候用的是具名键，
+   * 读的时候也该用同一个名字——存/读不对称是存档最容易腐烂的地方。
+   * `?? 第一张` 是兜底：老存档的 map 键不一定叫 home。
+   */
+  const maps = save.ownWorld.maps ?? {};
+  const rooms = (maps[MAIN_MAP_ID] ?? Object.values(maps)[0])?.rooms;
+  const firstRoom = rooms ? Object.values(rooms)[0] : undefined;
+
+  /*
+   * 换世界了，id 计数器先清零。
+   *
+   * 清空放在这里而不是各家 restore 里：报数的有好几家（家具一家、
+   * 掉落物一家），谁自带清空谁就会抹掉先报的那家。清空是"换一份世界"
+   * 这件事本身的一部分，只该发生一次，所以归读档的入口管。
+   */
+  resetIdCounters();
 
   // 风格最先回灌：环境音按它的 regionId 选底噪，侧边栏拿它显示屋子名。
   // 存档里是删掉的风格时 setRoomStyleId 会保持不动（退回默认），
@@ -185,6 +229,11 @@ export function hydrateGameSave(save: GameSave): void {
   pruneOrphanStorages(
     save.ownWorld.placedFurniture.map((item) => item.instanceId),
   );
+
+  // 每日任务：世界那半跟着世界恢复，个人那半跟着玩家。
+  // 两边都是"发现日期不对就归零"的惰性逻辑，不用管离线跨了几天
+  restoreDailyBoard(save.ownWorld.dailyBoard);
+  restoreDailyTasks(save.player.dailyTasks);
 
   restoreAvatar(save.player.avatar);
   restoreInventory(save.player.character.inventory);

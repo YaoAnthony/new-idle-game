@@ -1,6 +1,7 @@
 import type { AnchorId, InventoryId, PlayerId, WorldPosition } from "./base.js";
 import type { ActionProcessSave, PlayerActionEntry } from "./actions.js";
 import type { AvatarConfig } from "./avatar.js";
+import type { DailyTasksSave } from "./dailyTasks.js";
 import type { MissionInstance } from "./events.js";
 import type { PlacedFurnitureInstanceId } from "./furniture.js";
 import type { InventoryStack } from "./inventory.js";
@@ -68,6 +69,17 @@ export type PlayerSave = {
    * 跟着玩家走——这是**你现实里要做的事**，不属于哪间屋子。
    */
   actionEntries: PlayerActionEntry[];
+
+  /**
+   * 每日任务的池子和今日抽签（V0.11）。同样跟着玩家走：
+   * 联机去朋友家做客，看到的还是自己的那几条待办。
+   *
+   * 和上面的 `actionEntries` 分工：那些是**能在游戏里做完并自动结算**的
+   * （专注 25 分钟）；这些是游戏判定不了、只能自己打勾的（"喝八杯水"）。
+   *
+   * 纯新增可选字段：老存档读出来是 undefined → 空池子，不需要迁移。
+   */
+  dailyTasks?: DailyTasksSave;
 
   /**
    * 正在进行的那一个行动。

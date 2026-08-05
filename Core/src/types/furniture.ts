@@ -58,6 +58,13 @@ export enum FurnitureCapability {
    */
   Unpack = "unpack",
 
+  /**
+   * 每日任务机器：按 F 打开池子编辑和今日清单（V0.11）。
+   * 进度是全家共享的（`WorldSave.dailyBoard`），所以这个能力标记的是
+   * "这件家具是那份进度的显示器和出口"，不是"它自己有一份进度"。
+   */
+  DailyBoard = "daily_board",
+
   // ---- 行动支撑能力 ----
   // 「家里有什么家具 → 能做哪类行动」是内容规则，必须放 Core：
   // 联机时服务端校验读的是同一份（AGENTS.md：Backend 不得复制一份独立的内容规则）。

@@ -91,6 +91,23 @@ export const PALETTE = {
   leafGreen: "#7d9c5b",
   leafGreenDark: "#66854b",
 
+  // ---- 每日任务机（V0.11）：全屋唯一一件"机器感"家具 ----
+  //
+  // 配色刻意和 HUD 的奶油马卡龙皮肤同源（cream/peach/butter/mint），
+  // 因为它就是那条顶部进度条在世界里的实体——看到机器想到进度条，
+  // 靠的是同一组颜色在两处出现。木质基座和黑板绿把它按回房间的
+  // 暖木语境里，不至于像一台闯进民宿的售货机。
+  boardCream: "#fbf3e2",
+  boardCreamShade: "#efe3cc",
+  boardPeach: "#f2907a",
+  boardPeachLight: "#ffb9a3",
+  boardButter: "#f4b942",
+  boardMint: "#a9e0d1",
+  boardSlate: "#5d7264",
+  boardSlateDark: "#4c5f53",
+  boardPaper: "#fffdf6",
+  boardPencil: "#e8b23c",
+
   stoneWarm: "#a89a89",
   stoneWarmDark: "#8d8071",
   hearthDark: "#3a3230",

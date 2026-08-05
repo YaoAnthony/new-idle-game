@@ -35,6 +35,13 @@ function App() {
   const [notice, setNotice] = useState<string | null>(null);
   /** 上次捏好的形象（本地 profile），捏脸页拿它当底稿 */
   const [profileAvatar, setProfileAvatar] = useState<AvatarConfig | null>(null);
+  /**
+   * 联机换世界的重挂载计数。Net/session 把别人的世界灌进运行时后发
+   * net_world_swapped，这里 +1 → GameView 的 key 变 → 整个场景对着
+   * 新世界重建。挂载一次要几百毫秒，但保证零残留——旧世界的门、
+   * 家具视图、控制器全部干净退场。
+   */
+  const [worldEpoch, setWorldEpoch] = useState(0);
   const [progress, setProgress] = useState(0);
 
   /**
@@ -85,6 +92,14 @@ function App() {
           setCanContinue(true);
           setStage("title");
         });
+      }),
+    [],
+  );
+
+  useEffect(
+    () =>
+      on("net_world_swapped", () => {
+        setWorldEpoch((epoch) => epoch + 1);
       }),
     [],
   );
@@ -166,7 +181,12 @@ function App() {
           onBack={() => setStage("title")}
         />
       ) : (
-        <GameView loadedFromSave={loadedFromSave} />
+        <GameView
+          key={worldEpoch}
+          /* 换过世界的重挂载一律按"读档进入"处理：运行时里已经是完整
+             世界了，再铺开局行李或播开场剧情都是错的 */
+          loadedFromSave={worldEpoch > 0 ? true : loadedFromSave}
+        />
       )}
 
       {/*

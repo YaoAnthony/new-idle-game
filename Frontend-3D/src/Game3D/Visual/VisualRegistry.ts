@@ -6,6 +6,7 @@ import {
 } from "./recipes/ambience.js";
 import { buildCushion, buildWoodenBed } from "./recipes/bedroom.js";
 import { buildCardboardBox, buildCardboardStack } from "./recipes/cardboardBox.js";
+import { buildDailyBoard } from "./recipes/dailyBoard.js";
 import { buildPlate, buildTallPot, buildWok } from "./recipes/cookware.js";
 import {
   buildEmberWisp,
@@ -121,6 +122,7 @@ const REGISTRY: Record<string, VisualEntry> = {
   // 生活感扩充
   bookshelf: { kind: "procedural", build: buildBookshelf },
   storage_chest: { kind: "procedural", build: buildStorageChest },
+  daily_board: { kind: "procedural", build: buildDailyBoard },
   wooden_bed: { kind: "procedural", build: buildWoodenBed },
   round_stool: { kind: "procedural", build: buildRoundStool },
   floor_cushion: { kind: "procedural", build: buildCushion },

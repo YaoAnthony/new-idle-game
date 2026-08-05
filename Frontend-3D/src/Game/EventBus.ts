@@ -15,7 +15,8 @@ export type StationCapability =
   | "sleep"
   | "sitting"
   | "storage"
-  | "unpack";
+  | "unpack"
+  | "daily_board";
 
 export type GameEvents = {
   /** 世界数据变化（家具增删等），渲染层据此同步场景图 */
@@ -147,12 +148,52 @@ export type GameEvents = {
   storage_changed: { inventoryId: string };
   /** 玩家按 F 请求打开某个储物家具 */
   storage_open_requested: { instanceId: string; furnitureId: string };
+  /**
+   * 玩家按 F 请求打开每日任务面板。不带 instanceId——
+   * 进度是全家一份（WorldSave.dailyBoard），哪台机器打开的都一样。
+   */
+  daily_board_open_requested: Record<string, never>;
   /** 背包面板被打开（教程用） */
   ui_backpack_opened: Record<string, never>;
   /** 玩法信号：剧情解释器与教程系统监听（内容在 Core storyRules） */
   story_signal: import("core").StorySignal;
   /** 剧情要求显示一条提示 */
   story_toast: { localizationKey: string; durationMs: number };
+
+  // ---- 每日任务机器（V0.11）----
+
+  /** 个人清单变了（写/改/删池子、抽签、打勾、重抽） */
+  daily_tasks_changed: { reason: string };
+  /** 全家共享进度变了（打勾、跨天归零、领奖、联机重放） */
+  daily_board_changed: { reason: string };
+  /**
+   * **本地**刚推进了一格 / 领了奖。带 `_locally` 后缀是为了和上面两条
+   * 区分：那两条是"状态变了"（收到别人的 op 也会发），这两条是
+   * "我做了这件事"——只有它们该被 Net 层转发出去，否则收一条发一条成回环。
+   */
+  daily_board_ticked_locally: { progress: number };
+  daily_board_claimed_locally: Record<string, never>;
+
+  // ---- 联机（Game/Net）----
+
+  /** 会话状态变了（开房 / 入房 / 离开 / 被结束）。UI 和指令提示读它 */
+  net_session_changed: { state: "idle" | "hosting" | "guest" };
+  /** 有人进房/出房。RemotePlayersView 靠这两条建/拆模型 */
+  net_participant_joined: { playerId: string; name: string };
+  net_participant_left: { playerId: string };
+  /**
+   * 运行时里的"当前世界"整个换掉了（做客进别人家 / 回自己家）。
+   * App 收到后给 GameView 换 key 重挂载——场景、控制器、系统全部
+   * 对着新世界重建。这是最重的一招，但保证不残留旧世界的任何东西。
+   */
+  net_world_swapped: Record<string, never>;
+  /**
+   * 本地刚刚发生了一次**世界突变**（扔/捡东西、摆/收家具、厨房槽位、
+   * 储物箱）。由 State 层的公开写入口发出，Net/session 在联机时转发
+   * 给全房。**重放入口（replay*）不发这条**——收到别人的 op 再广播
+   * 回去就成回环了。单机时没人订阅，白发一条，无害。
+   */
+  world_op: { op: import("core").WorldOp };
 };
 
 type Listener<T> = (payload: T) => void;

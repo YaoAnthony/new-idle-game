@@ -328,6 +328,35 @@ export const itemDefinitions = [
     },
   },
   {
+    /**
+     * 每日任务机器（V0.11）。一块能写字的板子 + 一个出奖励的口。
+     *
+     * 1×1、挡路、能当台面：它是"走过去按 F"的交互家具，和储物箱同一类。
+     * 稀有度 Uncommon 而不是 Common——获得途径是剧情赠予（不是随处可造），
+     * 稀有度是玩家判断"这东西重不重要"的第一眼线索。
+     */
+    id: "furniture_daily_board",
+    localizationKey: "item.furniture_daily_board",
+    category: ItemCategory.Furniture,
+    stackLimit: 9,
+    rarity: Rarity.Uncommon,
+    visual: { id: "daily_board" },
+    placement: {
+      surface: PlacementSurface.Floor,
+      footprint: { width: 1, height: 1 },
+      capabilities: [FurnitureCapability.DailyBoard],
+      floorLayer: FloorLayer.Object,
+      blocksMovement: true,
+      /** 板子顶沿 */
+      surfaceHeight: 1.02,
+      interactHint: {
+        localizationKey: "hint.daily_board",
+        action: "interact",
+        anchorHeight: 1.2,
+      },
+    },
+  },
+  {
     id: "furniture_storage_chest",
     localizationKey: "item.furniture_storage_chest",
     category: ItemCategory.Furniture,

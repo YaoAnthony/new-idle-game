@@ -134,6 +134,8 @@ import { updateListener } from "../Engine/Soundscape.js";
 import { CharacterController } from "../Interaction/CharacterController.js";
 import { PlacementController } from "../Interaction/PlacementController.js";
 import { buildCharacter } from "./CharacterView.js";
+import { RemotePlayersView } from "./RemotePlayersView.js";
+import { DailyBoardAnimator } from "./DailyBoardAnimator.js";
 import {
   FACING_VECTOR,
   FurnitureView,
@@ -155,7 +157,7 @@ export type SceneDebugState = {
   weather: WeatherKind;
   outline: boolean;
   styleId: string;
-  character: { x: number; z: number };
+  character: { x: number; z: number; y: number };
   furnitureCount: number;
 };
 
@@ -168,6 +170,10 @@ export class RoomScene {
   private readonly built: BuiltHouse;
   private readonly windowViews: WindowView[] = [];
   private readonly outdoor: OutdoorScene;
+  /** 联机时房间里其他人的形象。单机时名册是空的，它每帧空转一圈 */
+  private readonly remotePlayers: RemotePlayersView;
+  /** 每日任务机满格时的那一下弹跳。没机器时什么都不做 */
+  private readonly dailyBoardAnimator: DailyBoardAnimator;
   /** 外门门板 + 它的逻辑实体，视图每帧照实体画 */
   private readonly doorViews: { view: DoorView; agent: DoorAgent | undefined }[] = [];
   private readonly roomDoorViews = new Map<string, RoomDoorView>();
@@ -270,6 +276,11 @@ export class RoomScene {
 
     // 屋外的真实世界：森林、河、天穹、真日月。窗户只是画框
     this.outdoor = new OutdoorScene(this.scene, this.built.size);
+    this.remotePlayers = new RemotePlayersView(this.scene);
+    // 现查不缓存：机器可能被收走或摆第二台
+    this.dailyBoardAnimator = new DailyBoardAnimator(() =>
+      this.furnitureView.findByFurnitureId("furniture_daily_board"),
+    );
 
     this.furnitureView = new FurnitureView(this.built.size);
     this.scene.add(this.furnitureView.root);
@@ -938,6 +949,8 @@ export class RoomScene {
         FurnitureCapability.Unpack,
       )
         ? ("unpack" as const)
+        : definition.placement.capabilities.includes(FurnitureCapability.DailyBoard)
+        ? ("daily_board" as const)
         : definition.placement.capabilities.includes(FurnitureCapability.Crafting)
         ? ("crafting" as const)
         : definition.placement.capabilities.includes(FurnitureCapability.Cooking)
@@ -1116,6 +1129,8 @@ export class RoomScene {
         } else if (this.interactTarget.capability === "unpack") {
           // 纸箱/奖励箱：弹领取面板，收下才真的入包并消失
           openUnpack(this.interactTarget.instanceId);
+        } else if (this.interactTarget.capability === "daily_board") {
+          emit("daily_board_open_requested", {});
         } else if (this.interactTarget.capability === "cooking") {
           // 灶台不开面板：菜是真的在锅里做出来的。
           // 对着离自己最近的那个灶眼操作（放锅 / 投料 / 起锅 / 端起来）
@@ -1526,6 +1541,8 @@ export class RoomScene {
     tickDoors();
     this.syncCameraBounds();
     this.petView.update(deltaSeconds);
+    this.remotePlayers.update(deltaSeconds);
+    this.dailyBoardAnimator.update(deltaSeconds);
 
     // 火候：只有架在灶眼上、且内容匹配到配方的锅才会走进度
     tickKitchen(deltaSeconds);
@@ -1721,6 +1738,7 @@ export class RoomScene {
       character: {
         x: Number(this.controller.x.toFixed(2)),
         z: Number(this.controller.z.toFixed(2)),
+        y: Number(this.controller.renderedY.toFixed(3)),
       },
       furnitureCount: getWorld().placedFurniture.length,
     };
@@ -1738,6 +1756,8 @@ export class RoomScene {
     this.detachInput();
     for (const off of this.offEventListeners) off();
     this.placement.cancel();
+    this.remotePlayers.dispose();
+    this.dailyBoardAnimator.dispose();
     this.furnitureView.dispose();
     this.outdoor.dispose();
     this.cookwareView.dispose();

@@ -20,6 +20,8 @@ import { Joystick } from "../Components/Mobile/Joystick";
 import { TouchActions } from "../Components/Mobile/TouchActions";
 import { SpeechBubble } from "../Components/Chat/SpeechBubble";
 import { Backpack } from "../Components/Backpack/Backpack";
+import { DailyBoardHud } from "../Components/DailyBoard/DailyBoardHud";
+import { DailyBoardPanel } from "../Components/DailyBoard/DailyBoardPanel";
 import { RewardPanel } from "../Components/RewardPanel/RewardPanel";
 import { DialoguePanel } from "../Components/Dialogue/DialoguePanel";
 import { HeldItem } from "../Components/HeldItem/HeldItem";
@@ -31,7 +33,6 @@ import { SleepOverlay } from "../Components/SleepOverlay/SleepOverlay";
 import { StoryToast } from "../Components/StoryToast/StoryToast";
 import { StationPanel } from "../Components/StationPanel/StationPanel";
 import { StoragePanel } from "../Components/StoragePanel/StoragePanel";
-import { TutorialGuide } from "../Components/TutorialGuide/TutorialGuide";
 import { WorldClock } from "../Components/WorldClock/WorldClock";
 import {
   parseEnum,
@@ -82,6 +83,13 @@ import {
 } from "../Game/Systems/story";
 import { unlockAudio } from "./Engine/AudioEngine";
 import { initAudioSettings } from "./Engine/audioSettings";
+import { startParticipantSync } from "../Game/Systems/participantSync";
+import { registerNetCommands } from "../Game/Net/commands";
+import {
+  registerDailyCommands,
+  startDailyRollover,
+} from "../Game/Systems/dailyCommands";
+import { isRemoteWorldActive } from "../Game/Net/session";
 import { describeSoundscape, startSoundscape } from "./Engine/Soundscape";
 import { RoomScene } from "./World/RoomScene";
 
@@ -164,7 +172,12 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
 
     // 时钟必须最先起：天气要读世界日，剧情与行动要读时间
     const stopClock = startClock();
-    const stopWeather = startWeather();
+    /*
+     * 做客（世界是房主的）时不跑天气重掷：天气属于世界，重掷是**改世界**。
+     * 房客这边自己重掷会和房主各演各的天——房主的天气变化经 world:refresh
+     * 推过来。时钟照跑：它是纯 UTC 推导，不改任何东西。
+     */
+    const stopWeather = isRemoteWorldActive() ? () => {} : startWeather();
     // 饱食/精力的自然衰减。首次 tick 就是"离线补算"
     const stopNeeds = startNeeds();
 
@@ -190,7 +203,16 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
     window.addEventListener("pointerdown", onFirstGesture, { once: true });
     window.addEventListener("keydown", onFirstGesture, { once: true });
 
-    const stopStory = startStorySystem(!loadedFromSave);
+    // 剧情规则同理：firedStoryRuleIds 记在世界上，做客时不该往房主的
+    // 世界里记自己触发的剧情（也不该在别人家触发自己的开场戏）
+    const stopStory = isRemoteWorldActive()
+      ? () => {}
+      : startStorySystem(!loadedFromSave);
+    // 把手上拿的东西 / 坐姿汇进 participants 的 appearance 层。
+    // 那是给渲染和（将来的）网络读的投影，见 Systems/participantSync
+    const stopParticipantSync = startParticipantSync();
+    // 每日任务跨天：两边的重置本身是惰性的，这条只负责当场刷 UI
+    const stopDailyRollover = startDailyRollover();
     const stopAutosave = startAutosave();
 
     const scene = new RoomScene(container, { seedFurniture: !loadedFromSave });
@@ -203,6 +225,10 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
     const fail = (message: string): CommandResult => ({ ok: false, message });
 
     const unregister = [
+      // 联机：/host /join /leave /who（M1 的入口形态，见 Net/commands）
+      ...registerNetCommands(),
+      // 每日任务：正式交互在机器面板上，命令行是验收工具兼调试入口
+      ...registerDailyCommands(),
       registerCommand({
         name: "time",
         usage: "time <dawn|day|dusk|night>",
@@ -579,6 +605,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       void saveNow().then(stopAutosave);
       offSpoil();
       stopStory();
+      stopParticipantSync();
+      stopDailyRollover();
       stopSoundscape();
       stopNeeds();
       stopWeather();
@@ -603,30 +631,27 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
           得先把家具拖到快捷栏才摆得了，白绕一步 */}
       <Backpack />
       <StationPanel />
+      <DailyBoardPanel />
+      <DailyBoardHud />
       <StoragePanel />
       <DialoguePanel />
       <ActionHub />
       {/*
-        左上角这一列：触摸端把教程提示条和需求条交给同一个 flex 列排。
-        两者的高度都跟着文案走（提示条会换行、语言切换后行数也变），
-        各自写死 top 的话必然有一天撞上——实测竖屏 375 宽限宽后提示条
-        换到三行，正好压在需求条上。让布局去算，比调一个魔数稳。
+        左上角这一列：时钟在上、需求条在下，交给同一个 flex 列排。
+        两者的高度都会变（时钟的天气行文案长短不一、需求条的条目数会随
+        解锁增加），各自写死 top 迟早撞上——让布局去算，比调魔数稳。
 
-        桌面维持原样（需求条在左下角）：那儿宽度富余、不撞，而且改了会
-        动到玩家已经熟悉的位置，没必要为一个手机问题去动它。
+        教程提示条（TutorialGuide）已删除。它常驻左上角挡视线，而它教的
+        那几步玩家看一次就会了，留着的价值撑不起那块面积。Core 的
+        tutorialDefinition 保留：story_signal 那套还给别的系统用。
+
+        桌面端时钟从右上角搬到这里：右上角要留给"行动"和设置两个圆钮，
+        三样东西挤一角谁都不舒服，而左上角腾出来了。
       */}
-      {touchMode ? (
-        <div className="pointer-events-none absolute left-4 top-4 z-10 flex flex-col items-start gap-2 [&>*]:pointer-events-auto">
-          <TutorialGuide stacked />
-          <NeedsHud stacked />
-        </div>
-      ) : (
-        <>
-          <NeedsHud />
-          <TutorialGuide />
-        </>
-      )}
-      <WorldClock />
+      <div className="pointer-events-none absolute left-4 top-4 z-10 flex flex-col items-start gap-2 [&>*]:pointer-events-auto">
+        <WorldClock />
+        <NeedsHud stacked />
+      </div>
       <SettingsDrawer />
       <SleepOverlay />
       <RewardPanel />

@@ -171,6 +171,23 @@ export class FurnitureView {
     this.sync();
   }
 
+  /**
+   * 屋里所有某种家具的场景节点。
+   *
+   * 给需要**对着实物演动画**的系统用（每日任务机吐奖励时要抖）。
+   * 返回节点而不是 instanceId：调用方要的是能直接改 scale 的对象，
+   * 让它们再去查一遍 Map 只是把同一份索引抄两份。
+   */
+  findByFurnitureId(furnitureId: string): Object3D[] {
+    const result: Object3D[] = [];
+    for (const placed of getWorld().placedFurniture) {
+      if (placed.furnitureId !== furnitureId) continue;
+      const view = this.views.get(placed.instanceId);
+      if (view) result.push(view);
+    }
+    return result;
+  }
+
   private sync(): void {
     const { placedFurniture } = getWorld();
     const alive = new Set<string>();

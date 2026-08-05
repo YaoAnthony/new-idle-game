@@ -214,7 +214,7 @@ export function ChatPanel() {
      */
     if (isTouchMode()) return null;
     return (
-      <div className="pointer-events-none absolute bottom-3 left-3 z-20 rounded bg-black/40 px-2 py-1 font-mono text-[11px] text-white/55">
+      <div className="pointer-events-none absolute bottom-[var(--hotbar-clear)] left-3 z-20 rounded-full bg-black/40 px-2.5 py-1 font-mono text-[11px] text-white/55">
         {t("ui.chat.closed_hint")}
       </div>
     );
@@ -239,14 +239,22 @@ export function ChatPanel() {
          * 横屏只有 375px 高，底部那条带同时要塞摇杆、快捷栏、动作按钮，
          * 再叠一个五行的消息流是排不下的。
          */
+        /*
+         * 桌面端整条抬到快捷栏**之上**（--hotbar-clear，定义在 index.css）。
+         * 原来是 bottom-3，和快捷栏同一条底线——消息一多就直接盖在格子和
+         * 需求条上，谁在上面全看 DOM 顺序，等于两块 HUD 抢同一块地。
+         * 抬走之后底部那条带只归快捷栏，左侧这一列只归消息。
+         */
         isTouchMode()
           ? `touch-chatlog${open ? "" : " touch-chatlog--idle"}`
-          : "bottom-3 left-3 w-[min(560px,62vw)]",
+          : "bottom-[var(--hotbar-clear)] left-3 w-[min(560px,62vw)]",
       ].join(" ")}
     >
       <div
         ref={listRef}
-        className={`mb-1 flex flex-col gap-0.5 overflow-y-auto rounded px-2 py-1 text-[12px] leading-relaxed transition-opacity ${
+        // chat-log：矮屏上压缩最大高度，见 index.css。展开时的 224px
+        // 在 375 高的横屏上会一路顶到左上角的时钟/需求条那一列
+        className={`chat-log mb-1 flex flex-col gap-0.5 overflow-y-auto rounded-xl px-2.5 py-1.5 text-[12px] leading-relaxed transition-opacity ${
           open ? "max-h-56 bg-black/70" : "pointer-events-none max-h-40 bg-black/35"
         }`}
       >
@@ -292,9 +300,11 @@ export function ChatPanel() {
             </div>
           )}
 
+          {/* 输入行加高到 py-2.5、圆角走 full：原来只有 py-1.5，
+              贴着记录列表看着像列表的最后一行，分不出哪儿能打字 */}
           <div
-            className={`flex items-center gap-2 rounded border bg-black/80 px-2 py-1.5 ${
-              isCommand ? "border-[#5fae55]" : "border-white/20"
+            className={`flex items-center gap-2 rounded-full border-2 bg-black/80 px-3 py-2.5 ${
+              isCommand ? "border-[#63c0a8]" : "border-white/20"
             }`}
           >
             <span className={isCommand ? "text-[#9fe08f]" : "text-white/50"}>

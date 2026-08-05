@@ -162,8 +162,13 @@ export function ActionHub() {
     <>
       <button
         type="button"
-        // right-16 而不是 right-4：右上角最外侧留给设置齿轮
-        className="ui-wood-btn absolute right-16 top-4 z-10 px-4 py-2 text-[14px] font-bold"
+        /*
+         * 几何全交给 .hud-corner-btn--inner（见 index.css）：它按
+         * --hud-btn 算高度、按齿轮的宽度算让位距离。原来这里写的是
+         * right-16 + py-2 —— 一个躲齿轮的魔数加一个由文字撑出来的高度，
+         * 齿轮换尺寸就会压上来，而且大屏上小得不像主按钮。
+         */
+        className="ui-wood-btn hud-corner-btn hud-corner-btn--inner z-10 font-bold"
         onClick={() => setOpen((value) => !value)}
       >
         {t("ui.action.title")}

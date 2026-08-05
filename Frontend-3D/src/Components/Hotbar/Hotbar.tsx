@@ -7,7 +7,6 @@ import {
   selectHotbarSlot,
 } from "../../Game/State/inventory";
 import { isTouchMode } from "../../Game/State/touchMode";
-import { t } from "../../i18n/t";
 import { ItemTooltip, SlotCell, useTooltip } from "../Inventory/slots";
 
 /**
@@ -70,10 +69,14 @@ export function Hotbar() {
             不让的话按钮会直接压在格子上，只露出最左边两格（实测过）。
             安全区那一份是全面屏底部的 Home 指示条，不避让就点不到最下面一排。
           */}
+          {/*
+            `ui-dash` 是贴着框内侧那圈虚线（index.css）。整条快捷栏和格子
+            都是奶油底，不加这圈的话八个格子会和底板糊成一片浅色。
+          */}
           <div
             className={[
-              "ui-bar absolute left-1/2 flex -translate-x-1/2 rounded-xl",
-              touch ? "touch-hotbar gap-1 p-1.5" : "bottom-3 z-10 gap-1.5 p-2",
+              "ui-bar ui-dash absolute left-1/2 flex -translate-x-1/2",
+              touch ? "touch-hotbar gap-1.5 p-2" : "bottom-4 z-10 gap-2 p-2.5",
             ].join(" ")}
           >
             {slots.map((stack, index) => (
@@ -88,20 +91,18 @@ export function Hotbar() {
                 onHover={show}
                 onLeave={hide}
                 onClick={() => selectHotbarSlot(index)}
-                size={touch ? 38 : undefined}
+                // 桌面端 62 而不是默认的 56：选中格现在会抬起来 + 放大 4%，
+                // 原尺寸下这一下位移几乎看不出来，格子大一点动效才读得到
+                size={touch ? 38 : 62}
               />
             ))}
           </div>
           {/*
-            操作提示行**只给键盘用户看**。它讲的全是 B/F/Q/R/滚轮/右键，
-            手机上一个都按不了，却要占掉四行高度压在画面上（实测）。
-            触摸端的"现在能按什么"写在按钮本身上（主按钮会高亮）。
+            操作提示行已删除。它把 B/F/Q/R/滚轮/右键六件事一次性糊在屏幕
+            底部，长年占着画面正中央那一条——而这些键玩家按几次就记住了，
+            属于"学一次"的知识，不该常驻。真要查，命令行里还能问。
+            （对应的 i18n 键 ui.help.controls 一并从 t.ts 移除。）
           */}
-          {!touch && (
-            <div className="pointer-events-none absolute bottom-[86px] left-1/2 z-10 -translate-x-1/2 text-[11px] text-white/55">
-              {t("ui.help.controls")}
-            </div>
-          )}
         </>
       )}
       <ItemTooltip tooltip={tooltip} />

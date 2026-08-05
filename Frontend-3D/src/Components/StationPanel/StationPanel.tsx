@@ -84,7 +84,7 @@ export function StationPanel() {
       </div>
       <button
         type="button"
-        className="absolute right-[7.5%] top-[10%] z-10 grid h-10 w-10 place-items-center rounded-md border-2 border-[#4a2c1a] bg-[#c0392b] text-[16px] font-bold text-white hover:brightness-110"
+        className="ui-wood-btn absolute right-[7.5%] top-[10%] z-10 grid h-10 w-10 place-items-center text-[16px] font-bold"
         onClick={() => setStation(null)}
       >
         ×

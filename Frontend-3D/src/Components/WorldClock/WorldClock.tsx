@@ -1,5 +1,5 @@
 import { DayPhaseId, findWeatherDefinition } from "core";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { on } from "../../Game/EventBus";
 import { formatLocalTime, getClock } from "../../Game/State/clock";
 import { getWeather } from "../../Game/State/weather";
@@ -21,12 +21,26 @@ const PHASE_LABEL: Record<DayPhaseId, string> = {
   [DayPhaseId.Night]: "clock.phase.night",
 };
 
-/** 时段的色调。和窗外天空同一个方向，让 HUD 和画面呼应 */
+/**
+ * 时段的色调。和窗外天空同一个方向，让 HUD 和画面呼应。
+ *
+ * 整体降了饱和度：面板底色从半透明黑换成奶油白之后，原来那几个
+ * 为深色底调的亮色（#9fd0f0 这种）在浅底上直接糊掉，读不出数字。
+ * 现在每档都取"能在奶油底上站住"的深度。
+ */
 const PHASE_TINT: Record<DayPhaseId, string> = {
-  [DayPhaseId.Dawn]: "#ffc9a0",
-  [DayPhaseId.Day]: "#9fd0f0",
-  [DayPhaseId.Dusk]: "#ff9a5e",
-  [DayPhaseId.Night]: "#8f9dd0",
+  [DayPhaseId.Dawn]: "#f2907a",
+  [DayPhaseId.Day]: "#5aa7d8",
+  [DayPhaseId.Dusk]: "#e8834f",
+  [DayPhaseId.Night]: "#8d84c9",
+};
+
+/** 时段的小图标。一眼认时段比读"白天/夜晚"两个字快 */
+const PHASE_EMOJI: Record<DayPhaseId, string> = {
+  [DayPhaseId.Dawn]: "🌅",
+  [DayPhaseId.Day]: "☀️",
+  [DayPhaseId.Dusk]: "🌇",
+  [DayPhaseId.Night]: "🌙",
 };
 
 export function WorldClock() {
@@ -55,20 +69,39 @@ export function WorldClock() {
   const dayPercent = Math.round(clock.dayProgress * 100);
 
   return (
-    <div className="pointer-events-none absolute right-3 top-14 z-10 flex flex-col gap-1 rounded-lg bg-black/35 px-3 py-2 backdrop-blur-sm">
+    /*
+     * 定位交给 Game3D 的左上角列（见那里的注释），这里只管长相。
+     *
+     * `ui-dash` 就是那圈贴着框内侧的虚线（定义在 index.css）。虚线颜色跟着
+     * 时段走——凌晨是桃色、白天是天蓝、夜里是藕紫，所以用内联的 --dash
+     * 覆盖默认值，而不是给每个时段写一个 class。
+     */
+    <div
+      // relative 是 .ui-dash 那圈虚线要的定位锚点——它自己不设 position
+      // （设了会顶掉别处的 absolute，见 index.css 里那段注释）
+      className="ui-dash relative pointer-events-none flex flex-col gap-1.5 rounded-[20px] border-[3px] border-[var(--line-deep)] bg-[var(--cream)]/95 px-4 py-2.5 shadow-[var(--soft-shadow)] backdrop-blur-sm"
+      style={{ "--dash": tint } as CSSProperties}
+    >
       <div className="flex items-baseline gap-2">
         <span
-          className="text-[20px] font-bold leading-none tabular-nums"
+          className="text-[26px] font-bold leading-none tabular-nums tracking-tight"
           style={{ color: tint }}
         >
           {formatLocalTime(clock)}
         </span>
-        <span className="text-[11px] text-white/70">
-          {t(PHASE_LABEL[clock.phase])}
+        {/*
+          时段做成小药丸而不是裸文字：它和时间数字挨着，同为文字时
+          两者会读成一句话（"13:04白天"），加个底就分得开了。
+        */}
+        <span
+          className="rounded-full px-2 py-0.5 text-[11px] font-bold"
+          style={{ backgroundColor: `${tint}26`, color: tint }}
+        >
+          {PHASE_EMOJI[clock.phase]} {t(PHASE_LABEL[clock.phase])}
         </span>
       </div>
 
-      <div className="flex items-center gap-2 text-[11px] text-white/60">
+      <div className="flex items-center gap-1.5 text-[11px] text-[var(--ink-soft)]">
         <span className="tabular-nums">{clock.worldDayId}</span>
         <span aria-hidden>·</span>
         <span>
@@ -80,7 +113,7 @@ export function WorldClock() {
       </div>
 
       {/* 一天的进度。看一眼就知道今天过了多少 */}
-      <div className="mt-0.5 h-1 w-28 overflow-hidden rounded-full bg-black/45">
+      <div className="h-[6px] w-32 overflow-hidden rounded-full bg-[var(--cream-3)]">
         <div
           className="h-full rounded-full transition-[width] duration-1000"
           style={{ width: `${dayPercent}%`, backgroundColor: tint }}

@@ -175,14 +175,18 @@ export function Backpack() {
            */}
           <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="shrink-0 text-[17px] font-bold tracking-[0.2em] text-[#f7e6c4] [text-shadow:0_2px_0_rgb(74_44_26)] sm:text-[20px]">
+              {/*
+                浅奶油字 + 深描边是给旧版深棕皮革面板配的。面板换成奶油底
+                之后那套是浅底浅字，标题直接看不见——换成深可可实心字。
+              */}
+              <h2 className="shrink-0 text-[17px] font-bold tracking-[0.2em] text-[var(--ink)] sm:text-[20px]">
                 {t("ui.backpack")}
               </h2>
 
               {/* 窄屏时关闭按钮跟着标题走，宽屏时排到最右 */}
               <button
                 type="button"
-                className="grid h-8 w-8 shrink-0 place-items-center rounded-md border-2 border-[#4a2c1a] bg-[#c0392b] text-[16px] font-bold text-white shadow hover:brightness-110 sm:hidden"
+                className="ui-wood-btn grid h-8 w-8 shrink-0 place-items-center text-[16px] font-bold sm:hidden"
                 aria-label={t("ui.close")}
                 onClick={() => setOpen(false)}
               >
@@ -227,7 +231,7 @@ export function Backpack() {
 
             <button
               type="button"
-              className="hidden h-8 w-8 shrink-0 place-items-center rounded-md border-2 border-[#4a2c1a] bg-[#c0392b] text-[16px] font-bold text-white shadow hover:brightness-110 sm:grid"
+              className="ui-wood-btn hidden h-8 w-8 shrink-0 place-items-center text-[16px] font-bold sm:grid"
               aria-label={t("ui.close")}
               onClick={() => setOpen(false)}
             >
@@ -311,7 +315,7 @@ export function Backpack() {
           </div>
 
           {/* ---- 底栏：操作提示 + 容量 ---- */}
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[12px] text-[#e6d2ac]">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[12px] text-[var(--ink-soft)]">
             <span>{t(isTouchMode() ? "ui.backpack.hint_touch" : "ui.backpack.hint")}</span>
             <span className="font-bold">
               {t("ui.backpack.capacity")} {used} / {BACKPACK_SIZE}

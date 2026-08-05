@@ -5,6 +5,86 @@
 :root {
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+
+  /* ---- 奶油马卡龙色板（2026-08-03 定稿）----
+   *
+   * 上一版是"皮革 + 木框 + 羊皮纸"的暖褐色系。问题不在于难看，
+   * 而在于**分量太重**：深棕描边 + 大面积暗底压在一个亮堂的白天房间上，
+   * HUD 比场景还抢眼，玩家第一眼看的是界面不是屋子。
+   *
+   * 换成奶油底 + 马卡龙点缀后，UI 整体后退一层，靠圆角和粉彩描边保持
+   * 存在感。**没有换掉暖色调**——底色仍然偏奶油而不是纯白，和木地板、
+   * 原木家具还是一家人；变的是明度和描边的攻击性。
+   *
+   * 试过纯白底（#fff）：屋里本来就亮，纯白 HUD 在窗光那一片直接糊掉，
+   * 分不清哪儿是界面哪儿是墙。奶油底压 4% 的黄，刚好拉开。
+   */
+
+  /* 底色三档：卡面 → 内衬 → 凹槽 */
+  --cream: #fffcf5;
+  --cream-2: #fff4e6;
+  --cream-3: #ffe9d4;
+
+  /* 文字：深可可 + 淡可可。不用纯黑，纯黑在奶油底上太硬 */
+  --ink: #6a5346;
+  --ink-soft: #a58e7c;
+
+  /* 描边两档：浅的分区、深的收边 */
+  --line: #f3d9c2;
+  --line-deep: #e3ae90;
+
+  /* 马卡龙点缀。桃=主强调 / 薄荷=肯定 / 奶黄=选中 / 藕紫=稀有 */
+  --peach: #ffb9a3;
+  --peach-deep: #f2907a;
+  --mint: #a9e0d1;
+  --mint-deep: #63c0a8;
+  --butter: #ffd98d;
+  --butter-deep: #f4b942;
+  --lilac: #cdb9e8;
+
+  /* 投影统一走这一条：暖灰而不是纯黑，黑投影在奶油底上会脏 */
+  --soft-shadow: 0 6px 18px rgb(196 148 120 / 0.3);
+  --soft-shadow-lg: 0 14px 36px rgb(160 115 88 / 0.35);
+
+  /*
+   * 右上角那两个钮（"行动" / 设置齿轮）的公共尺寸。
+   *
+   * 原来两边各写各的（齿轮 38px 写死、"行动" 用 py-2 让文字撑），结果是：
+   * 大屏上两个钮都小得像误触防护，而且**"行动"靠 right-16 这个魔数躲开
+   * 齿轮**——齿轮一变大就压上去。抽成一个变量后两边同源，位置用
+   * calc 从它算出来，改一次尺寸不会漏掉另一个。
+   *
+   * vmin 而不是 vw：横屏手机 667x375 上按 vw 算会得到一个比屏高还离谱的
+   * 尺寸，按短边走才跟"这块屏有多大"对得上。上下限锁死，免得 4K 上
+   * 变成一个巨钮。
+   */
+  /*
+   * 下限 46 而不是 40：实测 1280x720 下 5.2vmin 只有 37px，会被夹到下限，
+   * 也就是说**绝大多数桌面分辨率都吃的是下限那个数**——下限定多少，
+   * 按钮就是多少，中间那项几乎不参与。原来两个钮 38px，换算成手指
+   * 尺寸只有 iOS 建议值（44pt）的 86%，鼠标下也小得不像主按钮。
+   * 46 是"比建议值大一点"，上限 60 挡住 4K 上变巨钮。
+   */
+  --hud-btn: clamp(46px, 5.2vmin, 60px);
+  --hud-gap: 10px;
+  --hud-edge: 14px;
+
+  /*
+   * 快捷栏占掉的底部高度，给别人让位用（目前是消息面板）。
+   *
+   * = 离底 16px（Hotbar 的 bottom-4）+ 快捷栏自身 88px（实测：上下内边距
+   *   20 + 格子 62 + 上下边框 6）+ 12px 间隙。
+   *
+   * 那 12px 不是装饰。快捷栏居中、实测 578px 宽（1280 屏上占 351~929），
+   * 消息面板从左边 12px 起、宽到 572——**横向是重叠的**，所以纵向必须
+   * 真让开。只写到 104 会让两者边框贴着边框，看着像粘在一起的一块。
+   *
+   * 写成变量而不是让消息面板自己填一个数：消息面板压在快捷栏上是
+   * **已经发生过**的（见截图，聊天记录直接盖住了需求条和格子），
+   * 而这种重叠只会在有人改了快捷栏尺寸、忘了另一处时复发。
+   * 让位距离必须从被让的那个东西算出来。
+   */
+  --hotbar-clear: 116px;
 }
 
 * {
@@ -68,17 +148,49 @@ input {
  * 物品图标仍然是 PNG——那是**内容**（每件东西长什么样），不是界面外壳。
  */
 
+/*
+ * 可爱风的招牌：**贴着外框内侧再画一圈虚线**。
+ *
+ * 做成 ::before 而不是第二层 border 或 outline——border 只有一层，
+ * outline 画在框外（会和相邻元素打架，快捷栏格子挨得近，实测互相咬边）。
+ * 伪元素能精确 inset 到框内，还能单独控圆角，而且**不吃指针事件**，
+ * 不会挡住格子本身的拖拽命中。
+ *
+ * 用 currentColor 的变体而不是写死颜色：桃色框配桃虚线、薄荷框配薄荷虚线，
+ * 一个类走遍所有配色，靠 --dash 变量在各自的类里改。
+ *
+ * **这个类不设 position，由使用方自己保证已经定位过。**
+ * 第一版写了 `.ui-dash { position: relative }` 图省事，结果把快捷栏上
+ * Tailwind 的 `absolute` 顶掉了——两者特异性都是 (0,1,0)，而自定义 CSS
+ * 写在 `@tailwind utilities` 后面，后写的赢。快捷栏当场从"绝对定位在
+ * 屏幕底部"变成流内元素，飘到了页面最顶上。
+ *
+ * 一个只负责画装饰的类去改布局属性，本来就越界了。要么各处自己写
+ * relative（Hotbar 已经是 absolute，天然满足），要么就得把整段自定义
+ * 样式包进 @layer components 去调层级——为一条虚线不值得动分层。
+ */
+.ui-dash::before {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 2px dashed var(--dash, var(--peach));
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0.65;
+}
+
 /* 物品格子 */
 .ui-slot {
   position: relative;
   display: grid;
   place-items: center;
-  border: 2px solid #b08a55;
-  border-radius: 8px;
-  background: linear-gradient(180deg, #ecdcbb 0%, #dbc59a 100%);
+  border: 2px solid var(--line-deep);
+  /* 12 而不是原来的 8：圆角是"可爱"最省力的一档，格子小、加得起 */
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--cream) 0%, var(--cream-2) 100%);
   box-shadow:
-    inset 0 2px 4px rgb(120 85 45 / 0.28),
-    0 1px 0 rgb(255 255 255 / 0.35);
+    inset 0 -2px 0 rgb(227 174 144 / 0.28),
+    0 2px 4px rgb(196 148 120 / 0.22);
   cursor: pointer;
   user-select: none;
   /*
@@ -88,41 +200,50 @@ input {
    * 格子本身没有指针拖拽（拖到快捷栏走的是别的路径），没有要保护的手势。
    */
   touch-action: manipulation;
-  transition: border-color 90ms ease-out, filter 90ms ease-out;
+  transition: border-color 90ms ease-out, transform 120ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 120ms ease-out;
 }
 
 .ui-slot:hover {
-  border-color: #d9a95c;
+  border-color: var(--peach-deep);
 }
 
+/*
+ * 选中格：奶黄底 + 桃色描边 + **抬起来一点**。
+ *
+ * 原来只靠换底色和加一圈外发光区分，缩到快捷栏那个尺寸后
+ * 一眼扫过去分不出哪格在手上。位移是最好认的信号——它不依赖颜色，
+ * 余光也能看见。抬 2px、放大 4%，回弹曲线让它"弹"一下而不是"滑"一下。
+ */
 .ui-slot--selected {
-  border-color: #e0a94a;
-  background: linear-gradient(180deg, #fff1cf 0%, #f8dfa9 100%);
+  border-color: var(--peach-deep);
+  background: linear-gradient(180deg, #fff6e0 0%, var(--butter) 100%);
   box-shadow:
-    0 0 0 2px rgb(224 169 74 / 0.45),
-    inset 0 2px 4px rgb(160 120 60 / 0.2);
+    0 0 0 3px rgb(242 144 122 / 0.35),
+    0 6px 12px rgb(196 148 120 / 0.4);
+  transform: translateY(-2px) scale(1.04);
+  z-index: 1;
 }
 
-/* 快捷栏 / 小面板的皮革底 */
+/* 快捷栏 / 小面板的底板 */
 .ui-bar {
-  border: 3px solid #5c3a22;
-  border-radius: 12px;
-  background: linear-gradient(180deg, #8f6440 0%, #744d2f 100%);
+  border: 3px solid var(--line-deep);
+  /* 18：整条快捷栏是个大圆角药丸，比格子的 12 更圆一档，层级才拉得开 */
+  border-radius: 18px;
+  background: linear-gradient(180deg, var(--cream) 0%, var(--cream-3) 100%);
   box-shadow:
-    0 8px 20px rgb(0 0 0 / 0.42),
-    inset 0 2px 0 rgb(255 255 255 / 0.16),
-    inset 0 -3px 0 rgb(0 0 0 / 0.18);
+    var(--soft-shadow),
+    inset 0 2px 0 rgb(255 255 255 / 0.9);
 }
 
-/* 背包主面板：和 .ui-bar 同一套语言，只是更厚重一点 */
+/* 背包主面板：和 .ui-bar 同一套语言，只是更大一号 */
 .ui-pack {
-  border: 3px solid #5c3a22;
-  border-radius: 14px;
-  background: linear-gradient(180deg, #8f6440 0%, #6f492c 100%);
+  border: 3px solid var(--line-deep);
+  border-radius: 20px;
+  background: linear-gradient(180deg, var(--cream) 0%, var(--cream-3) 100%);
   box-shadow:
-    0 16px 36px rgb(0 0 0 / 0.5),
-    inset 0 2px 0 rgb(255 255 255 / 0.18),
-    inset 0 -4px 0 rgb(0 0 0 / 0.2);
+    var(--soft-shadow-lg),
+    inset 0 2px 0 rgb(255 255 255 / 0.9);
 }
 
 /*
@@ -162,50 +283,62 @@ input {
     margin-top: 0.5rem;
     margin-bottom: 0.5rem;
   }
+
+  /*
+   * 消息记录在矮屏上限高。
+   *
+   * 展开时是 max-h-56（224px），而消息面板从底部 116px 处往**上**长——
+   * 667x375 的横屏上顶到 y=35，正好压在左上角那一列（时钟 + 需求条，
+   * 实测占到 y=174）。三样东西抢同一条左边栏，只能让最"可以少看几条"的
+   * 那个退。收起态一起压：那时露的本来就只有最近几条。
+   */
+  .chat-log {
+    max-height: 108px !important;
+  }
 }
 
-/* 羊皮纸内衬：格子和详情卡都躺在它上面 */
+/* 内衬：格子和详情卡都躺在它上面。比外壳更浅，做出"凹进去"的层次 */
 .ui-parchment {
-  border: 3px solid #a8834f;
-  border-radius: 10px;
-  background: linear-gradient(180deg, #f7ecd2 0%, #efe0bf 100%);
-  box-shadow: inset 0 2px 6px rgb(90 60 30 / 0.22);
+  border: 2px dashed var(--line-deep);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #fffdf8 0%, var(--cream-2) 100%);
+  box-shadow: inset 0 2px 8px rgb(227 174 144 / 0.22);
 }
 
 /* 分类页签 */
 .ui-tab {
-  border: 2px solid #7a5230;
-  border-radius: 8px;
-  background: linear-gradient(180deg, #b98a55 0%, #a3743f 100%);
-  color: #f6e6c8;
-  box-shadow: 0 2px 0 #6b4426;
+  border: 2px solid var(--line-deep);
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--cream) 0%, var(--cream-3) 100%);
+  color: var(--ink-soft);
+  box-shadow: 0 2px 0 var(--line-deep);
   transition: filter 90ms ease-out, transform 90ms ease-out;
 }
 
 .ui-tab:hover {
-  filter: brightness(1.08);
+  filter: brightness(1.03);
 }
 
 .ui-tab--active {
-  background: linear-gradient(180deg, #ffe1a2 0%, #efc270 100%);
-  border-color: #6b4426;
-  color: #4a3018;
-  box-shadow: inset 0 2px 0 rgb(255 255 255 / 0.6);
+  background: linear-gradient(180deg, var(--peach) 0%, var(--peach-deep) 100%);
+  border-color: var(--peach-deep);
+  color: #fffaf6;
+  box-shadow: inset 0 2px 0 rgb(255 255 255 / 0.45);
   transform: translateY(1px);
 }
 
-/* 详情卡上的动作按钮 */
+/* 详情卡上的动作按钮：薄荷色 = 肯定的动作 */
 .ui-pack-action {
-  border: 2px solid #4f7a35;
-  border-radius: 9px;
-  background: linear-gradient(180deg, #86bb5c 0%, #6a9f44 100%);
-  color: #fdfbf2;
-  box-shadow: 0 3px 0 #47692c;
+  border: 2px solid var(--mint-deep);
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--mint) 0%, var(--mint-deep) 100%);
+  color: #21584c;
+  box-shadow: 0 3px 0 rgb(74 156 134 / 0.7);
   transition: transform 90ms ease-out, filter 90ms ease-out;
 }
 
 .ui-pack-action:hover {
-  filter: brightness(1.06);
+  filter: brightness(1.05);
 }
 
 .ui-pack-action:active {
@@ -217,13 +350,13 @@ input {
    槽位下标就是拖拽的落点地址，一旦按筛选重新排列，
    拖到第三格就不再是背包第三格了。 */
 .ui-slot--dimmed {
-  filter: grayscale(0.75) brightness(0.72);
-  opacity: 0.55;
+  filter: grayscale(0.75) brightness(0.96);
+  opacity: 0.45;
 }
 
 /* 当前选中的格子 */
 .ui-slot--picked {
-  filter: drop-shadow(0 0 7px rgb(233 168 60 / 0.9));
+  filter: drop-shadow(0 0 8px rgb(242 144 122 / 0.85));
 }
 
 /* 稀有度只画一圈细边，不整格染色——
@@ -236,11 +369,13 @@ input {
   pointer-events: none;
 }
 
-.ui-rarity--uncommon { border-color: #6aa84f; }
-.ui-rarity--rare { border-color: #4a86c8; }
-.ui-rarity--epic { border-color: #9b6cc4; }
-.ui-rarity--legendary { border-color: #e0a94a; }
-.ui-rarity--mythic { border-color: #d4574e; }
+/* 稀有度也跟着降饱和：奶油底上原来那几个正色（纯绿、正蓝）跳得太厉害，
+   一格边框比里面的物品还响。粉彩档在浅底上照样分得开。 */
+.ui-rarity--uncommon { border-color: var(--mint-deep); }
+.ui-rarity--rare { border-color: #7fb2e0; }
+.ui-rarity--epic { border-color: var(--lilac); }
+.ui-rarity--legendary { border-color: var(--butter-deep); }
+.ui-rarity--mythic { border-color: var(--peach-deep); }
 
 /* 工作台：摊开的皮面本子。中缝用一条渐变画出来。
    **宽高比先留着**——StationPanel 的内容还是按百分比钉在这块面上的
@@ -248,54 +383,56 @@ input {
    是另一件事，不顺手在这儿一起做。 */
 .ui-book {
   aspect-ratio: 1536 / 1024;
-  border: 3px solid #5c3a22;
-  border-radius: 14px;
+  border: 3px solid var(--line-deep);
+  border-radius: 20px;
   background:
-    /* 顶部皮革书脊带。**必须留**：标题是浅色字（配的是原来那张图的
-       深色木牌），底下换成羊皮纸就成了浅底浅字，直接看不见 */
+    /* 顶部书脊带。**必须留、且必须够深**：标题是浅色字，底下是奶油内页，
+       书脊真要跟着换成粉彩就成了浅底浅字，直接看不见。所以这条带用
+       马卡龙里最深的桃色，不用最浅的那几档 */
     linear-gradient(
       180deg,
-      #7a5230 0%,
-      #6b4426 17%,
+      var(--peach) 0%,
+      var(--peach-deep) 17%,
       transparent 17%
     ),
     /* 中缝 */
     linear-gradient(
       90deg,
       transparent calc(50% - 9px),
-      rgb(74 44 26 / 0.55) calc(50% - 9px),
-      rgb(52 30 17 / 0.75) 50%,
-      rgb(74 44 26 / 0.55) calc(50% + 9px),
+      rgb(227 174 144 / 0.45) calc(50% - 9px),
+      rgb(242 144 122 / 0.55) 50%,
+      rgb(227 174 144 / 0.45) calc(50% + 9px),
       transparent calc(50% + 9px)
     ),
-    linear-gradient(180deg, #f7ecd2 0%, #ecdcba 100%);
+    linear-gradient(180deg, var(--cream) 0%, var(--cream-2) 100%);
   box-shadow:
-    0 14px 32px rgb(0 0 0 / 0.5),
-    inset 0 2px 0 rgb(255 255 255 / 0.35);
+    var(--soft-shadow-lg),
+    inset 0 2px 0 rgb(255 255 255 / 0.8);
 }
 
 /* ---- 对话框（动森式：奶油圆角气泡 + 名字药丸 + 继续三角） ---- */
 
 .ui-dialogue {
-  background: linear-gradient(180deg, #fdf8ec 0%, #f4ead2 100%);
-  border: 3px solid #d8c8a6;
+  background: linear-gradient(180deg, var(--cream) 0%, var(--cream-2) 100%);
+  border: 3px solid var(--line-deep);
   box-shadow:
-    0 10px 30px rgb(40 25 12 / 0.45),
+    var(--soft-shadow-lg),
     inset 0 2px 0 rgb(255 255 255 / 0.9);
   animation: dialogue-rise 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .ui-name-tag {
-  background: linear-gradient(180deg, #ffe9a8 0%, #f3d183 100%);
-  border: 3px solid #d8b25f;
-  box-shadow: 0 4px 10px rgb(40 25 12 / 0.35);
+  background: linear-gradient(180deg, var(--butter) 0%, var(--butter-deep) 100%);
+  border: 3px solid var(--butter-deep);
+  box-shadow: 0 4px 10px rgb(196 148 120 / 0.4);
 }
 
 .ui-dialogue-choice {
-  background: linear-gradient(180deg, #fffaf0 0%, #f0e4c8 100%);
-  border: 2px solid #c9b58c;
-  color: #4a3b2a;
-  box-shadow: 0 2px 0 #c9b58c;
+  background: linear-gradient(180deg, #fffdf8 0%, var(--cream-2) 100%);
+  border: 2px solid var(--line-deep);
+  border-radius: 999px;
+  color: var(--ink);
+  box-shadow: 0 2px 0 var(--line-deep);
   transition: transform 90ms ease-out, filter 90ms ease-out;
 }
 
@@ -314,19 +451,19 @@ input {
    两个人做的东西拼在一起。拖拽中直接复用格子的"选中"样式，
    落点比新造的高亮更好认。 */
 .ui-gift-slot {
-  border: 2px solid #b08a55;
-  border-radius: 10px;
-  background: linear-gradient(180deg, #ecdcbb 0%, #dbc59a 100%);
-  box-shadow: inset 0 2px 4px rgb(120 85 45 / 0.28);
-  color: #8a6a48;
+  border: 2px solid var(--line-deep);
+  border-radius: 14px;
+  background: linear-gradient(180deg, var(--cream) 0%, var(--cream-2) 100%);
+  box-shadow: inset 0 -2px 0 rgb(227 174 144 / 0.28);
+  color: var(--ink-soft);
   transition: filter 120ms ease-out, transform 120ms ease-out,
     border-color 120ms ease-out;
 }
 
 .ui-gift-slot--active {
-  border-color: #e0a94a;
-  background: linear-gradient(180deg, #fff1cf 0%, #f8dfa9 100%);
-  box-shadow: 0 0 0 2px rgb(224 169 74 / 0.5);
+  border-color: var(--peach-deep);
+  background: linear-gradient(180deg, #fff6e0 0%, var(--butter) 100%);
+  box-shadow: 0 0 0 3px rgb(242 144 122 / 0.35);
   transform: scale(1.04);
 }
 
@@ -336,8 +473,8 @@ input {
   height: 0;
   border-left: 11px solid transparent;
   border-right: 11px solid transparent;
-  border-top: 13px solid #e0a94a;
-  filter: drop-shadow(0 2px 1px rgb(40 25 12 / 0.4));
+  border-top: 13px solid var(--peach-deep);
+  filter: drop-shadow(0 2px 1px rgb(196 148 120 / 0.5));
   animation: arrow-bounce 900ms ease-in-out infinite;
 }
 
@@ -360,17 +497,19 @@ input {
 
 /* 家具交互气泡：羊皮纸小卡 + 指向家具的尖角 */
 .ui-bubble {
-  border: 2px solid #8a6239;
-  background-color: #f6ecd0;
-  box-shadow: 0 4px 10px rgb(0 0 0 / 0.35);
+  border: 2px solid var(--line-deep);
+  border-radius: 14px;
+  background-color: var(--cream);
+  color: var(--ink);
+  box-shadow: var(--soft-shadow);
   animation: bubble-pop 140ms ease-out;
 }
 
 .ui-bubble-tail {
   border-left: 7px solid transparent;
   border-right: 7px solid transparent;
-  border-top: 8px solid #8a6239;
-  filter: drop-shadow(0 2px 2px rgb(0 0 0 / 0.25));
+  border-top: 8px solid var(--line-deep);
+  filter: drop-shadow(0 2px 2px rgb(196 148 120 / 0.35));
 }
 
 @keyframes bubble-pop {
@@ -380,10 +519,56 @@ input {
   }
 }
 
+/* ---- 每日任务进度条（V0.11）---- */
+
+/**
+ * 新亮的那一格弹一下。
+ *
+ * 用 keyframes 而不是 transition：transition 只在"值变了"时跑一次，
+ * 而这里要的是**同一个状态下的一段表演**（放大再回落）。回弹曲线和
+ * 快捷栏选中格同一条（cubic-bezier(0.34,1.56,0.64,1)），
+ * 整个界面的"弹"是同一种弹。
+ */
+@keyframes daily-pip-pop {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.85);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.daily-hud__pip--pop {
+  animation: daily-pip-pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/**
+ * 满格后整条轻轻呼吸，直到奖励吐出来。
+ *
+ * 幅度只有 3%——它是"该去看看机器了"的余光提示，不是警报。
+ * 治愈类游戏里任何超过这个量级的常驻动画都会变成噪音。
+ */
+@keyframes daily-hud-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+}
+
+.daily-hud--full {
+  animation: daily-hud-breathe 2.2s ease-in-out infinite;
+}
+
 /* 面板内的细滚动条 */
 .ui-scroll {
   scrollbar-width: thin;
-  scrollbar-color: #8a5f3a transparent;
+  scrollbar-color: var(--line-deep) transparent;
 }
 
 .ui-scroll::-webkit-scrollbar {
@@ -392,72 +577,89 @@ input {
 
 .ui-scroll::-webkit-scrollbar-thumb {
   border-radius: 3px;
-  background: #8a5f3a;
+  background: var(--line-deep);
 }
 
 .ui-scroll::-webkit-scrollbar-track {
   background: transparent;
 }
 
-/* 悬浮介绍：小羊皮纸卡 */
+/* 悬浮介绍：小奶油卡 */
 .ui-tooltip {
-  border: 2px solid #8a6239;
-  background-color: #f6ecd0;
-  box-shadow: 0 6px 16px rgb(0 0 0 / 0.4);
+  border: 2px solid var(--line-deep);
+  border-radius: 14px;
+  background-color: var(--cream);
+  box-shadow: var(--soft-shadow);
 }
 
 /* ---- 行动面板（对照 版本期望/figures 的四张像素稿）----
  *
- * 木框 + 羊皮纸内胆 + 木牌匾标题。现在用渐变和描边逼近，
- * 等 Codex 出了整张 9-slice 木框素材可以直接换成 background-image，
- * 结构不用动（和 .ui-book 换 book_bg.png 是同一套路子）。
+ * 奶油面板 + 桃色收边 + 药丸牌匾标题。全部用渐变和描边画，
+ * 等以后有 9-slice 素材可以直接换成 background-image，结构不用动
+ * （和 .ui-book 换 book_bg.png 是同一套路子）。
  */
 
 .ui-action-panel {
-  background:
-    linear-gradient(180deg, #f6e3b8 0%, #efd8a6 55%, #e8cd97 100%);
-  border: 5px solid #a9773f;
-  outline: 4px solid #6d4824;
-  border-radius: 16px;
+  background: linear-gradient(180deg, var(--cream) 0%, var(--cream-2) 55%, var(--cream-3) 100%);
+  border: 4px solid var(--line);
+  /* 外面再收一圈深描边。用 outline 而不是第三层容器：它不占布局，
+     面板本来就是 absolute 居中的，多包一层会重算宽度 */
+  outline: 3px solid var(--line-deep);
+  border-radius: 24px;
   box-shadow:
-    0 18px 48px rgb(20 12 4 / 0.6),
-    inset 0 3px 0 rgb(255 255 255 / 0.5);
+    var(--soft-shadow-lg),
+    inset 0 3px 0 rgb(255 255 255 / 0.9);
 }
 
-/* 木牌匾：压在面板上边缘的标题条 */
+/* 牌匾：压在面板上边缘的标题药丸 */
 .ui-plaque {
-  background: linear-gradient(180deg, #f2dcaf 0%, #e7c98e 100%);
-  border: 4px solid #8a5a30;
-  outline: 3px solid #5c3a1d;
+  background: linear-gradient(180deg, var(--butter) 0%, var(--butter-deep) 100%);
+  border: 3px solid #fffdf8;
+  outline: 3px solid var(--butter-deep);
   border-radius: 999px;
   box-shadow:
-    0 5px 0 rgb(92 58 29 / 0.35),
-    inset 0 2px 0 rgb(255 255 255 / 0.6);
+    0 5px 0 rgb(227 174 144 / 0.45),
+    inset 0 2px 0 rgb(255 255 255 / 0.55);
 }
 
-/* 分类卡：可用态暖底 + 金边发光 */
+/* 分类卡：奶油底 + 桃边 + 内圈虚线 */
 .ui-action-card {
-  background: linear-gradient(180deg, #fbeec7 0%, #f2ddab 100%);
-  border: 3px solid #d9a94e;
-  border-radius: 14px;
+  position: relative;
+  background: linear-gradient(180deg, #fffdf8 0%, var(--cream-2) 100%);
+  border: 3px solid var(--peach);
+  border-radius: 20px;
   box-shadow:
-    0 0 0 2px rgb(255 236 190 / 0.7),
-    0 6px 16px rgb(70 45 15 / 0.28),
-    inset 0 2px 0 rgb(255 255 255 / 0.65);
-  transition: transform 110ms ease-out, filter 110ms ease-out;
+    var(--soft-shadow),
+    inset 0 2px 0 rgb(255 255 255 / 0.9);
+  transition: transform 140ms cubic-bezier(0.34, 1.56, 0.64, 1), filter 110ms ease-out;
+}
+
+.ui-action-card::before {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border: 2px dashed var(--peach);
+  border-radius: 15px;
+  pointer-events: none;
+  opacity: 0.55;
 }
 
 .ui-action-card:hover {
-  transform: translateY(-3px);
-  filter: brightness(1.04);
+  transform: translateY(-4px);
+  filter: brightness(1.02);
 }
 
-/* 锁定态：整卡去色压暗，配挂锁和「缺少对应家具」 */
+/* 锁定态：整卡去色压淡，配挂锁和「缺少对应家具」。
+   注意是**压淡不是压暗**——底色已经是奶油了，往暗调会变成灰泥巴 */
 .ui-action-card--locked {
-  background: linear-gradient(180deg, #cfcabf 0%, #bdb7ab 100%);
-  border-color: #9b948a;
-  box-shadow: inset 0 2px 0 rgb(255 255 255 / 0.35);
+  background: linear-gradient(180deg, #f7f4f0 0%, #ece7e1 100%);
+  border-color: #ddd5cd;
+  box-shadow: inset 0 2px 0 rgb(255 255 255 / 0.7);
   cursor: not-allowed;
+}
+
+.ui-action-card--locked::before {
+  border-color: #ddd5cd;
 }
 
 .ui-action-card--locked:hover {
@@ -465,42 +667,53 @@ input {
   filter: none;
 }
 
-/* 数字角标：卡片右上角的深色小方牌 */
+/* 数字角标：卡片右上角的桃色小圆牌 */
 .ui-badge {
-  background: linear-gradient(180deg, #6d4824 0%, #55381c 100%);
-  border: 2px solid #3f2914;
-  border-radius: 8px;
-  color: #f6e3b8;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.25);
+  background: linear-gradient(180deg, var(--peach) 0%, var(--peach-deep) 100%);
+  border: 2px solid #fffdf8;
+  border-radius: 999px;
+  color: #fffaf6;
+  box-shadow: 0 2px 4px rgb(196 148 120 / 0.4);
 }
 
 /* 信纸区：虚线框 + 浅色横线，空着时也不显得秃 */
 .ui-paper {
-  background-color: #f8ecc9;
+  background-color: #fffdf8;
   background-image: repeating-linear-gradient(
     180deg,
     transparent 0,
     transparent 43px,
-    #e2cb9c 43px,
-    #e2cb9c 44px
+    var(--cream-3) 43px,
+    var(--cream-3) 44px
   );
-  border: 2px dashed #cdb488;
-  border-radius: 12px;
-  box-shadow: inset 0 2px 8px rgb(140 105 60 / 0.18);
+  border: 2px dashed var(--line-deep);
+  border-radius: 18px;
+  box-shadow: inset 0 2px 8px rgb(227 174 144 / 0.2);
 }
 
-/* 木质小方钮（返回箭头、关闭 X） */
+/*
+ * 主按钮（"行动"、返回箭头、关闭 X）。类名沿用 .ui-wood-btn：
+ * 它已经散在十几处 tsx 里，为了改配色去全局重命名是纯粹的搅动——
+ * 名字过时了，但换一次名要碰的文件比换一次配色多得多。
+ *
+ * 圆角走 999px：方钮和圆钮混着用会显得没想法，统一成药丸/圆形。
+ * 尺寸不写死在这里——各处按自己的 padding 撑，见 ActionHub 的 clamp。
+ */
 .ui-wood-btn {
-  background: linear-gradient(180deg, #b98a4e 0%, #9a6f3a 100%);
-  border: 3px solid #6d4824;
-  border-radius: 10px;
-  color: #f6e3b8;
-  box-shadow: 0 3px 0 #5c3a1d;
-  transition: transform 90ms ease-out;
+  background: linear-gradient(180deg, var(--peach) 0%, var(--peach-deep) 100%);
+  border: 3px solid #fffdf8;
+  border-radius: 999px;
+  color: #fffaf6;
+  text-shadow: 0 1px 1px rgb(190 100 80 / 0.45);
+  box-shadow:
+    0 3px 0 rgb(214 118 96 / 0.85),
+    var(--soft-shadow);
+  transition: transform 120ms cubic-bezier(0.34, 1.56, 0.64, 1), filter 90ms ease-out;
 }
 
 .ui-wood-btn:hover {
-  filter: brightness(1.08);
+  filter: brightness(1.05);
+  transform: translateY(-1px);
 }
 
 .ui-wood-btn:active {
@@ -508,27 +721,59 @@ input {
   box-shadow: none;
 }
 
-/* 选中态（捏脸页的槽位标签用）：亮起来，和 .ui-slot--selected 一个语言 */
-.ui-wood-btn--active {
-  border-color: #e0a94a;
-  background: linear-gradient(180deg, #fff1cf 0%, #f8dfa9 100%);
-  color: #5c3a1d;
-  box-shadow: 0 0 0 2px rgb(224 169 74 / 0.45);
+/*
+ * 右上角 HUD 圆钮的**几何**（不含配色，配色照旧由 .ui-wood-btn 给）。
+ * 高度锁在 --hud-btn 上，横向由内容撑但不低于同一个值——齿轮是正圆，
+ * "行动"是横着的药丸，两者高度一致才不会看着像掉了一格。
+ */
+.hud-corner-btn {
+  position: absolute;
+  top: var(--hud-edge);
+  height: var(--hud-btn);
+  min-width: var(--hud-btn);
+  display: grid;
+  place-items: center;
+  font-size: clamp(13px, 1.7vmin, 16px);
 }
 
-/* 绿钮（添加行动 / 保存 / 开始） */
+/* 最外侧那个（齿轮） */
+.hud-corner-btn--outer {
+  right: var(--hud-edge);
+  width: var(--hud-btn);
+}
+
+/* 内侧那个（"行动"）：从外侧钮的宽度算出让位距离，不再用 right-16 猜 */
+.hud-corner-btn--inner {
+  right: calc(var(--hud-edge) + var(--hud-btn) + var(--hud-gap));
+  padding-inline: clamp(12px, 2vmin, 20px);
+}
+
+/* 选中态（捏脸页的槽位标签用）：亮起来，和 .ui-slot--selected 一个语言 */
+.ui-wood-btn--active {
+  border-color: #fffdf8;
+  background: linear-gradient(180deg, #fff6e0 0%, var(--butter) 100%);
+  color: #7a5a1d;
+  text-shadow: none;
+  box-shadow:
+    0 0 0 3px rgb(244 185 66 / 0.4),
+    0 3px 0 rgb(226 168 60 / 0.8);
+}
+
+/* 肯定钮（添加行动 / 保存 / 开始）。类名同样沿用，配色换成薄荷 */
 .ui-green-btn {
-  background: linear-gradient(180deg, #7d9c4e 0%, #63803a 100%);
-  border: 3px solid #465b28;
-  border-radius: 10px;
-  color: #f7f2df;
-  text-shadow: 0 1px 0 rgb(0 0 0 / 0.35);
-  box-shadow: 0 3px 0 #3a4c21;
-  transition: transform 90ms ease-out, filter 90ms ease-out;
+  background: linear-gradient(180deg, var(--mint) 0%, var(--mint-deep) 100%);
+  border: 3px solid #fffdf8;
+  border-radius: 999px;
+  color: #1f5347;
+  box-shadow:
+    0 3px 0 rgb(74 156 134 / 0.85),
+    var(--soft-shadow);
+  transition: transform 120ms cubic-bezier(0.34, 1.56, 0.64, 1), filter 90ms ease-out;
 }
 
 .ui-green-btn:hover:not(:disabled) {
-  filter: brightness(1.1);
+  filter: brightness(1.06);
+  transform: translateY(-1px);
 }
 
 .ui-green-btn:active:not(:disabled) {
@@ -537,61 +782,63 @@ input {
 }
 
 .ui-green-btn:disabled {
-  background: linear-gradient(180deg, #b3b0a6 0%, #9b988e 100%);
-  border-color: #7d7a71;
-  box-shadow: 0 3px 0 #6b6860;
+  background: linear-gradient(180deg, #f0ece7 0%, #ddd5cd 100%);
+  border-color: #fffdf8;
+  color: #a89e94;
+  box-shadow: 0 3px 0 #cdc4bb;
   cursor: not-allowed;
 }
 
 /* 时长预设 / 重要级分档：未选中是浅色，选中是金色 */
 .ui-chip {
-  background: linear-gradient(180deg, #f6ecd2 0%, #ebdcb6 100%);
-  border: 2px solid #cdb488;
-  border-radius: 9px;
-  color: #6b4a2a;
-  transition: filter 90ms ease-out;
+  background: linear-gradient(180deg, #fffdf8 0%, var(--cream-2) 100%);
+  border: 2px solid var(--line-deep);
+  border-radius: 999px;
+  color: var(--ink);
+  transition: filter 90ms ease-out, transform 90ms ease-out;
 }
 
 .ui-chip:hover {
-  filter: brightness(1.05);
+  filter: brightness(1.03);
+  transform: translateY(-1px);
 }
 
 .ui-chip--on {
-  background: linear-gradient(180deg, #ffdf95 0%, #f4c661 100%);
-  border-color: #c9922f;
-  color: #4a3211;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.7);
+  background: linear-gradient(180deg, #fff6e0 0%, var(--butter) 100%);
+  border-color: var(--butter-deep);
+  color: #7a5a1d;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.8);
 }
 
-/* 重要级里"重要"那一档：选中时用深木色，视觉分量最重 */
+/* 重要级里"重要"那一档：选中时用桃色实心，视觉分量最重 */
 .ui-chip--strong {
-  background: linear-gradient(180deg, #9a6f3a 0%, #7d5628 100%);
-  border-color: #5c3a1d;
-  color: #ffe9b8;
+  background: linear-gradient(180deg, var(--peach) 0%, var(--peach-deep) 100%);
+  border-color: var(--peach-deep);
+  color: #fffaf6;
 }
 
 /* 只读行（使用家具：自动选中，不给改） */
 .ui-readonly-row {
-  background: rgb(120 100 70 / 0.18);
-  border: 2px solid #cdb488;
-  border-radius: 10px;
-  color: #6b4a2a;
+  background: rgb(255 233 212 / 0.55);
+  border: 2px dashed var(--line-deep);
+  border-radius: 14px;
+  color: var(--ink-soft);
 }
 
 /* 输入框 */
 .ui-input {
-  background: linear-gradient(180deg, #fdf6e2 0%, #f7eed6 100%);
-  border: 3px solid #cdb488;
-  border-radius: 10px;
-  color: #4a3b2a;
-  box-shadow: inset 0 2px 5px rgb(140 105 60 / 0.2);
+  background: #fffdf8;
+  border: 3px solid var(--line-deep);
+  border-radius: 14px;
+  color: var(--ink);
+  box-shadow: inset 0 2px 5px rgb(227 174 144 / 0.22);
 }
 
 .ui-input:focus {
   outline: none;
-  border-color: #d9a94e;
+  border-color: var(--peach-deep);
 }
 
 .ui-input::placeholder {
-  color: #b09a72;
+  color: var(--ink-soft);
 }

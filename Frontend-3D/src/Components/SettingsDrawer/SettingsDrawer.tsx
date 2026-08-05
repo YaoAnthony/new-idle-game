@@ -138,7 +138,9 @@ export function SettingsDrawer() {
       <button
         type="button"
         aria-label={t("ui.settings.title")}
-        className={`ui-wood-btn absolute right-4 top-4 ${open ? "z-50" : "z-30"} grid h-[38px] w-[38px] place-items-center text-[16px]`}
+        // 尺寸和位置走 .hud-corner-btn--outer（index.css）：和"行动"共用
+        // 同一个 --hud-btn，两者一起缩放，也就不会有谁压到谁
+        className={`ui-wood-btn hud-corner-btn hud-corner-btn--outer ${open ? "z-50" : "z-30"}`}
         onClick={() => {
           unlockAudio();
           setOpen((value) => !value);

@@ -23,9 +23,31 @@ let lastSave: GameSave | null = null;
 let writing = false;
 let dirty = false;
 
+/**
+ * 存档合成器。null = 正常路径（serializeGameSave 全量序列化运行时）；
+ * 联机做客期间由 Game/Net/session 装一个合成函数进来：**玩家侧取
+ * 运行时现状（背包、需求——做客捡到的东西要保住），世界侧取入房前
+ * 的快照（运行时里那份是房主的世界，绝不能写进自己的存档）**。
+ *
+ * 闸口设在 writeNow 这一个脖子上，而不是挨个拦触发点——触发点有
+ * 十几个（防抖、事件直写、pagehide、ESC 手动存档），漏拦任何一个
+ * 都会把房主的世界写进房客的档。第一版用的是"做客全程不写盘"，
+ * 代价是做客期间捡的东西一崩就丢；合成器把两头都保住。
+ */
+let composer: (() => GameSave) | null = null;
+
+export function setSaveComposer(compose: (() => GameSave) | null): void {
+  composer = compose;
+}
+
 /** 记住上一份存档，让 createdAtUtc、seed 这类"只在建档时定"的字段能传下去 */
 export function setBaseline(save: GameSave | null): void {
   lastSave = save;
+}
+
+/** 做客前抓自己世界的快照要用它当 serialize 的底稿（保住 createdAtUtc） */
+export function getBaseline(): GameSave | null {
+  return lastSave;
 }
 
 async function writeNow(): Promise<void> {
@@ -37,7 +59,7 @@ async function writeNow(): Promise<void> {
 
   writing = true;
   try {
-    const save = serializeGameSave(lastSave ?? undefined);
+    const save = composer ? composer() : serializeGameSave(lastSave ?? undefined);
     const result = await getSaveRepository().save(save);
 
     if (result.ok) lastSave = save;

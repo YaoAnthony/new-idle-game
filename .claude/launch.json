@@ -29,6 +29,13 @@
       "cwd": "Frontend-3D",
       "port": 5174,
       "autoPort": true
+    },
+    {
+      "name": "backend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "Backend",
+      "port": 3001
     }
   ]
 }

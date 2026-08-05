@@ -1,4 +1,5 @@
 import { findPlaceableItem } from "core";
+import { guardWorldMutation } from "../Net/worldLock";
 import { addItem, getCount, removeItem } from "../State/inventory";
 import {
   getWorld,
@@ -21,6 +22,9 @@ export function placeFromItem(
   itemId: string,
   target: PlacementTarget,
 ): boolean {
+  // 权限守卫。当前策略是满权限（guardWorldMutation 恒放行），
+  // 留着是给将来的分级权限（"访客不能拆家"）当挂点
+  if (guardWorldMutation()) return false;
   if (!findPlaceableItem(itemId)) return false;
   if (getCount(itemId) <= 0) return false;
 
@@ -45,6 +49,9 @@ export type PickupResult =
  * 家具、而老存档里还摆着它时仍会走到这条分支，不能让它静默消失。
  */
 export function pickupFurniture(instanceId: string): PickupResult {
+  // 同上：做客时不许把别人家的家具收进兜里。busy 语义最接近
+  // （"现在动不了它"），守卫自己已经对玩家解释过原因了
+  if (guardWorldMutation()) return { ok: false, reason: "busy" };
   const placed = getWorld().placedFurniture.find(
     (item) => item.instanceId === instanceId,
   );

@@ -18,6 +18,7 @@ import {
   type HeldStack,
 } from "core";
 import { emit } from "../EventBus";
+import { guardWorldMutation } from "../Net/worldLock";
 import {
   consumeHeld,
   getHeld,
@@ -120,6 +121,9 @@ export function nearestSlotOf(
  * 返回 true 表示槽位收下了，调用方负责把地上那份删掉。
  */
 export function offerToSlot(ref: KitchenSlotRef, stack: HeldStack): boolean {
+  // 权限守卫。当前策略是满权限（guardWorldMutation 恒放行），
+  // 留着是给将来的分级权限（"访客不能拆家"）当挂点
+  if (guardWorldMutation()) return false;
   const action = resolveKitchenInteraction(stack, ref);
 
   switch (action.kind) {
@@ -177,6 +181,8 @@ export function describeKitchenSlot(ref: KitchenSlotRef): string | null {
  * 这条顺序保证"我想拿盘子却误触灶台"不会发生。
  */
 export function interactWithKitchenSlot(ref: KitchenSlotRef): boolean {
+  // 同上
+  if (guardWorldMutation()) return false;
   const held = getHeld();
   const action = resolveKitchenInteraction(held, ref);
 
@@ -319,6 +325,8 @@ export function debugAddIngredient(
 }
 
 export function dumpKitchenSlot(ref: KitchenSlotRef): boolean {
+  // 同上
+  if (guardWorldMutation()) return false;
   if (!ref.content?.container || ref.content.container.items.length === 0) {
     return false;
   }

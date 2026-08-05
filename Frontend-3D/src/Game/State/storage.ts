@@ -6,6 +6,7 @@ import {
   type ItemCounts,
 } from "core";
 import { emit } from "../EventBus";
+import { guardWorldMutation } from "../Net/worldLock";
 
 /**
  * 储物家具的内容。
@@ -57,11 +58,14 @@ export function setStorageSlot(
   index: number,
   slot: StorageSlot,
 ): void {
+  // 做客时储物箱只读（M1）。restore* 不走这里，读档不受影响
+  if (guardWorldMutation()) return;
   const slots = ensure(inventoryId);
   if (index < 0 || index >= slots.length) return;
 
   slots[index] = slot;
   emit("storage_changed", { inventoryId });
+  emitBoxOp(inventoryId);
 }
 
 /**
@@ -88,6 +92,8 @@ export function getAllStorageCounts(): ItemCounts {
  * 返回实际扣掉多少——不够时不会扣成负数。
  */
 export function removeFromStorage(itemId: string, quantity: number): number {
+  // 同上：一件都没取出来
+  if (guardWorldMutation()) return 0;
   let remaining = quantity;
 
   for (const [inventoryId, slots] of inventories) {
@@ -105,7 +111,10 @@ export function removeFromStorage(itemId: string, quantity: number): number {
       if (slot.count <= 0) slots[i] = null;
     }
 
-    if (touched) emit("storage_changed", { inventoryId });
+    if (touched) {
+      emit("storage_changed", { inventoryId });
+      emitBoxOp(inventoryId);
+    }
     if (remaining <= 0) break;
   }
 
@@ -120,6 +129,8 @@ export function addToStorage(
   quality?: ItemQuality,
   expiresAtUtc?: string,
 ): number {
+  // 同上：全额退回（返回值语义是"没塞进去的数量"）
+  if (guardWorldMutation()) return quantity;
   const definition = findItemDefinition(itemId);
   if (!definition || quantity <= 0) return quantity;
 
@@ -149,6 +160,7 @@ export function addToStorage(
   }
 
   emit("storage_changed", { inventoryId });
+  emitBoxOp(inventoryId);
   return remaining;
 }
 
@@ -156,6 +168,11 @@ export function addToStorage(
 export function clearStorage(inventoryId: string): void {
   inventories.delete(inventoryId);
   emit("storage_changed", { inventoryId });
+  // 空箱也广播：家具被收走时箱子内容必须在所有人那边一起消失，
+  // 否则重摆同一件家具会"继承"别人视角里的幽灵内容
+  emit("world_op", {
+    op: { kind: "storage_box_set", box: { inventoryId, stacks: [] } },
+  });
 }
 
 /**
@@ -178,33 +195,66 @@ export function isStorageEmpty(inventoryId: string): boolean {
 
 // ---- 存档 ----
 
+/**
+ * 一个箱子的线上/存档形态。snapshotStorages 和 op 通道共用——
+ * 各写一份的话 stackId 编码规则（`@` 分隔）迟早走散。
+ */
+function boxToSave(inventoryId: string, slots: StorageSlot[]): InventorySave {
+  const stacks: InventoryStack[] = [];
+  slots.forEach((slot, index) => {
+    if (!slot) return;
+    stacks.push({
+      stackId: `${inventoryId}@${index}`,
+      itemId: slot.itemId,
+      quantity: slot.count,
+      state:
+        slot.quality || slot.expiresAtUtc
+          ? { quality: slot.quality, expiresAtUtc: slot.expiresAtUtc }
+          : undefined,
+    });
+  });
+  return { inventoryId, stacks };
+}
+
+/**
+ * 这个箱子刚被本地玩家改过：把整箱现状广播出去（op 通道）。
+ * 箱级替换而不是逐格 diff——两个人同时翻一个箱子时，箱级是
+ * "后写的赢一整箱"，逐格会拼出一个谁都没见过的混合箱。
+ */
+function emitBoxOp(inventoryId: string): void {
+  const slots = inventories.get(inventoryId);
+  emit("world_op", {
+    op: {
+      kind: "storage_box_set",
+      box: boxToSave(inventoryId, slots ?? []),
+    },
+  });
+}
+
+/** 重放房里其他人对某个箱子的改动（整箱替换，不发 op） */
+export function replayStorageBox(box: InventorySave): void {
+  const slots = ensure(box.inventoryId);
+  slots.fill(null);
+  for (const stack of box.stacks ?? []) {
+    const index = Number(stack.stackId.split("@").pop());
+    if (!Number.isInteger(index) || index < 0 || index >= slots.length) continue;
+    if (!findItemDefinition(stack.itemId)) continue;
+    slots[index] = {
+      itemId: stack.itemId,
+      count: stack.quantity,
+      quality: stack.state?.quality,
+      expiresAtUtc: stack.state?.expiresAtUtc,
+    };
+  }
+  emit("storage_changed", { inventoryId: box.inventoryId });
+}
+
 export function snapshotStorages(): Record<string, InventorySave> {
   const result: Record<string, InventorySave> = {};
 
   for (const [inventoryId, slots] of inventories) {
-    const stacks: InventoryStack[] = [];
-
-    slots.forEach((slot, index) => {
-      if (!slot) return;
-      stacks.push({
-        /**
-         * 槽位位置要保留，否则读档后箱子里的东西会重排。
-         *
-         * 分隔符用 `@` 不用 `#`——**inventoryId 里本来就有 `#`**
-         * （家具实例 id 形如 `storage_chest#27`），用 `#` 分割会把
-         * 家具序号当成槽位号，序号一超过槽位数整条记录就被当越界丢掉。
-         */
-        stackId: `${inventoryId}@${index}`,
-        itemId: slot.itemId,
-        quantity: slot.count,
-        state:
-          slot.quality || slot.expiresAtUtc
-            ? { quality: slot.quality, expiresAtUtc: slot.expiresAtUtc }
-            : undefined,
-      });
-    });
-
-    if (stacks.length > 0) result[inventoryId] = { inventoryId, stacks };
+    const box = boxToSave(inventoryId, slots);
+    if (box.stacks.length > 0) result[inventoryId] = box;
   }
 
   return result;

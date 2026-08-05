@@ -1,0 +1,545 @@
+import {
+  ChatMessageKind,
+  NET_EVENTS,
+  NET_PROTOCOL_VERSION,
+  type AppearanceEvent,
+  type ChatMessageEvent,
+  type GameSave,
+  type GestureEvent,
+  type NetError,
+  type ParticipantJoinedEvent,
+  type ParticipantLeftEvent,
+  type SessionCreateOk,
+  type SessionEndedEvent,
+  type SessionJoinOk,
+  type TransformEvent,
+  type WorldOp,
+  type WorldOpEvent,
+  type WorldRefreshEvent,
+  type WorldSave,
+} from "core";
+import type { Socket } from "socket.io-client";
+import {
+  getBaseline,
+  hydrateGameSave,
+  serializeGameSave,
+  setBaseline,
+  setSaveComposer,
+  saveNow,
+} from "../../Data/Save";
+import { SAVE_SCHEMA_VERSION } from "../../Data/Save/types";
+import { emit, on } from "../EventBus";
+import { snapshotAvatar } from "../State/avatar";
+import { pushChatMessage, pushSystemMessage } from "../State/chatLog";
+import { restoreClock, snapshotClock } from "../State/clock";
+import { reconcileDroppedItems, snapshotDroppedItems } from "../State/droppedItems";
+import { setIdIssuer } from "../State/ids";
+import { LOCAL_PLAYER_ID, getLocalParticipant } from "../State/participants";
+import { restoreStorages, snapshotStorages } from "../State/storage";
+import { restoreWeather, snapshotWeather } from "../State/weather";
+import { getWorld, restoreWorld } from "../State/worldRuntime";
+import { getClock } from "../State/clock";
+import { setDailyRewardShareCounter } from "../Systems/dailyTasks";
+import {
+  clearRoster,
+  listRemote,
+  pushSample,
+  removeRemote,
+  setRemoteAppearance,
+  setRemoteGesture,
+  upsertRemote,
+} from "./roster";
+import { applyWorldOp } from "./opApply";
+import { disconnectSocket, ensureConnected } from "./socket";
+import { startSyncPump, stopSyncPump } from "./sync";
+
+/**
+ * 联机会话状态机。/host /join /leave 背后的全部流程都在这里：
+ *
+ *   idle ──host()──▶ hosting（自己家变成会话世界，继续正常过日子）
+ *   idle ──join()──▶ guest  （快照自家 → 灌入房主世界 → 世界侧存档挂起）
+ *   任意 ──leave/断线/被结束──▶ idle（房客恢复自家世界）
+ *
+ * ---- 房客的存档纪律（这个文件最重要的职责）----
+ *
+ * 1. 入房前 `serializeGameSave` 抓一份**自己世界**的完整快照留在内存；
+ * 2. 装上存档合成器（Data/Save 的 setSaveComposer，单一闸口）：
+ *    玩家侧照抄运行时（做客捡的东西实时入档），世界侧永远用快照——
+ *    房主的世界进不了自己的档；
+ * 3. 退出时合成"自家世界 + 现在的背包"灌回运行时，卸下合成器。
+ * 顺序错一步，要么丢做客期间的收获，要么把别人家写进自己档。
+ *
+ * ---- 权限（2026-08-04 定）----
+ *
+ * 所有参与者满权限：扔/捡/摆家具/厨房/储物都放行，动作经 world:op
+ * 即时广播（见 opApply / State 层的 replay* 入口）。worldLock 的守卫
+ * 机制保留但不再激活，是将来做分级权限（访客不能拆家）的挂点。
+ */
+
+/**
+ * ack 应答的错误收窄。这个项目 tsconfig 没开 strict，`!reply.ok` 那种
+ * 真值收窄在联合类型上不生效（编译报 message 不存在）；对字面量做
+ * `=== false` 的比较收窄不吃 strictNullChecks，两边都认。
+ */
+function unwrapReply<T extends { ok: true }>(reply: T | NetError): T {
+  if (reply.ok === false) throw new Error(reply.message);
+  return reply;
+}
+
+type SessionState =
+  | { kind: "idle" }
+  | { kind: "hosting"; sessionId: string; joinCode: string; playerId: string }
+  | {
+      kind: "guest";
+      sessionId: string;
+      playerId: string;
+      hostPlayerId: string;
+      /** 入房前自己世界的快照。退出时靠它回家 */
+      ownSnapshot: GameSave;
+    };
+
+let state: SessionState = { kind: "idle" };
+let listenersBound = false;
+/** 房主端世界刷新的防抖计时器 */
+let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+let stopRefreshWatch: (() => void) | null = null;
+
+export function getSessionState(): SessionState {
+  return state;
+}
+
+export function isInSession(): boolean {
+  return state.kind !== "idle";
+}
+
+/**
+ * 房客做客中：运行时里的世界是房主的。世界侧的自治系统（天气重掷、
+ * 剧情规则）按它闭嘴——那些是**房主的权威**，不是权限问题；
+ * 玩家动作本身现在是满权限（见文件头）。
+ */
+export function isRemoteWorldActive(): boolean {
+  return state.kind === "guest";
+}
+
+
+
+// ---- 开房（房主）----
+
+export async function hostSession(): Promise<string> {
+  if (state.kind !== "idle") throw new Error("已经在一个房间里了，先 /leave");
+
+  const socket = await ensureConnected();
+  bindInbound(socket);
+
+  // 世界直接从运行时序列化——房主继续在自己家过日子，无需换世界
+  const save = serializeGameSave(getBaseline() ?? undefined);
+  const reply = (await socket.emitWithAck(NET_EVENTS.c2s.sessionCreate, {
+    protocolVersion: NET_PROTOCOL_VERSION,
+    saveSchemaVersion: SAVE_SCHEMA_VERSION,
+    profile: { name: save.player.name, avatar: snapshotAvatar() },
+    world: save.ownWorld,
+    transform: { ...getLocalParticipant().transform },
+  })) as SessionCreateOk | NetError;
+  const created = unwrapReply(reply);
+
+  state = {
+    kind: "hosting",
+    sessionId: created.sessionId,
+    joinCode: created.joinCode,
+    playerId: created.playerId,
+  };
+  // 此后自己发的对象 id 带上服务端身份，和房客天然不撞（见 State/ids）
+  setIdIssuer(created.playerId);
+  // 满格奖励"在场每人各一份"：房里几个人就吐几份（自己 + 名册）
+  setDailyRewardShareCounter(() => listRemote().length + 1);
+  startSyncPump(socket);
+  startHostRefreshWatch(socket);
+  emit("net_session_changed", { state: "hosting" });
+  return created.joinCode;
+}
+
+// ---- 加入（房客）----
+
+export async function joinSession(joinCode: string): Promise<void> {
+  if (state.kind !== "idle") throw new Error("已经在一个房间里了，先 /leave");
+
+  const socket = await ensureConnected();
+  bindInbound(socket);
+
+  // 出发前把家里的样子完整拍下来。这份快照是"回家"的唯一凭据
+  const ownSnapshot = serializeGameSave(getBaseline() ?? undefined);
+
+  const reply = (await socket.emitWithAck(NET_EVENTS.c2s.sessionJoin, {
+    protocolVersion: NET_PROTOCOL_VERSION,
+    saveSchemaVersion: SAVE_SCHEMA_VERSION,
+    joinCode,
+    profile: { name: ownSnapshot.player.name, avatar: snapshotAvatar() },
+  })) as SessionJoinOk | NetError;
+  const joined = unwrapReply(reply);
+
+  state = {
+    kind: "guest",
+    sessionId: joined.sessionId,
+    playerId: joined.playerId,
+    hostPlayerId: joined.hostPlayerId,
+    ownSnapshot,
+  };
+  setIdIssuer(joined.playerId);
+  setDailyRewardShareCounter(() => listRemote().length + 1);
+
+  // 先记下房里已有的人，再换世界——重挂载后的视图第一帧就能看见他们
+  clearRoster();
+  for (const participant of joined.participants) upsertRemote(participant);
+
+  enterRemoteWorld(ownSnapshot, joined.world);
+  startSyncPump(socket);
+  emit("net_session_changed", { state: "guest" });
+}
+
+/**
+ * 把房主的世界灌进运行时。
+ *
+ * 复用 hydrateGameSave 而不是逐系统手灌：读档路径是全项目测得最多的
+ * 一条路，换世界就该走同一条。玩家侧数据用**自己的快照**（背包、
+ * 需求、形象都是自己的），只有 ownWorld 换成房主的；三个字段例外：
+ *
+ * - position 置空 → 回退到出生点。自己家的坐标在别人家毫无意义；
+ * - restingOn 置空 → 那是自己家某件家具的引用，在这边是悬空指针；
+ * - activeActionProcess 置空 → /join 入口已经挡了"行动中不能出门"，
+ *   这里是双保险（它绑着自己家的家具）。
+ */
+function enterRemoteWorld(ownSnapshot: GameSave, hostWorld: WorldSave): void {
+  /*
+   * 合成器先装、再换世界：从这一刻起所有落盘（防抖、pagehide、ESC
+   * 手动存）写的都是"自己的玩家数据 + 入房前的自家世界"。做客期间
+   * 捡到的东西因此**实时进自己的存档**，中途崩溃也不丢；而房主的
+   * 世界永远进不了这份档。第一版用"做客全程不写盘"，两头都吃亏。
+   */
+  setSaveComposer(() => composeGuestSave(ownSnapshot));
+
+  const synthetic: GameSave = {
+    meta: ownSnapshot.meta,
+    player: {
+      ...ownSnapshot.player,
+      character: {
+        ...ownSnapshot.player.character,
+        position: undefined,
+        restingOn: null,
+      },
+      activeActionProcess: undefined,
+    },
+    ownWorld: hostWorld,
+  };
+
+  hydrateGameSave(synthetic);
+  emit("net_world_swapped", {});
+}
+
+/**
+ * 做客期间的存档形状：玩家侧照抄运行时（背包里新捡的肉要保住），
+ * 世界侧用入房前的快照。位置/坐姿也取快照——运行时里那份是在
+ * **房主家**的坐标，写进自己档等于回家后站在别人家的墙里。
+ */
+function composeGuestSave(ownSnapshot: GameSave): GameSave {
+  const live = serializeGameSave(getBaseline() ?? undefined);
+  return {
+    meta: live.meta,
+    player: {
+      ...live.player,
+      character: {
+        ...live.player.character,
+        position: ownSnapshot.player.character.position,
+        restingOn: ownSnapshot.player.character.restingOn,
+      },
+      activeActionProcess: undefined,
+    },
+    ownWorld: ownSnapshot.ownWorld,
+  };
+}
+
+/** 回家：合成"自家世界 + 现在的背包"→ 灌回运行时 → 恢复正常存档 */
+function exitRemoteWorld(ownSnapshot: GameSave): void {
+  setIdIssuer(LOCAL_PLAYER_ID);
+  resetDailyRewardShares();
+  const final = composeGuestSave(ownSnapshot);
+  setSaveComposer(null);
+  hydrateGameSave(final);
+  setBaseline(final);
+  emit("net_world_swapped", {});
+  void saveNow();
+}
+
+// ---- 离开 ----
+
+export async function leaveSession(): Promise<void> {
+  if (state.kind === "idle") return;
+
+  const leaving = state;
+  stopSyncPump();
+  stopHostRefreshWatch();
+  clearRoster();
+
+  try {
+    const socket = await ensureConnected(1500);
+    await socket.emitWithAck(NET_EVENTS.c2s.sessionLeave, {});
+  } catch {
+    // 服务器都联系不上了，本地照样要把状态收干净
+  }
+
+  state = { kind: "idle" };
+  if (leaving.kind === "guest") {
+    exitRemoteWorld(leaving.ownSnapshot);
+  } else {
+    setIdIssuer(LOCAL_PLAYER_ID);
+  resetDailyRewardShares();
+  }
+  disconnectSocket();
+  emit("net_session_changed", { state: "idle" });
+}
+
+/** 被动结束（房主跑了 / 断线）。和主动 leave 的区别：不用再通知服务器 */
+function endedRemotely(reason: string): void {
+  if (state.kind === "idle") return;
+
+  const leaving = state;
+  stopSyncPump();
+  stopHostRefreshWatch();
+  clearRoster();
+  state = { kind: "idle" };
+
+  if (leaving.kind === "guest") {
+    exitRemoteWorld(leaving.ownSnapshot);
+    pushSystemMessage(`联机结束（${reason}），已回到自己家`);
+  } else {
+    setIdIssuer(LOCAL_PLAYER_ID);
+  resetDailyRewardShares();
+    pushSystemMessage(`联机结束（${reason}）`);
+  }
+  emit("net_session_changed", { state: "idle" });
+}
+
+// ---- 入站 ----
+
+function bindInbound(socket: Socket): void {
+  if (listenersBound) return;
+  listenersBound = true;
+
+  socket.on(NET_EVENTS.s2c.participantJoined, (event: ParticipantJoinedEvent) => {
+    if (state.kind === "idle") return;
+    const player = upsertRemote(event.participant);
+    pushSystemMessage(`${player.name} 来了`);
+    emit("net_participant_joined", { playerId: player.playerId, name: player.name });
+  });
+
+  socket.on(NET_EVENTS.s2c.participantLeft, (event: ParticipantLeftEvent) => {
+    if (state.kind === "idle") return;
+    removeRemote(event.playerId);
+    emit("net_participant_left", { playerId: event.playerId });
+  });
+
+  socket.on(NET_EVENTS.s2c.transform, (event: TransformEvent) => {
+    pushSample(event.playerId, event.transform);
+  });
+
+  socket.on(NET_EVENTS.s2c.appearance, (event: AppearanceEvent) => {
+    setRemoteAppearance(event.playerId, event.appearance);
+  });
+
+  socket.on(NET_EVENTS.s2c.gesture, (event: GestureEvent) => {
+    setRemoteGesture(event.playerId, event.gesture);
+  });
+
+  socket.on(NET_EVENTS.s2c.chat, (event: ChatMessageEvent) => {
+    // 直接入消息记录。**不发 player_said**——那个事件的语义是"本地玩家
+    // 说了话"（SpeechBubble 会把气泡画在自己头上）。远端气泡是 M2 的活
+    pushChatMessage({
+      kind: ChatMessageKind.Player,
+      text: event.text,
+      speaker: event.name,
+    });
+  });
+
+  socket.on(NET_EVENTS.s2c.worldOp, (event: WorldOpEvent) => {
+    if (state.kind === "idle") return;
+    // 房里其他人的动作，本地立刻重放（扔东西连抛物线一起）。
+    // 房主重放后自己的刷新监听会把新世界推给服务端——op 管即时，
+    // refresh 管收敛
+    applyWorldOp(event.op);
+  });
+
+  socket.on(NET_EVENTS.s2c.worldRefresh, (event: WorldRefreshEvent) => {
+    if (state.kind !== "guest") return;
+    applyWorldRefresh(event);
+  });
+
+  socket.on(NET_EVENTS.s2c.sessionEnded, (event: SessionEndedEvent) => {
+    endedRemotely(event.reason === "host_left" ? "房主离开了" : "房主结束了联机");
+  });
+
+  socket.on("disconnect", () => {
+    // 自己断线和房主跑了对本地是一回事：世界的来源没了
+    if (state.kind !== "idle") endedRemotely("连接断开");
+  });
+}
+
+/**
+ * 房客应用房主的世界刷新：切片经现成的 restore* 灌回运行时。
+ * 各视图（FurnitureView / DroppedItemView…）本来就订阅着对应的
+ * *_changed 事件，restore 一跑它们自己会同步——读档和联机走同一条管线。
+ */
+function applyWorldRefresh(event: WorldRefreshEvent): void {
+  const { slices } = event;
+  if (slices.placedFurniture) {
+    restoreWorld({ room: getWorld().room, placedFurniture: slices.placedFurniture });
+  }
+  // 对账而不是全量替换：正在飞的重放实体要保住运动学（见 State/droppedItems）
+  if (slices.droppedItems) reconcileDroppedItems(slices.droppedItems);
+  if (slices.inventories) restoreStorages(slices.inventories);
+  if (slices.weather) restoreWeather(slices.weather);
+  if (slices.clock) restoreClock(slices.clock);
+}
+
+// ---- 房主端：世界变了就整片刷给全房 ----
+
+/**
+ * 刷新合并窗口。第一版是 1000ms 纯尾沿防抖——房客看什么都慢一秒，
+ * 被玩家点名（"放椅子要过 0.5sec 才看到"）。现在 op 通道负责即时，
+ * 刷新只管收敛，但**前沿照发**：距上次发送超过窗口就立刻发，
+ * 连续变更才合并到尾沿。单次操作零等待，连拆一箱行李也只发两次。
+ */
+const REFRESH_COALESCE_MS = 250;
+let lastRefreshAt = 0;
+
+function startHostRefreshWatch(socket: Socket): void {
+  const send = (): void => {
+    if (state.kind !== "hosting") return;
+    lastRefreshAt = Date.now();
+    // 五片全发。变更本来就低频（合并过），挑着发省的那点字节
+    // 抵不上"漏发一片"的排查成本
+    socket.emit(NET_EVENTS.c2s.worldRefresh, {
+      placedFurniture: getWorld().placedFurniture,
+      droppedItems: snapshotDroppedItems(),
+      inventories: snapshotStorages(),
+      weather: snapshotWeather(),
+      clock: snapshotClock(),
+    });
+  };
+
+  const schedule = (): void => {
+    if (refreshTimer) return; // 已有尾沿在等，这次变更会被它捎上
+    const sinceLast = Date.now() - lastRefreshAt;
+    if (sinceLast >= REFRESH_COALESCE_MS) {
+      send();
+      return;
+    }
+    refreshTimer = setTimeout(() => {
+      refreshTimer = null;
+      send();
+    }, REFRESH_COALESCE_MS - sinceLast);
+  };
+
+  const offs = [
+    on("world_changed", ({ reason }) => reason !== "restored" && schedule()),
+    on("dropped_items_changed", ({ reason }) => reason !== "restored" && schedule()),
+    on("storage_changed", () => schedule()),
+    on("weather_changed", () => schedule()),
+    on("kitchen_changed", () => schedule()),
+  ];
+  stopRefreshWatch = () => {
+    for (const off of offs) off();
+    if (refreshTimer) {
+      clearTimeout(refreshTimer);
+      refreshTimer = null;
+    }
+  };
+}
+
+function stopHostRefreshWatch(): void {
+  stopRefreshWatch?.();
+  stopRefreshWatch = null;
+}
+
+/**
+ * 离场时把奖励份数复位。
+ *
+ * 不复位的话回到单机还按"最后一次房里的人数"吐——一个人在家打满
+ * 四格，地上滚出三颗番茄，而且没有任何线索解释为什么。
+ */
+function resetDailyRewardShares(): void {
+  setDailyRewardShareCounter(() => 1);
+}
+
+/**
+ * 每日任务的两条本地事件 → op。
+ *
+ * 和 world_op 分开走，因为它们的**数据源不是 State 层的写入口**——
+ * 进度住在 dailyBoard 里，而那个模块不认识网络，也不该认识。
+ * Systems 层在完成动作后喊一声 `*_locally`，这里翻译成 op。
+ *
+ * 只转发 `_locally` 那两条（本地做的），不转发 `daily_board_changed`
+ * （收到别人的 op 也会发那条）——否则一条打勾会在房里无限弹射。
+ */
+on("daily_board_ticked_locally", ({ progress }) => {
+  if (state.kind === "idle") return;
+  sendOp({
+    kind: "daily_board_ticked",
+    worldDayId: getClock().worldDayId,
+    progress,
+  });
+});
+
+on("daily_board_claimed_locally", () => {
+  if (state.kind === "idle") return;
+  sendOp({ kind: "daily_board_claimed", worldDayId: getClock().worldDayId });
+});
+
+// ---- 出站 op：本地世界突变 → 发给全房 ----
+//
+// State 层的公开写入口做了什么都会喊一声 world_op（见 EventBus 注释）。
+// 这里只在会话中转发；单机时这条订阅空转。重放入口不发 world_op，
+// 所以收到别人的 op 不会被再广播回去（无回环）。
+on("world_op", ({ op }) => {
+  if (state.kind === "idle") return;
+  sendOp(op);
+});
+
+/** 发一条 op。连接断了就丢——disconnect 处理会把整场收掉 */
+function sendOp(op: WorldOp): void {
+  void ensureConnected(1500)
+    .then((socket) => socket.emit(NET_EVENTS.c2s.worldOp, op))
+    .catch(() => {});
+}
+
+// ---- 回标题 ----
+
+/**
+ * ESC 的"回到标题"对会话意味着离开。App 那边的 saveNow 在挂起状态下
+ * 是空操作（不会把房主的世界写进自己档），所以这里**不必抢在它前面**；
+ * 房客也不做世界恢复——马上就回标题了，运行时整个会被丢掉，
+ * "继续游戏"读的是自己的存档（做客期间从没被写过）。
+ */
+on("ui_return_to_title", () => {
+  if (state.kind === "idle") return;
+
+  const leaving = state;
+  stopSyncPump();
+  stopHostRefreshWatch();
+  clearRoster();
+  state = { kind: "idle" };
+  setIdIssuer(LOCAL_PLAYER_ID);
+  resetDailyRewardShares();
+  /*
+   * 房客回标题：把"自家世界 + 现在的背包"灌回运行时再卸合成器。
+   * 这个监听比 App 那个先注册（模块 import 早于组件挂载，EventBus 按
+   * 注册序回调），所以跑在 App 的 saveNow 之前——它落盘时读到的
+   * 已经是正确的自家形状，不会把房主的世界写进档。
+   */
+  if (leaving.kind === "guest") {
+    const final = composeGuestSave(leaving.ownSnapshot);
+    setSaveComposer(null);
+    hydrateGameSave(final);
+    setBaseline(final);
+  }
+  disconnectSocket();
+  emit("net_session_changed", { state: "idle" });
+});

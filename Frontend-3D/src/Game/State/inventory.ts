@@ -91,14 +91,56 @@ function sameKind(a: NonNullable<SlotStack>, b: NonNullable<SlotStack>): boolean
   return stableKey(stateA) === stableKey(stateB);
 }
 
+/**
+ * **背包是一个数组，前 HOTBAR_SIZE 格就是快捷栏。**
+ *
+ * 原来是 `hotbar` 和 `backpack` 两个数组，槽位用 `{container, index}` 定位。
+ * 两个数组带来的全是重复：每个遍历都得写 `for (const list of [hotbar, backpack])`，
+ * 每个落点都得判容器，存档编码两套前缀，还得额外定义"东西怎么从快捷栏
+ * 回到背包"——而后者根本不是个需要存在的动作。玩家的心智模型里
+ * 快捷栏就是背包的头几格，滚到哪一格手上就是哪一格，东西一步都不搬。
+ *
+ * 合成一个数组之后这些全部消失：填充天生就是"从 0 找第一个空位"，
+ * 拖拽天生就是"把 i 挪到 j"，跨区拖拽和区内拖拽是同一件事。
+ *
+ * `BACKPACK_SIZE` 保留下来只表示**背包段有几格**（UI 分区、容量文案用），
+ * 不再是一个独立容器的容量。
+ */
 export const HOTBAR_SIZE = 8;
-export const BACKPACK_SIZE = 24;
+export const INVENTORY_SIZE = 32;
+export const BACKPACK_SIZE = INVENTORY_SIZE - HOTBAR_SIZE;
 
-export type SlotContainer = "hotbar" | "backpack";
-export type SlotRef = { container: SlotContainer; index: number };
+/** 槽位就是下标。留个别名是为了让签名读得出"这是格子号，不是数量" */
+export type SlotRef = number;
 
-let hotbar: SlotStack[] = Array.from({ length: HOTBAR_SIZE }, () => null);
-let backpack: SlotStack[] = Array.from({ length: BACKPACK_SIZE }, () => null);
+let inventory: SlotStack[] = Array.from({ length: INVENTORY_SIZE }, () => null);
+
+/**
+ * 这个下标能不能拿来索引背包。
+ *
+ * 单独抽出来是因为**"比大小"挡不住 NaN**：`NaN < 0` 和
+ * `NaN >= INVENTORY_SIZE` 都是 false，只写范围判断的函数会把 NaN
+ * 放进去，然后在数组上挂一个叫 "NaN" 的属性——看着像成功了，
+ * 实际东西没了。槽位号有好几处来自字符串解析（DOM 的 data-slot、
+ * 键盘的数字键），解析失败天然产出 NaN，所以入口必须挡。
+ */
+function isSlot(index: number): boolean {
+  return Number.isInteger(index) && index >= 0 && index < INVENTORY_SIZE;
+}
+
+/**
+ * 扣物品时的遍历顺序：**先背包段，再快捷栏段**。
+ *
+ * 快捷栏是玩家自己摆的常用位（几号键放什么是肌肉记忆），
+ * 合成/送礼消耗材料时应该先吃背包里那些散的，别把手边这排掏空。
+ * 填充走的是自然序（0 起），所以"进来先进快捷栏、出去先出背包"。
+ */
+function consumeOrder(): number[] {
+  const order: number[] = [];
+  for (let i = HOTBAR_SIZE; i < INVENTORY_SIZE; i += 1) order.push(i);
+  for (let i = 0; i < HOTBAR_SIZE; i += 1) order.push(i);
+  return order;
+}
 
 /**
  * 选中的快捷栏格子 = **手上拿着的那一格**。
@@ -112,10 +154,6 @@ let backpack: SlotStack[] = Array.from({ length: BACKPACK_SIZE }, () => null);
  */
 let selectedHotbarIndex = 0;
 
-function slots(container: SlotContainer): SlotStack[] {
-  return container === "hotbar" ? hotbar : backpack;
-}
-
 // ---- 变更广播 ----
 
 /**
@@ -123,7 +161,7 @@ function slots(container: SlotContainer): SlotStack[] {
  * 所以以后往 SlotStack 上加字段这里零改动。
  */
 function heldSignature(): string {
-  return stableKey(hotbar[selectedHotbarIndex] ?? null);
+  return stableKey(inventory[selectedHotbarIndex] ?? null);
 }
 
 /** 上一次广播出去的样子 */
@@ -155,12 +193,25 @@ function announce(reason: string): void {
   syncHeld();
 }
 
-export function getHotbar(): SlotStack[] {
-  return hotbar.map((stack) => (stack ? { ...stack } : null));
+/** 整份背包（含快捷栏那几格）。下标就是 SlotRef */
+export function getInventory(): SlotStack[] {
+  return inventory.map((stack) => (stack ? { ...stack } : null));
 }
 
+/**
+ * 前 HOTBAR_SIZE 格的视图。**下标同时也是绝对槽位号**，
+ * 所以拿去当 SlotRef 是对的，不需要换算。
+ */
+export function getHotbar(): SlotStack[] {
+  return getInventory().slice(0, HOTBAR_SIZE);
+}
+
+/**
+ * 背包段的视图。**下标是段内序号，绝对槽位号要 +HOTBAR_SIZE**——
+ * 这是唯一一处需要换算的地方，只为了让 UI 能单独排那一片网格。
+ */
 export function getBackpack(): SlotStack[] {
-  return backpack.map((stack) => (stack ? { ...stack } : null));
+  return getInventory().slice(HOTBAR_SIZE);
 }
 
 // ---- 选中格（= 手上） ----
@@ -171,7 +222,9 @@ export function getSelectedHotbarIndex(): number {
 
 /** 换一格。**只改下标**，一件东西都不搬 */
 export function selectHotbarSlot(index: number): void {
-  if (index < 0 || index >= HOTBAR_SIZE) return;
+  // NaN 进来会把选中格设成 NaN——手上从此恒为空，而且 setSelectedStack
+  // 会往 inventory[NaN] 上写。同 isSlot 那段注释
+  if (!Number.isInteger(index) || index < 0 || index >= HOTBAR_SIZE) return;
   if (index === selectedHotbarIndex) return;
 
   selectedHotbarIndex = index;
@@ -182,29 +235,27 @@ export function selectHotbarSlot(index: number): void {
 }
 
 export function getSelectedStack(): SlotStack {
-  const stack = hotbar[selectedHotbarIndex];
+  const stack = inventory[selectedHotbarIndex];
   return stack ? { ...stack } : null;
 }
 
 /**
- * 放进第一个空位（快捷栏优先，和 addItem 一致）。
- * 读旧存档时补救用——那时候要连容器一起塞回去，addItem 带不了容器。
+ * 放进第一个空位。读旧存档时补救用——那时候要连 `container`（锅里的料）
+ * 一起塞回去，addItem 只认 itemId 带不了。
  */
 export function placeInFirstFreeSlot(stack: NonNullable<SlotStack>): boolean {
-  for (const list of [hotbar, backpack]) {
-    for (let i = 0; i < list.length; i += 1) {
-      if (list[i]) continue;
-      list[i] = { ...stack };
-      announce("restore");
-      return true;
-    }
+  for (let i = 0; i < INVENTORY_SIZE; i += 1) {
+    if (inventory[i]) continue;
+    inventory[i] = { ...stack };
+    announce("restore");
+    return true;
   }
   return false;
 }
 
 /** 直接改写选中格。厨房交互用（把锅端起来、把锅放下） */
 export function setSelectedStack(next: SlotStack): void {
-  hotbar[selectedHotbarIndex] = next;
+  inventory[selectedHotbarIndex] = next;
   announce("selected");
 }
 
@@ -215,13 +266,13 @@ export function setSelectedStack(next: SlotStack): void {
  * 手里拿着 5 个番茄下锅一个，另外 4 个不该跟着消失。
  */
 export function consumeSelectedOne(): void {
-  const stack = hotbar[selectedHotbarIndex];
+  const stack = inventory[selectedHotbarIndex];
   if (!stack) return;
 
   if (stack.count > 1) {
-    hotbar[selectedHotbarIndex] = { ...stack, count: stack.count - 1 };
+    inventory[selectedHotbarIndex] = { ...stack, count: stack.count - 1 };
   } else {
-    hotbar[selectedHotbarIndex] = null;
+    inventory[selectedHotbarIndex] = null;
   }
 
   announce("consumed");
@@ -250,7 +301,7 @@ export function isLoadedWare(stack: SlotStack): boolean {
  */
 export function getCounts(): ItemCounts {
   const counts: ItemCounts = {};
-  for (const stack of [...hotbar, ...backpack]) {
+  for (const stack of inventory) {
     if (!stack || isLoadedWare(stack)) continue;
     counts[stack.itemId] = (counts[stack.itemId] ?? 0) + stack.count;
   }
@@ -261,7 +312,13 @@ export function getCount(itemId: string): number {
   return getCounts()[itemId] ?? 0;
 }
 
-/** 合并进已有堆 → 快捷栏空位 → 背包空位（MC 习惯） */
+/**
+ * 合并进已有堆 → 第一个空位。
+ *
+ * 空位从 0 号找起，而 0 号就是快捷栏第一格——所以"优先进快捷栏、
+ * 逐格补空（1 和 3 空着就进 1）、快捷栏满了才溢到背包段"是一个数组
+ * 的自然结果，不需要写成规则。MC / 泰拉瑞亚都是这个顺序。
+ */
 export function addItem(
   itemId: string,
   quantity = 1,
@@ -280,23 +337,19 @@ export function addItem(
   );
   const incoming = { itemId, count: 0, quality, expiresAtUtc };
 
-  for (const list of [hotbar, backpack]) {
-    for (const stack of list) {
-      if (remaining <= 0) break;
-      if (!stack || !sameKind(stack, incoming)) continue;
-      const take = Math.min(limit - stack.count, remaining);
-      stack.count += take;
-      remaining -= take;
-    }
+  for (const stack of inventory) {
+    if (remaining <= 0) break;
+    if (!stack || !sameKind(stack, incoming)) continue;
+    const take = Math.min(limit - stack.count, remaining);
+    stack.count += take;
+    remaining -= take;
   }
 
-  for (const list of [hotbar, backpack]) {
-    for (let i = 0; i < list.length && remaining > 0; i += 1) {
-      if (list[i]) continue;
-      const take = Math.min(limit, remaining);
-      list[i] = { itemId, count: take, quality, expiresAtUtc };
-      remaining -= take;
-    }
+  for (let i = 0; i < INVENTORY_SIZE && remaining > 0; i += 1) {
+    if (inventory[i]) continue;
+    const take = Math.min(limit, remaining);
+    inventory[i] = { itemId, count: take, quality, expiresAtUtc };
+    remaining -= take;
   }
 
   announce("add");
@@ -312,15 +365,13 @@ export function addItem(
 export function spoilExpiredFood(worldDayId: string): number {
   let spoiled = 0;
 
-  for (const list of [hotbar, backpack]) {
-    for (const stack of list) {
-      if (!stack || !isExpired(stack.expiresAtUtc, worldDayId)) continue;
+  for (const stack of inventory) {
+    if (!stack || !isExpired(stack.expiresAtUtc, worldDayId)) continue;
 
-      spoiled += stack.count;
-      stack.quality = ItemQuality.Poor;
-      // 清掉期限，避免每天重复触发
-      stack.expiresAtUtc = undefined;
-    }
+    spoiled += stack.count;
+    stack.quality = ItemQuality.Poor;
+    // 清掉期限，避免每天重复触发
+    stack.expiresAtUtc = undefined;
   }
 
   if (spoiled > 0) announce("spoiled");
@@ -334,29 +385,26 @@ export function spoilExpiredFood(worldDayId: string): number {
  * "吃的是那盘焦的、算的却是这盘上乘的"。
  */
 export function peekConsumeQuality(itemId: string): ItemQuality | undefined {
-  for (const list of [backpack, hotbar]) {
-    for (const stack of list) {
-      if (stack?.itemId === itemId) return stack.quality;
-    }
+  for (const i of consumeOrder()) {
+    if (inventory[i]?.itemId === itemId) return inventory[i]!.quality;
   }
   return undefined;
 }
 
-/** 从背包侧优先扣除（把快捷栏留给玩家的常用摆放） */
+/** 按 consumeOrder 扣除（背包段优先） */
 export function removeItem(itemId: string, quantity = 1): boolean {
   if (getCount(itemId) < quantity) return false;
 
   let remaining = quantity;
-  for (const list of [backpack, hotbar]) {
-    for (let i = 0; i < list.length && remaining > 0; i += 1) {
-      const stack = list[i];
-      // 跳过装着东西的：扣一个"盘子"不该把那盘番茄炒蛋端走
-      if (!stack || stack.itemId !== itemId || isLoadedWare(stack)) continue;
-      const take = Math.min(stack.count, remaining);
-      stack.count -= take;
-      remaining -= take;
-      if (stack.count <= 0) list[i] = null;
-    }
+  for (const i of consumeOrder()) {
+    if (remaining <= 0) break;
+    const stack = inventory[i];
+    // 跳过装着东西的：扣一个"盘子"不该把那盘番茄炒蛋端走
+    if (!stack || stack.itemId !== itemId || isLoadedWare(stack)) continue;
+    const take = Math.min(stack.count, remaining);
+    stack.count -= take;
+    remaining -= take;
+    if (stack.count <= 0) inventory[i] = null;
   }
 
   announce("remove");
@@ -369,12 +417,12 @@ export function removeItem(itemId: string, quantity = 1): boolean {
  * 按 itemId 去扣有可能扣掉另一格同名但品质不同的那一堆。
  */
 export function removeFromSlot(ref: SlotRef, quantity = 1): boolean {
-  const list = slots(ref.container);
-  const stack = list[ref.index];
+  if (!isSlot(ref)) return false;
+  const stack = inventory[ref];
   if (!stack || stack.count < quantity) return false;
 
   stack.count -= quantity;
-  if (stack.count <= 0) list[ref.index] = null;
+  if (stack.count <= 0) inventory[ref] = null;
 
   announce("remove");
   return true;
@@ -398,36 +446,31 @@ function addItemSilent(itemId: string, quantity: number): void {
   const limit = stackLimit(itemId);
   let remaining = quantity;
 
-  for (const list of [hotbar, backpack]) {
-    for (const stack of list) {
-      if (remaining <= 0) return;
-      if (!stack || stack.itemId !== itemId) continue;
-      const take = Math.min(limit - stack.count, remaining);
-      stack.count += take;
-      remaining -= take;
-    }
+  for (const stack of inventory) {
+    if (remaining <= 0) return;
+    if (!stack || stack.itemId !== itemId) continue;
+    const take = Math.min(limit - stack.count, remaining);
+    stack.count += take;
+    remaining -= take;
   }
-  for (const list of [hotbar, backpack]) {
-    for (let i = 0; i < list.length && remaining > 0; i += 1) {
-      if (list[i]) continue;
-      const take = Math.min(limit, remaining);
-      list[i] = { itemId, count: take };
-      remaining -= take;
-    }
+  for (let i = 0; i < INVENTORY_SIZE && remaining > 0; i += 1) {
+    if (inventory[i]) continue;
+    const take = Math.min(limit, remaining);
+    inventory[i] = { itemId, count: take };
+    remaining -= take;
   }
 }
 
 function removeItemSilent(itemId: string, quantity: number): void {
   let remaining = quantity;
-  for (const list of [backpack, hotbar]) {
-    for (let i = 0; i < list.length && remaining > 0; i += 1) {
-      const stack = list[i];
-      if (!stack || stack.itemId !== itemId) continue;
-      const take = Math.min(stack.count, remaining);
-      stack.count -= take;
-      remaining -= take;
-      if (stack.count <= 0) list[i] = null;
-    }
+  for (const i of consumeOrder()) {
+    if (remaining <= 0) break;
+    const stack = inventory[i];
+    if (!stack || stack.itemId !== itemId) continue;
+    const take = Math.min(stack.count, remaining);
+    stack.count -= take;
+    remaining -= take;
+    if (stack.count <= 0) inventory[i] = null;
   }
 }
 
@@ -435,38 +478,51 @@ function removeItemSilent(itemId: string, quantity: number): void {
 
 /** 直接改写某一格。吃掉盘子里的菜、留下空盘这类"只动一格"的操作用它 */
 export function setStackAt(ref: SlotRef, next: SlotStack): void {
-  slots(ref.container)[ref.index] = next;
+  if (!isSlot(ref)) return;
+  inventory[ref] = next;
   announce("slot");
 }
 
 export function getStackAt(ref: SlotRef): SlotStack {
-  const stack = slots(ref.container)[ref.index];
+  const stack = inventory[ref];
   return stack ? { ...stack } : null;
 }
 
-/** 拖拽落点逻辑：空位移入 / 同物合堆（溢出留在原格） / 异物互换 */
+/**
+ * 拖拽落点逻辑：空位移入 / 同物合堆（溢出留在原格） / 异物互换。
+ *
+ * 合成一个数组之后，"从背包拖到快捷栏"和"在背包里换个格子"是同一段代码——
+ * 分两个数组时这里得先判两边容器再各取各的数组，跨区还得多想一层。
+ */
 export function moveStack(from: SlotRef, to: SlotRef): void {
-  if (from.container === to.container && from.index === to.index) return;
+  if (from === to) return;
+  /*
+   * **必须先判 Number.isInteger，光比大小挡不住 NaN。**
+   * `NaN < 0` 和 `NaN >= INVENTORY_SIZE` 都是 false，所以只写范围判断
+   * 的话 NaN 会一路通过：`inventory[NaN] = source` 在数组上挂一个叫
+   * "NaN" 的属性，紧接着 `inventory[from] = null`——那一堆东西就这么
+   * 没了，还不报错。落点来自 DOM 的 `data-slot`（见 slots.tsx 的
+   * `Number(dropTarget.dataset.slot)`），解析失败天然产出 NaN。
+   */
+  if (!isSlot(from) || !isSlot(to)) return;
 
-  const fromList = slots(from.container);
-  const toList = slots(to.container);
-  const source = fromList[from.index];
+  const source = inventory[from];
   if (!source) return;
 
-  const target = toList[to.index];
+  const target = inventory[to];
 
   if (!target) {
-    toList[to.index] = source;
-    fromList[from.index] = null;
+    inventory[to] = source;
+    inventory[from] = null;
   } else if (sameKind(target, source)) {
     const limit = stackLimit(source.itemId);
     const take = Math.min(limit - target.count, source.count);
     target.count += take;
     source.count -= take;
-    if (source.count <= 0) fromList[from.index] = null;
+    if (source.count <= 0) inventory[from] = null;
   } else {
-    toList[to.index] = source;
-    fromList[from.index] = target;
+    inventory[to] = source;
+    inventory[from] = target;
   }
 
   announce("move");
@@ -475,51 +531,52 @@ export function moveStack(from: SlotRef, to: SlotRef): void {
 // ---- 存档 ----
 //
 // 槽位位置必须保留（玩家把常用的东西摆在固定格子里，读档后乱掉很出戏），
-// 所以 stackId 编码成 "hotbar:3" / "backpack:12"，而不是丢进一个无序数组。
+// 所以 stackId 编码成 "slot:12"，而不是丢进一个无序数组。
+//
+// v21 之前是 "hotbar:3" / "backpack:12" 两套前缀。**这里绝不能改成
+// "取冒号后面的数字"来兼容老档**——那样 "hotbar:3" 和 "backpack:3"
+// 都会落到 3 号格，两件东西互相顶掉。老格式一律由迁移 v21 换算。
 
-const SLOT_ID = (container: SlotContainer, index: number): string =>
-  `${container}:${index}`;
+const SLOT_ID = (index: number): string => `slot:${index}`;
 
 export function snapshotInventory(): InventoryStack[] {
   const stacks: InventoryStack[] = [];
 
-  for (const container of ["hotbar", "backpack"] as const) {
-    slots(container).forEach((stack, index) => {
-      if (!stack) return;
-      stacks.push({
-        stackId: SLOT_ID(container, index),
-        itemId: stack.itemId,
-        quantity: stack.count,
-        state:
-          stack.quality || stack.expiresAtUtc || stack.container
-            ? {
-                quality: stack.quality,
-                expiresAtUtc: stack.expiresAtUtc,
-                // 锅里煮着的东西跟着格子一起进存档
-                container: stack.container,
-              }
-            : undefined,
-      });
+  inventory.forEach((stack, index) => {
+    if (!stack) return;
+    stacks.push({
+      stackId: SLOT_ID(index),
+      itemId: stack.itemId,
+      quantity: stack.count,
+      state:
+        stack.quality || stack.expiresAtUtc || stack.container
+          ? {
+              quality: stack.quality,
+              expiresAtUtc: stack.expiresAtUtc,
+              // 锅里煮着的东西跟着格子一起进存档
+              container: stack.container,
+            }
+          : undefined,
     });
-  }
+  });
 
   return stacks;
 }
 
 export function restoreInventory(stacks: InventoryStack[]): void {
-  hotbar = Array.from({ length: HOTBAR_SIZE }, () => null);
-  backpack = Array.from({ length: BACKPACK_SIZE }, () => null);
+  inventory = Array.from({ length: INVENTORY_SIZE }, () => null);
 
   for (const stack of stacks) {
-    const [container, rawIndex] = stack.stackId.split(":");
+    const [prefix, rawIndex] = stack.stackId.split(":");
     const index = Number(rawIndex);
-    const list = container === "hotbar" ? hotbar : backpack;
 
     // 越界或残缺的槽位直接丢弃，不让一条坏记录带崩整份存档
-    if (!Number.isInteger(index) || index < 0 || index >= list.length) continue;
+    if (prefix !== "slot") continue;
+    if (!Number.isInteger(index) || index < 0 || index >= INVENTORY_SIZE)
+      continue;
     if (!findItemDefinition(stack.itemId)) continue;
 
-    list[index] = {
+    inventory[index] = {
       itemId: stack.itemId,
       count: stack.quantity,
       quality: stack.state?.quality,
@@ -544,9 +601,9 @@ export function restoreInventory(stacks: InventoryStack[]): void {
  * 混堆会把"一盘上乘的菜和一盘焦的"搅在一起，那是数据损坏不是整理。
  */
 export function sortBackpack(): void {
-  const stacks = backpack.filter(
-    (stack): stack is NonNullable<SlotStack> => stack !== null,
-  );
+  const stacks = inventory
+    .slice(HOTBAR_SIZE)
+    .filter((stack): stack is NonNullable<SlotStack> => stack !== null);
 
   // 1. 合堆
   const merged: Array<NonNullable<SlotStack>> = [];
@@ -573,9 +630,10 @@ export function sortBackpack(): void {
   // 2. 排序
   merged.sort(compareForSort);
 
-  // 3. 顶到最前面，后面补空
-  for (let i = 0; i < backpack.length; i += 1) {
-    backpack[i] = merged[i] ?? null;
+  // 3. 顶到背包段最前面，后面补空。**从 HOTBAR_SIZE 开始写**——
+  //    整理不碰快捷栏那几格（见上面的注释）
+  for (let i = 0; i < BACKPACK_SIZE; i += 1) {
+    inventory[HOTBAR_SIZE + i] = merged[i] ?? null;
   }
 
   announce("sort");
@@ -635,7 +693,7 @@ const RARITY_ORDER: Rarity[] = [
 
 /** 搬进新家时的行李。家具放快捷栏（马上要用），材料进背包 */
 export function seedInitialInventory(): void {
-  const empty = [...hotbar, ...backpack].every((stack) => stack === null);
+  const empty = inventory.every((stack) => stack === null);
   if (!empty) return;
 
   /**
@@ -656,8 +714,9 @@ export function seedInitialInventory(): void {
     ["egg", 2],
     ["rice", 2],
   ];
+  // 放背包段而不是快捷栏：开局手上是空的，第一件事是去拆门口的箱子
   materials.forEach(([itemId, count], index) => {
-    backpack[index] = { itemId, count };
+    inventory[HOTBAR_SIZE + index] = { itemId, count };
   });
 
   announce("seed");

@@ -165,6 +165,20 @@
   .touch-hotbar {
     bottom: calc(96px + env(safe-area-inset-bottom, 0px));
   }
+
+  /*
+   * 快捷栏抬多少，左上角那一列的下沿就得跟着抬多少。
+   *
+   * 写在这里而不是 index.css 的 --hotbar-clear 里：那个变量描述的是
+   * **桌面端**快捷栏占掉的高度，消息面板也在用它；触摸端整条抬到 96px
+   * 是这个文件独有的行为，让位距离就该跟它待在一起——不然改了这边的
+   * 96、忘了那边的让位，列尾那块面板又会压到格子上。
+   *
+   * 96（抬升）+ 60（快捷栏实测高）+ 12（间隙）= 168。
+   */
+  .hud-column--touch {
+    bottom: calc(168px + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 /*

@@ -2,10 +2,9 @@ import { ItemCategory, findItemDefinition, itemCategoryOrder } from "core";
 import { useEffect, useMemo, useState } from "react";
 import { emit, on } from "../../Game/EventBus";
 import {
-  BACKPACK_SIZE,
   HOTBAR_SIZE,
-  getBackpack,
-  getHotbar,
+  INVENTORY_SIZE,
+  getInventory,
   getSelectedHotbarIndex,
   moveStack,
   sortBackpack,
@@ -76,17 +75,15 @@ export function Backpack() {
     }),
     [],
   );
-  const [slots, setSlots] = useState(getBackpack());
-  const [hotbarSlots, setHotbarSlots] = useState(getHotbar());
+  // 一份数据。面板把它切成两片渲染（背包网格 + 底下那行快捷栏），
+  // 但槽位号是同一套，所以跨片拖拽不需要任何换算
+  const [items, setItems] = useState(getInventory());
   const [tab, setTab] = useState<ItemCategory | null>(null);
-  /** 详情卡在看哪一格。**带 container**——快捷栏那行也在面板里，点它也要能看 */
+  /** 详情卡在看哪一格（绝对槽位号）。快捷栏那行也在面板里，点它也要能看 */
   const [picked, setPicked] = useState<SlotRef | null>(null);
 
   useEffect(() => {
-    const off = on("inventory_changed", () => {
-      setSlots(getBackpack());
-      setHotbarSlots(getHotbar());
-    });
+    const off = on("inventory_changed", () => setItems(getInventory()));
 
     const onKeyDown = (event: KeyboardEvent) => {
       /**
@@ -119,20 +116,14 @@ export function Backpack() {
     if (open) emit("story_signal", { kind: "backpack_opened" });
   }, [open]);
 
-  const visible = slots.slice(0, BACKPACK_SIZE);
-  const hotbarVisible = hotbarSlots.slice(0, HOTBAR_SIZE);
-  const used = visible.filter(Boolean).length;
+  /** 背包段。**下标要 +HOTBAR_SIZE 才是槽位号**，见下面 map 里的 slot */
+  const visible = items.slice(HOTBAR_SIZE);
+  const hotbarVisible = items.slice(0, HOTBAR_SIZE);
+  // 容量算整份：快捷栏就是背包的前 8 格，不该从容量里漏掉
+  const used = items.filter(Boolean).length;
 
   /** 选中格子里的东西。格子被清空（拿到手上、整理重排）后自动松开选中 */
-  const pickedStack =
-    picked === null
-      ? null
-      : (picked.container === "hotbar" ? hotbarVisible : visible)[
-          picked.index
-        ] ?? null;
-
-  const isPicked = (container: SlotRef["container"], index: number): boolean =>
-    picked?.container === container && picked.index === index;
+  const pickedStack = picked === null ? null : items[picked] ?? null;
 
   const matchesTab = useMemo(() => {
     return (itemId: string): boolean => {
@@ -250,19 +241,18 @@ export function Backpack() {
               <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-6 sm:gap-2">
                 {visible.map((stack, index) => {
                   const dimmed = Boolean(stack) && !matchesTab(stack!.itemId);
+                  const slot = HOTBAR_SIZE + index;
                   return (
                     <SlotCell
-                      key={index}
-                      slotRef={{ container: "backpack", index }}
+                      key={slot}
+                      slotRef={slot}
                       stack={stack}
                       fluid
                       dimmed={dimmed}
-                      picked={isPicked("backpack", index) && Boolean(stack)}
+                      picked={picked === slot && Boolean(stack)}
                       // 点击只**选中**，动作交给详情卡上的按钮——
                       // 原来点一下直接拿到手上，想看看这是什么都做不到
-                      onClick={() =>
-                        setPicked(stack ? { container: "backpack", index } : null)
-                      }
+                      onClick={() => setPicked(stack ? slot : null)}
                     />
                   );
                 })}
@@ -293,7 +283,7 @@ export function Backpack() {
            * 把它放进面板是这类游戏的通行结构（Minecraft 起就是这样）：
            * 拖拽全程在面板内部完成，不需要穿透遮罩。
            *
-           * 它和屏幕底部那一行是**同一份数据**（都读 getHotbar），
+           * 它和屏幕底部那一行是**同一份数据**（都是背包的前 8 格），
            * 不是复制品——改一边另一边跟着变。
            */}
           <div className="ui-parchment mt-3 p-2">
@@ -301,14 +291,13 @@ export function Backpack() {
               {hotbarVisible.map((stack, index) => (
                 <SlotCell
                   key={index}
-                  slotRef={{ container: "hotbar", index }}
+                  // 快捷栏就是前 HOTBAR_SIZE 格，段内序号 = 槽位号
+                  slotRef={index}
                   stack={stack}
                   fluid
                   label={String(index + 1)}
-                  picked={isPicked("hotbar", index) && Boolean(stack)}
-                  onClick={() =>
-                    setPicked(stack ? { container: "hotbar", index } : null)
-                  }
+                  picked={picked === index && Boolean(stack)}
+                  onClick={() => setPicked(stack ? index : null)}
                 />
               ))}
             </div>
@@ -318,7 +307,7 @@ export function Backpack() {
           <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[12px] text-[var(--ink-soft)]">
             <span>{t(isTouchMode() ? "ui.backpack.hint_touch" : "ui.backpack.hint")}</span>
             <span className="font-bold">
-              {t("ui.backpack.capacity")} {used} / {BACKPACK_SIZE}
+              {t("ui.backpack.capacity")} {used} / {INVENTORY_SIZE}
             </span>
           </div>
         </div>
@@ -434,15 +423,12 @@ function ItemDetail({
          *
          * 家具也走这个按钮：拿到手上，虚影就出来了。
          */}
-        {slotRef?.container === "backpack" && (
+        {slotRef !== null && slotRef !== undefined && slotRef >= HOTBAR_SIZE && (
           <button
             type="button"
             className="ui-pack-action px-3 py-1.5 text-[13px] font-bold"
             onClick={() => {
-              moveStack(slotRef, {
-                container: "hotbar",
-                index: getSelectedHotbarIndex(),
-              });
+              moveStack(slotRef, getSelectedHotbarIndex());
               onUsed();
             }}
           >

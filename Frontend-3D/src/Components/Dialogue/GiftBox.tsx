@@ -1,10 +1,7 @@
 import { useEffect, useState } from "react";
 import { on } from "../../Game/EventBus";
 import {
-  BACKPACK_SIZE,
-  HOTBAR_SIZE,
-  getBackpack,
-  getHotbar,
+  getInventory,
   type SlotRef,
 } from "../../Game/State/inventory";
 import { declineGift, giveItem } from "../../Game/Systems/dialogue";
@@ -44,8 +41,9 @@ export function GiftBox({ petId }: { petId: string | null }) {
   );
 
   const blocked = petId === null || !canGiftTo(petId);
-  const hotbar = getHotbar();
-  const backpack = getBackpack();
+  // 整份背包一起铺（前 8 格就是快捷栏）。合并之前这里要拼两个数组，
+  // 拼出来的下标还得各自记住是哪个容器的
+  const items = getInventory();
 
   return (
     <>
@@ -74,20 +72,10 @@ export function GiftBox({ petId }: { petId: string | null }) {
           /* 窄屏下 8 列铺不开就横向滚动，不要把格子挤变形 */
           <div className="ui-scroll mt-4 overflow-x-auto">
             <div className="mx-auto grid w-max grid-cols-8 gap-1">
-              {hotbar.slice(0, HOTBAR_SIZE).map((stack, index) => (
+              {items.map((stack, slot) => (
                 <SlotCell
-                  key={`h${index}`}
-                  slotRef={{ container: "hotbar", index }}
-                  stack={stack}
-                  size={42}
-                  onHover={show}
-                  onLeave={hide}
-                />
-              ))}
-              {backpack.slice(0, BACKPACK_SIZE).map((stack, index) => (
-                <SlotCell
-                  key={`b${index}`}
-                  slotRef={{ container: "backpack", index }}
+                  key={slot}
+                  slotRef={slot}
                   stack={stack}
                   size={42}
                   onHover={show}

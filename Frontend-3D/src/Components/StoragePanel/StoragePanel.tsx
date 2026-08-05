@@ -2,7 +2,7 @@ import { findPlaceableItem } from "core";
 import { useEffect, useState } from "react";
 import { emit, on } from "../../Game/EventBus";
 import {
-  getBackpack,
+  getInventory,
   isLoadedWare,
   placeInFirstFreeSlot,
   setStackAt,
@@ -34,14 +34,15 @@ type OpenStorage = {
 export function StoragePanel() {
   const [target, setTarget] = useState<OpenStorage | null>(null);
   const [slots, setSlots] = useState<StorageSlot[]>([]);
-  const [backpack, setBackpack] = useState(getBackpack());
+  /** 整份背包（前 8 格是快捷栏）。`index` 就是槽位号，别再做段内换算 */
+  const [backpack, setBackpack] = useState(getInventory());
   const { tooltip, show, hide } = useTooltip();
 
   const inventoryId = target ? storageIdFor(target.instanceId) : null;
 
   const refresh = (id: string | null): void => {
     setSlots(id ? getStorage(id) : []);
-    setBackpack(getBackpack());
+    setBackpack(getInventory());
   };
 
   useEffect(() => {
@@ -51,7 +52,7 @@ export function StoragePanel() {
     });
 
     const offInventory = on("inventory_changed", () =>
-      setBackpack(getBackpack()),
+      setBackpack(getInventory()),
     );
 
     // 走远了自动关掉，和工作台一致
@@ -140,10 +141,7 @@ export function StoragePanel() {
     );
     if (leftover === stack.count) return;
 
-    setStackAt(
-      { container: "backpack", index },
-      leftover > 0 ? { ...stack, count: leftover } : null,
-    );
+    setStackAt(index, leftover > 0 ? { ...stack, count: leftover } : null);
   };
 
   return (

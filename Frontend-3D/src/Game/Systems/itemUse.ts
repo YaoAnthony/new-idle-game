@@ -1,6 +1,7 @@
 import { findItemDefinition } from "core";
 import { getHeld } from "../State/heldItem";
 import { eatFood } from "../State/needs";
+import { eatFromHand } from "./kitchen";
 
 /**
  * 吃掉手上那件东西（= 选中的快捷栏格子）。
@@ -29,6 +30,25 @@ export type ItemUseOutcome = "eaten" | "none";
 export function eatHeldItem(): ItemUseOutcome {
   const held = getHeld();
   if (!held) return "none";
+
+  /*
+   * **先看盘子里有没有菜。**
+   *
+   * 端着的那件东西是"盘子"，盘子本身没有 food 块——只看 itemId 的话
+   * 一份刚做好的番茄炒蛋端在手上，按 F 什么都不会发生。玩家实际遇到的
+   * 就是这个：菜做好了、装盘了、拿在手上，然后吃不掉。
+   *
+   * 唯一的出口原本是右下角那张卡片上的"吃掉"按钮，而那张卡片在奶油皮肤
+   * 下是白字白底、根本看不见（同一轮修背包标题时漏掉的一处），
+   * 于是这盘菜就真的没法吃了。
+   *
+   * 现在 F 一条路管到底：手上有容器且里面有能吃的，就吃里面那份；
+   * 否则才看手上这件本身能不能吃。顺序不能反——拿着一盘菜时，
+   * "吃"指的显然是菜不是盘子。
+   */
+  if (held.container?.items.some((item) => findItemDefinition(item.itemId)?.food)) {
+    return eatFromHand() ? "eaten" : "none";
+  }
 
   return eat(held.itemId);
 }

@@ -40,7 +40,7 @@ export function startParticipantSync(): () => void {
      * 手上拿的东西 = 选中的那一格（见 State/heldItem 顶部那段）。
      *
      * 转成 VisibleItem 而不是直接推槽位对象：槽位带 stackId
-     * （"hotbar:3"），那是我背包里的门牌号，对别人没有意义，
+     * （"slot:3"），那是我背包里的门牌号，对别人没有意义，
      * 传过去还等于把自己的快捷栏布局漏给对面。
      *
      * 也不用 heldItem.getHeld()——那个返回的是给**厨房规则**用的加工形态

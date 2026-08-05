@@ -48,6 +48,17 @@ type LoopHandle = {
   /** 串接播放时每播完一条就换一个，所以可空 */
   source: AudioBufferSourceNode | null;
   gain: GainNode;
+  /**
+   * 玩家在白噪音台上给这条声音拧的倍率，串在 `gain` 和总线中间。
+   *
+   * **必须是独立的第二个节点，不能并进 `gain`。** 上面那个是音景层
+   * 每 120ms 按距离/天气/昼夜重算一次的结果，往里写玩家的偏好，
+   * 下一帧就被冲掉；而 `setTaggedVolume` 还会在音量低于可闻阈时
+   * 把整条循环停掉——静音会变成"停了 → sync 发现少一条 → 重新起"
+   * 的来回抖动。分成两层之后各说各的：引擎说"这声音离你多远"，
+   * 玩家说"我想听多大"，相乘就是结果。
+   */
+  userGain: GainNode;
   /** 目标音量（0~1），淡入淡出的终点 */
   target: number;
   /** 串接播放等待下一条的计时器 */
@@ -348,15 +359,21 @@ export function playLoop(profileId: string, options: PlayLoopOptions = {}): void
   const bus = busOf(profileId);
   if (!bus) return;
 
+  // source → gain（音景层算的）→ userGain（玩家在台子上拧的）→ 总线
+  const userGain = ctx.createGain();
+  userGain.gain.value = getChannelGain(mixerChannelOf(profileId));
+  userGain.connect(bus);
+
   const gain = ctx.createGain();
   gain.gain.value = 0;
-  gain.connect(bus);
+  gain.connect(userGain);
 
   const handle: LoopHandle = {
     tag,
     profileId,
     source: null,
     gain,
+    userGain,
     // -1 而不是 volume：fadeTo 现在会跳过"目标没变"的调用，
     // 初始就填上目标的话第一条淡入斜坡会被跳掉，声音永远停在 0
     target: -1,
@@ -469,10 +486,10 @@ export function stopLoop(tag: string): void {
     // 已经停了，忽略
   }
 
-  window.setTimeout(
-    () => handle.gain.disconnect(),
-    (FADE_OUT_SECONDS + 0.1) * 1000,
-  );
+  window.setTimeout(() => {
+    handle.gain.disconnect();
+    handle.userGain.disconnect();
+  }, (FADE_OUT_SECONDS + 0.1) * 1000);
 }
 
 /** 正在播的持续音的 tag（音景层用来算差集） */
@@ -511,6 +528,10 @@ export function setTaggedVolume(
 export function playOneShot(profileId: string, volume = 1): void {
   const ctx = ensureContext();
   if (!ctx || !unlocked) return;
+
+  // 一次性音上不了白噪音台（响一下就没了，做不成推子），但**受推子管**：
+  // 把"天气"整条静音了还挨一记雷，那设置就是坏的
+  volume *= getChannelGain(mixerChannelOf(profileId));
   if (volume <= 0) return;
 
   const path = pickResourcePath(profileId);
@@ -535,6 +556,141 @@ export function playOneShot(profileId: string, volume = 1): void {
     source.start();
     source.onended = () => gain.disconnect();
   });
+}
+
+// ---- 白噪音台（玩家逐条调音） ----
+//
+// 台子上有哪几行**不写在任何地方**，是从"此刻真的在响的循环"现推出来的
+// （见 describeMixerChannels）。走近壁炉就多一行，走开就少一行，
+// 加一种会响的家具不用回来改这里。
+
+/** 玩家给某条推子拧的倍率（0~1）。没拧过的不进表，读出来是 1 */
+const channelGains = new Map<string, number>();
+
+/**
+ * 偏好存 localStorage 而不是 GameSave。
+ *
+ * 它是**这台机器上这个人**的听觉偏好，和存档里的世界无关：联机时你把
+ * 别人家的壁炉静音，只该你自己听不见；换台电脑重新调一次也很正常。
+ * 和总线音量（上面的 volumes）同一个性质，所以放同一层。
+ */
+const MIXER_STORAGE_KEY = "idle-home:mixer";
+
+function loadChannelGains(): void {
+  try {
+    const raw = localStorage.getItem(MIXER_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return;
+    for (const [channel, value] of Object.entries(parsed)) {
+      if (typeof value === "number" && value >= 0 && value <= 1) {
+        channelGains.set(channel, value);
+      }
+    }
+  } catch {
+    // 存储被禁用或内容坏了：全按"没调过"处理，不影响出声
+  }
+}
+loadChannelGains();
+
+function persistChannelGains(): void {
+  try {
+    localStorage.setItem(
+      MIXER_STORAGE_KEY,
+      JSON.stringify(Object.fromEntries(channelGains)),
+    );
+  } catch {
+    // 无痕模式之类：调得动，只是关掉就忘了
+  }
+}
+
+/**
+ * 这条声音归哪条推子。默认一条声音一条推子，注册表填了 `mixerGroup`
+ * 就合并（森林昼夜、雨和暴雨）。分组规则在数据里，这里不认识任何 id。
+ */
+export function mixerChannelOf(profileId: string): string {
+  return findAudioProfileDefinition(profileId)?.mixerGroup ?? profileId;
+}
+
+export function getChannelGain(channel: string): number {
+  return channelGains.get(channel) ?? 1;
+}
+
+/**
+ * 拧一条推子。**立刻作用到所有在响的同组循环**，不等音景层下一轮。
+ *
+ * 归 1 时从表里删掉而不是存个 1：这样存下去的永远只有玩家真的动过的
+ * 那几条，以后加声音、改分组都不会被一堆"其实没调过"的默认值绊住。
+ */
+export function setChannelGain(channel: string, value: number): void {
+  const clamped = Math.max(0, Math.min(1, value));
+  if (clamped === 1) channelGains.delete(channel);
+  else channelGains.set(channel, clamped);
+  persistChannelGains();
+
+  if (!context) return;
+  const now = context.currentTime;
+  for (const handle of loops.values()) {
+    if (mixerChannelOf(handle.profileId) !== channel) continue;
+    handle.userGain.gain.cancelScheduledValues(now);
+    handle.userGain.gain.setValueAtTime(handle.userGain.gain.value, now);
+    // 拖滑块要立刻听到反应，和总线滑块用同一个时长
+    handle.userGain.gain.linearRampToValueAtTime(clamped, now + 0.08);
+  }
+  emit("mixer_changed", { channel });
+}
+
+export type MixerChannelView = {
+  channel: string;
+  /** 这条推子上现在响着的那条声音（同组可能换素材，比如昼夜） */
+  profileId: string;
+  localizationKey: string | undefined;
+  busId: AudioBusId;
+  /** 玩家拧的倍率 */
+  gain: number;
+  /** 音景层此刻给它的音量（距离/天气/昼夜算出来的），用来画"响度"指示 */
+  ambient: number;
+};
+
+/**
+ * 此刻能听到的所有声音，一条推子一行。
+ *
+ * **行是推出来的不是列出来的**：数据源是引擎里活着的循环，
+ * 所以"周围有什么在响"这个问题由现场回答。同一条推子上有多条循环
+ * （屋里两个壁炉）时合成一行，响度取最大的那个——玩家关心的是
+ * "壁炉声多大"，不是"哪一个壁炉"。
+ *
+ * 一次性音（雷声、脚步）不出现在这里：它们响一下就没了，做不成推子。
+ * 但它们**受推子管**（见 playOneShot），否则把天气静音了还会挨一记雷。
+ */
+export function describeMixerChannels(): MixerChannelView[] {
+  const rows = new Map<string, MixerChannelView>();
+
+  for (const handle of loops.values()) {
+    const channel = mixerChannelOf(handle.profileId);
+    const definition = findAudioProfileDefinition(handle.profileId);
+    const ambient = handle.target > 0 ? handle.target : 0;
+
+    const existing = rows.get(channel);
+    if (existing) {
+      existing.ambient = Math.max(existing.ambient, ambient);
+      continue;
+    }
+
+    rows.set(channel, {
+      channel,
+      profileId: handle.profileId,
+      localizationKey: definition?.localizationKey,
+      busId: definition?.busId ?? AudioBusId.Ambience,
+      gain: getChannelGain(channel),
+      ambient,
+    });
+  }
+
+  // 响的排前面，同响度按推子 id 稳定排序——不然每次轮询行序都在跳
+  return [...rows.values()].sort(
+    (a, b) => b.ambient - a.ambient || a.channel.localeCompare(b.channel),
+  );
 }
 
 // ---- 音量 ----

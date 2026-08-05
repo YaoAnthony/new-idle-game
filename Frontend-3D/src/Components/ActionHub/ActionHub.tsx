@@ -141,14 +141,21 @@ export function ActionHub() {
     return (
       <>
         <div className="pointer-events-none absolute inset-0 z-10 shadow-[inset_0_0_140px_rgb(0_0_0_/_0.45)]" />
-        <div className="absolute left-1/2 top-5 z-20 -translate-x-1/2 rounded-lg border border-white/15 bg-black/70 px-5 py-3 text-center text-white/95 backdrop-blur">
-          <div className="text-[15px]">{active.customName}</div>
-          <div className="mt-0.5 text-[13px] text-amber-200/90">
+        {/*
+         * 这张卡原来是深色玻璃（bg-black/70 + 白字），换奶油马卡龙皮肤时
+         * 漏掉了。平时看不太出来，但白噪音台就浮在它旁边，一浅一深挨着
+         * 才暴露——所以跟着换过来，两块面板是同一次专注里的同一件事。
+         */}
+        <div className="ui-bar ui-dash absolute left-1/2 top-5 z-20 -translate-x-1/2 px-5 py-3 text-center">
+          <div className="text-[15px] font-bold text-[var(--ink)]">
+            {active.customName}
+          </div>
+          <div className="mt-0.5 text-[13px] font-bold text-[var(--peach-deep)]">
             {formatMs(remaining)}
           </div>
           <button
             type="button"
-            className="mt-2 rounded border border-white/20 px-2.5 py-0.5 text-[12px] text-white/60 hover:bg-white/10"
+            className="ui-tab mt-2 px-2.5 py-0.5 text-[12px]"
             onClick={cancelAction}
           >
             {t("ui.action.stop_early")}

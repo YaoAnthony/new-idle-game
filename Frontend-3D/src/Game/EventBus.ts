@@ -142,6 +142,13 @@ export type GameEvents = {
    * 浏览器要求首次用户交互之后才能出声，所以音景要等这条才能补播。
    */
   audio_unlocked: Record<string, never>;
+  /**
+   * 玩家在白噪音台上拧了某条推子。
+   *
+   * 面板本来就在轮询"现在有哪几行"，这条只为**手感**：拖滑块要即刻回显，
+   * 等下一轮轮询会有半拍延迟。轮询管"有哪些"，事件管"我刚改的这一条"。
+   */
+  mixer_changed: { channel: string };
   /** 吃下了一份食物。表现层接这条放音效，Game/ 不直接驱动 AudioEngine */
   food_eaten: { itemId: string };
   /** 某个储物家具的内容变了 */

@@ -174,11 +174,8 @@ export function beginDrag(
     if (zone && current) {
       dropZones.get(zone.dataset.dropzone!)?.(current.from);
     } else if (dropTarget && current) {
-      const [container, index] = dropTarget.dataset.slot!.split(":");
-      moveStack(current.from, {
-        container: container as SlotRef["container"],
-        index: Number(index),
-      });
+      // data-slot 就是绝对槽位号。越界/非数字由 moveStack 自己挡
+      moveStack(current.from, Number(dropTarget.dataset.slot));
     }
     setDrag(null);
   };
@@ -273,17 +270,14 @@ export function SlotCell({
 }: SlotCellProps) {
   const ref = useRef<HTMLDivElement>(null);
   const drag = useDragState();
-  const isDragSource =
-    drag &&
-    drag.from.container === slotRef.container &&
-    drag.from.index === slotRef.index;
+  const isDragSource = drag?.from === slotRef;
 
   const rarity = stack ? findItemDefinition(stack.itemId)?.rarity : undefined;
 
   return (
     <div
       ref={ref}
-      data-slot={`${slotRef.container}:${slotRef.index}`}
+      data-slot={slotRef}
       className={[
         "ui-slot",
         fluid ? "aspect-square w-full" : "",

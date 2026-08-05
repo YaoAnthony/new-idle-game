@@ -48,6 +48,8 @@ export function ChatPanel() {
   const [messages, setMessages] = useState<readonly ChatMessage[]>([]);
   const [selected, setSelected] = useState(0);
   const [lastAt, setLastAt] = useState(0);
+  /** 只为了在淡出时限到点时逼一次重画，值本身没有意义 */
+  const [, setFadeTick] = useState(0);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -67,6 +69,27 @@ export function ChatPanel() {
     refresh();
     return on("chat_message", refresh);
   }, []);
+
+  /**
+   * 到点了自己重画一次，把消息记录收起来。
+   *
+   * 底下那句 `faded = Date.now() - lastAt > IDLE_FADE_MS` 是渲染期算的，
+   * **但没人在 9 秒后叫它重算**——不再有新消息就不再有 setState，
+   * 于是这块记录一直挂在屏幕上，"9 秒后淡掉"从来没真的发生过。
+   * 静止的画面里没有别的东西会触发重渲染，超时这件事必须自己安排。
+   *
+   * 打开着的时候不排：开着就是要看记录，不该自己收。
+   */
+  useEffect(() => {
+    if (open || lastAt === 0) return;
+
+    const remaining = lastAt + IDLE_FADE_MS - Date.now();
+    if (remaining <= 0) return;
+
+    // 必须换个新值：给 setState 传同一个值 React 会直接 bail out，不重画
+    const timer = setTimeout(() => setFadeTick((n) => n + 1), remaining);
+    return () => clearTimeout(timer);
+  }, [open, lastAt]);
 
   // 全局按键：回车开聊天、斜杠开命令。正在别的输入框里打字时不抢
   useEffect(() => {

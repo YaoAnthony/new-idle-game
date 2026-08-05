@@ -565,6 +565,180 @@ input {
   animation: daily-hud-breathe 2.2s ease-in-out infinite;
 }
 
+/*
+ * 左上角那一列（时钟 → 需求条 → 白噪音台）。
+ *
+ * 有了下沿之后它才是个**有高度的盒子**，末尾那块面板才知道自己能长多高。
+ * 原来只钉了 top，列的高度由内容撑，浮动行数的白噪音台会一路长到
+ * 快捷栏上去。触摸端的快捷栏会抬起来，让位距离另算（见 Mobile.css）。
+ */
+.hud-column {
+  bottom: var(--hotbar-clear);
+}
+
+/* ---- 白噪音台（专注时的左侧调音板） ---- */
+
+/*
+ * 整块面板是所在那一列（时钟 → 需求条 → 这块）的最后一项，
+ * 而那一列上下都被钉住了（top-4 / bottom-hotbar-clear）。
+ * `min-height: 0` 是让它**能被压缩**的那一行——没有它，flex 项的
+ * 默认 min-height:auto 会让内容把盒子撑破，直接压到快捷栏上。
+ */
+.mixer {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
+/*
+ * 行数是浮动的（周围响几条就有几行），所以必须封顶 + 内滚。
+ * 两道封顶：`flex:1` 吃掉列里剩下的高度（这是硬约束，横屏手机上
+ * 左边这条只有一百多像素），46vh 是软约束——桌面上把整列让给它
+ * 也太霸道，四五行看得见就够了。
+ */
+.mixer__rows {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 46vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-deep) transparent;
+}
+
+.mixer__rows::-webkit-scrollbar {
+  width: 5px;
+}
+
+.mixer__rows::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: var(--line-deep);
+}
+
+.mixer__row {
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fffdf8 0%, var(--cream-2) 100%);
+  box-shadow: inset 0 1px 5px rgb(227 174 144 / 0.2);
+  padding: 3px 7px;
+}
+
+.mixer__mute {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: 1.5px solid var(--line-deep);
+  background: var(--cream);
+  font-size: 10px;
+  line-height: 1;
+  transition: transform 90ms ease-out, filter 90ms ease-out;
+}
+
+.mixer__mute:hover {
+  filter: brightness(1.04);
+  transform: scale(1.08);
+}
+
+/* 响度指示：音景层给这条声音的音量，靠透明度表达，不占宽度 */
+.mixer__meter {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--mint-deep);
+}
+
+/*
+ * 矮屏（横屏手机）把这块面板整体缩一档。
+ *
+ * 不是为了好看，是**算出来必须缩**：667x375 上左边这一列一共 243px，
+ * 时钟 89 + 需求条 61 + 两道间隙 16 = 166，留给白噪音台的只有 77px。
+ * 常规尺寸下光标题加内边距就吃掉 47，两条推子一条都摆不下。
+ * 缩完标题 15 + 内边距 8，两条 22px 的推子正好进得去，第三条露个边
+ * 提示可以滚——这已经是这块屏能给的极限了。
+ */
+@media (max-height: 500px) {
+  .mixer {
+    padding: 4px 8px;
+  }
+
+  .mixer__title {
+    font-size: 11px;
+  }
+
+  /* 副标题"只影响你自己"在这个尺寸下是纯装饰，先让位给推子 */
+  .mixer__hint {
+    display: none;
+  }
+
+  .mixer__rows {
+    margin-top: 3px;
+    gap: 3px;
+  }
+
+  .mixer__row {
+    padding: 1px 5px;
+  }
+
+  .mixer__mute {
+    width: 17px;
+    height: 17px;
+    font-size: 9px;
+  }
+}
+
+/*
+ * 滑块自己画。原生外观在 Windows/Mac/移动端各长一个样，
+ * 和奶油马卡龙这套皮肤全对不上，而这块面板只有滑块一个主控件。
+ */
+/* 滑块固定占右半边：名字那侧靠 truncate 兜底，长名字不该把推子挤没 */
+.mixer__slider {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: none;
+  width: 40%;
+  min-width: 56px;
+  height: 14px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.mixer__slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  border: 1.5px solid var(--line-deep);
+  background: linear-gradient(180deg, var(--cream-3) 0%, var(--cream-2) 100%);
+}
+
+.mixer__slider::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  border: 1.5px solid var(--line-deep);
+  background: linear-gradient(180deg, var(--cream-3) 0%, var(--cream-2) 100%);
+}
+
+.mixer__slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  /* 轨道 6px + 上下各 1.5px 边 = 9px，滑块 13px，往上提 2px 才居中 */
+  margin-top: -5px;
+  border-radius: 999px;
+  border: 2px solid var(--line-deep);
+  background: var(--peach);
+  box-shadow: 0 1px 0 var(--line-deep);
+}
+
+.mixer__slider::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  border: 2px solid var(--line-deep);
+  background: var(--peach);
+  box-shadow: 0 1px 0 var(--line-deep);
+}
+
 /* 面板内的细滚动条 */
 .ui-scroll {
   scrollbar-width: thin;

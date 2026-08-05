@@ -545,6 +545,20 @@ const ZH: Record<string, string> = {
   "audio.thunder": "雷声",
   "audio.eat": "进食",
   "audio.unpack": "拆箱",
+  // 下面这几条以前只在注册表里挂着、词典里没有——白噪音台要拿它们当行名，
+  // 缺一条就露出 audio.fireplace 这种 id 给玩家看
+  "audio.fireplace": "壁炉",
+  "audio.cooking": "灶上",
+  "audio.wall_clock": "挂钟",
+  "audio.action_writing": "笔尖",
+  "audio.storage_open": "开箱",
+
+  // 白噪音台（专注时左边那块）
+  "ui.mixer.title": "白噪音",
+  "ui.mixer.hint": "只影响你自己",
+  "ui.mixer.empty": "周围很安静",
+  "ui.mixer.mute": "静音",
+  "ui.mixer.unmute": "取消静音",
 
   // 坐 / 躺。站着时用家具自己的提示文案，这里只补状态变了之后的那两句
   "hint.stand": "起来",

@@ -137,8 +137,11 @@ export function snapshotHeld(): InventoryStack | null {
 /**
  * 旧存档里单独存着的手持物：塞回背包，别丢。
  *
- * 不往快捷栏塞是刻意的——老档的快捷栏布局是玩家摆的，
- * 读档时凭空占掉一格更让人困惑；进背包最多是"多了一件东西要归位"。
+ * **落点是第一个空位，快捷栏优先**（placeInFirstFreeSlot 从 0 号扫起）。
+ * 这里原来写着"不往快捷栏塞是刻意的"，但那句话从来没成立过——
+ * placeInFirstFreeSlot 一直是快捷栏优先的，注释和代码各说各话。
+ * 现在按代码写：快捷栏优先才是对的，因为老档里那件东西**本来就在手上**，
+ * 读档后出现在手边比出现在背包深处更接近玩家的预期。
  */
 export function restoreHeld(saved: InventoryStack | null | undefined): void {
   if (!saved || !findItemDefinition(saved.itemId)) return;

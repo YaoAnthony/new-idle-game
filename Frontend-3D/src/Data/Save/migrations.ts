@@ -10,10 +10,7 @@ import {
   type GameSave,
   type InventoryStack,
 } from "core";
-import {
-  BACKPACK_SIZE,
-  HOTBAR_SIZE,
-} from "../../Game/State/inventory";
+import { INVENTORY_SIZE } from "../../Game/State/inventory";
 import { FURNITURE_ID_KIND } from "../../Game/State/worldRuntime";
 import { LOCAL_PLAYER_ID } from "../../Game/State/participants";
 import { SAVE_SCHEMA_VERSION } from "./types";
@@ -26,16 +23,27 @@ import { SAVE_SCHEMA_VERSION } from "./types";
 const LOCAL_ID_PREFIX = LOCAL_PLAYER_ID;
 
 /**
+ * v21 之前的两容器格数。**写死在这里而不是 import**——
+ * 迁移一旦发布就冻结了：它加工的是那个年代的存档，此后改格数
+ * （比如快捷栏 8 变 10）不该回头改变老迁移算出来的槽位。
+ */
+const LEGACY_HOTBAR_SIZE = 8;
+const LEGACY_BACKPACK_SIZE = 24;
+
+/**
  * 在槽位式背包的序列化数组里找一个空格，返回 "backpack:N" / "hotbar:N"。
  * 背包优先（快捷栏留给玩家的常用摆放），全满返回 null——
  * 32 格全满的概率极低，真发生也宁可少还一件，不能写坏格式带崩整份存档。
+ *
+ * **只给 v21 之前的迁移用**，产出的是那时的编码；v21 会把它们一起换算成
+ * `slot:N`。老迁移就该说老话，不然中间那几步自相矛盾。
  */
 function firstFreeSlot(inventory: InventoryStack[]): string | null {
   const used = new Set(inventory.map((stack) => stack.stackId));
-  for (let i = 0; i < BACKPACK_SIZE; i += 1) {
+  for (let i = 0; i < LEGACY_BACKPACK_SIZE; i += 1) {
     if (!used.has(`backpack:${i}`)) return `backpack:${i}`;
   }
-  for (let i = 0; i < HOTBAR_SIZE; i += 1) {
+  for (let i = 0; i < LEGACY_HOTBAR_SIZE; i += 1) {
     if (!used.has(`hotbar:${i}`)) return `hotbar:${i}`;
   }
   return null;
@@ -743,6 +751,51 @@ export const migrations: Migration[] = [
   {
     to: 20,
     migrate: (save) => save,
+  },
+
+  /*
+   * v21（2026-08-05 快捷栏并入背包）：背包从两个容器变成一个数组，
+   * 前 8 格就是快捷栏。stackId 的编码跟着从 `hotbar:N` / `backpack:N`
+   * 变成 `slot:N`。
+   *
+   * **换算必须在这里做完，运行时不能兼容老编码。** 如果让
+   * restoreInventory 去"取冒号后面的数字"，`hotbar:3` 和 `backpack:3`
+   * 会双双落到 3 号格，后读到的把先读到的顶掉——一次静默的物品丢失，
+   * 而且只在两边同号都有东西时才发生，测不出来。
+   *
+   * 认不出前缀的记录直接丢弃而不是塞进空位：v21 之前的存档里
+   * 这两种前缀是全集，出现别的只可能是被改坏的档，猜位置不如少一件。
+   */
+  {
+    to: 21,
+    migrate: (save) => {
+      const stacks = save.player?.character?.inventory;
+      if (!Array.isArray(stacks)) return save;
+
+      const taken = new Set<number>();
+      save.player.character.inventory = stacks.flatMap((stack) => {
+        const [prefix, rawIndex] = String(stack.stackId).split(":");
+        const index = Number(rawIndex);
+        if (!Number.isInteger(index) || index < 0) return [];
+
+        let slot: number;
+        if (prefix === "hotbar" && index < LEGACY_HOTBAR_SIZE) {
+          slot = index;
+        } else if (prefix === "backpack" && index < LEGACY_BACKPACK_SIZE) {
+          slot = LEGACY_HOTBAR_SIZE + index;
+        } else {
+          return [];
+        }
+
+        // 同一格出现两条（改坏的档）只留先来的，别让后来的把它顶掉
+        if (slot >= INVENTORY_SIZE || taken.has(slot)) return [];
+        taken.add(slot);
+
+        return [{ ...stack, stackId: `slot:${slot}` }];
+      });
+
+      return save;
+    },
   },
 ];
 

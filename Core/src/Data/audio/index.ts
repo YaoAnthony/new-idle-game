@@ -30,6 +30,8 @@ export const audioProfileDefinitions = [
     resourcePath: "/audio/system/environment/forest_morning.wav",
     localizationKey: "audio.ambience_forest_day",
     loop: true,
+    // 昼夜同一条推子：白天静音了，天黑不该自己回来
+    mixerGroup: "ambience_forest",
   },
   {
     id: "ambience_forest_night",
@@ -37,6 +39,7 @@ export const audioProfileDefinitions = [
     resourcePath: "/audio/system/environment/forest_night.wav",
     localizationKey: "audio.ambience_forest_night",
     loop: true,
+    mixerGroup: "ambience_forest",
   },
   {
     id: "ambience_sea",
@@ -56,6 +59,8 @@ export const audioProfileDefinitions = [
     resourcePath: "/audio/system/weather/rain_light.wav",
     localizationKey: "audio.weather_rain",
     loop: true,
+    // 雨和暴雨算一条"天气声"：想关雨的人不会想单独留着暴雨
+    mixerGroup: "weather",
   },
   {
     id: "weather_audio_storm",
@@ -64,6 +69,7 @@ export const audioProfileDefinitions = [
     resourcePath: "/audio/system/weather/rain_light.wav",
     localizationKey: "audio.weather_storm",
     loop: true,
+    mixerGroup: "weather",
   },
   {
     id: "sfx_thunder",

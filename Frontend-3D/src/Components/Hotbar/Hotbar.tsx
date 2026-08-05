@@ -82,7 +82,7 @@ export function Hotbar() {
             {slots.map((stack, index) => (
               <SlotCell
                 key={index}
-                slotRef={{ container: "hotbar", index }}
+                slotRef={index}
                 stack={stack}
                 selected={selected === index}
                 // 触摸端不显示数字：那是键盘 1-8 的提示，手机上没有键盘，

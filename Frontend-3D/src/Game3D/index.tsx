@@ -8,6 +8,7 @@ import {
 } from "core";
 import { useEffect, useRef, useState } from "react";
 import { ActionHub } from "../Components/ActionHub/ActionHub";
+import { NoiseMixer } from "../Components/NoiseMixer/NoiseMixer";
 import { t } from "../i18n/t";
 import { ChatPanel } from "../Components/Chat/ChatPanel";
 import { EscMenu } from "../Components/EscMenu/EscMenu";
@@ -24,7 +25,6 @@ import { DailyBoardHud } from "../Components/DailyBoard/DailyBoardHud";
 import { DailyBoardPanel } from "../Components/DailyBoard/DailyBoardPanel";
 import { RewardPanel } from "../Components/RewardPanel/RewardPanel";
 import { DialoguePanel } from "../Components/Dialogue/DialoguePanel";
-import { HeldItem } from "../Components/HeldItem/HeldItem";
 import { Hotbar } from "../Components/Hotbar/Hotbar";
 import { InteractBubble } from "../Components/InteractBubble/InteractBubble";
 import { NeedsHud } from "../Components/NeedsHud/NeedsHud";
@@ -625,7 +625,6 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       />
       {/* 快捷栏只管选中；"使用"（吃 / 进布置模式）统一走 F，见 RoomScene */}
       <Hotbar />
-      <HeldItem />
       <InteractBubble scene={scene} />
       {/* 家具从背包也能直接进布置模式了——原来只有快捷栏能进，
           得先把家具拖到快捷栏才摆得了，白绕一步 */}
@@ -648,9 +647,24 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
         桌面端时钟从右上角搬到这里：右上角要留给"行动"和设置两个圆钮，
         三样东西挤一角谁都不舒服，而左上角腾出来了。
       */}
-      <div className="pointer-events-none absolute left-4 top-4 z-10 flex flex-col items-start gap-2 [&>*]:pointer-events-auto">
+      <div
+        className={[
+          "hud-column pointer-events-none absolute left-4 top-4 z-10 flex flex-col items-start gap-2 [&>*]:pointer-events-auto",
+          // 触摸端的快捷栏会整条抬起来（见 Mobile.css），让位距离跟着变
+          touchMode ? "hud-column--touch" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
         <WorldClock />
         <NeedsHud stacked />
+        {/*
+          白噪音台排在这一列的第三位，而不是自己 absolute 居中。
+          它的行数是浮动的（周围响几条就有几行），自己定位就得猜一个
+          "时钟那一堆有多高"的魔数——和上面那条注释是同一个道理，
+          让 flex 去算。这一列现在带 bottom，所以它天然不会压到快捷栏。
+        */}
+        <NoiseMixer />
       </div>
       <SettingsDrawer />
       <SleepOverlay />

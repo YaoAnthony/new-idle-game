@@ -25,6 +25,14 @@ export type PlacedFurnitureInstanceId = string;
 export enum PlacementSurface {
   Floor = "floor",
   Wall = "wall",
+  /**
+   * 台面（V0.13）：摆在**另一件家具**的顶面上（桌上的杯子、柜面的唱片）。
+   * 第三种放置面，坐标系挂在宿主实例上——照墙面的先例（墙有自己的
+   * 网格和占用表），但粒度是**半格**（0.5m）：2×1 的桌子只按整格摆
+   * 两件东西太空，半格制一张桌子能摆 8 件小物。半格只存在于台面
+   * 坐标系里，地面网格永远保持 1×1（改地面粒度 = 全量迁移 + 寻路重做）。
+   */
+  Surface = "surface",
 }
 
 /**
@@ -219,6 +227,30 @@ export type PlacementBlock = {
    */
   coversOpenings?: boolean;
 
+  /**
+   * 台面网格（V0.13）：这件家具的顶面能摆东西，网格几行几列，
+   * **单位是半格（0.5m）**。物理范围 = width/2 × height/2 米，
+   * 以家具占地中心为中心——2×1 的桌子声明 4×2，正好铺满整个桌面。
+   * 不声明 = 顶上不能摆东西。只对地面家具有意义（墙饰上不摆东西）。
+   */
+  surfaceGrid?: GridFootprint;
+
+  /**
+   * 台面网格里**禁止摆放**的半格（黑名单）。给"台面上有洞"的家具用：
+   * 橱柜的水槽是真凹槽（见 kitchen.ts 配方，sinkX=1.6 那段），
+   * 杯子摆进去就悬在盆里。灶眼**不用**写在这里——它们是 slots，
+   * 台面校验会自动给每个槽位留净空（见 logic/surfaces 的 SLOT_CLEARANCE）。
+   */
+  surfaceBlocked?: ReadonlyArray<readonly [number, number]>;
+
+  /**
+   * 在别人的台面上占几个半格（V0.13）。声明了 = 这件东西能上桌。
+   * 和 `footprint`（地面占地，整格）**各管各的**：盆栽落地占 1×1 整格、
+   * 上桌占 2×2 半格，是同一件东西在两套坐标系里的两个尺寸——
+   * 墙饰的占地也是这么在墙面坐标系里另算的。
+   */
+  surfaceFootprint?: GridFootprint;
+
   slots?: FurnitureSlot[];
 
   /**
@@ -243,7 +275,24 @@ export type WallFurniturePlacement = {
   facing: Facing;
 };
 
-export type FurniturePlacement = FloorFurniturePlacement | WallFurniturePlacement;
+/**
+ * 台面放置。`gridPosition` 是**宿主台面网格的半格坐标**（宿主本地系，
+ * 原点在宿主未旋转占地的左上角）——宿主转身时上面的东西跟着转，
+ * 本地坐标天然处理，不用迁移任何数据。
+ */
+export type SurfaceFurniturePlacement = {
+  kind: PlacementSurface.Surface;
+  roomId: RoomId;
+  /** 摆在哪件家具上。宿主被收走时它成孤儿，由 revalidatePlacements 退回背包 */
+  hostInstanceId: PlacedFurnitureInstanceId;
+  gridPosition: GridPosition;
+  facing: Facing;
+};
+
+export type FurniturePlacement =
+  | FloorFurniturePlacement
+  | WallFurniturePlacement
+  | SurfaceFurniturePlacement;
 
 export type PlacedFurnitureState = {
   durability?: number;

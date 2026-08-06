@@ -1,4 +1,6 @@
 import { Facing, PlacementSurface, type PlacedFurniture } from "core";
+import { FACING_ROTATION as FACING_ROTATION_LOCAL } from "./furnitureMath.js";
+import { hostGeometryOf, surfaceChildPose } from "./SurfacePlacement.js";
 import { Object3D } from "three";
 import { on } from "../../Game/EventBus";
 import { getDefinition, getWorld } from "../../Game/State/worldRuntime";
@@ -66,6 +68,37 @@ export function furnitureWorldCenter(
 ): { x: number; y: number; z: number } {
   const { footprint } = definition;
 
+  /**
+   * 台面件的位置由宿主决定，自己的 gridPosition 是半格本地坐标，
+   * **绝不能掉进下面的地面公式**（半格 × 整格公式 = 摆在桌上的东西
+   * 被报到屋子另一头）。宿主查不到（孤儿，等待回收）就报宿主原点，
+   * 至少不指到墙外去。
+   */
+  if (placed.placement.kind === PlacementSurface.Surface) {
+    const host = getWorld().placedFurniture.find(
+      (item) =>
+        placed.placement.kind === PlacementSurface.Surface &&
+        item.instanceId === placed.placement.hostInstanceId,
+    );
+    const geometry = hostGeometryOf(
+      host,
+      host ? getDefinition(host.furnitureId)?.placement : undefined,
+    );
+    if (!geometry) return { x: 0, y: 0, z: 0 };
+
+    const childFootprint =
+      getDefinition(placed.furnitureId)?.placement.surfaceFootprint;
+    if (!childFootprint) return { x: 0, y: 0, z: 0 };
+
+    const pose = surfaceChildPose(
+      geometry,
+      placed.placement,
+      childFootprint,
+      size,
+    );
+    return { x: pose.x, y: pose.y, z: pose.z };
+  }
+
   if (placed.placement.kind === PlacementSurface.Wall) {
     const { wallId, gridPosition } = placed.placement;
     const [x, y, z] = wallCellToWorld(
@@ -90,64 +123,14 @@ export function furnitureWorldCenter(
   };
 }
 
-export const FACING_ROTATION: Record<Facing, number> = {
-  [Facing.North]: 0,
-  [Facing.East]: -Math.PI / 2,
-  [Facing.South]: Math.PI,
-  [Facing.West]: Math.PI / 2,
-};
-
-/**
- * 朝向 → 世界方向的单位向量 [dx, dz]。
- * 房间的北墙在 gridY = 0，而 z = gridY - depth/2，所以**北是 -Z**。
- */
-export const FACING_VECTOR: Record<Facing, [number, number]> = {
-  [Facing.North]: [0, -1],
-  [Facing.East]: [1, 0],
-  [Facing.South]: [0, 1],
-  [Facing.West]: [-1, 0],
-};
-
-/** 家具占地中心的世界坐标（朝向旋转后的宽高） */
-export function furnitureCenterWorld(
-  placement: { gridPosition: { x: number; y: number }; facing: Facing },
-  footprint: { width: number; height: number },
-  size: { width: number; depth: number },
-): { x: number; z: number } {
-  const rotated =
-    placement.facing === Facing.East || placement.facing === Facing.West;
-  const w = rotated ? footprint.height : footprint.width;
-  const h = rotated ? footprint.width : footprint.height;
-
-  return {
-    x: placement.gridPosition.x - size.width / 2 + w / 2,
-    z: placement.gridPosition.y - size.depth / 2 + h / 2,
-  };
-}
-
-/**
- * 家具槽位的世界坐标。槽位 offset 是**家具本地坐标**，
- * 所以要跟着家具朝向一起转——灶台转 90° 时两个灶眼也得跟着转，
- * 否则锅会飘到灶台外面去。
- */
-export function slotWorldPosition(
-  placement: { gridPosition: { x: number; y: number }; facing: Facing },
-  footprint: { width: number; height: number },
-  offset: readonly [number, number, number],
-  size: { width: number; depth: number },
-): { x: number; y: number; z: number } {
-  const center = furnitureCenterWorld(placement, footprint, size);
-  const angle = FACING_ROTATION[placement.facing];
-  const cos = Math.cos(angle);
-  const sin = Math.sin(angle);
-  const [ox, oy, oz] = offset;
-
-  return {
-    x: center.x + ox * cos + oz * sin,
-    y: oy,
-    z: center.z - ox * sin + oz * cos,
-  };
-}
+// 纯数学下沉到 furnitureMath（台面换算也要用，放这儿会成环）。
+// 转发导出，旧引用不用改
+export {
+  FACING_ROTATION,
+  FACING_VECTOR,
+  furnitureCenterWorld,
+  slotWorldPosition,
+} from "./furnitureMath.js";
 
 /**
  * 订阅 world_changed，把 placedFurniture 同步成场景图。
@@ -184,6 +167,20 @@ export class FurnitureView {
       if (placed.furnitureId !== furnitureId) continue;
       const view = this.views.get(placed.instanceId);
       if (view) result.push(view);
+    }
+    return result;
+  }
+
+  /**
+   * 屋里所有**台面宿主**的视图（instanceId + 节点）。
+   * 布置模式的射线打的就是这批网格——打不到宿主就回落到地面吸附。
+   */
+  findSurfaceHostViews(): Array<{ instanceId: string; root: Object3D }> {
+    const result: Array<{ instanceId: string; root: Object3D }> = [];
+    for (const placed of getWorld().placedFurniture) {
+      if (!getDefinition(placed.furnitureId)?.placement.surfaceGrid) continue;
+      const view = this.views.get(placed.instanceId);
+      if (view) result.push({ instanceId: placed.instanceId, root: view });
     }
     return result;
   }
@@ -275,7 +272,28 @@ export class FurnitureView {
     const visual = buildItemVisual(definition.id);
     if (!visual) return null;
 
-    if (placed.placement.kind === PlacementSurface.Wall) {
+    if (placed.placement.kind === PlacementSurface.Surface) {
+      const hostId = placed.placement.hostInstanceId;
+      const host = getWorld().placedFurniture.find(
+        (item) => item.instanceId === hostId,
+      );
+      const geometry = hostGeometryOf(
+        host,
+        host ? getDefinition(host.furnitureId)?.placement : undefined,
+      );
+      const childFootprint = definition.placement.surfaceFootprint;
+      // 宿主不在（重放乱序、坏档）：先不出模型，等 world_changed 对账补上
+      if (!geometry || !childFootprint) return null;
+
+      const pose = surfaceChildPose(
+        geometry,
+        placed.placement,
+        childFootprint,
+        this.size,
+      );
+      visual.position.set(pose.x, pose.y, pose.z);
+      visual.rotation.y = pose.rotationY;
+    } else if (placed.placement.kind === PlacementSurface.Wall) {
       const { wallId } = placed.placement;
       placeOnWall(
         visual,
@@ -300,7 +318,7 @@ export class FurnitureView {
         this.size,
       );
       visual.position.set(originX + (w - 1) / 2, 0, originZ + (h - 1) / 2);
-      visual.rotation.y = FACING_ROTATION[facing];
+      visual.rotation.y = FACING_ROTATION_LOCAL[facing];
     }
 
     visual.userData.instanceId = placed.instanceId;

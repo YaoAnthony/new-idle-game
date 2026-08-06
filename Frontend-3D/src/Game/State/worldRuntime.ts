@@ -5,6 +5,7 @@ import {
   buildRoomOccupancy,
   canPassAt,
   checkPlacement,
+  checkSurfacePlacement,
   findPlaceableItem,
   footprintCells,
   generateHouse,
@@ -201,7 +202,14 @@ export function setActorFootprint(x: number, z: number, radius: number): void {
  */
 export type PlacementTarget =
   | { kind: PlacementSurface.Floor; gridPosition: GridPosition; facing: Facing }
-  | { kind: PlacementSurface.Wall; wallId: WallId; gridPosition: GridPosition };
+  | { kind: PlacementSurface.Wall; wallId: WallId; gridPosition: GridPosition }
+  | {
+      kind: PlacementSurface.Surface;
+      hostInstanceId: string;
+      /** 宿主台面网格的半格坐标（宿主本地系） */
+      gridPosition: GridPosition;
+      facing: Facing;
+    };
 
 /** 放置预览与提交共用同一份校验（Core 的 checkPlacement + 活物避让） */
 export function checkPlacementTarget(
@@ -209,6 +217,34 @@ export function checkPlacementTarget(
   target: PlacementTarget,
 ): PlacementCheck {
   const definition = findPlaceableItem(furnitureId);
+
+  /**
+   * 台面走自己的规则模块（Core 的 logic/surfaces）。台面件不占地面、
+   * 不挡路、不压活物，所以下面那段"别放在角色身上"的检查也与它无关。
+   * 失败原因映射进 PlacementCheck 已有的词表——调用方（虚影变红）
+   * 只关心 ok 不 ok，细分原因给日志和未来的提示留着。
+   */
+  if (target.kind === PlacementSurface.Surface) {
+    const surfaceCheck = checkSurfacePlacement(
+      target,
+      definition,
+      placedFurniture,
+      findPlaceableItem,
+    );
+    // `=== false` 收窄：本项目 tsconfig 没开 strict，真值收窄在
+    // 判别式联合上不生效（session.ts 的 unwrapReply 记过这个坑）
+    if (surfaceCheck.ok === false) {
+      return {
+        ok: false,
+        reason:
+          surfaceCheck.reason === "out_of_bounds" ||
+          surfaceCheck.reason === "cell_occupied"
+            ? surfaceCheck.reason
+            : "wrong_surface",
+      };
+    }
+    return { ok: true };
+  }
 
   const check = checkPlacement(
     room,
@@ -297,7 +333,15 @@ export function placeFurnitureAt(
             gridPosition: target.gridPosition,
             facing: target.facing,
           }
-        : {
+        : target.kind === PlacementSurface.Surface
+          ? {
+              kind: PlacementSurface.Surface,
+              roomId: room.roomId,
+              hostInstanceId: target.hostInstanceId,
+              gridPosition: target.gridPosition,
+              facing: target.facing,
+            }
+          : {
             kind: PlacementSurface.Wall,
             roomId: room.roomId,
             wallId: target.wallId,

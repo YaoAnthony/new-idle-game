@@ -96,6 +96,14 @@ export function buildRoomOccupancy(
   for (const placed of placedFurniture) {
     if (placed.placement.roomId !== room.roomId) continue;
 
+    /**
+     * 台面件不进这张表：它不占地、不挡路、不改台面高度（宿主已经
+     * 全占了），自己的占用在宿主本地的半格系里另算（logic/surfaces）。
+     * 不跳过的话，半格坐标会被当成整格坐标压进地面占用——
+     * 桌上一张唱片能把 (3,1) 那格标成有家具。
+     */
+    if (placed.placement.kind === PlacementSurface.Surface) continue;
+
     const definition = lookup(placed.furnitureId)?.placement;
     if (!definition) continue;
 

@@ -12,6 +12,7 @@ export * from "./needs.js";
 export * from "./occupancy.js";
 export * from "./pathfinding.js";
 export * from "./placement.js";
+export * from "./surfaces.js";
 export * from "./projectile.js";
 export * from "./roomGeometry.js";
 export * from "./storyAudit.js";

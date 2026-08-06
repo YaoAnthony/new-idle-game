@@ -564,6 +564,8 @@ const ZH: Record<string, string> = {
   "music.mode.shuffle": "随机播放",
   "music.mode.repeat-one": "单曲循环",
   "hint.gramophone_insert": "放入唱片",
+  // 拿取被挡（箱子没清空 / 台面上还摆着东西）。两种情况一句话说完
+  "placement.not_empty": "先把里面和上面的东西收走，才能搬动它",
   "music.record_swapped": "换上了 ",
   "music.record_already_in": "这张唱片已经在放了",
   "item.record_animal_crossing": "唱片·集落原声",

@@ -1,5 +1,10 @@
 import { Facing, PlacementSurface } from "core";
 import {
+  hostGeometryOf,
+  surfaceChildPose,
+  worldPointToSurfaceCell,
+} from "../World/SurfacePlacement.js";
+import {
   Mesh,
   MeshLambertMaterial,
   Object3D,
@@ -61,6 +66,10 @@ export class PlacementController {
   private gridY = 0;
   /** 墙饰当前吸附到哪面墙；地面家具为 null */
   private wallId: string | null = null;
+  /** 能上台面的物品当前吸附到哪台宿主；没指着宿主时为 null（回落地面） */
+  private hostInstanceId: string | null = null;
+  /** 手上这件能不能上台面（定义里有 surfaceFootprint） */
+  private surfaceCapable = false;
   private valid = false;
 
   private readonly wallMeshes: Object3D[] = [];
@@ -71,6 +80,15 @@ export class PlacementController {
     private readonly camera: Camera,
     private readonly canvas: HTMLElement,
     walls: Map<string, Object3D>,
+    /**
+     * 屋里所有台面宿主的视图（懒取——布置模式开着时桌子可能增减）。
+     * 台面吸附的射线打的是**真实的桌面网格**而不是某个虚拟平面：
+     * 桌子有高度、有旋转，命中点直接带着正确的表面坐标。
+     */
+    private readonly surfaceHosts: () => Array<{
+      instanceId: string;
+      root: Object3D;
+    }> = () => [],
   ) {
     for (const [wallId, mesh] of walls) {
       this.wallMeshes.push(mesh);
@@ -104,8 +122,10 @@ export class PlacementController {
 
     this.itemId = itemId;
     this.surface = definition.placement.surface;
+    this.surfaceCapable = Boolean(definition.placement.surfaceFootprint);
     this.facing = Facing.North;
     this.wallId = null;
+    this.hostInstanceId = null;
 
     this.ghostMaterials = [];
     visual.traverse((node) => {
@@ -138,6 +158,7 @@ export class PlacementController {
     }
     this.itemId = null;
     this.wallId = null;
+    this.hostInstanceId = null;
   }
 
   /**
@@ -154,6 +175,35 @@ export class PlacementController {
     const { room } = getWorld();
     const definition = getDefinition(this.itemId ?? "");
     if (!definition) return;
+
+    // 吸在台面上时按半格微调，夹在宿主网格内（顶到桌沿停住）
+    if (this.hostInstanceId) {
+      const host = getWorld().placedFurniture.find(
+        (item) => item.instanceId === this.hostInstanceId,
+      );
+      const geometry = hostGeometryOf(
+        host,
+        host ? getDefinition(host.furnitureId)?.placement : undefined,
+      );
+      const surfaceFootprint = definition.placement.surfaceFootprint;
+      if (!geometry || !surfaceFootprint) return;
+
+      const rotated =
+        this.facing === Facing.East || this.facing === Facing.West;
+      const w = rotated ? surfaceFootprint.height : surfaceFootprint.width;
+      const h = rotated ? surfaceFootprint.width : surfaceFootprint.height;
+
+      this.gridX = Math.min(
+        Math.max(this.gridX + dx, 0),
+        Math.max(geometry.surfaceGrid.width - w, 0),
+      );
+      this.gridY = Math.min(
+        Math.max(this.gridY + dy, 0),
+        Math.max(geometry.surfaceGrid.height - h, 0),
+      );
+      this.refresh();
+      return;
+    }
 
     const rotated = this.facing === Facing.East || this.facing === Facing.West;
     const { footprint } = definition.placement;
@@ -206,6 +256,19 @@ export class PlacementController {
       return;
     }
 
+    /**
+     * 能上台面的物品：先试着吸到指着的桌面上，没指着再回落地面。
+     * 只上台面的物品（唱片）没有地面这条后路——不指着桌子就藏虚影，
+     * 和墙饰指不到墙时同一个处理。
+     */
+    if (this.surfaceCapable && this.aimAtSurface(definition)) return;
+    this.hostInstanceId = null;
+    if (this.surface === PlacementSurface.Surface) {
+      this.valid = false;
+      if (this.ghost) this.ghost.visible = false;
+      return;
+    }
+
     if (!this.raycaster.ray.intersectPlane(this.floorPlane, this.hit)) return;
 
     const { room } = getWorld();
@@ -247,6 +310,61 @@ export class PlacementController {
     this.refresh();
   }
 
+  /**
+   * 射到某台宿主的台面上：命中桌面网格 → 逆变换成宿主本地半格。
+   * 命中的必须是宿主自己的节点（台面上已摆的东西是兄弟节点，不在
+   * 宿主树里，不会误吸）。
+   */
+  private aimAtSurface(definition: {
+    placement: { surfaceFootprint?: { width: number; height: number } };
+  }): boolean {
+    const surfaceFootprint = definition.placement.surfaceFootprint;
+    if (!surfaceFootprint) return false;
+
+    const hosts = this.surfaceHosts();
+    if (hosts.length === 0) return false;
+
+    const byRoot = new Map(hosts.map((entry) => [entry.root, entry.instanceId]));
+    const hits = this.raycaster.intersectObjects(
+      hosts.map((entry) => entry.root),
+      true,
+    );
+    const first = hits[0];
+    if (!first) return false;
+
+    let node: Object3D | null = first.object;
+    let instanceId: string | undefined;
+    while (node) {
+      instanceId = byRoot.get(node);
+      if (instanceId) break;
+      node = node.parent;
+    }
+    if (!instanceId) return false;
+
+    const { room, placedFurniture } = getWorld();
+    const host = placedFurniture.find((item) => item.instanceId === instanceId);
+    const geometry = hostGeometryOf(
+      host,
+      host ? getDefinition(host.furnitureId)?.placement : undefined,
+    );
+    if (!geometry) return false;
+
+    const size = { width: room.floorGrid.width, depth: room.floorGrid.height };
+    const cell = worldPointToSurfaceCell(
+      geometry,
+      first.point,
+      surfaceFootprint,
+      this.facing,
+      size,
+    );
+
+    this.hostInstanceId = instanceId;
+    this.gridX = cell.x;
+    this.gridY = cell.y;
+    this.refresh();
+    return true;
+  }
+
   /** 返回 true 表示本次点击被布置模式消费 */
   onClick(): boolean {
     if (!this.active || !this.ghost?.visible) return false;
@@ -272,6 +390,15 @@ export class PlacementController {
 
   private currentTarget(): PlacementTarget | null {
     const gridPosition = { x: this.gridX, y: this.gridY };
+
+    if (this.hostInstanceId) {
+      return {
+        kind: PlacementSurface.Surface,
+        hostInstanceId: this.hostInstanceId,
+        gridPosition,
+        facing: this.facing,
+      };
+    }
 
     if (this.surface === PlacementSurface.Wall) {
       if (!this.wallId) return null;
@@ -310,7 +437,29 @@ export class PlacementController {
 
     this.ghost.visible = true;
 
-    if (target.kind === PlacementSurface.Wall) {
+    if (target.kind === PlacementSurface.Surface) {
+      const host = getWorld().placedFurniture.find(
+        (item) => item.instanceId === target.hostInstanceId,
+      );
+      const geometry = hostGeometryOf(
+        host,
+        host ? getDefinition(host.furnitureId)?.placement : undefined,
+      );
+      const surfaceFootprint = definition.placement.surfaceFootprint;
+      if (!geometry || !surfaceFootprint) {
+        this.valid = false;
+        this.ghost.visible = false;
+        return;
+      }
+      const pose = surfaceChildPose(
+        geometry,
+        { gridPosition: target.gridPosition, facing: this.facing },
+        surfaceFootprint,
+        size,
+      );
+      this.ghost.position.set(pose.x, pose.y, pose.z);
+      this.ghost.rotation.y = pose.rotationY;
+    } else if (target.kind === PlacementSurface.Wall) {
       placeOnWall(
         this.ghost,
         target.wallId,

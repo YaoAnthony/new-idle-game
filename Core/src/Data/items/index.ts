@@ -145,6 +145,19 @@ export const itemDefinitions = [
       blocksMovement: true,
       /** 台面。灶眼槽位的 1.03 是灶圈顶面，架在这上面 */
       surfaceHeight: 0.98,
+      /**
+       * 台面 12×8 半格（= 6×4 占地 × 2）。**不是全部可摆**：
+       * L 缺口由 footprintMask 自动排除，三个灶眼由 slots 自动留净空
+       * （见 logic/surfaces 的 deadSurfaceCells），这里只需要点名水槽——
+       * 它是台面上开的真洞（kitchen.ts 配方 sinkX=1.6, halfW=0.55,
+       * halfD=0.36，本地系换算成半格就是这六格）。改配方里的水槽位置
+       * 记得同步这串坐标。
+       */
+      surfaceGrid: { width: 12, height: 8 },
+      surfaceBlocked: [
+        [8, 0], [9, 0], [10, 0],
+        [8, 1], [9, 1], [10, 1],
+      ],
       interactHint: {
         localizationKey: "hint.stove",
         action: "interact",
@@ -198,6 +211,7 @@ export const itemDefinitions = [
       blocksMovement: true,
       /** 工作台面 */
       surfaceHeight: 0.91,
+      surfaceGrid: { width: 4, height: 2 },
       interactHint: {
         localizationKey: "hint.workbench",
         action: "interact",
@@ -220,6 +234,8 @@ export const itemDefinitions = [
       blocksMovement: true,
       /** 桌面 */
       surfaceHeight: 0.83,
+      /** 台面 4×2 半格 = 整个 2×1m 桌面。一张桌子能摆 8 件小物 */
+      surfaceGrid: { width: 4, height: 2 },
     },
   },
   {
@@ -395,6 +411,17 @@ export const itemDefinitions = [
     rarity: Rarity.Rare,
     visual: { id: "record_animal_crossing" },
     record: { albumId: "animal_crossing_new_horizons_2021" },
+    /**
+     * 唱片能摆上桌面（封套立着展示）。surface: Surface = **只**上台面，
+     * 不能摆地上——想放地上有掉落物那条路（扔出去）。
+     */
+    placement: {
+      surface: PlacementSurface.Surface,
+      footprint: { width: 1, height: 1 },
+      capabilities: [],
+      blocksMovement: false,
+      surfaceFootprint: { width: 1, height: 1 },
+    },
   },
   {
     id: "record_minecraft",
@@ -404,6 +431,17 @@ export const itemDefinitions = [
     rarity: Rarity.Rare,
     visual: { id: "record_minecraft" },
     record: { albumId: "minecraft" },
+    /**
+     * 唱片能摆上桌面（封套立着展示）。surface: Surface = **只**上台面，
+     * 不能摆地上——想放地上有掉落物那条路（扔出去）。
+     */
+    placement: {
+      surface: PlacementSurface.Surface,
+      footprint: { width: 1, height: 1 },
+      capabilities: [],
+      blocksMovement: false,
+      surfaceFootprint: { width: 1, height: 1 },
+    },
   },
   {
     id: "furniture_storage_chest",
@@ -420,6 +458,7 @@ export const itemDefinitions = [
       blocksMovement: true,
       /** 箱盖顶 */
       surfaceHeight: 0.76,
+      surfaceGrid: { width: 2, height: 2 },
       interactHint: {
         localizationKey: "hint.chest",
         action: "interact",
@@ -569,6 +608,8 @@ export const itemDefinitions = [
       capabilities: [],
       floorLayer: FloorLayer.Object,
       blocksMovement: true,
+      /** 也能上桌：落地占 1×1 整格，上桌占 2×2 半格（同一件东西两套坐标系里的两个尺寸） */
+      surfaceFootprint: { width: 2, height: 2 },
       interactHint: {
         localizationKey: "hint.potted_plant",
         action: "interact",

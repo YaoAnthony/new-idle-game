@@ -1,4 +1,4 @@
-import { findPlaceableItem } from "core";
+import { findPlaceableItem, surfaceChildrenOf } from "core";
 import { guardWorldMutation } from "../Net/worldLock";
 import { addItem, getCount, removeItem } from "../State/inventory";
 import {
@@ -67,6 +67,12 @@ export function pickupFurniture(instanceId: string): PickupResult {
 
   // 装着东西的箱子搬走会把里面的东西一起吞掉，先让玩家清空
   if (!isStorageEmpty(storageIdFor(instanceId))) {
+    return { ok: false, reason: "not_empty" };
+  }
+
+  // 台面上还摆着东西的桌子同理：搬走宿主会让上面的东西集体悬空。
+  // 和箱子共用 not_empty——对玩家是同一句话："先把上面/里面清了"
+  if (surfaceChildrenOf(getWorld().placedFurniture, instanceId).length > 0) {
     return { ok: false, reason: "not_empty" };
   }
 

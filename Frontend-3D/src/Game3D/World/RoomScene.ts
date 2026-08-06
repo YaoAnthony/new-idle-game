@@ -476,6 +476,7 @@ export class RoomScene {
       this.rig.camera,
       this.renderer.renderer.domElement,
       this.built.walls,
+      () => this.furnitureView.findSurfaceHostViews(),
     );
 
     this.detachInput = this.attachInput();
@@ -764,7 +765,14 @@ export class RoomScene {
       let node: typeof hit.object | null = hit.object;
       while (node && !node.userData.instanceId) node = node.parent;
       if (node?.userData.instanceId) {
-        pickupFurniture(node.userData.instanceId as string);
+        const result = pickupFurniture(node.userData.instanceId as string);
+        // 被挡要说话：右键一张摆着东西的桌子毫无反应，玩家只会以为坏了
+        if (result.ok === false && result.reason === "not_empty") {
+          pushChatMessage({
+            kind: ChatMessageKind.System,
+            text: t("placement.not_empty"),
+          });
+        }
         return true;
       }
     }

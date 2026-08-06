@@ -808,6 +808,17 @@ export const migrations: Migration[] = [
     to: 22,
     migrate: (save) => save,
   },
+
+  /*
+   * v23（2026-08-05 台面放置）：FurniturePlacement 联合类型多了 Surface
+   * 变体（摆在别的家具顶面上，宿主本地半格坐标）。老存档里没有这种条目，
+   * 数据不用动；推版本号的理由同 v20/v22——旧客户端读到带台面件的档
+   * 会把那些条目当损坏丢弃，玩家摆的东西静默消失。
+   */
+  {
+    to: 23,
+    migrate: (save) => save,
+  },
 ];
 
 /**

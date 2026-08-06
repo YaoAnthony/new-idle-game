@@ -14,6 +14,7 @@ import {
   type FurnitureLookup,
   type RoomOccupancy,
 } from "./occupancy.js";
+import { revalidateSurfaceChildren } from "./surfaces.js";
 
 export type PlacementRejection =
   | "unknown_furniture"
@@ -130,6 +131,10 @@ export type RevalidationResult = {
 /**
  * 全量重校验。换装修风格或扩建房子之后调用：仍然合法的原位保留，
  * 悬空或压进墙里的退回背包，由调用方负责把 displaced 放进玩家背包并提示。
+ *
+ * **两遍制**：先定地面/墙面家具的生死，再校台面件（logic/surfaces）——
+ * 桌上的东西要先知道桌子还在不在。顺序反过来的话，孩子对着一张
+ * 即将被判掉的桌子通过校验，下一次读档才发现自己悬空。
  */
 export function revalidatePlacements(
   room: RoomSave,
@@ -138,8 +143,14 @@ export function revalidatePlacements(
 ): RevalidationResult {
   const kept: PlacedFurniture[] = [];
   const displaced: PlacedFurniture[] = [];
+  const surfaceChildren: PlacedFurniture[] = [];
 
   for (const placed of placedFurniture) {
+    if (placed.placement.kind === PlacementSurface.Surface) {
+      surfaceChildren.push(placed);
+      continue;
+    }
+
     if (placed.placement.roomId !== room.roomId) {
       kept.push(placed);
       continue;
@@ -167,5 +178,9 @@ export function revalidatePlacements(
     else displaced.push(placed);
   }
 
-  return { kept, displaced };
+  const surfaces = revalidateSurfaceChildren(kept, surfaceChildren, lookup);
+  return {
+    kept: [...kept, ...surfaces.kept],
+    displaced: [...displaced, ...surfaces.displaced],
+  };
 }

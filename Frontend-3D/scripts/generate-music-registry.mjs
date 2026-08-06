@@ -107,11 +107,26 @@ function slugOf(value) {
   return normalized || "album";
 }
 
-/** 专辑封面：文件夹里放一张 curver.png（统一用这个名，2026-08-05 定） */
+/**
+ * 专辑封面：按候选名单挨个找，找到第一个就用。
+ * coverart 排最前（2026-08-05 定，比 curver 那张质量好）；
+ * 专辑图打包下载常带自己的名字，每次让人改名不现实，所以是名单不是单名。
+ */
+const COVER_CANDIDATES = [
+  "coverart.png",
+  "coverart.jpg",
+  "curver.png",
+  "curver.jpg",
+  "cover.png",
+  "cover.jpg",
+];
+
 function coverOf(folder) {
-  const coverPath = path.join(musicDir, folder, "curver.png");
-  if (!fs.existsSync(coverPath)) return undefined;
-  return `/music/${encodeURIComponent(folder).replace(/'/g, "%27")}/curver.png`;
+  for (const name of COVER_CANDIDATES) {
+    if (!fs.existsSync(path.join(musicDir, folder, name))) continue;
+    return `/music/${encodeURIComponent(folder).replace(/'/g, "%27")}/${name}`;
+  }
+  return undefined;
 }
 
 const albums = new Map();

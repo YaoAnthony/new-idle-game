@@ -6,7 +6,7 @@ export const MUSIC_ALBUMS: readonly MusicAlbum[] = [
   {
     "id": "animal_crossing_new_horizons_2021",
     "label": "Animal Crossing New Horizons (2021)",
-    "coverUrl": "/music/Animal%20Crossing%20New%20Horizons%20(2021)/curver.png",
+    "coverUrl": "/music/Animal%20Crossing%20New%20Horizons%20(2021)/coverart.jpg",
     "tracks": [
       {
         "id": "music.animal_crossing_new_horizons_2021_1_02_1200_am_sunny",
@@ -542,6 +542,38 @@ export const MUSIC_ALBUMS: readonly MusicAlbum[] = [
         "id": "music.animal_crossing_new_horizons_2021_4_65_opening_theme_remote_performance",
         "label": "Opening Theme (Remote Performance)",
         "url": "/music/Animal%20Crossing%20New%20Horizons%20(2021)/4-65.%20Opening%20Theme%20(Remote%20Performance).mp3"
+      }
+    ]
+  },
+  {
+    "id": "minecraft",
+    "label": "Minecraft",
+    "coverUrl": "/music/Minecraft/coverart.jpg",
+    "tracks": [
+      {
+        "id": "music.minecraft_1_03_subwoofer_lullaby",
+        "label": "Subwoofer Lullaby",
+        "url": "/music/Minecraft/1-03.%20Subwoofer%20Lullaby.mp3"
+      },
+      {
+        "id": "music.minecraft_1_04_minecraft_haggstrom",
+        "label": "minecraft- Haggstrom",
+        "url": "/music/Minecraft/1-04.%20minecraft-%20Haggstrom.mp3"
+      },
+      {
+        "id": "music.minecraft_011_it_s_decided_then",
+        "label": "It s Decided Then",
+        "url": "/music/Minecraft/011%20-%20It_s%20Decided%20Then.mp3"
+      },
+      {
+        "id": "music.minecraft_grandpa_s_theme",
+        "label": "Grandpa s Theme",
+        "url": "/music/Minecraft/Grandpa_s%20Theme.mp3"
+      },
+      {
+        "id": "music.minecraft_travelers",
+        "label": "Travelers",
+        "url": "/music/Minecraft/Travelers.mp3"
       }
     ]
   }

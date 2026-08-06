@@ -397,6 +397,15 @@ export const itemDefinitions = [
     record: { albumId: "animal_crossing_new_horizons_2021" },
   },
   {
+    id: "record_minecraft",
+    localizationKey: "item.record_minecraft",
+    category: ItemCategory.Material,
+    stackLimit: 1,
+    rarity: Rarity.Rare,
+    visual: { id: "record_minecraft" },
+    record: { albumId: "minecraft" },
+  },
+  {
     id: "furniture_storage_chest",
     localizationKey: "item.furniture_storage_chest",
     category: ItemCategory.Furniture,

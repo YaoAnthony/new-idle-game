@@ -131,6 +131,10 @@ const REGISTRY: Record<string, VisualEntry> = {
     kind: "procedural",
     build: () => buildRecordSleeve("animal_crossing_new_horizons_2021"),
   },
+  record_minecraft: {
+    kind: "procedural",
+    build: () => buildRecordSleeve("minecraft"),
+  },
   wooden_bed: { kind: "procedural", build: buildWoodenBed },
   round_stool: { kind: "procedural", build: buildRoundStool },
   floor_cushion: { kind: "procedural", build: buildCushion },

@@ -569,6 +569,9 @@ const ZH: Record<string, string> = {
   "item.record_animal_crossing": "唱片·集落原声",
   "item.record_animal_crossing.desc":
     "一张旧黑胶，封套上画着海岛的清晨。塞进唱片机就能换一整柜子的歌。",
+  "item.record_minecraft": "唱片·方块摇篮曲",
+  "item.record_minecraft.desc":
+    "封套是一片像素的草原。放出来的曲子安静得像在挖一条很深的矿道。",
 
   // 白噪音台（专注时左边那块）
   "ui.mixer.title": "白噪音",

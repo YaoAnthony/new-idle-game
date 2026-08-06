@@ -42,8 +42,9 @@ import type { DroppedItem, WorldSave } from "./world.js";
  *
  * v2（2026-08-04）：加 world:op 通道（见 WorldOp）。
  * v3（2026-08-04）：op 通道加每日任务两种（daily_board_ticked / _claimed）。
+ * v4（2026-08-05）：加唱片机换唱片（gramophone_record_set）+ gramophones 刷新切片。
  */
-export const NET_PROTOCOL_VERSION = 3;
+export const NET_PROTOCOL_VERSION = 4;
 
 /** 服务端强制的上限。放在共享类型里，客户端可以在发送前先自查 */
 export const NET_LIMITS = {
@@ -204,6 +205,8 @@ export type WorldRefreshSlices = {
   inventories?: Record<string, InventorySave>;
   weather?: WeatherSave;
   clock?: WorldClockSave;
+  /** 每台唱片机装着哪张唱片（协议 v4）。形状同 WorldSave.gramophones */
+  gramophones?: Record<string, { recordItemId: string }>;
 };
 
 export type WorldRefreshEvent = {
@@ -278,6 +281,16 @@ export type WorldOp =
       /** 一个储物箱的整箱内容。箱级替换，比逐格 op 抗竞争 */
       kind: "storage_box_set";
       box: InventorySave;
+    }
+  | {
+      /**
+       * 有人给唱片机换了唱片（协议 v4）。旧唱片弹出来那一下走
+       * item_thrown（现成的抛物线 op），这条只负责"机器里现在是哪张"。
+       * 幂等：同一张再设一次就地跳过。
+       */
+      kind: "gramophone_record_set";
+      instanceId: string;
+      recordItemId: string;
     }
   | {
       /**

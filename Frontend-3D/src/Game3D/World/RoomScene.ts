@@ -5,6 +5,7 @@ import {
   FurnitureCapability,
   WeatherKind,
   YARD_MARGIN,
+  findItemDefinition,
   findPath,
   findPetDefinition,
 } from "core";
@@ -63,8 +64,13 @@ import {
 import type { Door as DoorAgent } from "../../Game/State/doorAgent";
 import { getHeld } from "../../Game/State/heldItem";
 import {
+  consumeSelectedOne,
+  getSelectedStack,
+} from "../../Game/State/inventory";
+import {
   findDroppedItem,
   removeDroppedItem,
+  throwItem,
   tickDroppedItems,
 } from "../../Game/State/droppedItems";
 import {
@@ -82,6 +88,7 @@ import {
   getDefinition,
   getRoomStyle,
   getWorld,
+  roomIdAt,
   seedInitialFurniture,
 } from "../../Game/State/worldRuntime";
 import { getActiveAction } from "../../Game/Systems/actions";
@@ -110,6 +117,7 @@ import { startSleep } from "../../Game/Systems/sleep";
 import { getClock } from "../../Game/State/clock";
 import { getResting, isResting } from "../../Game/State/posture";
 import { pruneOrphanStorages } from "../../Game/State/storage";
+import { pruneOrphanGramophones } from "../../Game/State/gramophones";
 import { getWeather } from "../../Game/State/weather";
 import {
   DEFAULT_POSTURE,
@@ -136,6 +144,10 @@ import { PlacementController } from "../Interaction/PlacementController.js";
 import { buildCharacter } from "./CharacterView.js";
 import { RemotePlayersView } from "./RemotePlayersView.js";
 import { DailyBoardAnimator } from "./DailyBoardAnimator.js";
+import { GramophoneAnimator } from "./GramophoneAnimator.js";
+import { cycleMusicMode, getMusicMode } from "../Engine/MusicDirector.js";
+import { recordIn, setRecord } from "../../Game/State/gramophones";
+import { albumLabelOf } from "../../Data/music/albums";
 import {
   FACING_VECTOR,
   FurnitureView,
@@ -174,6 +186,7 @@ export class RoomScene {
   private readonly remotePlayers: RemotePlayersView;
   /** 每日任务机满格时的那一下弹跳。没机器时什么都不做 */
   private readonly dailyBoardAnimator: DailyBoardAnimator;
+  private readonly gramophoneAnimator: GramophoneAnimator;
   /** 外门门板 + 它的逻辑实体，视图每帧照实体画 */
   private readonly doorViews: { view: DoorView; agent: DoorAgent | undefined }[] = [];
   private readonly roomDoorViews = new Map<string, RoomDoorView>();
@@ -280,6 +293,9 @@ export class RoomScene {
     // 现查不缓存：机器可能被收走或摆第二台
     this.dailyBoardAnimator = new DailyBoardAnimator(() =>
       this.furnitureView.findByFurnitureId("furniture_daily_board"),
+    );
+    this.gramophoneAnimator = new GramophoneAnimator(() =>
+      this.furnitureView.findInstancesByFurnitureId("furniture_gramophone"),
     );
 
     this.furnitureView = new FurnitureView(this.built.size);
@@ -400,6 +416,9 @@ export class RoomScene {
         reconcileResting();
         // 家具没了它的箱子也该没，否则存档会带着永远打不开的幽灵库存
         pruneOrphanStorages(
+          getWorld().placedFurniture.map((item) => item.instanceId),
+        );
+        pruneOrphanGramophones(
           getWorld().placedFurniture.map((item) => item.instanceId),
         );
       }),
@@ -908,9 +927,30 @@ export class RoomScene {
       if (distance >= bestHintDistance) continue;
 
       bestHintDistance = distance;
+
+      /**
+       * 唱片机的气泡显示**当前播放模式**（顺序播放/随机播放/单曲循环），
+       * 按 F 切完文案立刻换。和门的开/关一个道理：气泡描述的是状态，
+       * 状态在运行时，数据表里那个 key 只是兜底。
+       */
+      const holdingRecord = Boolean(
+        findItemDefinition(getSelectedStack()?.itemId ?? "")?.record,
+      );
+      const hint = definition.placement.capabilities.includes(
+        FurnitureCapability.MusicPlayer,
+      )
+        ? {
+            ...definition.placement.interactHint,
+            // 拿着唱片时 F 的含义变了，气泡跟着变（和门开/关同理）
+            localizationKey: holdingRecord
+              ? "hint.gramophone_insert"
+              : `music.mode.${getMusicMode()}`,
+          }
+        : definition.placement.interactHint;
+
       bestHint = {
         instanceId: placed.instanceId,
-        hint: definition.placement.interactHint,
+        hint,
         world: new Vector3(
           center.x,
           definition.placement.interactHint.anchorHeight ?? 1.2,
@@ -951,6 +991,8 @@ export class RoomScene {
         ? ("unpack" as const)
         : definition.placement.capabilities.includes(FurnitureCapability.DailyBoard)
         ? ("daily_board" as const)
+        : definition.placement.capabilities.includes(FurnitureCapability.MusicPlayer)
+        ? ("music_player" as const)
         : definition.placement.capabilities.includes(FurnitureCapability.Crafting)
         ? ("crafting" as const)
         : definition.placement.capabilities.includes(FurnitureCapability.Cooking)
@@ -1131,6 +1173,69 @@ export class RoomScene {
           openUnpack(this.interactTarget.instanceId);
         } else if (this.interactTarget.capability === "daily_board") {
           emit("daily_board_open_requested", {});
+        } else if (this.interactTarget.capability === "music_player") {
+          /*
+           * 两种 F（2026-08-05 定）：
+           * - **手上拿着唱片** → 换唱片：新的塞进去，旧的从机器里
+           *   弹出来落地自己捡（走 throwItem，物理和联机同步现成）。
+           * - 空手 → 轻交互，循环切播放模式（顺序→随机→单曲循环）。
+           * 反馈都走消息栏一句 + 气泡文案（下面 hint 动态覆盖）。
+           */
+          const held = getSelectedStack();
+          const heldRecord = held
+            ? findItemDefinition(held.itemId)?.record
+            : undefined;
+          if (held && heldRecord) {
+            const machineId = this.interactTarget.instanceId;
+            const ejected = recordIn(machineId);
+            if (ejected === held.itemId) {
+              // 同一张再塞一遍没有意义，告诉玩家它已经在里面了
+              pushChatMessage({
+                kind: ChatMessageKind.System,
+                text: t("music.record_already_in"),
+              });
+            } else {
+              consumeSelectedOne();
+              setRecord(machineId, held.itemId);
+              // 旧唱片从机器那儿朝玩家弹出来。roomIdAt/getWorld 已在本文件引入
+              if (ejected) {
+                const placed = getWorld().placedFurniture.find(
+                  (item) => item.instanceId === machineId,
+                );
+                const center = placed
+                  ? furnitureWorldCenter(
+                      placed,
+                      getDefinition(placed.furnitureId)!.placement,
+                      this.built.size,
+                    )
+                  : { x: this.controller.x, z: this.controller.z };
+                throwItem({
+                  roomId: roomIdAt(center.x, center.z),
+                  stack: {
+                    stackId: `record:${ejected}`,
+                    itemId: ejected,
+                    quantity: 1,
+                  },
+                  from: { x: center.x, z: center.z },
+                  heading: Math.atan2(
+                    this.controller.x - center.x,
+                    this.controller.z - center.z,
+                  ),
+                });
+              }
+              const albumId = heldRecord.albumId;
+              pushChatMessage({
+                kind: ChatMessageKind.System,
+                text: `♪ ${t("music.record_swapped")}${albumLabelOf(albumId)}`,
+              });
+            }
+          } else {
+            const mode = cycleMusicMode();
+            pushChatMessage({
+              kind: ChatMessageKind.System,
+              text: `♪ ${t(`music.mode.${mode}`)}`,
+            });
+          }
         } else if (this.interactTarget.capability === "cooking") {
           // 灶台不开面板：菜是真的在锅里做出来的。
           // 对着离自己最近的那个灶眼操作（放锅 / 投料 / 起锅 / 端起来）
@@ -1543,6 +1648,7 @@ export class RoomScene {
     this.petView.update(deltaSeconds);
     this.remotePlayers.update(deltaSeconds);
     this.dailyBoardAnimator.update(deltaSeconds);
+    this.gramophoneAnimator.update(deltaSeconds);
 
     // 火候：只有架在灶眼上、且内容匹配到配方的锅才会走进度
     tickKitchen(deltaSeconds);

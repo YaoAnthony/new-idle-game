@@ -53,6 +53,12 @@ op 是尽力而为（服务端不逐条校验游戏规则），乱序、丢失�
 两种 op 都不带 `instanceId`。任务池是**个人**的（`PlayerSave.dailyTasks`），
 永远不上网——房客在别人家看到的还是自己的待办。
 
+**唱片机（协议 v4）**：`gramophone_record_set` 广播"这台机器现在装着
+哪张唱片"（幂等，同张跳过）；旧唱片弹出走现成的 `item_thrown`。装着哪张
+唱片是世界状态（`WorldSave.gramophones`，刷新新增 `gramophones` 切片），
+但**播放模式/音量是个人的**（localStorage，不上网）——音乐各端各放，
+共享的只有"物理上装着哪张"。
+
 **权限（2026-08-04 定）：所有参与者默认满权限**——房客可以扔、捡、
 摆家具、用厨房、开储物箱。分级权限（例如"访客不能拆家"）是后续版本，
 客户端的守卫机制（worldLock）保留为那时的挂点。已知取舍：两人同一瞬间
@@ -111,3 +117,4 @@ op 是尽力而为（服务端不逐条校验游戏规则），乱序、丢失�
 - [ ] 房客断开 → `participant:left`；房主断开 → `session:ended` 且会话销毁
 - [ ] `world:op` 双向转发，身份由服务端认定；未知 kind / 超大载荷静默丢弃
 - [ ] 每日任务两种 op（`daily_board_ticked` / `daily_board_claimed`）在白名单内
+- [ ] 换唱片 op（`gramophone_record_set`）在白名单内；`gramophones` 刷新切片被接受

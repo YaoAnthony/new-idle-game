@@ -637,6 +637,12 @@ export function setChannelGain(channel: string, value: number): void {
     // 拖滑块要立刻听到反应，和总线滑块用同一个时长
     handle.userGain.gain.linearRampToValueAtTime(clamped, now + 0.08);
   }
+  // 音乐那条推子：所有在播的曲子共享一个节点，一次拧到位
+  if (channel === MUSIC_MIXER_CHANNEL && musicUserGain) {
+    musicUserGain.gain.cancelScheduledValues(now);
+    musicUserGain.gain.setValueAtTime(musicUserGain.gain.value, now);
+    musicUserGain.gain.linearRampToValueAtTime(clamped, now + 0.08);
+  }
   emit("mixer_changed", { channel });
 }
 
@@ -666,6 +672,18 @@ export type MixerChannelView = {
 export function describeMixerChannels(): MixerChannelView[] {
   const rows = new Map<string, MixerChannelView>();
 
+  // 正在放歌就有"音乐"一行。它不来自 loops（另一条管线），单独挂
+  if (musicPlaybacks.size > 0) {
+    rows.set(MUSIC_MIXER_CHANNEL, {
+      channel: MUSIC_MIXER_CHANNEL,
+      profileId: MUSIC_MIXER_CHANNEL,
+      localizationKey: "audio.music",
+      busId: AudioBusId.Music,
+      gain: getChannelGain(MUSIC_MIXER_CHANNEL),
+      ambient: 1,
+    });
+  }
+
   for (const handle of loops.values()) {
     const channel = mixerChannelOf(handle.profileId);
     const definition = findAudioProfileDefinition(handle.profileId);
@@ -691,6 +709,158 @@ export function describeMixerChannels(): MixerChannelView[] {
   return [...rows.values()].sort(
     (a, b) => b.ambient - a.ambient || a.channel.localeCompare(b.channel),
   );
+}
+
+// ---- 音乐（唱片机 / BGM）----
+//
+// 音乐和环境音走**两条完全不同的管线**。环境音是 decodeAudioData 进内存的
+// AudioBuffer——几秒的素材，要采样级无缝循环，这是对的；但一首歌好几分钟，
+// 整段解码一首就是几十 MB 内存加秒级卡顿，一百多首的曲库根本不能这么玩。
+// 音乐走 HTMLAudioElement 流式播放，经 MediaElementSource 汇入 Music 总线，
+// 于是标题页的 Music 滑块、白噪音台的推子对它照样有效。
+//
+// 顺带的好处：媒体元素在标签页切后台时**不会停**（rAF 停了它也继续），
+// `ended` 事件照发——Oldfrontend 为后台播放专门写的 setTimeout 兜底，
+// 在这条管线上不需要。
+
+export type MusicPlayback = {
+  url: string;
+  element: HTMLAudioElement;
+  /** 淡入淡出的包络（引擎/导播用）。玩家的推子在共享的 musicUserGain 上，两层相乘 */
+  gain: GainNode;
+  source: MediaElementAudioSourceNode;
+  disposed: boolean;
+};
+
+/**
+ * 白噪音台上"音乐"那条推子的频道名。所有曲子共用一条——
+ * 曲库是脚本扫出来的，不在 Core 注册表里，mixerGroup 那条路走不到，
+ * 所以这里直接归到一个固定频道（这就是它的"分组"，同样是数据不是分支）。
+ */
+export const MUSIC_MIXER_CHANNEL = "music";
+
+/** 交叉淡化时短暂有两条在播，全部汇到这一个玩家推子 */
+let musicUserGain: GainNode | null = null;
+const musicPlaybacks = new Set<MusicPlayback>();
+
+function ensureMusicUserGain(ctx: AudioContext): GainNode {
+  if (musicUserGain) return musicUserGain;
+
+  musicUserGain = ctx.createGain();
+  musicUserGain.gain.value = getChannelGain(MUSIC_MIXER_CHANNEL);
+  const bus = buses.get(AudioBusId.Music);
+  if (bus) musicUserGain.connect(bus);
+  return musicUserGain;
+}
+
+export type PlayMusicOptions = {
+  /** 淡入时长（秒）。0 = 直接起 */
+  fadeSeconds?: number;
+  /** 单曲循环用：媒体元素自己无缝循环，不发 ended */
+  loop?: boolean;
+  /** 自然播完（不是被 fadeOutMusic 停的）。导播靠它推进播放列表 */
+  onEnded?: () => void;
+  /** 起播失败（404、解码不了）。导播靠它跳过坏文件而不是卡死 */
+  onFailed?: () => void;
+};
+
+/**
+ * 起一首歌。**解锁前返回 null**——音乐的重试属于导播（它听
+ * `audio_unlocked`），引擎不替它排队：排队意味着引擎要记住"该播哪首"，
+ * 而那正是导播的全部职责，两边各记一份迟早打架。
+ */
+export function playMusic(
+  url: string,
+  options: PlayMusicOptions = {},
+): MusicPlayback | null {
+  const ctx = ensureContext();
+  if (!ctx || !unlocked) return null;
+
+  const element = new Audio(url);
+  element.loop = options.loop ?? false;
+  element.crossOrigin = "anonymous";
+
+  const gain = ctx.createGain();
+  gain.connect(ensureMusicUserGain(ctx));
+
+  const playback: MusicPlayback = {
+    url,
+    element,
+    gain,
+    source: ctx.createMediaElementSource(element),
+    disposed: false,
+  };
+  playback.source.connect(gain);
+  musicPlaybacks.add(playback);
+
+  const fade = options.fadeSeconds ?? 0;
+  if (fade > 0) {
+    gain.gain.value = 0;
+    gain.gain.linearRampToValueAtTime(1, ctx.currentTime + fade);
+  } else {
+    gain.gain.value = 1;
+  }
+
+  element.addEventListener("ended", () => {
+    if (playback.disposed) return;
+    disposeMusic(playback);
+    options.onEnded?.();
+  });
+  element.addEventListener("error", () => {
+    if (playback.disposed) return;
+    disposeMusic(playback);
+    options.onFailed?.();
+  });
+  void element.play().catch(() => {
+    // 解锁后一般不会拒，但拒了也要走失败出口，别让导播干等一首没在播的歌
+    if (playback.disposed) return;
+    disposeMusic(playback);
+    options.onFailed?.();
+  });
+
+  return playback;
+}
+
+/** 淡出并停掉（换曲/停止用）。淡完才真正释放，避免咔哒声 */
+export function fadeOutMusic(playback: MusicPlayback, seconds = 0.8): void {
+  if (playback.disposed || !context) return;
+
+  const now = context.currentTime;
+  playback.gain.gain.cancelScheduledValues(now);
+  playback.gain.gain.setValueAtTime(playback.gain.gain.value, now);
+  playback.gain.gain.linearRampToValueAtTime(0, now + seconds);
+
+  window.setTimeout(() => disposeMusic(playback), seconds * 1000 + 100);
+}
+
+/** 还剩几秒。元数据没加载完时是 null（导播把 null 当"还早"处理） */
+export function musicRemainingSeconds(playback: MusicPlayback): number | null {
+  const duration = playback.element.duration;
+  if (!Number.isFinite(duration) || duration <= 0) return null;
+  return Math.max(0, duration - playback.element.currentTime);
+}
+
+/** 切模式时改循环标志：进单曲循环不用重起当前这首 */
+export function setMusicLooping(playback: MusicPlayback, loop: boolean): void {
+  playback.element.loop = loop;
+}
+
+export function isMusicActive(): boolean {
+  return musicPlaybacks.size > 0;
+}
+
+function disposeMusic(playback: MusicPlayback): void {
+  if (playback.disposed) return;
+  playback.disposed = true;
+
+  playback.element.pause();
+  // 摘掉 src 让浏览器放掉网络/解码资源；MediaElementSource 一元素一次，
+  // 元素不复用，直接整个丢掉
+  playback.element.removeAttribute("src");
+  playback.element.load();
+  playback.source.disconnect();
+  playback.gain.disconnect();
+  musicPlaybacks.delete(playback);
 }
 
 // ---- 音量 ----

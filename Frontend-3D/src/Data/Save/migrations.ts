@@ -797,6 +797,17 @@ export const migrations: Migration[] = [
       return save;
     },
   },
+
+  /*
+   * v22（2026-08-05 唱片机）：WorldSave 多了 gramophones（每台唱片机
+   * 装着哪张唱片）。纯新增可选字段，缺省 = 装着出厂默认那张，
+   * 数据本身不用动——推版本号的理由同 v20：不推的话旧客户端会把
+   * 这个字段整个丢掉再存回去，玩家换上的唱片就静默变回默认了。
+   */
+  {
+    to: 22,
+    migrate: (save) => save,
+  },
 ];
 
 /**

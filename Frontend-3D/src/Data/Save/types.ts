@@ -16,7 +16,7 @@ export type SaveMode = "local_only" | "cloud_sync" | "multiplayer_session";
  * 记的版本，不看这个常量）——v19 就这么漏过一次，联机之后险些把
  * 带发号方前缀的 id 套成两层。加迁移时两处一起改。
  */
-export const SAVE_SCHEMA_VERSION = 21;
+export const SAVE_SCHEMA_VERSION = 22;
 
 /**
  * 键名结构对齐 V0.8，以后接云同步不用重构。

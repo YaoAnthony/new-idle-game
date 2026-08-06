@@ -553,6 +553,23 @@ const ZH: Record<string, string> = {
   "audio.action_writing": "笔尖",
   "audio.storage_open": "开箱",
 
+  // 音乐（白噪音台上归一条推子；曲名来自文件名，不进词典）
+  "audio.music": "音乐",
+  "item.furniture_gramophone": "唱片机",
+  "item.furniture_gramophone.desc":
+    "黄铜大喇叭的老式留声机。靠近能看到它在放什么，按一下换个放法。",
+  // 唱片机气泡显示的就是当前模式；hint.gramophone 只是数据表兜底
+  "hint.gramophone": "换个放法",
+  "music.mode.sequential": "顺序播放",
+  "music.mode.shuffle": "随机播放",
+  "music.mode.repeat-one": "单曲循环",
+  "hint.gramophone_insert": "放入唱片",
+  "music.record_swapped": "换上了 ",
+  "music.record_already_in": "这张唱片已经在放了",
+  "item.record_animal_crossing": "唱片·集落原声",
+  "item.record_animal_crossing.desc":
+    "一张旧黑胶，封套上画着海岛的清晨。塞进唱片机就能换一整柜子的歌。",
+
   // 白噪音台（专注时左边那块）
   "ui.mixer.title": "白噪音",
   "ui.mixer.hint": "只影响你自己",

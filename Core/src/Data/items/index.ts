@@ -357,6 +357,46 @@ export const itemDefinitions = [
     },
   },
   {
+    id: "furniture_gramophone",
+    localizationKey: "item.furniture_gramophone",
+    category: ItemCategory.Furniture,
+    stackLimit: 9,
+    rarity: Rarity.Rare,
+    visual: { id: "gramophone" },
+    // 出厂装着动森那张。换唱片时它会被弹出来，从此变成一件普通物品
+    musicPlayer: { defaultRecordItemId: "record_animal_crossing" },
+    placement: {
+      surface: PlacementSurface.Floor,
+      footprint: { width: 1, height: 1 },
+      capabilities: [FurnitureCapability.MusicPlayer],
+      floorLayer: FloorLayer.Object,
+      blocksMovement: true,
+      /** 柜面高度（转盘所在的台面） */
+      surfaceHeight: 0.43,
+      interactHint: {
+        // 占位文案：气泡实际显示**当前播放模式**（RoomScene 动态覆盖），
+        // 这里的 key 只在动态覆盖失效时兜底
+        localizationKey: "hint.gramophone",
+        action: "interact",
+        anchorHeight: 1.35,
+      },
+    },
+  },
+  {
+    /**
+     * 唱片（V0.12）。albumId 对上 public/music 的专辑文件夹。
+     * **加新专辑照这个抄一份**：放文件夹（带 curver.png 封面）→
+     * 补一个条目 + 一行文案 + VisualRegistry 一行封套配方。
+     */
+    id: "record_animal_crossing",
+    localizationKey: "item.record_animal_crossing",
+    category: ItemCategory.Material,
+    stackLimit: 1,
+    rarity: Rarity.Rare,
+    visual: { id: "record_animal_crossing" },
+    record: { albumId: "animal_crossing_new_horizons_2021" },
+  },
+  {
     id: "furniture_storage_chest",
     localizationKey: "item.furniture_storage_chest",
     category: ItemCategory.Furniture,

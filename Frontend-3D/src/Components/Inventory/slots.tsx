@@ -13,6 +13,7 @@ import {
   type SlotStack,
 } from "../../Game/State/inventory";
 import { t } from "../../i18n/t";
+import { recordCoverUrl } from "../../Data/music/albums";
 import { presentedItemId } from "../../Game/Systems/servedDish";
 
 /**
@@ -36,6 +37,9 @@ export function ItemIcon({
   const [broken, setBroken] = useState(false);
   const item = findItemDefinition(itemId);
   const sizing = fluid ? undefined : { width: size, height: size };
+  // 唱片的图标就是专辑封面（文件夹里的 curver.png）——
+  // 不用为每张专辑再画一张 /icons 图，加专辑自动有图标
+  const src = recordCoverUrl(itemId) ?? `/icons/${itemId}.png`;
 
   if (broken || !item) {
     return (
@@ -52,7 +56,7 @@ export function ItemIcon({
 
   return (
     <img
-      src={`/icons/${itemId}.png`}
+      src={src}
       alt={t(item.localizationKey)}
       draggable={false}
       className={`pointer-events-none select-none object-contain ${

@@ -188,6 +188,19 @@ export class FurnitureView {
     return result;
   }
 
+  /** 同上，但连 instanceId 一起给——唱片机换标贴要知道"这台是谁" */
+  findInstancesByFurnitureId(
+    furnitureId: string,
+  ): Array<{ instanceId: string; root: Object3D }> {
+    const result: Array<{ instanceId: string; root: Object3D }> = [];
+    for (const placed of getWorld().placedFurniture) {
+      if (placed.furnitureId !== furnitureId) continue;
+      const view = this.views.get(placed.instanceId);
+      if (view) result.push({ instanceId: placed.instanceId, root: view });
+    }
+    return result;
+  }
+
   private sync(): void {
     const { placedFurniture } = getWorld();
     const alive = new Set<string>();

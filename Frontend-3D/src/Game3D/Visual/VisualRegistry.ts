@@ -7,6 +7,8 @@ import {
 import { buildCushion, buildWoodenBed } from "./recipes/bedroom.js";
 import { buildCardboardBox, buildCardboardStack } from "./recipes/cardboardBox.js";
 import { buildDailyBoard } from "./recipes/dailyBoard.js";
+import { buildGramophone } from "./recipes/gramophone.js";
+import { buildRecordSleeve } from "./recipes/recordSleeve.js";
 import { buildPlate, buildTallPot, buildWok } from "./recipes/cookware.js";
 import {
   buildEmberWisp,
@@ -123,6 +125,12 @@ const REGISTRY: Record<string, VisualEntry> = {
   bookshelf: { kind: "procedural", build: buildBookshelf },
   storage_chest: { kind: "procedural", build: buildStorageChest },
   daily_board: { kind: "procedural", build: buildDailyBoard },
+  gramophone: { kind: "procedural", build: buildGramophone },
+  // 唱片：每张专辑一行（手写注册，见 Core items 的 record 条目注释）
+  record_animal_crossing: {
+    kind: "procedural",
+    build: () => buildRecordSleeve("animal_crossing_new_horizons_2021"),
+  },
   wooden_bed: { kind: "procedural", build: buildWoodenBed },
   round_stool: { kind: "procedural", build: buildRoundStool },
   floor_cushion: { kind: "procedural", build: buildCushion },

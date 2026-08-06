@@ -8,6 +8,7 @@ import {
   replaySettledItem,
   replayThrownItem,
 } from "../State/droppedItems";
+import { replayGramophoneRecord } from "../State/gramophones";
 import { replayStorageBox } from "../State/storage";
 import {
   replayPlaceFurniture,
@@ -50,6 +51,10 @@ export function applyWorldOp(op: WorldOp): void {
       return;
     case "storage_box_set":
       replayStorageBox(op.box);
+      return;
+    case "gramophone_record_set":
+      // 旧唱片弹出来那一下走 item_thrown 自己会到，这里只管"装着哪张"
+      replayGramophoneRecord(op.instanceId, op.recordItemId);
       return;
     case "daily_board_ticked":
       // 取绝对进度、只认今天的包、只增不减——三条都在 applyRemoteProgress 里

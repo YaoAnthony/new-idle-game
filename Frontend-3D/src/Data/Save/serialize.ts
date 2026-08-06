@@ -24,6 +24,11 @@ import {
 } from "../../Game/State/participants";
 import { restoreResting, snapshotResting } from "../../Game/State/posture";
 import {
+  pruneOrphanGramophones,
+  restoreGramophones,
+  snapshotGramophones,
+} from "../../Game/State/gramophones";
+import {
   pruneOrphanStorages,
   restoreStorages,
   snapshotStorages,
@@ -166,6 +171,7 @@ export function serializeGameSave(previous?: GameSave): GameSave {
       // 消息记录只留最近几个世界日，裁剪规则在 Core 的 trimChatLog
       chatLog: snapshotChatLog(),
       inventories: snapshotStorages(),
+      gramophones: snapshotGramophones(),
       // 每日任务的**共享进度**属于这个家，不属于哪台机器（V0.11）
       dailyBoard: snapshotDailyBoard(),
 
@@ -222,11 +228,15 @@ export function hydrateGameSave(save: GameSave): void {
   // 恢复完立刻清一次幽灵库存——老存档里可能存着已经不在屋里的家具的箱子，
   // 不清的话它会一直占着 WorldSave.inventories 且永远打不开
   restoreStorages(save.ownWorld.inventories);
+  restoreGramophones(save.ownWorld.gramophones);
   // 老存档没有这个字段，restoreDroppedItems 会当空数组处理
   restoreDroppedItems(save.ownWorld.droppedItems);
   // 消息记录要在时钟之后恢复——裁剪按"今天是哪天"算
   restoreChatLog(save.ownWorld.chatLog);
   pruneOrphanStorages(
+    save.ownWorld.placedFurniture.map((item) => item.instanceId),
+  );
+  pruneOrphanGramophones(
     save.ownWorld.placedFurniture.map((item) => item.instanceId),
   );
 

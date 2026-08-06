@@ -95,6 +95,24 @@ export type ItemDefinition = {
   placement?: PlacementBlock;
 
   /**
+   * 是一张唱片（V0.12）。`albumId` 对应 public/music 下的专辑文件夹
+   * （见 Frontend 的曲库生成脚本：文件夹名 slug 化就是 albumId）。
+   *
+   * 唱片是**手写注册**的：曲库来自扫文件夹，但物品必须在这张表里
+   * （读档校验 findItemDefinition，不在表里的物品会被当坏记录丢弃）。
+   * 加一张专辑 = 放一个文件夹 + 在这里补一个条目。文件夹里放一张
+   * `curver.png` 当封面，物品图标和 3D 封套都渲染它。
+   */
+  record?: { albumId: string };
+
+  /**
+   * 是一台唱片机（V0.12）。出厂自带一张唱片（defaultRecordItemId），
+   * 换唱片时旧的弹出来落地。装着哪张唱片是世界状态
+   * （WorldSave.gramophones），换了全房间可见。
+   */
+  musicPlayer?: { defaultRecordItemId: ItemId };
+
+  /**
    * 能吃。**只有成品能有这一块**——生番茄、生鸡蛋、米一律不填，
    * 否则啃生食材比做饭省事，厨房就成了可选玩法。
    */

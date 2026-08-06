@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# 曲库不进仓库（2026-08-05 定）：版权音频 + 几百 MB 体积。
+# 生成的注册表（src/Data/music/generated.ts）照常提交——没有音乐文件的
+# 环境也要能编译；.gitkeep 保住空文件夹，脚本扫不到东西时生成空曲库。
+public/music/*
+!public/music/.gitkeep

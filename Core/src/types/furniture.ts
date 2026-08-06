@@ -65,6 +65,14 @@ export enum FurnitureCapability {
    */
   DailyBoard = "daily_board",
 
+  /**
+   * 唱片机：音乐系统在世界里的实体（V0.12）。
+   * 按 F 切播放模式（顺序/随机/单曲循环）；音乐本身是全局 BGM、
+   * 每个客户端各放各的——这个能力标记的是"模式的开关长在这件家具上"，
+   * 不是"声音从它发出"。
+   */
+  MusicPlayer = "music_player",
+
   // ---- 行动支撑能力 ----
   // 「家里有什么家具 → 能做哪类行动」是内容规则，必须放 Core：
   // 联机时服务端校验读的是同一份（AGENTS.md：Backend 不得复制一份独立的内容规则）。

@@ -183,6 +183,7 @@ const OP_KINDS = new Set([
   'storage_box_set',
   'daily_board_ticked',
   'daily_board_claimed',
+  'gramophone_record_set',
 ])
 
 const MAX_OP_BYTES = 65_536
@@ -201,6 +202,7 @@ const REFRESH_KEYS = new Set([
   'inventories',
   'weather',
   'clock',
+  'gramophones',
 ])
 
 export function parseRefreshSlices(value: unknown): WorldRefreshSlices | null {

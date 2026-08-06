@@ -36,6 +36,10 @@ import { reconcileDroppedItems, snapshotDroppedItems } from "../State/droppedIte
 import { setIdIssuer } from "../State/ids";
 import { LOCAL_PLAYER_ID, getLocalParticipant } from "../State/participants";
 import { restoreStorages, snapshotStorages } from "../State/storage";
+import {
+  restoreGramophones,
+  snapshotGramophones,
+} from "../State/gramophones";
 import { restoreWeather, snapshotWeather } from "../State/weather";
 import { getWorld, restoreWorld } from "../State/worldRuntime";
 import { getClock } from "../State/clock";
@@ -395,6 +399,7 @@ function applyWorldRefresh(event: WorldRefreshEvent): void {
   // 对账而不是全量替换：正在飞的重放实体要保住运动学（见 State/droppedItems）
   if (slices.droppedItems) reconcileDroppedItems(slices.droppedItems);
   if (slices.inventories) restoreStorages(slices.inventories);
+  if (slices.gramophones) restoreGramophones(slices.gramophones);
   if (slices.weather) restoreWeather(slices.weather);
   if (slices.clock) restoreClock(slices.clock);
 }
@@ -422,6 +427,7 @@ function startHostRefreshWatch(socket: Socket): void {
       inventories: snapshotStorages(),
       weather: snapshotWeather(),
       clock: snapshotClock(),
+      gramophones: snapshotGramophones(),
     });
   };
 
@@ -442,6 +448,7 @@ function startHostRefreshWatch(socket: Socket): void {
     on("world_changed", ({ reason }) => reason !== "restored" && schedule()),
     on("dropped_items_changed", ({ reason }) => reason !== "restored" && schedule()),
     on("storage_changed", () => schedule()),
+    on("gramophone_changed", () => schedule()),
     on("weather_changed", () => schedule()),
     on("kitchen_changed", () => schedule()),
   ];

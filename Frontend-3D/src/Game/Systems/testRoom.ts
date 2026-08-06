@@ -28,6 +28,8 @@ const EXCLUDED_FURNITURE_IDS = new Set(["cardboard_box", "cardboard_stack"]);
 
 /** 测试要用到的库存。每样都给够，免得测到一半材料不够 */
 const TEST_INVENTORY: Array<[string, number]> = [
+  // 唱片：测换片流程（塞进唱片机、旧的弹出来）
+  ["record_animal_crossing", 1],
   // 厨具与盛器
   ["wok", 1],
   ["tall_pot", 1],

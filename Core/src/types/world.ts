@@ -105,6 +105,14 @@ export type WorldSave = {
    */
   dailyBoard?: DailyBoardSave;
 
+  /**
+   * 每台唱片机里装着哪张唱片（V0.12），键为家具 instanceId。
+   * 是世界状态：谁换了唱片全房间都看得见、听得见（曲库跟着唱片走，
+   * 但播放模式/音量仍是各人自己的）。没有条目 = 还装着出厂那张
+   * （定义里的 defaultRecordItemId）。老存档没有这个字段，读出来当空表。
+   */
+  gramophones?: Record<string, { recordItemId: string }>;
+
   progression: {
     unlockedFeatureIds: FeatureId[];
     events: EventProgressSave;

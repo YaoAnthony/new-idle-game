@@ -16,7 +16,8 @@ export type StationCapability =
   | "sitting"
   | "storage"
   | "unpack"
-  | "daily_board";
+  | "daily_board"
+  | "music_player";
 
 export type GameEvents = {
   /** 世界数据变化（家具增删等），渲染层据此同步场景图 */
@@ -149,6 +150,10 @@ export type GameEvents = {
    * 等下一轮轮询会有半拍延迟。轮询管"有哪些"，事件管"我刚改的这一条"。
    */
   mixer_changed: { channel: string };
+  /** 换曲或切模式。唱片旋转动画、提示气泡的文案听这条 */
+  music_changed: { mode: string; trackLabel: string | null };
+  /** 某台唱片机里的唱片换了（本地或远端）。instanceId 为空串 = 整表重灌（读档） */
+  gramophone_changed: { instanceId: string };
   /** 吃下了一份食物。表现层接这条放音效，Game/ 不直接驱动 AudioEngine */
   food_eaten: { itemId: string };
   /** 某个储物家具的内容变了 */

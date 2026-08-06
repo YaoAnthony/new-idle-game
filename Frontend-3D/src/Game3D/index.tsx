@@ -91,6 +91,7 @@ import {
 } from "../Game/Systems/dailyCommands";
 import { isRemoteWorldActive } from "../Game/Net/session";
 import { describeSoundscape, startSoundscape } from "./Engine/Soundscape";
+import { startMusicDirector } from "./Engine/MusicDirector";
 import { RoomScene } from "./World/RoomScene";
 
 /** /signal 的可选值。和 Core 的 StorySignalKind 一一对应 */
@@ -194,6 +195,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
     // 音量偏好在标题页设过，进游戏要真的作用到总线上
     initAudioSettings();
     const stopSoundscape = startSoundscape();
+    // BGM：进世界就起（音频解锁前它自己会等），离开世界停
+    const stopMusic = startMusicDirector();
 
     /**
      * 浏览器要求首次用户交互之后才能出声。这里挂一次性监听，
@@ -607,6 +610,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       stopStory();
       stopParticipantSync();
       stopDailyRollover();
+      stopMusic();
       stopSoundscape();
       stopNeeds();
       stopWeather();

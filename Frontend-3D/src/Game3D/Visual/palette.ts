@@ -117,6 +117,22 @@ export const PALETTE = {
   brass: "#c9a35c",
   lampGlow: "#ffe6b0",
 
+  // ---- 唱片机（V0.12）。照着老式号角留声机的实物配：
+  //      红橡木柜体 + 镍银机件 + 黄铜大喇叭 + 黑胶红标 ----
+  gramOak: "#7c4a2a",
+  gramOakLight: "#985f38",
+  gramOakPanel: "#5e381f",
+  gramFelt: "#4e6b52",
+  gramNickel: "#b9bcc2",
+  gramNickelDark: "#878b92",
+  gramVinyl: "#211e23",
+  gramVinylSheen: "#312d35",
+  gramLabelRed: "#b8452f",
+  gramLabelCream: "#ecdcb8",
+  gramBrassBright: "#dcb96e",
+  gramBrassDeep: "#a87f3e",
+  gramHornBlack: "#2b2726",
+
   waterBlue: "#7fb2c4",
 
   // ---- 分区地板（2LDK）。玄关是土间的青灰瓦——踩进屋第一脚

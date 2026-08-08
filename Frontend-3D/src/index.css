@@ -85,6 +85,14 @@
    * 让位距离必须从被让的那个东西算出来。
    */
   --hotbar-clear: 116px;
+
+  /*
+   * 左上角那一列里每一块的宽度。**只有这一处**——原来时钟被内部的
+   * w-32 撑、需求条被 w-24 撑、白噪音台自己写死 236px，一列三种宽度。
+   * 236 是白噪音台那次在 667x375 横屏上量准的值（再宽就压到画面中央），
+   * 44vw 是窄屏的兜底。
+   */
+  --hud-panel-w: min(236px, 44vw);
 }
 
 * {
@@ -576,6 +584,26 @@ input {
   bottom: var(--hotbar-clear);
 }
 
+/*
+ * 左列每一块的统一外壳。宽度写在这里而不是各组件的 className 里：
+ * 一列里的东西宽度不齐是**结构问题**（谁都没声明宽度，全靠内容撑），
+ * 不是某个组件的样式问题，所以要在共同的那一层解决。
+ */
+.hud-panel {
+  width: var(--hud-panel-w);
+  flex: none;
+  padding: 10px 14px;
+}
+
+/* 白噪音台自己带内边距和可压缩布局，外壳让位（见 .mixer） */
+.hud-panel--mixer {
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
 /* ---- 白噪音台（专注时的左侧调音板） ---- */
 
 /*
@@ -584,13 +612,6 @@ input {
  * `min-height: 0` 是让它**能被压缩**的那一行——没有它，flex 项的
  * 默认 min-height:auto 会让内容把盒子撑破，直接压到快捷栏上。
  */
-.mixer {
-  display: flex;
-  flex-direction: column;
-  flex: 0 1 auto;
-  min-height: 0;
-}
-
 /*
  * 行数是浮动的（周围响几条就有几行），所以必须封顶 + 内滚。
  * 两道封顶：`flex:1` 吃掉列里剩下的高度（这是硬约束，横屏手机上
@@ -658,7 +679,11 @@ input {
  * 提示可以滚——这已经是这块屏能给的极限了。
  */
 @media (max-height: 500px) {
-  .mixer {
+  .hud-panel {
+    padding: 6px 10px;
+  }
+
+  .hud-panel--mixer {
     padding: 4px 8px;
   }
 

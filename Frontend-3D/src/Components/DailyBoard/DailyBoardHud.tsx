@@ -93,13 +93,14 @@ export function DailyBoardHud() {
 
   return (
     /*
-     * 屏幕正上方居中。`top-3` 而不是贴边：全面屏的刘海和浏览器的
-     * 下载条都住在最顶上那几像素。
+     * 位置由屏幕正上方那一栈托管（见 Hud/HudTopCenter），这里只画内容。
+     * 原来自己 `absolute left-1/2 top-3 z-10`，结果一进专注就被倒计时卡
+     * （z-20，同一个点）整个盖住。
      *
      * pointer-events-none：它盖在 3D 画布上，能点穿才不会挡住
      * 玩家转镜头的拖拽。
      */
-    <div className="pointer-events-none absolute left-1/2 top-3 z-10 -translate-x-1/2">
+    <div className="pointer-events-none">
       <div
         className={[
           "flex items-center gap-2.5 rounded-full border-2 px-4 py-1.5 backdrop-blur-sm transition-all duration-500",

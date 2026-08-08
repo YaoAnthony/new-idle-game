@@ -39,7 +39,8 @@ export function StoryToast() {
   if (!message) return null;
 
   return (
-    <div className="pointer-events-none absolute left-1/2 top-6 z-30 max-w-[560px] -translate-x-1/2 rounded-lg border-2 border-[#8a6239] bg-[#f6ecd0]/95 px-5 py-3 text-center text-[14px] leading-relaxed text-[#4a3020] shadow-lg">
+    // 位置交给屏幕正上方那一栈（Hud/HudTopCenter），这里只画内容
+    <div className="pointer-events-none max-w-[560px] rounded-lg border-2 border-[#8a6239] bg-[#f6ecd0]/95 px-5 py-3 text-center text-[14px] leading-relaxed text-[#4a3020] shadow-lg">
       {message}
     </div>
   );

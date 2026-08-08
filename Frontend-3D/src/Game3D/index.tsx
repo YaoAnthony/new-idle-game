@@ -8,7 +8,6 @@ import {
 } from "core";
 import { useEffect, useRef, useState } from "react";
 import { ActionHub } from "../Components/ActionHub/ActionHub";
-import { NoiseMixer } from "../Components/NoiseMixer/NoiseMixer";
 import { t } from "../i18n/t";
 import { ChatPanel } from "../Components/Chat/ChatPanel";
 import { EscMenu } from "../Components/EscMenu/EscMenu";
@@ -21,19 +20,18 @@ import { Joystick } from "../Components/Mobile/Joystick";
 import { TouchActions } from "../Components/Mobile/TouchActions";
 import { SpeechBubble } from "../Components/Chat/SpeechBubble";
 import { Backpack } from "../Components/Backpack/Backpack";
-import { DailyBoardHud } from "../Components/DailyBoard/DailyBoardHud";
 import { DailyBoardPanel } from "../Components/DailyBoard/DailyBoardPanel";
 import { RewardPanel } from "../Components/RewardPanel/RewardPanel";
 import { DialoguePanel } from "../Components/Dialogue/DialoguePanel";
 import { Hotbar } from "../Components/Hotbar/Hotbar";
 import { InteractBubble } from "../Components/InteractBubble/InteractBubble";
-import { NeedsHud } from "../Components/NeedsHud/NeedsHud";
 import { SettingsDrawer } from "../Components/SettingsDrawer/SettingsDrawer";
 import { SleepOverlay } from "../Components/SleepOverlay/SleepOverlay";
-import { StoryToast } from "../Components/StoryToast/StoryToast";
+import { HudColumn } from "../Components/Hud/HudColumn";
+import { HudTopCenter } from "../Components/Hud/HudTopCenter";
+import { FocusVignette } from "../Components/ActionHub/FocusCard";
 import { StationPanel } from "../Components/StationPanel/StationPanel";
 import { StoragePanel } from "../Components/StoragePanel/StoragePanel";
-import { WorldClock } from "../Components/WorldClock/WorldClock";
 import {
   parseEnum,
   registerCommand,
@@ -635,7 +633,6 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       <Backpack />
       <StationPanel />
       <DailyBoardPanel />
-      <DailyBoardHud />
       <StoragePanel />
       <DialoguePanel />
       <ActionHub />
@@ -651,29 +648,12 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
         桌面端时钟从右上角搬到这里：右上角要留给"行动"和设置两个圆钮，
         三样东西挤一角谁都不舒服，而左上角腾出来了。
       */}
-      <div
-        className={[
-          "hud-column pointer-events-none absolute left-4 top-4 z-10 flex flex-col items-start gap-2 [&>*]:pointer-events-auto",
-          // 触摸端的快捷栏会整条抬起来（见 Mobile.css），让位距离跟着变
-          touchMode ? "hud-column--touch" : "",
-        ]
-          .filter(Boolean)
-          .join(" ")}
-      >
-        <WorldClock />
-        <NeedsHud stacked />
-        {/*
-          白噪音台排在这一列的第三位，而不是自己 absolute 居中。
-          它的行数是浮动的（周围响几条就有几行），自己定位就得猜一个
-          "时钟那一堆有多高"的魔数——和上面那条注释是同一个道理，
-          让 flex 去算。这一列现在带 bottom，所以它天然不会压到快捷栏。
-        */}
-        <NoiseMixer />
-      </div>
+      <HudColumn touchMode={touchMode} />
       <SettingsDrawer />
       <SleepOverlay />
       <RewardPanel />
-      <StoryToast />
+      <HudTopCenter />
+      <FocusVignette />
       {/* 消息面板挂在游戏里而不是 App 里：消息记录属于**这个世界**，
           标题界面上还没有世界，开个输入框对着空气打字没有意义 */}
       <ChatPanel />

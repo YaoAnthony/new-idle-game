@@ -4,27 +4,22 @@ import {
   actionDefinitions,
   actionPriorityDefinitions,
   findActionDefinition,
-  findItemDefinition,
   type PlayerActionEntry,
 } from "core";
 import { useEffect, useState } from "react";
 import { emit, on } from "../../Game/EventBus";
-import { nowMs } from "../../Game/State/clock";
 import {
   addActionEntry,
   canAfford,
-  cancelAction,
   countActionEntries,
   fatigueCostOf,
   findSupportingFurniture,
   getActionEntriesByCategory,
   getActiveAction,
-  getLastActionEnd,
   removeActionEntry,
   startActionEntry,
 } from "../../Game/Systems/actions";
 import { getDefinition, getWorld } from "../../Game/State/worldRuntime";
-import { firstPetNickname } from "../../i18n/petName";
 import { t } from "../../i18n/t";
 
 /**
@@ -54,13 +49,6 @@ type Screen =
   | { kind: "list"; category: ActionCategory }
   | { kind: "form"; category: ActionCategory };
 
-function formatMs(ms: number): string {
-  const total = Math.ceil(ms / 1000);
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return m > 0 ? `${m} 分 ${s.toString().padStart(2, "0")} 秒` : `${s} 秒`;
-}
-
 /** 该分类当前会用到的家具名（表单里的「使用家具」只读行） */
 function supportingFurnitureName(category: ActionCategory): string | null {
   const instanceId = findSupportingFurniture(category);
@@ -77,9 +65,6 @@ export function ActionHub() {
   const [open, setOpen] = useState(false);
   const [screen, setScreen] = useState<Screen>({ kind: "grid" });
   const [, force] = useState(0);
-  const [toastVisible, setToastVisible] = useState(false);
-  const [remaining, setRemaining] = useState(0);
-
   const active = getActiveAction();
 
   /**
@@ -103,10 +88,6 @@ export function ActionHub() {
   useEffect(() => {
     const offAction = on("action_changed", ({ status }) => {
       force((n) => n + 1);
-      if (status === "completed" || status === "cancelled") {
-        setToastVisible(true);
-        setTimeout(() => setToastVisible(false), 6000);
-      }
       if (status === "started") setOpen(false);
     });
     const offEntries = on("action_entries_changed", () => force((n) => n + 1));
@@ -121,49 +102,19 @@ export function ActionHub() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!active) return;
-    const timer = setInterval(() => {
-      setRemaining(Math.max(0, active.startedAtMs + active.durationMs - nowMs()));
-    }, 500);
-    return () => clearInterval(timer);
-  }, [active]);
-
   // 关闭时回到网格，下次打开不会停在上次的子页
   useEffect(() => {
     if (!open) setScreen({ kind: "grid" });
   }, [open]);
 
-  const lastEnd = getLastActionEnd();
-
-  // ---- 专注中：只留倒计时覆盖层 ----
-  if (active) {
-    return (
-      <>
-        <div className="pointer-events-none absolute inset-0 z-10 shadow-[inset_0_0_140px_rgb(0_0_0_/_0.45)]" />
-        {/*
-         * 这张卡原来是深色玻璃（bg-black/70 + 白字），换奶油马卡龙皮肤时
-         * 漏掉了。平时看不太出来，但白噪音台就浮在它旁边，一浅一深挨着
-         * 才暴露——所以跟着换过来，两块面板是同一次专注里的同一件事。
-         */}
-        <div className="ui-bar ui-dash absolute left-1/2 top-5 z-20 -translate-x-1/2 px-5 py-3 text-center">
-          <div className="text-[15px] font-bold text-[var(--ink)]">
-            {active.customName}
-          </div>
-          <div className="mt-0.5 text-[13px] font-bold text-[var(--peach-deep)]">
-            {formatMs(remaining)}
-          </div>
-          <button
-            type="button"
-            className="ui-tab mt-2 px-2.5 py-0.5 text-[12px]"
-            onClick={cancelAction}
-          >
-            {t("ui.action.stop_early")}
-          </button>
-        </div>
-      </>
-    );
-  }
+  /*
+   * 专注中把整块 UI 收起来：不能在专注时开面板另起一个行动。
+   *
+   * 倒计时卡、全屏暗角、结束提示都**不在这里**了（V0.13 抽走）——
+   * 它们属于屏幕正上方那一栈（见 Hud/HudTopCenter），留在这里的话
+   * 会和每日进度条抢同一个绝对定位点。这里只剩"按钮 + 面板"。
+   */
+  if (active) return null;
 
   return (
     <>
@@ -180,36 +131,6 @@ export function ActionHub() {
       >
         {t("ui.action.title")}
       </button>
-
-      {toastVisible && lastEnd && (
-        <div className="absolute left-1/2 top-5 z-20 -translate-x-1/2 rounded-lg border border-white/15 bg-black/75 px-5 py-3 text-center text-white/95 backdrop-blur">
-          {lastEnd.completed ? (
-            <>
-              <div className="text-[14px]">
-                「{lastEnd.action.customName}」{t("ui.action.completed")}
-              </div>
-              <div className="mt-1 text-[12px] text-amber-200/90">
-                {lastEnd.rewards
-                  .map((reward) => {
-                    const item = findItemDefinition(reward.itemId);
-                    return `${item ? t(item.localizationKey) : reward.itemId} ×${reward.quantity}`;
-                  })
-                  .join("　")}
-              </div>
-              {lastEnd.petCompanion && (
-                <div className="mt-1 text-[12px] text-white/70">
-                  {firstPetNickname()}
-                  {t("ui.action.companion_suffix")}
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="text-[13px] text-white/70">
-              {t("ui.action.cancelled")}
-            </div>
-          )}
-        </div>
-      )}
 
       {open && (
         /*

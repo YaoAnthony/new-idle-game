@@ -1,9 +1,10 @@
 import { DayPhaseId, findWeatherDefinition } from "core";
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState } from "react";
 import { on } from "../../Game/EventBus";
 import { formatLocalTime, getClock } from "../../Game/State/clock";
 import { getWeather } from "../../Game/State/weather";
 import { t } from "../../i18n/t";
+import { HudPanel } from "../Hud/HudPanel";
 
 /**
  * 世界时钟 HUD：日期、时刻、时段、天气。
@@ -76,12 +77,7 @@ export function WorldClock() {
      * 时段走——凌晨是桃色、白天是天蓝、夜里是藕紫，所以用内联的 --dash
      * 覆盖默认值，而不是给每个时段写一个 class。
      */
-    <div
-      // relative 是 .ui-dash 那圈虚线要的定位锚点——它自己不设 position
-      // （设了会顶掉别处的 absolute，见 index.css 里那段注释）
-      className="ui-dash relative pointer-events-none flex flex-col gap-1.5 rounded-[20px] border-[3px] border-[var(--line-deep)] bg-[var(--cream)]/95 px-4 py-2.5 shadow-[var(--soft-shadow)] backdrop-blur-sm"
-      style={{ "--dash": tint } as CSSProperties}
-    >
+    <HudPanel dash={tint} className="flex flex-col gap-1.5">
       <div className="flex items-baseline gap-2">
         <span
           className="text-[26px] font-bold leading-none tabular-nums tracking-tight"
@@ -113,12 +109,12 @@ export function WorldClock() {
       </div>
 
       {/* 一天的进度。看一眼就知道今天过了多少 */}
-      <div className="h-[6px] w-32 overflow-hidden rounded-full bg-[var(--cream-3)]">
+      <div className="h-[6px] w-full overflow-hidden rounded-full bg-[var(--cream-3)]">
         <div
           className="h-full rounded-full transition-[width] duration-1000"
           style={{ width: `${dayPercent}%`, backgroundColor: tint }}
         />
       </div>
-    </div>
+    </HudPanel>
   );
 }

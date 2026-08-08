@@ -7,6 +7,7 @@ import {
   type MixerChannelView,
 } from "../../Game3D/Engine/AudioEngine";
 import { t } from "../../i18n/t";
+import { HudPanel } from "../Hud/HudPanel";
 
 /**
  * 白噪音台：专注（= 有行动在进行）时浮在左边，逐条调周围的声音。
@@ -56,11 +57,10 @@ export function NoiseMixer() {
 
   return (
     /*
-     * 不自己定位：它排在左上角那一列里（时钟 → 需求条 → 这块），
-     * 由 flex 决定纵向位置。自己 absolute 就得猜上面那堆有多高，
-     * 而时钟的天气行、需求条的条目数都会变。
+     * 不自己定位也不自己定宽：它排在左上角那一列里（时钟 → 需求条 →
+     * 这块），位置由 flex 算、宽度和皮肤由 HudPanel 统一给。
      */
-    <div className="mixer ui-bar ui-dash w-[min(236px,44vw)] px-3 py-2.5">
+    <HudPanel className="mixer hud-panel--mixer">
       <div className="flex items-baseline justify-between gap-2">
         <span className="mixer__title text-[13px] font-bold text-[var(--ink)]">
           {t("ui.mixer.title")}
@@ -81,7 +81,7 @@ export function NoiseMixer() {
           ))}
         </div>
       )}
-    </div>
+    </HudPanel>
   );
 }
 

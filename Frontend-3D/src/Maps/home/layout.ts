@@ -1,34 +1,28 @@
-import { Facing, type GridFootprint } from "../../types/base.js";
 import {
+  Facing,
   HouseZoneKind,
   WallOpeningKind,
+  type GridFootprint,
   type HouseZone,
   type InteriorDoorway,
   type InteriorWall,
-  type MapDefinition,
   type RoomSave,
+  type RoomStyleDefinition,
   type WallOpening,
   type WallSave,
-} from "../../types/map.js";
-import type { RoomStyleDefinition } from "../../types/roomStyle.js";
+} from "core";
 
 /**
- * home——起始地图：出租屋 + 院子。
+ * home 的户型：2LDK 平屋。
  *
- * 2LDK 户型原来硬编码在 logic/roomGeometry.ts 的 generateHouse 里，
- * V0.13 挪到这里：户型是 home 这张地图的**内容数据**，不是几何算法。
- * roomGeometry 留下的才是算法（分区查询、内墙格推导、找门找窗），
- * 将来加第二张地图（小镇）时只加数据文件，不碰算法。
+ * **只管"这张图的房间长什么样"**，产出 Core 的 RoomSave。这张图的
+ * 其余部分（出生点、床高、缘侧、外景、出入口）在同文件夹的兄弟文件里，
+ * 见 index.ts 的文件头。
+ *
+ * 户型是**内容数据不是几何算法**：算法（分区查询、内墙格推导、
+ * 找门找窗）留在 Core 的 logic/roomGeometry，对任何 RoomSave 都成立，
+ * 加新地图不碰。
  */
-
-export const HOME_MAP_ID = "home";
-
-/**
- * houseId 和 mapId 今天恰好都叫 "home"，但**不是同一个概念**：
- * houseId 是"这栋房子"的身份（云存档、扩建都认它），mapId 是"这张地图"。
- * 分开两个常量，哪天房子搬进小镇地图，两者就分道扬镳了。
- */
-export const HOME_HOUSE_ID = "home";
 
 /**
  * 2LDK 户型的整体尺寸（2026-07-30 定稿）。
@@ -257,42 +251,3 @@ function wallRowSegments(
   }
   return segments;
 }
-
-export const homeMapDefinition: MapDefinition = {
-  mapId: HOME_MAP_ID,
-  localizationKey: "map.home",
-  primaryRoomId: "living",
-  outdoorRoomId: "yard",
-  yardMargin: YARD_MARGIN,
-  /** 床高 0.45：日式住宅 40~60cm 取中，且不超过角色一步能迈的高度 */
-  floorLevel: 0.45,
-
-  /**
-   * 玄关内侧（2LDK 户型门在西墙 z1~2）。heading = π/2 是朝东（+X）。
-   * 原来硬编码在 Frontend 的 participants.ts——出生点是**地图的知识**：
-   * 每张地图的门开在哪、进门站哪，只有户型数据自己知道。
-   */
-  spawn: { x: -8.5, y: -6, heading: Math.PI / 2 },
-
-  /**
-   * 缘侧走**北面 + 东面转角**（2026-08-08 定）。
-   *
-   * 北墙是那扇 5×3 落地窗，正对樱花树、河、远林——整个庭院构图当初
-   * 就是对着它设计的，缘侧摆这儿一坐就是最好的景。绕过东北角接一段
-   * 是日式住宅很经典的一处，绕房子走时层次更丰富。
-   *
-   * 西面不做：那是玄关入口，廊子会把大门挡住。南面卧室窗那侧没景。
-   *
-   * 北段的 x 一直伸到 halfW + depth（14），把东北转角那块整个吃下来，
-   * 东段从 z = -halfD 起——两段严丝合缝，不重叠（重叠会 z-fighting）。
-   */
-  outdoorDecks: [
-    { deckId: "engawa-north", side: "north", from: -12, to: 14, depth: 2 },
-    { deckId: "engawa-east", side: "east", from: -10, to: 10, depth: 2 },
-  ],
-
-  generateRooms: (style) => {
-    const living = generateHouse({ roomId: "living", style });
-    return { [living.roomId]: living };
-  },
-};

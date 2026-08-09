@@ -1,7 +1,6 @@
 import {
   GestureKind,
   Locomotion,
-  homeMapDefinition,
   type ActionId,
   type ParticipantAppearance,
   type ParticipantGesture,
@@ -11,6 +10,7 @@ import {
   type PoseId,
   type WorldPosition,
 } from "core";
+import { homeMapDefinition } from "../../Maps/index.js";
 
 /**
  * 「谁在哪、在干什么、看起来什么样」。

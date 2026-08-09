@@ -1,7 +1,6 @@
 import {
   buildRoomOccupancy,
   findPlaceableItem,
-  homeMapDefinition,
   roomStyleDefinitions,
   type MapDefinition,
   type MapSave,
@@ -9,6 +8,7 @@ import {
   type RoomOccupancy,
   type RoomSave,
 } from "core";
+import { homeMapDefinition } from "../../../Maps/index.js";
 
 /**
  * world/ 一族共享的可变状态。**只给同目录的兄弟模块 import**，

@@ -9,7 +9,6 @@ export * from "./dialogues/index.js";
 export * from "./events/index.js";
 export * from "./items/index.js";
 export * from "./loot/index.js";
-export * from "./maps/index.js";
 export * from "./needs/index.js";
 export * from "./pets/index.js";
 export * from "./recipes/index.js";

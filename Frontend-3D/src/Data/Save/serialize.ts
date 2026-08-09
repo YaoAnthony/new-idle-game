@@ -1,4 +1,4 @@
-import { HOME_HOUSE_ID, type GameSave } from "core";
+import { DEFAULT_HOUSE_ID, type GameSave } from "core";
 import { restoreClock, snapshotClock } from "../../Game/State/clock";
 import {
   restoreChatLog,
@@ -138,7 +138,7 @@ export function serializeGameSave(previous?: GameSave): GameSave {
        * 迟早出现"styleId 是海边小屋、regionId 还写着 forest"。
        */
       house: {
-        houseId: previous?.ownWorld.house.houseId ?? HOME_HOUSE_ID,
+        houseId: previous?.ownWorld.house.houseId ?? DEFAULT_HOUSE_ID,
         regionId: style.regionId,
         styleId: style.id,
       },

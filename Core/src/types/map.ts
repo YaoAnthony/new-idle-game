@@ -163,6 +163,17 @@ export type OutdoorDeck = {
  */
 
 /**
+ * 一个新世界起步的那张地图。
+ *
+ * **地图的定义本身不在 Core**（2026-08-09 定）：一张箱庭要连外景一起
+ * 才是完整的一张图，而外景是 Three.js 代码，进不了这个要给 Backend
+ * 复用的包。所以定义全部住在 `Frontend-3D/src/Maps/<id>/`，一图一
+ * 文件夹；Core 只留类型，外加这个 id——存档结构里到处要用它当键，
+ * Backend 建会话时也要一个占位的 mapId。
+ */
+export const DEFAULT_MAP_ID = "home";
+
+/**
  * 一张地图的**定义**（注册表数据），和 MapSave 的分工：
  * MapSave 是"生成结果"（实存进存档，联机时访客直接用房主的几何），
  * MapDefinition 是"配方"（出生点、室外范围、怎么生成房间）。
@@ -178,6 +189,13 @@ export type MapDefinition = {
 
   /** 进入这张地图时玩家所在的房间（镜头、门、音景都以它初始化） */
   primaryRoomId: RoomId;
+
+  /**
+   * 这张图除了主房间和室外之外还有哪些房间（二楼、别馆…）。
+   * 归属反查（roomId → 哪张图）要靠它认全，漏登记的房间会让那里的
+   * 实体在换图时无家可归。今天没有，先留口子。
+   */
+  extraRoomIds?: RoomId[];
 
   /**
    * 室外分区 id。院子不是一个真 room（没有墙、没有地板网格，几何在

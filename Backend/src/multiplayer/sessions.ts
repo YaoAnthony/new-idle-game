@@ -1,5 +1,5 @@
 import {
-  HOME_MAP_ID,
+  DEFAULT_MAP_ID,
   Locomotion,
   NET_LIMITS,
   type NetError,
@@ -46,7 +46,7 @@ export type Session = {
 
 /** 没上报过 transform 之前的占位。客户端入房后第一拍就会覆盖它 */
 const ZERO_TRANSFORM: ParticipantTransform = {
-  mapId: HOME_MAP_ID,
+  mapId: DEFAULT_MAP_ID,
   x: 0,
   y: 0,
   heading: 0,

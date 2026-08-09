@@ -14,6 +14,15 @@ import type { WeatherSave } from "./weather.js";
 
 export type HouseId = string;
 
+/**
+ * 新世界那栋房子的 id。
+ *
+ * 和 DEFAULT_MAP_ID **不是同一个概念**（虽然今天字面量恰好相同）：
+ * houseId 是"这栋房子"的身份（云存档、扩建认它），mapId 是"这张图"。
+ * 哪天房子搬进小镇地图，两者就分道扬镳了。
+ */
+export const DEFAULT_HOUSE_ID = "home";
+
 export type HouseSave = {
   houseId: HouseId;
   regionId: RegionId;

@@ -5,11 +5,14 @@ import {
   facingToHeading,
   findItemDefinition,
   findPlaceableItem,
-  generateHouse,
   roomStyleDefinitions,
   type GameSave,
   type InventoryStack,
 } from "core";
+// 老存档的 v7/v8 用当年的户型重新生成房间几何。户型跟着地图走了
+// （Maps/home/layout），迁移就从那儿取——迁移读的是**历史**，
+// 但历史里那栋房子就是 home 这张图的房子，不是另一份拷贝
+import { generateHouse } from "../../Maps/home/layout";
 import { INVENTORY_SIZE } from "../../Game/State/inventory";
 import { FURNITURE_ID_KIND } from "../../Game/State/worldRuntime";
 import { LOCAL_PLAYER_ID } from "../../Game/State/participants";

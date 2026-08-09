@@ -15,6 +15,7 @@ import {
   Scene,
   SphereGeometry,
 } from "three";
+import { getCurrentMap } from "../../Game/State/worldRuntime";
 import { PALETTE } from "../Visual/palette.js";
 import { blob, box, cylinder, ownMaterial } from "../Visual/primitives.js";
 
@@ -247,6 +248,18 @@ export class OutdoorScene {
     this.rain = rain.points;
     this.rainVelocities = rain.velocities;
     this.root.add(this.rain);
+
+    /*
+     * **整个室外世界沉到室内地板之下**（V0.13）。
+     *
+     * 世界 y=0 是室内地板，房子架空在院子之上（和式住宅的床高，
+     * 见 MapDefinition.floorLevel）。草地、树、河、飞石全都建在
+     * "地面 = 0"的本地系里，整组下沉一次就位——不用去几十个
+     * `position.set(x, 0, z)` 里逐个减。
+     *
+     * 天穹/日月/雨也跟着沉 0.45，在 85 半径的天球尺度上看不出来。
+     */
+    this.root.position.y = -getCurrentMap().floorLevel;
 
     scene.add(this.root);
   }

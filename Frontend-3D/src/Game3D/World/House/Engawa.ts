@@ -1,5 +1,4 @@
 import {
-  DECK_HEIGHT,
   outdoorDeckRect,
   type DeckRect,
   type OutdoorDeck,
@@ -30,8 +29,10 @@ import { slopeRafters } from "./eaveRafters.js";
  *
  * ## 尺寸的来历
  *
- * - 台面高 0.4（DECK_HEIGHT，在 Core）：查到的是 30~40cm，理由是
- *   "脱鞋时能自然坐下再站起来"。缘侧的功能本来就是**坐在边上看院子**。
+ * - **台面 = 室内地板 = 世界 y 0**。缘侧不是"比地板高的台子"，它就是
+ *   室内那块架空楼板伸到屋外的一截，和地板永远齐平（一度做成高 0.4 的
+ *   台子，关系正好反了：站屋里得仰视廊子）。离地多高见 map 的 floorLevel。
+ *   查到的 30~40cm 说的正是那个床高，而不是缘侧相对地板的高度。
  * - 进深 2 格：按房子的尺度（24×20，比民居大得多）从 60~90cm 放大。
  * - 下檐比缘侧再多挑 0.5：雨要落在台子外面，不能顺着檐口滴在板沿上。
  * - 檐底露化妆椽子——见 eaveRafters 的注释。
@@ -97,10 +98,13 @@ function spanOf(geometry: DeckGeometry): { from: number; to: number } {
 }
 
 /** 木台的顶面 + 四周的侧板 */
-function deckQuads(geometry: DeckGeometry): Quad[] {
+function deckQuads(geometry: DeckGeometry, floorLevel: number): Quad[] {
   const { rect } = geometry;
   const quads: Quad[] = [];
-  const top = DECK_HEIGHT;
+  // 台面就是室内地板的标高。侧板从这儿一直垂到院子地面（-floorLevel），
+  // 那道深色的边就是"这块楼板是架空的"的全部说明
+  const top = 0;
+  const bottom = -floorLevel;
 
   // 顶面按板条分色：板缝**平行于墙**（传统濡れ縁的铺法），
   // 所以沿"往外"的方向一条条排
@@ -150,8 +154,8 @@ function deckQuads(geometry: DeckGeometry): Quad[] {
     corners: [
       at(spanFrom, outerBand, top),
       at(spanTo, outerBand, top),
-      at(spanTo, outerBand, 0),
-      at(spanFrom, outerBand, 0),
+      at(spanTo, outerBand, bottom),
+      at(spanFrom, outerBand, bottom),
     ],
   });
 
@@ -166,8 +170,8 @@ function deckQuads(geometry: DeckGeometry): Quad[] {
       corners: [
         at(span, outerBand, top),
         at(span, wallBand, top),
-        at(span, wallBand, 0),
-        at(span, outerBand, 0),
+        at(span, wallBand, bottom),
+        at(span, outerBand, bottom),
       ],
     });
   }
@@ -184,7 +188,7 @@ function deckQuads(geometry: DeckGeometry): Quad[] {
 }
 
 /** 下檐：一片缓坡 + 檐里 + 化妆椽子 + 檐口板 */
-function hisashiOf(geometry: DeckGeometry): Object3D {
+function hisashiOf(geometry: DeckGeometry, floorLevel: number): Object3D {
   const { axis, side, innerAlong, outerAlong } = geometry;
   const span = spanOf(geometry);
   const run = outerAlong - innerAlong;
@@ -302,22 +306,24 @@ function hisashiOf(geometry: DeckGeometry): Object3D {
   const posts = Math.max(2, Math.round(fasciaLength / POST_SPACING));
   for (let i = 0; i <= posts; i += 1) {
     const s = span.from + 0.25 + ((fasciaLength - 0.5) * i) / posts;
-    const height = outerY - DECK_HEIGHT + 0.1;
+    // 台面就是 y=0，柱子从这儿起
+    const height = outerY + 0.1;
     group.add(
       box([0.16, height, 0.16], {
         color: PALETTE.wallTrim,
-        position: at(s, postAlong, DECK_HEIGHT + height / 2),
+        position: at(s, postAlong, height / 2),
       }),
     );
   }
 
-  // 缘束：台面底下的矮墩子，把木台从地上架起来的读法
+  // 缘束：从台面垂到院子地面的矮墩子。**它才是"这块楼板是架空的"
+  // 那句话的说明**——没有它，台沿那道深色只像一条粗踢脚
   for (let i = 0; i <= posts; i += 1) {
     const s = span.from + 0.6 + ((fasciaLength - 1.2) * i) / posts;
     group.add(
-      box([0.14, DECK_HEIGHT, 0.14], {
+      box([0.14, floorLevel, 0.14], {
         color: PALETTE.woodDark,
-        position: at(s, postAlong, DECK_HEIGHT / 2),
+        position: at(s, postAlong, -floorLevel / 2),
       }),
     );
   }
@@ -328,8 +334,10 @@ function hisashiOf(geometry: DeckGeometry): Object3D {
 export function buildEngawa(
   room: RoomSave,
   decks: readonly OutdoorDeck[],
+  /** 室内地板比院子高多少。台面在 0，侧板和缘束垂到 -floorLevel */
+  floorLevel: number,
 ): {
-  /** 木台 + 沓脱石。不参与遮挡淡出：只有 0.4 高，挡不到镜头 */
+  /** 木台 + 沓脱石。不参与遮挡淡出：它在地板高度，挡不到镜头 */
   deck: Object3D;
   /** 下檐。参与遮挡淡出：镜头俯角一大就会盖住坐在缘侧的人 */
   hisashi: Object3D;
@@ -342,21 +350,24 @@ export function buildEngawa(
   for (const deck of decks) {
     const geometry = geometryOf(deck, room);
     deckRoot.add(
-      createQuadMesh(deckQuads(geometry), `engawa-${deck.deckId}`),
+      createQuadMesh(deckQuads(geometry, floorLevel), `engawa-${deck.deckId}`),
     );
-    hisashiRoot.add(hisashiOf(geometry));
+    hisashiRoot.add(hisashiOf(geometry, floorLevel));
   }
 
   // ---- 沓脱石：踩着上下缘侧的那块石头 ----
   //
-  // 摆在北面落地窗正前方（墙格 x17~21 → 世界 x 5~10）。屋里现在
-  // 走不出来，所以它暂时是个说明性的物件：它在说"这里是上下的地方"。
+  // 摆在北面落地窗正前方（墙格 x17~21 → 世界 x 5~10）。地板架空之后
+  // 它**真的是一级台阶**了：院子在 -floorLevel、台面在 0，石头顶面卡在
+  // 中间，一步拆成两步——沓脱石本来就是干这个的，不是装饰。
   const north = decks.find((deck) => deck.side === "north");
   if (north) {
     const rect = outdoorDeckRect(north, room.floorGrid);
-    const stone = box([1.1, 0.26, 0.8], {
+    // 顶面落在院子和台面的正中间，两级各 ~0.22——都在一步之内
+    const top = -floorLevel / 2;
+    const stone = box([1.2, floorLevel, 0.85], {
       color: PALETTE.steppingStone,
-      position: [7.5, 0.09, rect.minZ - 0.55],
+      position: [7.5, top - floorLevel / 2, rect.minZ - 0.6],
     });
     stone.name = "kutsunugi-ishi";
     deckRoot.add(stone);

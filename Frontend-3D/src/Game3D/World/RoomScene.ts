@@ -88,6 +88,7 @@ import {
   getDefinition,
   getRoomStyle,
   getWorld,
+  groundHeightAt,
   roomIdAt,
   seedInitialFurniture,
 } from "../../Game/State/worldRuntime";
@@ -262,7 +263,11 @@ export class RoomScene {
      * 读档时锁定状态已由 hydrate 寄存进 doorsRuntime，init 会认领。
      */
     initDoors();
-    this.built = buildHouse(room, getCurrentMap().outdoorDecks ?? []);
+    this.built = buildHouse(
+      room,
+      getCurrentMap().outdoorDecks ?? [],
+      getCurrentMap().floorLevel,
+    );
     this.scene.add(this.built.root);
 
     // 门板：没有它门洞会直接透出背景色
@@ -1681,22 +1686,27 @@ export class RoomScene {
     tickItemPickup({ x: this.controller.x, z: this.controller.z });
     this.droppedItemView.update(deltaSeconds);
 
-    // 过场：镜头跟拍进屋的宠物；平时跟随角色
+    // 过场：镜头跟拍进屋的宠物；平时跟随角色。
+    // 第三个参数是被拍者**脚下**的高度——世界里不再只有一个地面了，
+    // 不传的话人走进院子（-floorLevel）会被框低一截
     if (this.cutscenePetId) {
       const pet = getPet(this.cutscenePetId);
-      if (pet) this.rig.lookAtPoint(pet.x, pet.z);
+      if (pet) this.rig.lookAtPoint(pet.x, pet.z, groundHeightAt(pet.x, pet.z));
     } else {
       const dialoguePetId = getActiveDialogue()?.petId;
       const dialoguePet = dialoguePetId ? getPet(dialoguePetId) : undefined;
       if (dialoguePet && dialoguePet.radius > 0) {
         // 对着体型比人大得多的对象说话：镜头看两者中点，不然贴着玩家
         // 取景会让镜头埋进它身体里（配合上面 enterDialogue 放宽的距离）
-        this.rig.lookAtPoint(
-          (this.controller.x + dialoguePet.x) / 2,
-          (this.controller.z + dialoguePet.z) / 2,
-        );
+        const midX = (this.controller.x + dialoguePet.x) / 2;
+        const midZ = (this.controller.z + dialoguePet.z) / 2;
+        this.rig.lookAtPoint(midX, midZ, groundHeightAt(midX, midZ));
       } else {
-        this.rig.lookAtPoint(this.controller.x, this.controller.z);
+        this.rig.lookAtPoint(
+          this.controller.x,
+          this.controller.z,
+          this.controller.supportY,
+        );
       }
     }
     this.rig.update(deltaSeconds);
@@ -1856,7 +1866,7 @@ export class RoomScene {
     this.cameraOutdoors = next;
 
     if (next) {
-      const yardMargin = getCurrentMap().yardMargin;
+      const { yardMargin, floorLevel } = getCurrentMap();
       this.rig.setBoundsRect(
         -halfW - yardMargin,
         halfW + yardMargin,
@@ -1864,11 +1874,15 @@ export class RoomScene {
         halfD + yardMargin,
         // 院子没有天花板；上限要够看全屋顶（屋脊 ~7.8）
         10,
+        undefined,
+        -floorLevel,
       );
       this.rig.setObstacleBox({
         minX: -halfW - 0.3,
         maxX: halfW + 0.3,
-        minY: 0,
+        // 房子架空之后底面在院子地面上，禁入盒要跟着下探——
+        // 不然镜头能从基礎底下的那条缝钻进屋里
+        minY: -floorLevel,
         maxY: this.built.ridgeHeight + 0.1,
         minZ: -halfD - 0.3,
         maxZ: halfD + 0.3,

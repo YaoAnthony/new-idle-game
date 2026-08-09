@@ -6,6 +6,7 @@ import {
   sampleRemoteTransform,
   type RemotePlayer,
 } from "../../Game/Net/roster";
+import { groundHeightAt } from "../../Game/State/worldRuntime";
 import { disposeTree } from "../Visual/primitives";
 import {
   HEAD_TOP_HEIGHT,
@@ -101,7 +102,16 @@ export class RemotePlayersView {
 
       const appearance = remote.appearance;
       const carrying = appearance.heldItem != null;
-      const airborne = sampled.liftHeight > 0.01;
+      /*
+       * 在半空 = **高过他脚下那块地**，不是 liftHeight > 0。
+       *
+       * liftHeight 现在装的是总的离地高度（承托面 + 跳跃），所以
+       * 站在缘侧上的人 liftHeight 是 0、走在院子里的是 -0.45——
+       * 拿它跟 0 比会把"站在院子里"判成落地、"站在椅子上"判成腾空。
+       * 跟那个位置的地面比才是这句话本来的意思。
+       */
+      const airborne =
+        sampled.liftHeight > groundHeightAt(sampled.x, sampled.y) + 0.01;
 
       this.syncHeldItem(view, appearance.heldItem ?? null);
 

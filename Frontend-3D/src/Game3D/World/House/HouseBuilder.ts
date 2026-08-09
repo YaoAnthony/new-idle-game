@@ -600,6 +600,13 @@ export function buildHouse(
   room: RoomSave,
   /** 贴着外墙的缘侧（来自地图定义）。不给就只有光房子 */
   outdoorDecks: readonly OutdoorDeck[] = [],
+  /**
+   * 室内地板比院子地面高多少（见 MapDefinition.floorLevel）。
+   * **屋子本身完全不受它影响**——世界 y=0 就定在室内地板上，
+   * 墙、地板、家具、放置虚影全都照旧。它只喂给三个"跨到屋外"的
+   * 构件：基礎、缘侧的侧板和缘束、门廊的柱子和式台。
+   */
+  floorLevel = 0,
 ): BuiltHouse {
   const width = room.floorGrid.width;
   const depth = room.floorGrid.height;
@@ -626,7 +633,7 @@ export function buildHouse(
 
   // 外皮和屋顶（V0.13）：从外面看它是房子，从屋里看全是背面（剔除），
   // 室内视野和光照零变化——投影仍由内皮负责，外皮不投（见 ExteriorWalls）
-  const exterior = buildExteriorWalls(room);
+  const exterior = buildExteriorWalls(room, floorLevel);
   root.add(exterior.walls);
   root.add(exterior.plinth);
 
@@ -640,7 +647,7 @@ export function buildHouse(
   const { roof, ridgeHeight } = buildRoof(room, wallHeight);
   roofShell.add(roof);
 
-  const engawa = buildEngawa(room, outdoorDecks);
+  const engawa = buildEngawa(room, outdoorDecks, floorLevel);
   // 下檐进屋顶组：它和主屋顶是同一类东西（挡镜头就该让开），
   // 但各自是独立的淡出单位
   for (const segment of [...engawa.hisashi.children]) roofShell.add(segment);
@@ -667,7 +674,7 @@ export function buildHouse(
    * 玄关门廊：每个外墙门口一座。进屋顶组当独立淡出单位——它挑出
    * 2.4 格又有实体山墙，玩家站门口时镜头俯角一大就会被它整个盖住。
    */
-  for (const door of doors) roofShell.add(buildPorch(door));
+  for (const door of doors) roofShell.add(buildPorch(door, floorLevel));
 
   return {
     root,

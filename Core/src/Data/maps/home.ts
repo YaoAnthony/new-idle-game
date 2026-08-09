@@ -264,6 +264,8 @@ export const homeMapDefinition: MapDefinition = {
   primaryRoomId: "living",
   outdoorRoomId: "yard",
   yardMargin: YARD_MARGIN,
+  /** 床高 0.45：日式住宅 40~60cm 取中，且不超过角色一步能迈的高度 */
+  floorLevel: 0.45,
 
   /**
    * 玄关内侧（2LDK 户型门在西墙 z1~2）。heading = π/2 是朝东（+X）。

@@ -143,7 +143,10 @@ export class CharacterController {
     this.airborne = false;
     this.jumpVelocity = 0;
     this.jumpHeight = 0;
-    this.rig.root.position.set(x, 0, z);
+    // 直接站到目的地的地面上，不是站到 y=0：传到院子里再从地板高度
+    // 落下来会看到一下明显的下沉（世界里不再只有一个地面了）
+    this.supportY = groundHeightAt(x, z);
+    this.rig.root.position.set(x, this.supportY, z);
     setLocalTransform(x, z, this.headingAngle);
   }
 
@@ -378,7 +381,15 @@ export class CharacterController {
       this.z,
       this.headingAngle,
       moving ? (running ? Locomotion.Run : Locomotion.Walk) : Locomotion.Idle,
-      this.jumpHeight,
+      /*
+       * 发**总的离地高度**（承托面 + 跳跃），不是只发跳跃位移。
+       *
+       * 原来只发 jumpHeight，等于告诉远端"这个人永远站在 y=0"——
+       * 坐在椅子上、站在缘侧上、走进院子里，别人看到的都是贴着
+       * 世界原点那个平面。以前全世界确实只有一个地面，所以看不出来；
+       * 地板架空之后，做客的人会半截陷进院子里。
+       */
+      this.supportY + this.jumpHeight,
     );
 
     // 站着才跑走路 / 待机呼吸；坐着躺着完全交给姿势
@@ -449,12 +460,20 @@ export class CharacterController {
       this.walkPhase = (this.walkPhase + deltaSeconds * 2.6) % 1;
     }
 
-    this.rig.root.position.set(this.x, 0, this.z);
+    // 脚步跟着地形：写死 0 的话剧情走位一旦经过院子，人会踩在半空
+    this.supportY = groundHeightAt(this.x, this.z);
+    this.rig.root.position.set(this.x, this.supportY, this.z);
     this.rig.heading.rotation.y = this.headingAngle;
     setActorFootprint(this.x, this.z, RADIUS);
     // 剧情走位也是"在走"，远端看到的必须是走路而不是原地滑行。
     // 脚本寻路永远是走速（上面用的就是 SPEED，没有跑的分支）
-    setLocalTransform(this.x, this.z, this.headingAngle, Locomotion.Walk, 0);
+    setLocalTransform(
+      this.x,
+      this.z,
+      this.headingAngle,
+      Locomotion.Walk,
+      this.supportY,
+    );
     animateCharacter(this.rig, this.walkPhase, true, this.elapsed);
   }
 }

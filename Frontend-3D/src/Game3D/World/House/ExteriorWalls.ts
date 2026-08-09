@@ -144,10 +144,14 @@ function exteriorFrame(
   return trims;
 }
 
-export function buildExteriorWalls(room: RoomSave): {
+export function buildExteriorWalls(
+  room: RoomSave,
+  /** 室内地板比院子高多少。基礎从 0 垂到 -floorLevel */
+  floorLevel: number,
+): {
   /** 参与遮挡淡出的四面外墙 */
   walls: Object3D;
-  /** 不参与淡出的勒脚基座 */
+  /** 不参与淡出的基礎（架空房子的那圈石基座） */
   plinth: Object3D;
 } {
   const width = room.floorGrid.width;
@@ -225,34 +229,41 @@ export function buildExteriorWalls(room: RoomSave): {
   }
   container.add(corners);
 
-  // ---- 勒脚：沿四边的一圈石基座，压住外皮和草地的接缝 ----
-  //
-  // 是**四条边框不是一整块**：整块的顶面会在屋内沿墙冒出一圈 4cm 的
-  // 石沿（盒子顶面比木地板高），环形只贴外侧，屋内地板一格不碰。
-  // 顶面比草地高 0.04，从外面看是房子"坐在石基上"，门口那段顺便
-  // 客串土台门槛。
+  /*
+   * ---- 基礎：把房子架起来的那圈石基座 ----
+   *
+   * 地板架空之后它才名副其实：从室内地板（0）一直垂到院子地面
+   * （-floorLevel），露在外面的就是"这栋房子是架空的"那句话。
+   * 在此之前它只是压住墙脚和草地接缝的一条 4cm 窄边。
+   *
+   * 是**四条边框不是一整块**：整块的顶面会在屋内沿墙冒出一圈石沿
+   * （盒子顶面比木地板高），环形只贴外侧，屋内地板一格不碰。
+   */
   const plinth = new Object3D();
   plinth.name = "exterior-plinth";
   const CROSS = EXTERIOR_SKIN + 0.12; // 断面进深：外皮 + 再凸一点
-  const RING_Y = -0.12; // 顶面 0.04，底埋进草地
+  /** 稍微埋进草地一点，免得基座底沿和地面共面闪烁 */
+  const BURY = 0.1;
+  const tall = floorLevel + BURY;
+  const centerY = -floorLevel / 2 - BURY / 2;
   const inW = width / 2 + 0.01; // 内缘贴外墙皮的墙面线，不进屋
   const inD = depth / 2 + 0.01;
   plinth.add(
-    box([width + (CROSS + 0.01) * 2, 0.32, CROSS], {
+    box([width + (CROSS + 0.01) * 2, tall, CROSS], {
       color: PALETTE.foundation,
-      position: [0, RING_Y, -(inD + CROSS / 2)],
+      position: [0, centerY, -(inD + CROSS / 2)],
     }),
-    box([width + (CROSS + 0.01) * 2, 0.32, CROSS], {
+    box([width + (CROSS + 0.01) * 2, tall, CROSS], {
       color: PALETTE.foundation,
-      position: [0, RING_Y, inD + CROSS / 2],
+      position: [0, centerY, inD + CROSS / 2],
     }),
-    box([CROSS, 0.32, depth + 0.02], {
+    box([CROSS, tall, depth + 0.02], {
       color: PALETTE.foundation,
-      position: [-(inW + CROSS / 2), RING_Y, 0],
+      position: [-(inW + CROSS / 2), centerY, 0],
     }),
-    box([CROSS, 0.32, depth + 0.02], {
+    box([CROSS, tall, depth + 0.02], {
       color: PALETTE.foundation,
-      position: [inW + CROSS / 2, RING_Y, 0],
+      position: [inW + CROSS / 2, centerY, 0],
     }),
   );
 

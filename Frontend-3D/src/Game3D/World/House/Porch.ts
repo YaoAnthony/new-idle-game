@@ -80,7 +80,11 @@ function frameOf(anchor: WindowAnchor): Frame {
   };
 }
 
-export function buildPorch(anchor: WindowAnchor): Object3D {
+export function buildPorch(
+  anchor: WindowAnchor,
+  /** 室内地板比院子高多少。柱子踩在院子地面上，式台跨过这个落差 */
+  floorLevel: number,
+): Object3D {
   const f = frameOf(anchor);
   const porch = new Object3D();
   porch.name = `porch-${anchor.openingId}`;
@@ -216,12 +220,15 @@ export function buildPorch(anchor: WindowAnchor): Object3D {
   }
 
   // ---- 两根檐柱 + 柱间横梁 ----
+  // 柱子踩在**院子地面**上（-floorLevel），不是踩在室内地板的标高上——
+  // 门廊整个在屋外，它比屋里矮一级
   const postY = roofYAt(PORCH_HALF_WIDTH);
+  const postHeight = postY + floorLevel;
   for (const s of [-1, 1] as const) {
     porch.add(
-      box([0.2, postY, 0.2], {
+      box([0.2, postHeight, 0.2], {
         color: PALETTE.wallTrim,
-        position: at(PORCH_DEPTH, s * PORCH_HALF_WIDTH, postY / 2),
+        position: at(PORCH_DEPTH, s * PORCH_HALF_WIDTH, postY - postHeight / 2),
       }),
     );
     // 侧梁：柱顶连回墙面，门廊才是个"框"不是两根杆
@@ -301,21 +308,32 @@ export function buildPorch(anchor: WindowAnchor): Object3D {
     );
   }
 
-  // ---- 踏み石：门前一块方石 + 三块渐远的飞石，把路引到院子里 ----
-  //
-  // 石头贴地（顶面 0.08）不做成台阶：屋内地板也是 0，垫高的话
-  // 就成了"上一级再下一级"。它只负责说"这条是进门的路"。
+  /*
+   * ---- 式台 + 飞石：从院子上到室内地板的那两级 ----
+   *
+   * 地板架空之后门口有了 floorLevel 的落差，这块石台就**真的是台阶**了
+   * （之前地板贴地，它只能贴地当块装饰）。顶面卡在院子和地板的正中间，
+   * 一步拆成两级、每级 ~0.22——都在角色一步能迈的高度之内。
+   *
+   * 往外三块飞石落在院子地面上，把路引出去。
+   */
+  const stepTop = -floorLevel / 2;
   porch.add(
     box(
-      f.alongAxis === "z" ? [1.9, 0.12, 2.4] : [2.4, 0.12, 1.9],
-      { color: PALETTE.steppingStone, position: at(0.95, 0, 0.02) },
+      f.alongAxis === "z"
+        ? [1.9, floorLevel, 2.4]
+        : [2.4, floorLevel, 1.9],
+      {
+        color: PALETTE.steppingStone,
+        position: at(1.0, 0, stepTop - floorLevel / 2),
+      },
     ),
   );
   for (const [i, u] of [2.9, 3.9, 4.9].entries()) {
     porch.add(
-      box([0.7, 0.1, 0.62], {
+      box([0.7, 0.14, 0.62], {
         color: jitterShade(PALETTE.steppingStone, i, 2, 0.05),
-        position: at(u, i % 2 === 0 ? 0.18 : -0.16, 0.01),
+        position: at(u, i % 2 === 0 ? 0.18 : -0.16, -floorLevel + 0.02),
       }),
     );
   }

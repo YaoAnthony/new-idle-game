@@ -159,11 +159,16 @@ export class CameraRig {
     maxZ: number,
     wallHeight: number,
     margin = 0.35,
+    /** 这一片的地面在多高。院子比室内地板低（见 MapDefinition.floorLevel） */
+    floorY = 0,
   ): void {
     this.bounds = {
       minX: minX + margin,
       maxX: maxX - margin,
-      minY: 0.25,
+      // 相机不许钻进地里。**跟着这一片的地面走**，不是固定 0.25——
+      // 院子沉下去之后固定值会把相机卡在离地 0.7 的高度上，
+      // 平视院子的镜头就压不下来了
+      minY: floorY + 0.25,
       maxY: wallHeight - margin,
       minZ: minZ + margin,
       maxZ: maxZ - margin,
@@ -254,9 +259,15 @@ export class CameraRig {
     return tNear;
   }
 
-  /** 跟随目标（角色胸口高度） */
-  lookAtPoint(x: number, z: number): void {
-    this.desiredTarget.set(x, 1.1, z);
+  /**
+   * 跟随目标（角色胸口高度）。
+   *
+   * `footY` 是那个人**脚下**的高度：世界里不再只有一个地面了
+   * （室内地板 0、院子 -floorLevel、缘侧 0），写死 1.1 的话人走进
+   * 院子就会被框低一截——镜头看的还是屋里的胸口高度。
+   */
+  lookAtPoint(x: number, z: number, footY = 0): void {
+    this.desiredTarget.set(x, footY + 1.1, z);
   }
 
   /** 环绕旋转，每次 45°。手柄 / 调试用，键盘不再绑它 */

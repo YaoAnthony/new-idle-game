@@ -1,6 +1,5 @@
 import {
   BLOCKED_TO_TOP,
-  DECK_HEIGHT,
   canPassAt,
   outdoorDeckRect,
   surfaceHeightAt,
@@ -137,29 +136,33 @@ export function roomIdAt(x: number, z: number): string {
 /**
  * 站在这个位置时**脚下的承托面有多高**（世界单位）。
  *
- * 这是"室外地形高度"这个概念的全部——在它之前整个户外是一张绝对水平的
- * 平面，角色的 y 恒为 0，缘侧因此只能是一堵挡路的墙（走不上去、跳不上去，
+ * 这是"地形高度"这个概念的全部——在它之前整个世界是一张绝对水平的
+ * 平面，角色的 y 恒为 0，架空的东西只能是挡路的墙（走不上去也跳不上去，
  * 因为落地永远回到 0）。有了它，缘侧才从"障碍"变成"台阶"。
+ *
+ * 三档，全部由地图数据推导：
+ * - **室内地板 = 0**（世界原点就定在这儿，见 MapDefinition.floorLevel）
+ * - **缘侧 = 0**：它是室内楼板伸到屋外的一截，和地板永远齐平
+ * - **院子 = -floorLevel**：房子架空在它之上
  *
  * 判点不判圆：问的是"我这个人站在哪个面上"，一个人只可能站在一个面上；
  * 走到边沿时身体探出去一点是对的（真人也是这样），不该因为碰撞圆蹭到
  * 台子就被抬起来。
  *
- * 室内不参与：屋里的高度差走占用图的 surfaceAt（台面、家具顶），
- * 那套按格子算，和这里按矩形算的室外平台是两个坐标系。
+ * 和 surfaceAt 的分工：那个管**屋里的家具顶**（按格子算，来自占用图），
+ * 这个管**大地本身**（按矩形算）。两者的基准同为室内地板 0。
  */
 export function groundHeightAt(x: number, z: number): number {
-  const decks = worldState.map.outdoorDecks;
-  if (!decks?.length) return 0;
+  if (isIndoors(x, z)) return 0;
 
-  let height = 0;
-  for (const deck of decks) {
+  for (const deck of worldState.map.outdoorDecks ?? []) {
     const rect = outdoorDeckRect(deck, worldState.room.floorGrid);
     if (x >= rect.minX && x <= rect.maxX && z >= rect.minZ && z <= rect.maxZ) {
-      height = Math.max(height, DECK_HEIGHT);
+      return 0;
     }
   }
-  return height;
+
+  return -worldState.map.floorLevel;
 }
 
 /**

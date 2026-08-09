@@ -1,5 +1,6 @@
 import type { MapDefinition } from "core";
 import { generatePlaza } from "./layout.js";
+import { townPortals } from "./portals.js";
 
 /**
  * town —— 小镇箱庭（占位版，箱庭①B）。
@@ -19,6 +20,8 @@ export const townMapDefinition: MapDefinition = {
 
   /** 广场中央偏西，面朝东（回头就能看到出去的门） */
   spawn: { x: -2, y: 0, heading: Math.PI / 2 },
+
+  portals: townPortals,
 
   generateRooms: (style) => {
     const plaza = generatePlaza(style);

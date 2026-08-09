@@ -1,5 +1,6 @@
 import { DEFAULT_MAP_ID, type MapDefinition } from "core";
 import { YARD_MARGIN, generateHouse } from "./layout.js";
+import { homePortals } from "./portals.js";
 
 /**
  * home —— 起始箱庭：出租屋 + 院子。
@@ -49,6 +50,8 @@ export const homeMapDefinition: MapDefinition = {
     { deckId: "engawa-north", side: "north", from: -12, to: 14, depth: 2 },
     { deckId: "engawa-east", side: "east", from: -10, to: 10, depth: 2 },
   ],
+
+  portals: homePortals,
 
   generateRooms: (style) => {
     const living = generateHouse({ roomId: "living", style });

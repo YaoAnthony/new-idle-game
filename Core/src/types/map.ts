@@ -174,6 +174,27 @@ export type OutdoorDeck = {
 export const DEFAULT_MAP_ID = "home";
 
 /**
+ * 箱庭之间的出入口（箱庭②）。
+ *
+ * **是一块踩上去就走的地面区域，不是一扇要按 F 的门**——参照动森的
+ * 镇口：走到地图边缘那条路上就切图，没有额外交互。zone 用世界坐标
+ * 矩形（和缘侧的 OutdoorDeck 同一套语言），一般贴在院子的可走边界上。
+ *
+ * landing 是落进目标图的位置。**必须落在目标图对应出入口的 zone 之外**，
+ * 否则一到就被弹回来——这是数据作者的责任，代码只兜一层冷却。
+ */
+export type MapPortal = {
+  portalId: string;
+  /** 触发区（世界坐标） */
+  zone: { minX: number; maxX: number; minZ: number; maxZ: number };
+  targetMapId: MapId;
+  /** 落点（y 是世界 z，和 spawn 同一约定）。不给就用目标图的出生点 */
+  landing?: { x: number; y: number; heading: number };
+  /** 加载页上显示"前往哪里" */
+  localizationKey: string;
+};
+
+/**
  * 一张地图的**定义**（注册表数据），和 MapSave 的分工：
  * MapSave 是"生成结果"（实存进存档，联机时访客直接用房主的几何），
  * MapDefinition 是"配方"（出生点、室外范围、怎么生成房间）。
@@ -226,6 +247,9 @@ export type MapDefinition = {
 
   /** 贴着外墙的缘侧。渲染建木台 + 下檐，通行判定当实体挡住 */
   outdoorDecks?: OutdoorDeck[];
+
+  /** 通向其他箱庭的出入口 */
+  portals?: MapPortal[];
 
   /** 出生点（也是读档读不到位置时的退路）。mapId 就是本地图，不重复存 */
   spawn: { x: number; y: number; heading: number };

@@ -104,6 +104,7 @@ import {
   tickKitchen,
   type KitchenSlotRef,
 } from "../../Game/Systems/kitchen";
+import { tickPortalTravel } from "../../Game/Systems/mapTravel";
 import { pickupFurniture } from "../../Game/Systems/placement";
 import { eatHeldItem } from "../../Game/Systems/itemUse";
 import { openUnpack } from "../../Game/Systems/unpack";
@@ -241,6 +242,9 @@ export class RoomScene {
   /** 镜头当前用的是不是院子边界盒（玩家在屋外）。滞回用 */
   private cameraOutdoors = false;
 
+  /** 换图后置真：这个场景在等 React 拆，update 全跳过（防踩落点的竞态） */
+  private travelFrozen = false;
+
   /** 提示气泡附着的家具（独立于 interactTarget，见 refreshInteractTarget） */
   private hintTarget: HintTarget | null = null;
   private readonly projectScratch = new Vector3();
@@ -330,6 +334,24 @@ export class RoomScene {
      * 和世界、宠物的恢复是同一类时序问题。
      */
     this.applyResting();
+
+    /*
+     * 换图冻结（箱庭②修的竞态）：travelTo 把落点写进 participants 后
+     * 发 map_changed，但**这个场景要等 React 下一次提交才被 dispose**，
+     * 中间还会跑几帧 update——CharacterController 每帧把自己的旧坐标
+     * setLocalTransform 回去，落点就被旧场景踩掉了（新场景的控制器
+     * 构造时读到的是旧坐标，人切了图却站在原地）。emit 是同步的，
+     * 监听里立刻冻结，旧场景从那一刻起只渲染不推进。
+     */
+    this.offEventListeners.push(
+      on("map_changed", () => {
+        this.travelFrozen = true;
+        // 渲染循环也整个停掉：update 的早退拦不住 Renderer 里 onFrame
+        // 之后的那次 render，弃子场景继续出帧只是白烧 GPU（加载遮罩
+        // 已经把画面盖住了）
+        this.renderer.stop();
+      }),
+    );
 
     // 宠物首次进屋：镜头接管跟拍（V0.2 第一天流程的"镜头开始移动"）
     this.offEventListeners.push(
@@ -1659,6 +1681,9 @@ export class RoomScene {
   }
 
   private update(deltaSeconds: number): void {
+    // 换图后这个场景已是弃子，只等 React 拆——不许再动任何状态
+    if (this.travelFrozen) return;
+
     this.controller.update(deltaSeconds, this.rig.azimuthDegrees);
 
     // 音景要知道玩家站在哪儿（家具音的距离衰减、分区档案、脚步声）。
@@ -1733,6 +1758,9 @@ export class RoomScene {
     if (this.interactCheckTimer > 0.15) {
       this.interactCheckTimer = 0;
       this.refreshInteractTarget();
+      // 出入口是"踩上去就走"的地面（箱庭②），跟着交互检查的节奏查——
+      // 0.15s 一次在走速 3.1 下最多滞后半格，触发带有 1.5 格深，够用
+      tickPortalTravel(this.controller.x, this.controller.z);
       // 日月位置跟着走。时钟读数本身是 5 秒缓存的，这里跟着交互检查
       // 的节奏刷就够——天体一分钟移动的距离肉眼看不出来
       this.applyCelestial();

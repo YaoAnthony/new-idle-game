@@ -3,7 +3,7 @@ import { emit } from "../EventBus";
 import { isInSession } from "../Net/session";
 import { restoreLocalPosition } from "../State/participants";
 import { switchMapState } from "../State/world/entities";
-import { getCurrentMapId } from "../State/worldRuntime";
+import { getCurrentMap, getCurrentMapId } from "../State/worldRuntime";
 import { saveNow } from "../../Data/Save/autosave";
 import { standUp } from "./resting";
 
@@ -28,7 +28,11 @@ export type TravelResult =
   | { ok: true }
   | { ok: false; reason: "unknown_map" | "already_there" | "in_session" };
 
-export function travelTo(mapId: string): TravelResult {
+export function travelTo(
+  mapId: string,
+  /** 落点（出入口带自己的；不给就用目标图出生点） */
+  landing?: { x: number; y: number; heading: number },
+): TravelResult {
   if (mapId === getCurrentMapId()) {
     return { ok: false, reason: "already_there" };
   }
@@ -43,6 +47,8 @@ export function travelTo(mapId: string): TravelResult {
 
   switchMapState(target);
 
+  const arrive = landing ?? target.spawn;
+
   /*
    * 站到目标图的出生点。要在场景重建**之前**写好——新 RoomScene 的
    * CharacterController 构造时从 participants 读初值。
@@ -53,9 +59,9 @@ export function travelTo(mapId: string): TravelResult {
    */
   restoreLocalPosition({
     mapId: target.mapId,
-    x: target.spawn.x,
-    y: target.spawn.y,
-    heading: target.spawn.heading,
+    x: arrive.x,
+    y: arrive.y,
+    heading: arrive.heading,
   });
 
   emit("map_changed", {
@@ -63,8 +69,32 @@ export function travelTo(mapId: string): TravelResult {
     localizationKey: target.localizationKey,
   });
 
-  // 换图是大事务，落盘不等下一次 autosave
-  void saveNow();
+  // 换图是大事务，落盘不等下一次 autosave。
+  // 失败要吞掉（headless 校验没有 IndexedDB；隐身窗口也可能拒绝），
+  // 存不上盘不该把"人已经到了"这件事炸回去
+  void saveNow().catch(() => {});
 
+  lastTravelAt = Date.now();
   return { ok: true };
+}
+
+/** 出入口触发的冷却。落点都设计在对面触发区之外，这层只是保险 */
+const PORTAL_COOLDOWN_MS = 1000;
+let lastTravelAt = 0;
+
+/**
+ * 玩家走进出入口区就切图（箱庭②）。RoomScene 的交互节流循环
+ * （0.15s 一次）喂坐标进来——出入口是"踩上去就走"的地面，
+ * 不是要按 F 的门，参照动森的镇口。
+ */
+export function tickPortalTravel(x: number, z: number): void {
+  if (Date.now() - lastTravelAt < PORTAL_COOLDOWN_MS) return;
+
+  for (const portal of getCurrentMap().portals ?? []) {
+    const { zone } = portal;
+    if (x >= zone.minX && x <= zone.maxX && z >= zone.minZ && z <= zone.maxZ) {
+      travelTo(portal.targetMapId, portal.landing);
+      return;
+    }
+  }
 }

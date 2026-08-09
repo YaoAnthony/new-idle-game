@@ -262,7 +262,7 @@ export class RoomScene {
      * 读档时锁定状态已由 hydrate 寄存进 doorsRuntime，init 会认领。
      */
     initDoors();
-    this.built = buildHouse(room);
+    this.built = buildHouse(room, getCurrentMap().outdoorDecks ?? []);
     this.scene.add(this.built.root);
 
     // 门板：没有它门洞会直接透出背景色

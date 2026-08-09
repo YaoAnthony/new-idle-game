@@ -4,40 +4,56 @@ import { PALETTE, jitterShade } from "../../Visual/palette.js";
 import { box } from "../../Visual/primitives.js";
 import { createQuadMesh, type Quad } from "../quadMesh.js";
 import { EXTERIOR_SKIN } from "./ExteriorWalls.js";
+import { slopeRafters } from "./eaveRafters.js";
 
 /**
- * 切妻（人字）屋顶（V0.13）。
+ * 主屋顶：切妻（人字）顶（V0.13，2026-08-08 重做）。
  *
- * 选切妻不选寄栋/入母屋：屋内是玄关 + 长押的和风木构架，外面配
- * 蓝灰瓦的切妻顶是同一套语言；面数也最省——两片坡、两面山墙、
- * 一条正脊就是全部。屋脊沿房子长边（x 轴），坡面朝南北：
- * 北坡正对庭院构图（樱花、河），从落地窗那侧看房子轮廓最完整。
+ * ## 上一版为什么是错的
  *
- * 尺寸推导（世界单位 = 格）：
- * - 出檐 EAVE：坡向（南北）伸出 1.1，山墙向（东西）伸出 0.7。
- *   出檐是"像一栋房子"的一半——没有檐的盒子是仓库。
- * - 坡度：升 3.4 / 跑 11.1 ≈ 17°。再陡屋脊会顶到室外镜头的
- *   高度上限（边界盒 maxY=10），再缓就成板房。
+ * 上一版给 24×20 的房子扣了一整片单脊顶，坡度只有 17°——26 米宽的
+ * 屋顶只升 3.4 米，那个比例在建筑上是仓库不是住宅。而且是个死结：
+ * 想把坡提到日式常见的四寸勾配，11 格跨度会把屋脊顶到 9.5 格，
+ * 直接撞穿室外镜头 10 格的高度上限。**一整片单脊顶罩 26 米本来就无解。**
  *
- * 瓦面逐格铺 quad（和墙/地板同一套 quadMesh 合批），横向每 2 格、
- * 顺坡 10 行换色抖动——低多边形的"瓦垄"就是色块节奏，不用贴图。
- * 坡面**上下两层皮**：上层朝天是瓦，下层朝地是深色檐里——不铺下层
- * 的话，人在院子里抬头会从檐口看穿屋顶（单面材质的背面剔除）。
+ * 解法是把体量拆成两层（真实日式住宅罩这么大也是这么干的）：主屋顶
+ * 只管房子本体、挑出收到 1.2 格；缘侧头顶那圈由**独立的下檐（庇）**
+ * 承担（见 Engawa.ts）。两层之间露出一段墙，横向分层出来，仓库感消失。
  *
- * 整个屋顶是**一个淡出单位**：人绕到房子背面、屋顶挡住镜头时，
- * RoomScene 的遮挡淡出把它整体让开（分组即淡出单位，和内墙同纪律）。
+ * ## 这一版的账
+ *
+ * - **四寸勾配**（rise/run = 0.4，约 21.8°）：日式住宅最常见的坡度。
+ *   run = halfD + 挑出 = 11.2，升 4.48，屋脊落在 8.6 —— 镜头上限之下。
+ * - 屋脊沿长边（x），坡面朝南北：北坡正对庭院构图（樱花、河、远林），
+ *   从落地窗那侧看房子的轮廓最完整。东西两头是山墙。
+ * - **挑出的檐底露化妆椽子**：查到的原话是「垂木を見せる方が和風の
+ *   色合いが強くなります」，参考图里最抓眼的也正是那片暖木色檐底。
+ *   椽子只铺挑出的那一段——房子上方有天花板挡着，看不见。
+ * - 坡面铺上下两层皮，不铺下层的话人在院子里抬头会从檐口看穿屋顶
+ *   （单面材质的背面剔除）。
+ *
+ * ## 破风板的坑（2026-08-08 修）
+ *
+ * 上一版 `rotation.x = -sideZ * slopeAngle` 符号写反，整根板头尾颠倒：
+ * 本该在屋脊那端到顶的，算出来落在檐口高度，于是从屋脊往外翘上天。
+ * 正确的是 `+sideZ`——绕 X 转 θ 时局部 +Z 映射到 (0, -sinθ, cosθ)，
+ * 要让它指向"往屋脊爬"的 (0, sinα, cosα) 就得 θ = -α，而北坡的
+ * sideZ = -1，所以 θ = sideZ * α。同一条式子给椽子复用（eaveRafters）。
  */
 
-const EAVE = 1.1;
-const GABLE_EAVE = 0.7;
-const RISE = 3.4;
+/** 主屋顶挑出墙外多少（格）。缘侧那圈交给下檐，这里收敛 */
+const EAVE = 1.2;
+/** 山墙侧的挑出。比坡向浅——破风板本来就该比檐口收一点 */
+const GABLE_EAVE = 0.9;
+/** 四寸勾配：升 4 跑 10 */
+const PITCH = 0.4;
 /** 瓦面行数（每坡） */
 const ROWS = 10;
 
 export function buildRoof(room: RoomSave, wallHeight: number): {
-  /** 淡出容器：直接子节点 = 整个屋顶 */
-  shell: Object3D;
-  /** 屋脊高度（镜头边界参考） */
+  /** 淡出容器的成员：整个主屋顶 */
+  roof: Object3D;
+  /** 屋脊高度（镜头禁入盒的上界） */
   ridgeHeight: number;
 } {
   const width = room.floorGrid.width;
@@ -46,8 +62,9 @@ export function buildRoof(room: RoomSave, wallHeight: number): {
   const halfD = depth / 2;
 
   const baseY = wallHeight + 0.15;
-  const ridgeY = baseY + RISE;
   const run = halfD + EAVE;
+  const rise = run * PITCH;
+  const ridgeY = baseY + rise;
   const spanX = halfW + GABLE_EAVE;
 
   const roof = new Object3D();
@@ -60,12 +77,12 @@ export function buildRoof(room: RoomSave, wallHeight: number): {
 
   for (const side of [-1, 1] as const) {
     // side=-1 北坡（外缘 z=-run），side=1 南坡
-    const tangentLength = Math.hypot(RISE, run);
+    const tangentLength = Math.hypot(rise, run);
     // 坡面外法线（朝上朝外）
     const normal: [number, number, number] = [
       0,
       run / tangentLength,
-      (side * RISE) / tangentLength,
+      (side * rise) / tangentLength,
     ];
 
     for (let row = 0; row < ROWS; row += 1) {
@@ -74,8 +91,8 @@ export function buildRoof(room: RoomSave, wallHeight: number): {
       const t1 = (row + 1) / ROWS;
       const z0 = side * (run - t0 * run);
       const z1 = side * (run - t1 * run);
-      const y0 = baseY + t0 * RISE;
-      const y1 = baseY + t1 * RISE;
+      const y0 = baseY + t0 * rise;
+      const y1 = baseY + t1 * rise;
 
       for (let col = 0; col < columns; col += 1) {
         const x0 = -spanX + col * colWidth;
@@ -100,15 +117,20 @@ export function buildRoof(room: RoomSave, wallHeight: number): {
               ];
         quads.push({ corners, normal, color });
 
-        // 檐里（下层皮，朝下）：同一块的镜像绕序 + 反法线，
-        // 压 2cm 避免和瓦面 z-fighting
+        // 檐里（下层皮，朝下）：同一块的镜像绕序 + 反法线，压 2cm 免得
+        // 和瓦面 z-fighting。暖木色而不是深棕——它是抬头看得见的"天花板"
         const under: [number, number, number][] = [...corners]
           .reverse()
           .map(([x, y, z]) => [x, y - 0.02, z]);
         quads.push({
           corners: under,
           normal: [0, -normal[1], -normal[2]],
-          color: jitterShade(PALETTE.woodDark, col, row, 0.02),
+          color: jitterShade(
+            row % 2 === 0 ? PALETTE.eaveSoffit : PALETTE.eaveSoffitAlt,
+            col,
+            row,
+            0.025,
+          ),
         });
       }
     }
@@ -116,6 +138,25 @@ export function buildRoof(room: RoomSave, wallHeight: number): {
 
   const slopes = createQuadMesh(quads, "roof-slopes", { castShadow: true });
   roof.add(slopes);
+
+  // ---- 化妆椽子：只铺挑出的那一段（房子上方被天花板挡着，看不见） ----
+  const rafters: Quad[] = [];
+  for (const side of [-1, 1] as const) {
+    rafters.push(
+      ...slopeRafters({
+        axis: "z",
+        side,
+        innerAlong: halfD,
+        outerAlong: run,
+        outerY: baseY - 0.03,
+        pitch: PITCH,
+        spanFrom: -spanX,
+        spanTo: spanX,
+        spacing: 1.6,
+      }),
+    );
+  }
+  roof.add(createQuadMesh(rafters, "roof-rafters"));
 
   // ---- 正脊：一条压顶的深色脊瓦 ----
   roof.add(
@@ -176,8 +217,8 @@ export function buildRoof(room: RoomSave, wallHeight: number): {
   roof.add(createQuadMesh(gableQuads, "roof-gables", { castShadow: true }));
 
   // ---- 破风板：山墙外缘沿坡的深木板（切妻的"人字"勾边） ----
-  const slopeLength = Math.hypot(RISE, run);
-  const slopeAngle = Math.atan2(RISE, run);
+  const slopeLength = Math.hypot(rise, run);
+  const slopeAngle = Math.atan2(rise, run);
   for (const sideX of [-1, 1] as const) {
     for (const sideZ of [-1, 1] as const) {
       const board = box([0.14, 0.3, slopeLength + 0.3], {
@@ -188,7 +229,8 @@ export function buildRoof(room: RoomSave, wallHeight: number): {
           (sideZ * run) / 2,
         ],
       });
-      board.rotation.x = -sideZ * slopeAngle;
+      // 见文件头"破风板的坑"：符号是 +sideZ，不是 -sideZ
+      board.rotation.x = sideZ * slopeAngle;
       roof.add(board);
     }
   }
@@ -203,9 +245,5 @@ export function buildRoof(room: RoomSave, wallHeight: number): {
     );
   }
 
-  const shell = new Object3D();
-  shell.name = "roof-shell";
-  shell.add(roof);
-
-  return { shell, ridgeHeight: ridgeY + 0.26 };
+  return { roof, ridgeHeight: ridgeY + 0.26 };
 }

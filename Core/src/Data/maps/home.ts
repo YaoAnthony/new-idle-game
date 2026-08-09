@@ -272,6 +272,23 @@ export const homeMapDefinition: MapDefinition = {
    */
   spawn: { x: -8.5, y: -6, heading: Math.PI / 2 },
 
+  /**
+   * 缘侧走**北面 + 东面转角**（2026-08-08 定）。
+   *
+   * 北墙是那扇 5×3 落地窗，正对樱花树、河、远林——整个庭院构图当初
+   * 就是对着它设计的，缘侧摆这儿一坐就是最好的景。绕过东北角接一段
+   * 是日式住宅很经典的一处，绕房子走时层次更丰富。
+   *
+   * 西面不做：那是玄关入口，廊子会把大门挡住。南面卧室窗那侧没景。
+   *
+   * 北段的 x 一直伸到 halfW + depth（14），把东北转角那块整个吃下来，
+   * 东段从 z = -halfD 起——两段严丝合缝，不重叠（重叠会 z-fighting）。
+   */
+  outdoorDecks: [
+    { deckId: "engawa-north", side: "north", from: -12, to: 14, depth: 2 },
+    { deckId: "engawa-east", side: "east", from: -10, to: 10, depth: 2 },
+  ],
+
   generateRooms: (style) => {
     const living = generateHouse({ roomId: "living", style });
     return { [living.roomId]: living };

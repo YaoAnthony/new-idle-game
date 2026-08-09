@@ -2,6 +2,7 @@ import type { GridPosition } from "../types/base.js";
 import {
   WallOpeningKind,
   type HouseZone,
+  type OutdoorDeck,
   type RoomSave,
   type WallOpening,
 } from "../types/map.js";
@@ -60,4 +61,51 @@ export function findWindows(room: RoomSave): WallOpening[] {
   return Object.values(room.walls).flatMap((wall) =>
     wall.openings.filter((opening) => opening.kind === WallOpeningKind.Window),
   );
+}
+
+export type DeckRect = {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+};
+
+/**
+ * 缘侧的世界坐标矩形。**渲染和通行判定共用这一个函数**——
+ * `side + from/to + depth` 是紧凑好写的数据形式，但两边各自展开成
+ * 矩形迟早展开出两种结果（差半格的那种，最难看出来）。
+ *
+ * `floorGrid` 是房子的占地，墙面线由它推导（房子中心在原点）。
+ */
+export function outdoorDeckRect(
+  deck: OutdoorDeck,
+  floorGrid: { width: number; height: number },
+): DeckRect {
+  const halfW = floorGrid.width / 2;
+  const halfD = floorGrid.height / 2;
+
+  switch (deck.side) {
+    case "north":
+      return { minX: deck.from, maxX: deck.to, minZ: -halfD - deck.depth, maxZ: -halfD };
+    case "south":
+      return { minX: deck.from, maxX: deck.to, minZ: halfD, maxZ: halfD + deck.depth };
+    case "west":
+      return { minX: -halfW - deck.depth, maxX: -halfW, minZ: deck.from, maxZ: deck.to };
+    default:
+      return { minX: halfW, maxX: halfW + deck.depth, minZ: deck.from, maxZ: deck.to };
+  }
+}
+
+/** 缘侧往外挑的方向（单位向量的两个分量）。庇、椽子、缘束都按它排 */
+export function deckOutward(deck: OutdoorDeck): { x: number; z: number } {
+  switch (deck.side) {
+    case "north":
+      return { x: 0, z: -1 };
+    case "south":
+      return { x: 0, z: 1 };
+    case "west":
+      return { x: -1, z: 0 };
+    default:
+      return { x: 1, z: 0 };
+  }
 }

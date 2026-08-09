@@ -15,6 +15,36 @@ export type Quad = {
 };
 
 /**
+ * 按目标法线校正绕序：算错了就翻过来。
+ *
+ * 手推绕序是这套四边形建模里最容易错、又最难一眼看出来的地方——
+ * 错了不会报错，只会让那一面**从该看见的方向消失**（背面剔除），
+ * 而"少了一面墙"和"这里本来就没建"长得一模一样。V0.13 的破风板
+ * 就是栽在同类的符号推导上。倾斜面尤其难推，所以斜的椽子、缘侧木台
+ * 一律走这个函数，只声明"我要朝哪"，绕序交给叉乘。
+ */
+export function faced(
+  corners: [number, number, number][],
+  want: [number, number, number],
+): [number, number, number][] {
+  const [p0, p1, p2] = corners;
+  const ax = p1[0] - p0[0];
+  const ay = p1[1] - p0[1];
+  const az = p1[2] - p0[2];
+  const bx = p2[0] - p0[0];
+  const by = p2[1] - p0[1];
+  const bz = p2[2] - p0[2];
+
+  // 叉乘出面的实际朝向，和目标反向就倒过来
+  const nx = ay * bz - az * by;
+  const ny = az * bx - ax * bz;
+  const nz = ax * by - ay * bx;
+
+  const dot = nx * want[0] + ny * want[1] + nz * want[2];
+  return dot < 0 ? [...corners].reverse() : corners;
+}
+
+/**
  * 把一堆四边形合并成单个 BufferGeometry，颜色写进顶点色。
  *
  * 这样一面墙或整块地板只占一个 draw call，同时每一格还能有独立的色差——

@@ -1,4 +1,9 @@
-import { BLOCKED_TO_TOP, canPassAt, surfaceHeightAt } from "core";
+import {
+  BLOCKED_TO_TOP,
+  canPassAt,
+  outdoorDeckRect,
+  surfaceHeightAt,
+} from "core";
 import { hitsCreature } from "./obstacles.js";
 import { worldState } from "./state.js";
 
@@ -128,6 +133,32 @@ export function roomIdAt(x: number, z: number): string {
   return isIndoors(x, z) ? worldState.room.roomId : worldState.map.outdoorRoomId;
 }
 
+/**
+ * 碰撞圆压到缘侧了吗。
+ *
+ * 缘侧是**走不上去的实体**，不是可站立的台面：角色控制器没有地形高度，
+ * 踩上去人会陷进木板里（脚在 y=0，板面在 0.4）。现实里缘侧也是从屋里
+ * 踏出来的，而北墙是窗不是门——本来就走不上去，所以这个妥协不亏。
+ * 真正的用法是**站在院子里、坐到它边上**，那条走坐姿系统。
+ */
+function hitsOutdoorDeck(x: number, z: number, radius: number): boolean {
+  const decks = worldState.map.outdoorDecks;
+  if (!decks?.length) return false;
+
+  for (const deck of decks) {
+    const rect = outdoorDeckRect(deck, worldState.room.floorGrid);
+    if (
+      x + radius > rect.minX &&
+      x - radius < rect.maxX &&
+      z + radius > rect.minZ &&
+      z - radius < rect.maxZ
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /** 连续坐标下的通行检测：角色/宠物的圆形碰撞体压到的格子都不能是阻挡格 */
 export function isWalkable(
   x: number,
@@ -137,6 +168,9 @@ export function isWalkable(
   selfId?: string,
 ): boolean {
   if (hitsCreature(x, z, radius, selfId)) return false;
+  // 缘侧在屋外，但要在下面的"越界就交给 outdoorPass"之前拦——
+  // outdoorPass 只认院子边界和大门，不知道墙边多了一条木台
+  if (hitsOutdoorDeck(x, z, radius)) return false;
 
   const halfW = worldState.room.floorGrid.width / 2;
   const halfD = worldState.room.floorGrid.height / 2;

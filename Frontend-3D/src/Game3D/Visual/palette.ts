@@ -34,6 +34,22 @@ export const PALETTE = {
   roofRidge: "#555b66",
   foundation: "#8d8478",
 
+  // ---- 檐底与缘侧（V0.13）：整栋房子最抓眼的一块 ----
+  //
+  // 参考图里最好看的不是屋顶是**檐底那片暖木色**。查到的说法：
+  // 「垂木を見せる方が和風の色合いが強くなります」——露椽子的檐底
+  // 和风浓度最高。所以檐里不做成深棕的"阴影"，做成暖木色的"天花板"，
+  // 椽子比它深一档压出条纹，抬头看才有东西看。
+  eaveSoffit: "#c9a978",
+  eaveSoffitAlt: "#bd9c6c",
+  rafter: "#7d5636",
+  /** 缘侧木板：比室内地板更晒、更灰，它在外面淋了几年雨 */
+  deckPlank: "#b39268",
+  deckPlankAlt: "#a5855d",
+  deckEdge: "#6b4a30",
+  /** 沓脱石：踩着上下缘侧的那块石头 */
+  steppingStone: "#7e7a72",
+
   woodDark: "#5f4127",
   woodMid: "#8a5f3c",
   woodLight: "#a97c4c",

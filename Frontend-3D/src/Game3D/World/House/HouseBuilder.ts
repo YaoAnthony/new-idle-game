@@ -3,6 +3,7 @@ import {
   WallOpeningKind,
   zoneAt,
   type InteriorWall,
+  type OutdoorDeck,
   type RoomSave,
   type WallOpening,
   type WallSave,
@@ -11,6 +12,7 @@ import { Object3D } from "three";
 import { PALETTE, jitterShade } from "../../Visual/palette.js";
 import { box } from "../../Visual/primitives.js";
 import { createQuadMesh, type Quad } from "../quadMesh.js";
+import { buildEngawa } from "./Engawa.js";
 import { buildExteriorWalls } from "./ExteriorWalls.js";
 import { buildRoof } from "./Roof.js";
 
@@ -42,7 +44,11 @@ export type BuiltHouse = {
    * 人在屋外、房子挡住镜头时按面让开，从外面看得到屋里。
    */
   exteriorWalls: Object3D;
-  /** 屋顶容器（V0.13）。唯一直接子节点是整个屋顶——整体淡出 */
+  /**
+   * 屋顶容器（V0.13）。直接子节点 = 淡出单位：主屋顶一个，每段下檐
+   * 各一个。分开淡是对的——人坐在缘侧时该让开的是头顶那段下檐，
+   * 不该把整片主屋顶一起淡掉。
+   */
   roofShell: Object3D;
   /** 屋脊高度（室外镜头边界参考） */
   ridgeHeight: number;
@@ -589,7 +595,11 @@ function buildInteriorWalls(room: RoomSave, wallHeight: number): Object3D {
   return container;
 }
 
-export function buildHouse(room: RoomSave): BuiltHouse {
+export function buildHouse(
+  room: RoomSave,
+  /** 贴着外墙的缘侧（来自地图定义）。不给就只有光房子 */
+  outdoorDecks: readonly OutdoorDeck[] = [],
+): BuiltHouse {
   const width = room.floorGrid.width;
   const depth = room.floorGrid.height;
   const wallHeight = Math.max(
@@ -618,7 +628,22 @@ export function buildHouse(room: RoomSave): BuiltHouse {
   const exterior = buildExteriorWalls(room);
   root.add(exterior.walls);
   root.add(exterior.plinth);
-  const { shell: roofShell, ridgeHeight } = buildRoof(room, wallHeight);
+
+  /*
+   * 屋顶是两层：主屋顶只罩房子本体，缘侧头顶那圈交给下檐。
+   * 一整片单脊顶罩 26 米就是仓库，而且坡一陡屋脊就撞穿镜头上限——
+   * 拆两层是唯一的出路，账记在 Roof.ts 和 Engawa.ts 的文件头。
+   */
+  const roofShell = new Object3D();
+  roofShell.name = "roof-shell";
+  const { roof, ridgeHeight } = buildRoof(room, wallHeight);
+  roofShell.add(roof);
+
+  const engawa = buildEngawa(room, outdoorDecks);
+  // 下檐进屋顶组：它和主屋顶是同一类东西（挡镜头就该让开），
+  // 但各自是独立的淡出单位
+  for (const segment of [...engawa.hisashi.children]) roofShell.add(segment);
+  root.add(engawa.deck);
   root.add(roofShell);
 
   const walls = new Map<string, Object3D>();

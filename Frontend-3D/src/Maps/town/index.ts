@@ -17,6 +17,8 @@ export const townMapDefinition: MapDefinition = {
   yardMargin: 10,
   /** 广场地台直接铺在地上，没有床高 */
   floorLevel: 0,
+  /** 广场是露天的：不建天花板/屋顶，镜头不按 2 格矮墙锁竖向 */
+  openAir: true,
 
   /** 广场中央偏西，面朝东（回头就能看到出去的门） */
   spawn: { x: -2, y: 0, heading: Math.PI / 2 },

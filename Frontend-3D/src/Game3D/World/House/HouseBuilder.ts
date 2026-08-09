@@ -607,6 +607,11 @@ export function buildHouse(
    * 构件：基礎、缘侧的侧板和缘束、门廊的柱子和式台。
    */
   floorLevel = 0,
+  /**
+   * 露天房间（小镇广场）：跳过天花板、屋顶、玄关门廊——
+   * 广场扣上切妻顶就成了亭子。外皮和基座照建（矮墙从外面也要看得见）。
+   */
+  openAir = false,
 ): BuiltHouse {
   const width = room.floorGrid.width;
   const depth = room.floorGrid.height;
@@ -621,7 +626,10 @@ export function buildHouse(
   const floor = buildFloor(room);
   root.add(floor);
 
-  const ceiling = buildCeiling(width, depth, wallHeight);
+  // 露天房间不建天花板（用空组占位保住 BuiltHouse 的形状）
+  const ceiling = openAir
+    ? new Object3D()
+    : buildCeiling(width, depth, wallHeight);
   root.add(ceiling);
 
   root.add(buildTimberFrame(room, wallHeight));
@@ -644,8 +652,12 @@ export function buildHouse(
    */
   const roofShell = new Object3D();
   roofShell.name = "roof-shell";
-  const { roof, ridgeHeight } = buildRoof(room, wallHeight);
-  roofShell.add(roof);
+  let ridgeHeight = wallHeight;
+  if (!openAir) {
+    const built = buildRoof(room, wallHeight);
+    roofShell.add(built.roof);
+    ridgeHeight = built.ridgeHeight;
+  }
 
   const engawa = buildEngawa(room, outdoorDecks, floorLevel);
   // 下檐进屋顶组：它和主屋顶是同一类东西（挡镜头就该让开），
@@ -673,8 +685,11 @@ export function buildHouse(
   /*
    * 玄关门廊：每个外墙门口一座。进屋顶组当独立淡出单位——它挑出
    * 2.4 格又有实体山墙，玩家站门口时镜头俯角一大就会被它整个盖住。
+   * 露天房间（广场）的门是镇门，不配玄关门廊。
    */
-  for (const door of doors) roofShell.add(buildPorch(door, floorLevel));
+  if (!openAir) {
+    for (const door of doors) roofShell.add(buildPorch(door, floorLevel));
+  }
 
   return {
     root,

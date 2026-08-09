@@ -16,23 +16,23 @@ import {
   SphereGeometry,
 } from "three";
 import { getCurrentMap } from "../../Game/State/worldRuntime";
-import { PALETTE } from "../Visual/palette.js";
-import { blob, box, cylinder, ownMaterial } from "../Visual/primitives.js";
+import {
+  hash01,
+  type OutdoorTerrain,
+  type OutdoorTerrainBuilder,
+} from "./outdoorTerrain.js";
 
 /**
- * 屋外的真实世界（2026-07-30 定稿：告别窗贴画）。
+ * 屋外的**天气机器**（箱庭③拆分后的职责）。
  *
- * 2026-07-29 镜头锁进屋内、房间有了真实屋顶之后，墙外的东西**只能透过
- * 窗洞被看见**——所以外景可以是真 3D 布景，不会穿帮。原来每扇窗背后
- * 压扁在 0.22 米里的"景深盒"贴画（WindowView 的老职责）整个退役。
+ * 天穹、星、日月、云、雾、雨——这些每张箱庭都一样，留在这里；
+ * 草地、森林、河、地标——每张图各不相同，住在 Maps/<id>/outdoor.ts，
+ * 由构造时传进来的地形配方建。在此之前 770 行的 OutdoorScene 把
+ * home 的森林河流写死在类里，加第二张图只能整个抄一份。
  *
- * 布景哲学是剧场：只在窗户看得到的方向做细（北面），东西两翼稀疏，
- * 南面几乎不做。世界观：**纯野森林 + 一条河**，没有任何人间烟火——
- * 唯一的例外是阶段 3 的庭院（前人留下的苔石与石灯笼）。
- *
- * 光照的关键决定：外景用**受光材质**，被 Lighting 的方向光/半球光
- * 直接照亮——屋里屋外是同一颗太阳，昼夜变化不需要再维护一份手工调色表。
- * 只有天穹、星星、日月圆盘、云是自发光的（它们本来就是光源或天空本身）。
+ * 光照的关键决定不变：外景用**受光材质**，被 Lighting 的方向光/半球光
+ * 直接照亮——屋里屋外是同一颗太阳。只有天穹、星星、日月圆盘、云是
+ * 自发光的（它们本来就是光源或天空本身）。
  */
 
 // ---- 天空渐变（从窗贴画搬来的调色，那套调得不错） ----
@@ -68,57 +68,13 @@ const SUN_COLOR = "#ffe9a8";
 const MOON_COLOR = "#e6ecff";
 
 /**
- * 外景地面与树的基础色。受光材质，昼夜明暗交给灯光，不在这里做。
- * 和室内共用的色值直接取 PALETTE，别抄数值——色板改了外景要跟着变。
- * 森林专用的深绿是新配的，野地本来就该比室内盆栽沉一个调。
- */
-const GROUND_GREEN = "#7fa063";
-const GROUND_GREEN_DARK = "#6d8c55";
-const TREE_GREEN = "#5e7d4f";
-const TREE_GREEN_LIGHT = PALETTE.leafGreen;
-const TRUNK_BROWN = PALETTE.wallTrim;
-const RIVER_BLUE = PALETTE.waterBlue;
-const RIVER_FOAM = "#dcedf4";
-
-/**
  * 雾把远树推向天色，是参考画风里"空气感"的来源。
  * near 必须大于室内最远视距（约 20），否则屋里也会起雾。
  */
 const FOG_NEAR = 26;
 const FOG_FAR = 78;
 
-/**
- * 河的走向：z(x) 的缓波。中景横穿（定稿），庭院和远林之间。
- *
- * 所有"离房子多远"的量都从北墙位置推导（房子尺寸改过一次 16×12→24×16，
- * 写死距离的教训只吃一次）：默认镜头俯角下，视线穿过窗洞落在
- * 北墙外 2~15 一带的地面上——河必须躺在这条**视线走廊**里才看得见。
- */
-const RIVER_WIDTH = 2.8;
-
-/** 确定性伪随机：森林每次加载长得一样 */
-function hash01(seed: number): number {
-  const x = Math.sin(seed * 127.1 + 311.7) * 43758.5453;
-  return x - Math.floor(x);
-}
-
-/**
- * 樱花树的位置：落地窗正外的庭院预留区中心。
- * 常开的奇观地标（定稿）——不接季节，它永远盛开。
- */
-const SAKURA_X = 7.5;
-/**
- * 离北墙多远。6.5 时树梢被窗框上沿切掉——**近一点反而看得全**：
- * 窗口是个固定大小的画框，物体越近仰角越大、越容易顶出框外，
- * 但树冠也越大越有存在感。4.2 是"树冠占满窗子上半、树梢刚好在框内"
- * 的甜点，压低视角时整棵树都在画里。
- */
-const SAKURA_DISTANCE = 4.2;
-
-const PETAL_COUNT = 90;
-
 const RAIN_MAX = 420;
-/** 小雨的粒子数。外景比旧窗贴画大得多，密度按面积等比放大 */
 const RAIN_COUNT_LIGHT = 190;
 
 export class OutdoorScene {
@@ -141,28 +97,25 @@ export class OutdoorScene {
   private readonly cloudMaterial: MeshBasicMaterial;
   private readonly clouds: { node: Object3D; speed: number }[] = [];
 
-  /** 河面流光：几条顺流漂的小白条 */
-  private readonly streaks: Mesh[] = [];
-
   private readonly rain: Points;
   private readonly rainVelocities: Float32Array;
   private stormWind = false;
-
-  /** 樱花花瓣。常年飘落——树是常开的奇观，不接季节 */
-  private readonly petals: Points;
-  private readonly petalSeeds: Float32Array;
   private windy = false;
+
+  /** 这张图的地形（Maps/<id>/outdoor.ts 建的） */
+  private readonly terrain: OutdoorTerrain;
 
   private elapsed = 0;
 
   /** 北墙的世界 z（负数）。所有外景距离从它推导 */
   private readonly northZ: number;
-  private readonly riverCenter: (x: number) => number;
 
-  constructor(scene: Scene, roomSize: { width: number; depth: number }) {
+  constructor(
+    scene: Scene,
+    roomSize: { width: number; depth: number },
+    terrainBuilder: OutdoorTerrainBuilder,
+  ) {
     this.northZ = -roomSize.depth / 2;
-    const riverZ = this.northZ - 11;
-    this.riverCenter = (x: number) => riverZ + Math.sin(x * 0.11) * 1.4;
     this.scene = scene;
     this.root.name = "outdoor";
 
@@ -232,18 +185,11 @@ export class OutdoorScene {
     });
     this.buildClouds();
 
-    // ---- 地面 / 森林 / 河 ----
-    this.buildGround();
-    this.buildForest();
-    this.buildRiver();
-    this.buildSakura();
+    // ---- 地形：这张图自己的草地/树/河/地标 ----
+    this.terrain = terrainBuilder({ roomSize, northZ: this.northZ });
+    this.root.add(this.terrain.root);
 
-    const petals = this.buildPetals();
-    this.petals = petals.points;
-    this.petalSeeds = petals.seeds;
-    this.root.add(this.petals);
-
-    // ---- 雨（真的下在世界里，不再是窗贴画上的粒子） ----
+    // ---- 雨（真的下在世界里） ----
     const rain = this.buildRain();
     this.rain = rain.points;
     this.rainVelocities = rain.velocities;
@@ -253,11 +199,9 @@ export class OutdoorScene {
      * **整个室外世界沉到室内地板之下**（V0.13）。
      *
      * 世界 y=0 是室内地板，房子架空在院子之上（和式住宅的床高，
-     * 见 MapDefinition.floorLevel）。草地、树、河、飞石全都建在
-     * "地面 = 0"的本地系里，整组下沉一次就位——不用去几十个
-     * `position.set(x, 0, z)` 里逐个减。
-     *
-     * 天穹/日月/雨也跟着沉 0.45，在 85 半径的天球尺度上看不出来。
+     * 见 MapDefinition.floorLevel）。地形建在"地面 = 0"的本地系里，
+     * 整组下沉一次就位。天穹/日月/雨跟着沉，在 85 半径的天球尺度上
+     * 看不出来。露天广场的图 floorLevel = 0，正好不沉。
      */
     this.root.position.y = -getCurrentMap().floorLevel;
 
@@ -315,295 +259,6 @@ export class OutdoorScene {
       this.clouds.push({ node: cloud, speed: layout.speed });
       this.root.add(cloud);
     }
-  }
-
-  private buildGround(): void {
-    // 大草地。房子地板自己有网格，外景地面压低一点避免共面
-    const ground = box([170, 0.1, 150], {
-      color: GROUND_GREEN,
-      position: [0, -0.08, -20],
-    });
-    ground.receiveShadow = true;
-    this.root.add(ground);
-
-    // 几块深色草斑打破单调。必须是**零厚度的贴地圆片**——
-    // 用扁盒子的话，窗里以掠射角看过去侧面会露出来，像浮空的台阶
-    for (let i = 0; i < 9; i += 1) {
-      const px = (hash01(i * 3.1) - 0.5) * 90;
-      const pz = this.northZ - 2 - hash01(i * 5.7) * 40;
-      const size = 3 + hash01(i * 9.3) * 6;
-      const patch = new Mesh(
-        new CircleGeometry(size / 2, 10),
-        ownMaterial(GROUND_GREEN_DARK),
-      );
-      patch.rotation.x = -Math.PI / 2;
-      patch.scale.y = 0.7;
-      patch.position.set(px, -0.015, pz);
-      patch.receiveShadow = true;
-      this.root.add(patch);
-    }
-  }
-
-  /**
-   * 野森林。**关键不是数量是高度**：默认镜头是俯视的，视线穿过窗洞
-   * 一路向下，外面必须有竖起来的东西接住视线，否则满窗都是草地。
-   * 所以河对岸是一道又高又密的林墙，河这边散几棵近树给窗景当前景。
-   * 庭院预留区（x 0..10, z -6..-14）留空，阶段 3 摆苔石和樱花树。
-   */
-  private buildForest(): void {
-    const trees: Array<[number, number, number]> = [];
-
-    // 庭院预留区：落地窗正外（窗世界 x 由 wallWidth-7 推出，24 宽时是 5..10）
-    const gardenMinX = 3.5;
-    const gardenMaxX = 11.5;
-
-    for (let i = 0; i < 34; i += 1) {
-      // 河对岸的主林墙：高大、紧密，是窗景的"绿色背景板"
-      const x = (hash01(i * 3.3) - 0.5) * 96;
-      const z = this.northZ - 12.5 - hash01(i * 7.1) * 13;
-      trees.push([x, z, 1.5 + hash01(i * 17.7) * 1.1]);
-    }
-
-    for (let i = 40; i < 52; i += 1) {
-      // 河这一侧的近树：给厨房小窗当画框前景，避开庭院预留区
-      const pick = hash01(i * 3.9);
-      const x = pick < 0.45 ? -3 - hash01(i * 5.1) * 24 : 12 + hash01(i * 5.3) * 22;
-      if (x > gardenMinX && x < gardenMaxX) continue;
-      trees.push([x, this.northZ - 2.5 - hash01(i * 6.7) * 5, 0.9 + hash01(i * 9.1) * 0.5]);
-    }
-
-    for (let i = 60; i < 70; i += 1) {
-      // 东西两翼（门口方向也要有树可看）
-      const x = (hash01(i * 4.7) < 0.5 ? -1 : 1) * (16 + hash01(i * 8.9) * 26);
-      trees.push([x, 6 - hash01(i * 6.1) * 16, 0.9 + hash01(i * 13.9) * 0.7]);
-    }
-
-    // 远丘：三座压扁的绿色圆顶垫在林墙后面，把地平线抬起来，
-    // 雾一罩就是参考画风里那种远处发白的层次
-    const hills: Array<[number, number, number, number]> = [
-      [-34, -48, 22, 9],
-      [10, -54, 30, 12],
-      [46, -46, 20, 8],
-    ];
-    for (const [hx, hz, hr, hh] of hills) {
-      // blob 第二参数是细分级别不是随机种子——传坐标进去要么几百万面要么直接空掉
-      const hill = blob(hr, 1, {
-        color: "#54724a",
-        position: [hx, 0, hz],
-        castShadow: false,
-      });
-      hill.scale.y = hh / hr;
-      hill.receiveShadow = false;
-      this.root.add(hill);
-    }
-
-    for (let i = 0; i < trees.length; i += 1) {
-      const [x, z, scale] = trees[i];
-      const tree = new Object3D();
-
-      const trunkHeight = 1.1 * scale + hash01(i * 2.9) * 0.6;
-      const trunk = cylinder(0.12 * scale, 0.17 * scale, trunkHeight, 5, {
-        color: TRUNK_BROWN,
-        position: [0, trunkHeight / 2, 0],
-        castShadow: false,
-      });
-      tree.add(trunk);
-
-      const crownColor = hash01(i * 11.3) < 0.4 ? TREE_GREEN_LIGHT : TREE_GREEN;
-      // 细分固定 0：低多边形树冠要的就是那股棱角。形态差异靠 scale 和旋转
-      const crown = blob(0.85 * scale, 0, {
-        color: crownColor,
-        position: [0, trunkHeight + 0.55 * scale, 0],
-        castShadow: false,
-      });
-      tree.add(crown);
-
-      if (hash01(i * 6.3) > 0.55) {
-        const side = blob(0.5 * scale, 0, {
-          color: crownColor,
-          position: [0.55 * scale, trunkHeight + 0.25 * scale, 0.1],
-          castShadow: false,
-        });
-        tree.add(side);
-      }
-
-      tree.position.set(x, 0, z);
-      tree.rotation.y = hash01(i * 23.1) * Math.PI * 2;
-      this.root.add(tree);
-    }
-  }
-
-  /** 河：一条缓波的三角带，两岸各镶一线浅色"岸沫" */
-  private buildRiver(): void {
-    const SEGMENTS = 36;
-    const X_MIN = -70;
-    const X_MAX = 70;
-
-    const buildStrip = (halfWidth: number, y: number, color: string): Mesh => {
-      const positions = new Float32Array((SEGMENTS + 1) * 2 * 3);
-      const indices = new Uint32Array(SEGMENTS * 6);
-
-      for (let i = 0; i <= SEGMENTS; i += 1) {
-        const x = X_MIN + ((X_MAX - X_MIN) * i) / SEGMENTS;
-        const center = this.riverCenter(x);
-        const offset = i * 6;
-        positions[offset] = x;
-        positions[offset + 1] = y;
-        positions[offset + 2] = center - halfWidth;
-        positions[offset + 3] = x;
-        positions[offset + 4] = y;
-        positions[offset + 5] = center + halfWidth;
-      }
-      for (let i = 0; i < SEGMENTS; i += 1) {
-        const a = i * 2;
-        const offset = i * 6;
-        indices[offset] = a;
-        indices[offset + 1] = a + 2;
-        indices[offset + 2] = a + 1;
-        indices[offset + 3] = a + 1;
-        indices[offset + 4] = a + 2;
-        indices[offset + 5] = a + 3;
-      }
-
-      const geometry = new BufferGeometry();
-      geometry.setAttribute("position", new BufferAttribute(positions, 3));
-      geometry.setIndex(new BufferAttribute(indices, 1));
-      geometry.computeVertexNormals();
-
-      const mesh = new Mesh(geometry, ownMaterial(color));
-      mesh.receiveShadow = true;
-      return mesh;
-    };
-
-    // 岸沫垫在水面下、更宽一圈，露出的边就是两条浅色岸线
-    this.root.add(buildStrip(RIVER_WIDTH / 2 + 0.22, 0.005, RIVER_FOAM));
-    this.root.add(buildStrip(RIVER_WIDTH / 2, 0.02, RIVER_BLUE));
-
-    // 流光小白条：顺流（+x）漂，出界回绕
-    for (let i = 0; i < 7; i += 1) {
-      const streak = box([0.9, 0.015, 0.09], {
-        color: RIVER_FOAM,
-        position: [X_MIN + hash01(i * 4.1) * (X_MAX - X_MIN), 0.035, 0],
-        castShadow: false,
-      });
-      this.streaks.push(streak);
-      this.root.add(streak);
-    }
-  }
-
-  /**
-   * 樱花树：落地窗正外的庭院地标（常开的奇观，不接季节）。
-   *
-   * 建模思路和参考图一致——**树冠就是一堆粉色球**，靠三个粉调
-   * 拉出体积：主调、暗面、顶部高光。树干分两段带弯折，
-   * 一根侧枝伸向窗户方向，让构图有个前景的斜线。
-   * 树下再铺一圈落花圆斑，暗示"这里一直在落"。
-   */
-  private buildSakura(): void {
-    const tree = new Object3D();
-    tree.name = "sakura";
-    tree.position.set(SAKURA_X, 0, this.northZ - SAKURA_DISTANCE);
-
-    const PINK = "#f2b8cc";
-    const PINK_DARK = "#e394b3";
-    const PINK_LIGHT = "#fbe0e9";
-
-    // 主干两段：下段直、上段带弯，比一根直筒有生气
-    tree.add(
-      cylinder(0.22, 0.3, 2.0, 6, {
-        color: TRUNK_BROWN,
-        position: [0, 1.0, 0],
-        castShadow: false,
-      }),
-    );
-    const upper = cylinder(0.14, 0.2, 1.5, 6, {
-      color: TRUNK_BROWN,
-      position: [0.25, 2.6, 0],
-      castShadow: false,
-    });
-    upper.rotation.z = -0.22;
-    tree.add(upper);
-
-    // 侧枝伸向窗户（-x 是房子方向）
-    const branch = cylinder(0.08, 0.13, 1.4, 5, {
-      color: TRUNK_BROWN,
-      position: [-0.7, 2.5, 0.15],
-      castShadow: false,
-    });
-    branch.rotation.z = 1.0;
-    tree.add(branch);
-
-    const puffs: Array<[number, number, number, number, string]> = [
-      [0.3, 3.7, 0, 1.5, PINK],
-      [-1.15, 3.2, 0.2, 1.05, PINK],
-      [1.35, 3.35, -0.2, 1.1, PINK_DARK],
-      [0.5, 4.5, 0.3, 0.95, PINK_LIGHT],
-      [-0.5, 4.2, -0.5, 0.85, PINK_LIGHT],
-      [1.0, 4.0, 0.6, 0.8, PINK],
-      [-1.5, 3.9, -0.3, 0.7, PINK_DARK],
-      [0.0, 3.0, 0.8, 0.75, PINK_DARK],
-    ];
-    for (const [px, py, pz, radius, color] of puffs) {
-      tree.add(
-        blob(radius, 0, {
-          color,
-          position: [px, py, pz],
-          castShadow: false,
-        }),
-      );
-    }
-
-    // 树下的落花：贴地圆斑（零厚度，掠射角不会露侧面）
-    for (let i = 0; i < 5; i += 1) {
-      const patch = new Mesh(
-        new CircleGeometry(0.8 + hash01(i * 5.3) * 0.9, 10),
-        ownMaterial(PINK_LIGHT),
-      );
-      patch.rotation.x = -Math.PI / 2;
-      patch.position.set(
-        (hash01(i * 3.7) - 0.5) * 4,
-        0.005,
-        (hash01(i * 7.9) - 0.5) * 3.5,
-      );
-      tree.add(patch);
-    }
-
-    this.root.add(tree);
-  }
-
-  /**
-   * 花瓣粒子：从树冠体积里生成，边落边横摆。
-   *
-   * 每片存一个 seed，横摆的相位和速度都从它推出来——
-   * 这样一把粒子里没有两片是同步的，看起来才像风里的花瓣
-   * 而不是一场粉色的雨。落到地面就回到树冠重来。
-   */
-  private buildPetals(): { points: Points; seeds: Float32Array } {
-    const positions = new Float32Array(PETAL_COUNT * 3);
-    const seeds = new Float32Array(PETAL_COUNT);
-
-    for (let i = 0; i < PETAL_COUNT; i += 1) {
-      positions[i * 3] = SAKURA_X + (Math.random() - 0.5) * 5;
-      positions[i * 3 + 1] = Math.random() * 4.6;
-      positions[i * 3 + 2] =
-        this.northZ - SAKURA_DISTANCE + (Math.random() - 0.5) * 4;
-      seeds[i] = Math.random() * Math.PI * 2;
-    }
-
-    const geometry = new BufferGeometry();
-    geometry.setAttribute("position", new BufferAttribute(positions, 3));
-
-    const material = new PointsMaterial({
-      color: "#f7cdd9",
-      size: 0.11,
-      transparent: true,
-      opacity: 0.95,
-      depthWrite: false,
-    });
-
-    const points = new Points(geometry, material);
-    points.name = "sakura-petals";
-    return { points, seeds };
   }
 
   private buildRain(): { points: Points; velocities: Float32Array } {
@@ -721,38 +376,8 @@ export class OutdoorScene {
         this.starBaseOpacity * (0.86 + 0.14 * Math.sin(this.elapsed * 1.7));
     }
 
-    // 河面流光顺流漂
-    for (let i = 0; i < this.streaks.length; i += 1) {
-      const streak = this.streaks[i];
-      streak.position.x += (0.9 + hash01(i * 7.7) * 0.5) * deltaSeconds;
-      if (streak.position.x > 70) streak.position.x = -70;
-      streak.position.z = this.riverCenter(streak.position.x) + (hash01(i * 3.7) - 0.5) * 1.6;
-    }
-
-    // 花瓣：下落 + 正弦横摆，落地回到树冠。风天飘得更斜更快
-    {
-      const attribute = this.petals.geometry.getAttribute("position") as BufferAttribute;
-      const array = attribute.array as Float32Array;
-      const drift = this.windy ? 2.1 : 0.75;
-      const fall = this.windy ? 0.9 : 0.55;
-
-      for (let i = 0; i < PETAL_COUNT; i += 1) {
-        const offset = i * 3;
-        const seed = this.petalSeeds[i];
-        array[offset] +=
-          (Math.sin(this.elapsed * 0.8 + seed) * 0.35 + drift * 0.25) * deltaSeconds;
-        array[offset + 1] -= fall * deltaSeconds;
-        array[offset + 2] += Math.cos(this.elapsed * 0.6 + seed) * 0.3 * deltaSeconds;
-
-        if (array[offset + 1] < 0) {
-          array[offset] = SAKURA_X + (Math.random() - 0.5) * 5;
-          array[offset + 1] = 3.4 + Math.random() * 1.4;
-          array[offset + 2] =
-            this.northZ - SAKURA_DISTANCE + (Math.random() - 0.5) * 4;
-        }
-      }
-      attribute.needsUpdate = true;
-    }
+    // 地形自己的动画（河的流光、花瓣…）
+    this.terrain.update?.(deltaSeconds, this.elapsed, { windy: this.windy });
 
     if (!this.rain.visible) return;
 

@@ -251,6 +251,13 @@ export type MapDefinition = {
   /** 通向其他箱庭的出入口 */
   portals?: MapPortal[];
 
+  /**
+   * 主房间是**露天**的（小镇广场这类）：不建天花板、屋顶、玄关门廊，
+   * 镜头竖向上限也不按墙高压（广场的矮墙只有 2 格，按墙高锁镜头
+   * 会把视角摁在地上）。
+   */
+  openAir?: boolean;
+
   /** 出生点（也是读档读不到位置时的退路）。mapId 就是本地图，不重复存 */
   spawn: { x: number; y: number; heading: number };
 

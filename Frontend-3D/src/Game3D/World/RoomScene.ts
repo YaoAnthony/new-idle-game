@@ -85,6 +85,7 @@ import {
 } from "../../Game/State/petsRuntime";
 import {
   getCurrentMap,
+  getCurrentMapId,
   getDefinition,
   getRoomStyle,
   getWorld,
@@ -92,6 +93,7 @@ import {
   roomIdAt,
   seedInitialFurniture,
 } from "../../Game/State/worldRuntime";
+import { outdoorTerrainOf } from "../../Maps/index";
 import { getActiveAction } from "../../Game/Systems/actions";
 import { getActiveDialogue, startDialogue } from "../../Game/Systems/dialogue";
 import { getEventStage } from "../../Game/Systems/events";
@@ -272,6 +274,7 @@ export class RoomScene {
       room,
       getCurrentMap().outdoorDecks ?? [],
       getCurrentMap().floorLevel,
+      getCurrentMap().openAir ?? false,
     );
     this.scene.add(this.built.root);
 
@@ -298,7 +301,11 @@ export class RoomScene {
     }
 
     // 屋外的真实世界：森林、河、天穹、真日月。窗户只是画框
-    this.outdoor = new OutdoorScene(this.scene, this.built.size);
+    this.outdoor = new OutdoorScene(
+      this.scene,
+      this.built.size,
+      outdoorTerrainOf(getCurrentMapId()),
+    );
     this.remotePlayers = new RemotePlayersView(this.scene);
     // 现查不缓存：机器可能被收走或摆第二台
     this.dailyBoardAnimator = new DailyBoardAnimator(() =>
@@ -485,7 +492,8 @@ export class RoomScene {
     this.rig.setRoomBounds(
       this.built.size.width,
       this.built.size.depth,
-      this.built.wallHeight,
+      // 露天房间（广场）没有天花板，矮墙 2 格锁镜头会把视角摁在地上
+      getCurrentMap().openAir ? 10 : this.built.wallHeight,
     );
     // 开局就站在角色背后，不要让玩家看见镜头自己转过去
     this.rig.lookAtPoint(this.controller.x, this.controller.z);
@@ -1916,7 +1924,11 @@ export class RoomScene {
         maxZ: halfD + 0.3,
       });
     } else {
-      this.rig.setRoomBounds(width, depth, this.built.wallHeight);
+      this.rig.setRoomBounds(
+        width,
+        depth,
+        getCurrentMap().openAir ? 10 : this.built.wallHeight,
+      );
       this.rig.setObstacleBox(null);
     }
   }

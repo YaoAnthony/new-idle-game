@@ -1,6 +1,9 @@
 import type { MapDefinition } from "core";
+import type { OutdoorTerrainBuilder } from "../Game3D/World/outdoorTerrain.js";
 import { homeMapDefinition } from "./home/index.js";
+import { buildHomeTerrain } from "./home/outdoor.js";
 import { townMapDefinition } from "./town/index.js";
+import { buildTownTerrain } from "./town/outdoor.js";
 
 /**
  * 箱庭注册表。
@@ -38,6 +41,22 @@ export function mapOfRoom(roomId: string): MapDefinition | undefined {
       definition.outdoorRoomId === roomId ||
       definition.extraRoomIds?.includes(roomId),
   );
+}
+
+/**
+ * 各图的外景地形配方。放在这里而不是 MapDefinition 里：定义是 Core
+ * 类型（纯数据、Backend 可读），地形是 Three.js 函数，进不了那个包。
+ * 配方本体仍住在各自的文件夹（Maps/<id>/outdoor.ts）——一图一文件夹
+ * 的规矩不破，这里只是登记表。
+ */
+const terrainBuilders: Record<string, OutdoorTerrainBuilder> = {
+  home: buildHomeTerrain,
+  town: buildTownTerrain,
+};
+
+/** 没登记外景的图给一块素草地兜底，别让新图一进去就掉进虚空 */
+export function outdoorTerrainOf(mapId: string): OutdoorTerrainBuilder {
+  return terrainBuilders[mapId] ?? buildTownTerrain;
 }
 
 export { homeMapDefinition, townMapDefinition };

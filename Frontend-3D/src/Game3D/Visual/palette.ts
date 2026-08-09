@@ -21,6 +21,19 @@ export const PALETTE = {
   wallShade: "#cdbda0",
   wallTrim: "#6b4a30",
 
+  // ---- 房子的外皮（V0.13 起从外面也看得到房子） ----
+  //
+  // 外墙比内墙深一档：同一面墙的里外若同色，淡出外皮看进屋时
+  // 两层会糊成一片，分不清"看穿了"还是"没看穿"。
+  // 屋顶是**烟熏瓦的蓝灰**——奶油墙 + 深木饰带 + 蓝灰瓦是
+  // 日式小屋的标准三件套，也和 OutdoorScene 的樱花/河面呼应。
+  extWall: "#e0d2b6",
+  extWallShade: "#c2ae8e",
+  roofTile: "#6d7480",
+  roofTileAlt: "#7d8592",
+  roofRidge: "#555b66",
+  foundation: "#8d8478",
+
   woodDark: "#5f4127",
   woodMid: "#8a5f3c",
   woodLight: "#a97c4c",

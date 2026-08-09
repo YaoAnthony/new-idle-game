@@ -11,6 +11,8 @@ import { Object3D } from "three";
 import { PALETTE, jitterShade } from "../../Visual/palette.js";
 import { box } from "../../Visual/primitives.js";
 import { createQuadMesh, type Quad } from "../quadMesh.js";
+import { buildExteriorWalls } from "./ExteriorWalls.js";
+import { buildRoof } from "./Roof.js";
 
 /**
  * 把 Core 的 RoomSave（纯数据）变成网格体。
@@ -35,6 +37,15 @@ export type BuiltHouse = {
   windows: WindowAnchor[];
   /** 内墙组。镜头被挡时按段淡出（和家具同一套 Fade），所以要单独暴露 */
   interiorWalls: Object3D;
+  /**
+   * 外墙皮组（V0.13）。直接子节点 = 一面外墙（分组即淡出单位）：
+   * 人在屋外、房子挡住镜头时按面让开，从外面看得到屋里。
+   */
+  exteriorWalls: Object3D;
+  /** 屋顶容器（V0.13）。唯一直接子节点是整个屋顶——整体淡出 */
+  roofShell: Object3D;
+  /** 屋脊高度（室外镜头边界参考） */
+  ridgeHeight: number;
   doors: WindowAnchor[];
   size: { width: number; depth: number };
   /** 墙高（来自存档的墙格，不再有硬编码常量） */
@@ -602,6 +613,14 @@ export function buildHouse(room: RoomSave): BuiltHouse {
   const interiorWalls = buildInteriorWalls(room, wallHeight);
   root.add(interiorWalls);
 
+  // 外皮和屋顶（V0.13）：从外面看它是房子，从屋里看全是背面（剔除），
+  // 室内视野和光照零变化——投影仍由内皮负责，外皮不投（见 ExteriorWalls）
+  const exterior = buildExteriorWalls(room);
+  root.add(exterior.walls);
+  root.add(exterior.plinth);
+  const { shell: roofShell, ridgeHeight } = buildRoof(room, wallHeight);
+  root.add(roofShell);
+
   const walls = new Map<string, Object3D>();
   const windows: WindowAnchor[] = [];
   const doors: WindowAnchor[] = [];
@@ -626,6 +645,9 @@ export function buildHouse(room: RoomSave): BuiltHouse {
     windows,
     doors,
     interiorWalls,
+    exteriorWalls: exterior.walls,
+    roofShell,
+    ridgeHeight,
     size: { width, depth },
     wallHeight,
   };

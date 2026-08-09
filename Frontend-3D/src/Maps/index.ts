@@ -1,5 +1,6 @@
 import type { MapDefinition } from "core";
 import { homeMapDefinition } from "./home/index.js";
+import { townMapDefinition } from "./town/index.js";
 
 /**
  * 箱庭注册表。
@@ -20,7 +21,10 @@ import { homeMapDefinition } from "./home/index.js";
  * 靠"这个房间属于哪张图"反查归属，重名会让实体串图。地图多了再上
  * audit（storyAudit 那一套）。
  */
-export const mapDefinitions: MapDefinition[] = [homeMapDefinition];
+export const mapDefinitions: MapDefinition[] = [
+  homeMapDefinition,
+  townMapDefinition,
+];
 
 export function findMapDefinition(mapId: string): MapDefinition | undefined {
   return mapDefinitions.find((definition) => definition.mapId === mapId);
@@ -36,4 +40,4 @@ export function mapOfRoom(roomId: string): MapDefinition | undefined {
   );
 }
 
-export { homeMapDefinition };
+export { homeMapDefinition, townMapDefinition };

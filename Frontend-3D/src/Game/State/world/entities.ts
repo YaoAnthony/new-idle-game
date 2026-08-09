@@ -2,15 +2,16 @@ import {
   findDoors,
   type DoorSave,
   type DroppedItem,
+  type MapDefinition,
   type MapSave,
   type PetSave,
   type PlacedFurniture,
 } from "core";
 import { findMapDefinition, homeMapDefinition, mapDefinitions } from "../../../Maps/index.js";
 import { syncIdCounters } from "../ids";
-import { snapshotDroppedItems } from "../droppedItems";
-import { snapshotPets } from "../petsRuntime";
-import { snapshotDoors } from "../doorsRuntime";
+import { restoreDroppedItems, snapshotDroppedItems } from "../droppedItems";
+import { restorePets, snapshotPets } from "../petsRuntime";
+import { restoreDoors, snapshotDoors } from "../doorsRuntime";
 import { restoreWorld, snapshotWorld } from "./maps.js";
 import { worldState, type ShelvedEntities } from "./state.js";
 
@@ -216,6 +217,52 @@ export function snapshotWorldEntities(): WorldEntitiesBundle {
     pets,
     doors: [...snapshotDoors(), ...shelf.flatMap((bucket) => bucket.doors)],
   };
+}
+
+/**
+ * 换箱庭（箱庭①B）：当前图的实体整套上架，目标图的从架上取下激活。
+ *
+ * 只做状态机械，**不做守卫**——"联机时不许切""要不要先起身"是
+ * Systems/mapTravel 的判断，这里被调用时就该无条件成功。也不发事件、
+ * 不挪玩家：调用方在此之后自己摆位置、发 map_changed 让场景重建。
+ *
+ * 上架用的是和存档同一套快照函数（snapshotPets 按站位记 roomId、
+ * snapshotDoors 空表退寄存），所以"切图后再存盘"和"存盘后再读档"
+ * 看到的都是同一份数据——不存在第三种序列化路径。
+ */
+export function switchMapState(target: MapDefinition): void {
+  const leaving = worldState.map;
+
+  // ---- 当前图上架（几何 + 实体）----
+  worldState.shelvedMaps = {
+    ...worldState.shelvedMaps,
+    [leaving.mapId]: { mapId: leaving.mapId, rooms: worldState.rooms },
+  };
+  worldState.shelvedEntities = {
+    ...worldState.shelvedEntities,
+    [leaving.mapId]: {
+      placedFurniture: worldState.placedFurniture,
+      droppedItems: snapshotDroppedItems(),
+      pets: snapshotPets(),
+      doors: snapshotDoors(),
+    },
+  };
+
+  // ---- 目标图取下（首访就地生成几何、实体为空）----
+  worldState.map = target;
+  const { [target.mapId]: targetGeometry, ...restMaps } = worldState.shelvedMaps;
+  worldState.shelvedMaps = restMaps;
+  worldState.replaceRooms(
+    targetGeometry?.rooms ?? target.generateRooms(worldState.style),
+  );
+
+  const { [target.mapId]: bucket, ...restEntities } = worldState.shelvedEntities;
+  worldState.shelvedEntities = restEntities;
+  worldState.placedFurniture = bucket?.placedFurniture ?? [];
+  restoreDroppedItems(bucket?.droppedItems ?? []);
+  restorePets(bucket?.pets ?? {});
+  // 门这里只寄存锁状态；实例等新 RoomScene 的 initDoors 按新图几何认领
+  restoreDoors(bucket?.doors ?? []);
 }
 
 /**

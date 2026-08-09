@@ -22,6 +22,15 @@ export type StationCapability =
 export type GameEvents = {
   /** 世界数据变化（家具增删等），渲染层据此同步场景图 */
   world_changed: { reason: string };
+
+  /**
+   * 换了箱庭地图（箱庭①B）。**状态层已经切完**（实体上架/取下、
+   * 位置已挪到目的地）才发——GameView 听到后拆掉旧 RoomScene 重建。
+   * 加载遮罩也听它出场。
+   */
+  map_changed: { mapId: string; localizationKey: string };
+  /** 新地图的 RoomScene 挂载完成。加载遮罩听它退场 */
+  map_scene_ready: { mapId: string };
   /** 进入 / 退出布置模式 */
   placement_mode_changed: { active: boolean; itemId: string | null };
   /** 背包内容变化 */

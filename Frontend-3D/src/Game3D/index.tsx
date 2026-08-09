@@ -82,6 +82,10 @@ import {
 import { unlockAudio } from "./Engine/AudioEngine";
 import { initAudioSettings } from "./Engine/audioSettings";
 import { startParticipantSync } from "../Game/Systems/participantSync";
+import { travelTo } from "../Game/Systems/mapTravel";
+import { mapDefinitions } from "../Maps/index";
+import { TravelOverlay } from "../Components/MapTravel/TravelOverlay";
+import { getCurrentMapId } from "../Game/State/worldRuntime";
 import { registerNetCommands } from "../Game/Net/commands";
 import {
   registerDailyCommands,
@@ -147,6 +151,14 @@ type GameViewProps = {
 export function GameView({ loadedFromSave = false }: GameViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scene, setScene] = useState<RoomScene | null>(null);
+  /**
+   * 场景的另一个引用，给**命令行闭包**用（①B）。命令在大 effect 里
+   * 注册一次，场景却会随换图销毁重建——闭包抓 useState 的值就会攥着
+   * 一具已 dispose 的旧场景。ref 永远指向现任。
+   */
+  const sceneRef = useRef<RoomScene | null>(null);
+  /** 换图计数。map_changed +1 → 场景 effect 拆旧建新 */
+  const [mapEpoch, setMapEpoch] = useState(0);
   const [touchMode, setTouchMode] = useState(isTouchMode());
 
   /**
@@ -216,12 +228,12 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
     const stopDailyRollover = startDailyRollover();
     const stopAutosave = startAutosave();
 
-    const scene = new RoomScene(container, { seedFurniture: !loadedFromSave });
-    setScene(scene);
-
-    const onResize = () => scene.resize();
-    window.addEventListener("resize", onResize);
-
+    /*
+     * 场景本体**不在这个 effect 里建**（①B 拆走）：换图要拆旧建新，
+     * 而这里的系统（时钟/天气/需求/自动存档）是跨图常驻的，跟着场景
+     * 一起重启会把"离线补算"这类只该发生一次的事再跑一遍。
+     * 场景的生命周期见下面按 mapEpoch 走的那个 effect。
+     */
     const ok = (message: string): CommandResult => ({ ok: true, message });
     const fail = (message: string): CommandResult => ({ ok: false, message });
 
@@ -298,7 +310,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
         description: "开关浅色描边",
         handler: (args) => {
           const value = parseEnum(args[0], ["on", "off"] as const, "描边");
-          scene.setOutlineEnabled(value === "on");
+          sceneRef.current?.setOutlineEnabled(value === "on");
           return ok(`描边已${value === "on" ? "开启" : "关闭"}`);
         },
       }),
@@ -309,8 +321,10 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
         description: "相机档位旋转（也可以按 Q / E）",
         handler: (args) => {
           const value = parseEnum(args[0], ["cw", "ccw"] as const, "方向");
-          scene.rotate(value === "cw" ? 1 : -1);
-          return ok(`相机已旋转 45°，当前朝向 ${Math.round(scene.rig.azimuthDegrees)}°`);
+          const current = sceneRef.current;
+          if (!current) return fail("场景还没就绪");
+          current.rotate(value === "cw" ? 1 : -1);
+          return ok(`相机已旋转 45°，当前朝向 ${Math.round(current.rig.azimuthDegrees)}°`);
         },
       }),
       registerCommand({
@@ -318,7 +332,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
         usage: "zoomfit",
         description: "缩到最远，一眼看全整个房间",
         handler: () => {
-          scene.zoomToFit();
+          sceneRef.current?.zoomToFit();
           return ok("已缩到最远");
         },
       }),
@@ -439,8 +453,36 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
           if (!Number.isFinite(x) || !Number.isFinite(z)) {
             return fail("用法：tp <x> <z>");
           }
-          scene.debugTeleport(x, z);
+          sceneRef.current?.debugTeleport(x, z);
           return ok(`传送到 (${x}, ${z})`);
+        },
+      }),
+      registerCommand({
+        name: "goto",
+        arguments: [
+          {
+            name: "地图",
+            suggest: () =>
+              mapDefinitions.map((definition) => ({
+                value: definition.mapId,
+                description: t(definition.localizationKey),
+              })),
+          },
+        ],
+        usage: "goto <mapId>",
+        description: "去另一张箱庭地图（阶段②的传送门就绪前的调试入口）",
+        handler: (args) => {
+          const result = travelTo(args[0] ?? "");
+          // `=== false` 收窄：tsconfig 没开 strict，真值收窄在判别式联合上不生效
+          if (result.ok !== false) return ok(`出发去 ${args[0]}`);
+          switch (result.reason) {
+            case "already_there":
+              return fail("已经在这张地图了");
+            case "in_session":
+              return fail(t("ui.travel.in_session"));
+            default:
+              return fail(`没有这张地图：${args[0] ?? "(空)"}`);
+          }
         },
       }),
       registerCommand({
@@ -574,8 +616,6 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       }),
     ];
 
-    // 供自动化验证读取，不参与玩法
-    (window as unknown as { __scene?: RoomScene }).__scene = scene;
     // 厨房状态（锅里装着什么、煮到几分、手上端着什么）是纯数据，
     // 光看画面验证不了品质这类字段，所以开一个只读窗口
     (
@@ -597,7 +637,6 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
     };
 
     return () => {
-      window.removeEventListener("resize", onResize);
       for (const remove of unregister) remove();
       // 离开前先把当前进度写下去，再摘掉自动存档
       window.removeEventListener("pointerdown", onFirstGesture);
@@ -613,11 +652,45 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       stopNeeds();
       stopWeather();
       stopClock();
+    };
+  }, [loadedFromSave]);
+
+  // 换图：状态层切完发 map_changed，这里只负责把场景纪元 +1
+  useEffect(() => on("map_changed", () => setMapEpoch((epoch) => epoch + 1)), []);
+
+  /**
+   * 场景的生命周期（①B 从大 effect 拆出来）。跟着 mapEpoch 走：
+   * 换图 = 拆掉整个 RoomScene 重建——门、宠物寻路、镜头边界全在
+   * 构造函数里按**当前**房间几何初始化，复用旧场景等于让它们全体
+   * 攥着上一张图的闭包（审计里 setOutdoorPass 捕获旧 halfW 就是例子）。
+   */
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    // 开局摆设只属于世界的第一次落地，不属于每张图的第一次进入
+    const scene = new RoomScene(container, {
+      seedFurniture: !loadedFromSave && mapEpoch === 0,
+    });
+    sceneRef.current = scene;
+    setScene(scene);
+    // 供自动化验证读取，不参与玩法
+    (window as unknown as { __scene?: RoomScene }).__scene = scene;
+
+    const onResize = () => scene.resize();
+    window.addEventListener("resize", onResize);
+
+    // 加载遮罩听它揭幕
+    emit("map_scene_ready", { mapId: getCurrentMapId() });
+
+    return () => {
+      window.removeEventListener("resize", onResize);
       scene.dispose();
+      sceneRef.current = null;
       setScene(null);
       delete (window as unknown as { __scene?: RoomScene }).__scene;
     };
-  }, [loadedFromSave]);
+  }, [loadedFromSave, mapEpoch]);
 
   return (
     <>
@@ -658,6 +731,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
           标题界面上还没有世界，开个输入框对着空气打字没有意义 */}
       <ChatPanel />
       <SpeechBubble scene={scene} />
+      {/* 换图加载遮罩：盖住拆旧建新的几帧，也给"去了另一个地方"一点仪式感 */}
+      <TravelOverlay />
       <EscMenu />
       {/*
         触摸操作只在触摸设备上出现（判据见 State/touchMode）。

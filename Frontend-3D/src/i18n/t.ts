@@ -423,6 +423,12 @@ const ZH: Record<string, string> = {
   "ui.action.completed": "完成了！",
   "ui.action.companion_suffix": "一直在旁边陪着你",
 
+  // 箱庭地图（①B）
+  "map.home": "家",
+  "map.town": "小镇",
+  "ui.travel.moving": "移动中…",
+  "ui.travel.in_session": "联机中不能离开这张地图",
+
   // 疲劳门槛
   "ui.action.too_tired": "太累了，先睡一觉或做件休息任务",
   "ui.action.fatigue_cost": "消耗精力",

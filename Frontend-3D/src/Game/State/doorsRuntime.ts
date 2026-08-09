@@ -217,6 +217,13 @@ export function findDoorAgent(refId: string): Door | undefined {
 }
 
 export function snapshotDoors(): DoorSave[] {
+  /*
+   * 门实例还没建（读档之后、RoomScene 的 initDoors 之前）时，快照
+   * 原样退回寄存的那份——否则这个窗口里存一次盘，全部锁状态清零。
+   * 认领过（doors 非空）之后寄存已经消费掉，走正常路径。
+   */
+  if (doors.size === 0 && pendingSaves) return pendingSaves;
+
   return listDoors().map((door) => ({
     refId: door.refId,
     definitionId: door.definition.id,

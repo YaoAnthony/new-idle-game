@@ -4,10 +4,11 @@ import {
   restoreChatLog,
   snapshotChatLog,
 } from "../../Game/State/chatLog";
+import { restoreDroppedItems } from "../../Game/State/droppedItems";
 import {
-  restoreDroppedItems,
-  snapshotDroppedItems,
-} from "../../Game/State/droppedItems";
+  loadWorldEntities,
+  snapshotWorldEntities,
+} from "../../Game/State/world/entities";
 import {
   restoreDailyBoard,
   snapshotDailyBoard,
@@ -40,14 +41,9 @@ import {
 } from "../../Game/State/inventory";
 import { getNeeds, restoreNeeds } from "../../Game/State/needs";
 import { restoreAvatar, snapshotAvatar } from "../../Game/State/avatar";
-import { restoreDoors, snapshotDoors } from "../../Game/State/doorsRuntime";
-import { restorePets, snapshotPets } from "../../Game/State/petsRuntime";
-import {
-  getRoomStyle,
-  restoreWorld,
-  setRoomStyleId,
-  snapshotWorld,
-} from "../../Game/State/worldRuntime";
+import { restoreDoors } from "../../Game/State/doorsRuntime";
+import { restorePets } from "../../Game/State/petsRuntime";
+import { getRoomStyle, setRoomStyleId } from "../../Game/State/worldRuntime";
 import {
   restoreAction,
   restoreActionEntries,
@@ -90,7 +86,12 @@ function nowUtc(): string {
 
 
 export function serializeGameSave(previous?: GameSave): GameSave {
-  const world = snapshotWorld();
+  /*
+   * 家具/掉落物/宠物/门走 snapshotWorldEntities：活跃 store 的快照 +
+   * 各搁置地图的原样，合回 WorldSave 的平坦数组——**分桶是运行时的
+   * 私事，存档形状和联机协议都看不见它**（读档侧对称，见 hydrate）。
+   */
+  const world = snapshotWorldEntities();
   const style = getRoomStyle();
   const timestamp = nowUtc();
 
@@ -147,20 +148,20 @@ export function serializeGameSave(previous?: GameSave): GameSave {
       weather: snapshotWeather(),
 
       /*
-       * 全量往返：运行时的 snapshotWorld 返回完整的 maps Record
-       * （当前地图的所有房间 + 搁置保管的其他地图），这里原样透传。
+       * 全量往返：maps 是"当前地图的所有房间 + 搁置保管的其他地图"，
+       * 实体四族（家具/掉落物/宠物/门）是"活跃 + 各搁置桶"合流。
        *
-       * 这行原来是 `{ home: 只塞主房间一张 }`，旁边挂着一大段
+       * maps 那行原来是 `{ home: 只塞主房间一张 }`，旁边挂着一大段
        * "会到期的假设"的自白——多房间/多地图出现时会静默丢数据。
        * V0.13 给运行时补了"当前地图 + 搁置地图"的持有者（world/state），
        * 假设兑现，自白功成身退。
        */
       maps: world.maps,
-      pets: snapshotPets(),
-      doors: snapshotDoors(),
+      pets: world.pets,
+      doors: world.doors,
       placedFurniture: world.placedFurniture,
       // 地上扔着的东西也是世界的一部分，不存就等于关一次游戏丢一次货
-      droppedItems: snapshotDroppedItems(),
+      droppedItems: world.droppedItems,
       // 消息记录只留最近几个世界日，裁剪规则在 Core 的 trimChatLog
       chatLog: snapshotChatLog(),
       inventories: snapshotStorages(),
@@ -198,26 +199,37 @@ export function hydrateGameSave(save: GameSave): void {
   setRoomStyleId(save.ownWorld.house.styleId);
 
   /*
-   * 整份 maps 交给运行时：它按当前地图取几何（取不到退回第一张，
-   * 老存档的 map 键不一定叫 home），其余地图上架保管、存盘原样带回。
-   * "取哪张、搁哪张"是运行时的知识，serialize 只管透传——
-   * 存/读不对称是存档最容易腐烂的地方，两个方向现在都是同一份 Record。
+   * 分桶入口：按玩家所在的地图（position.mapId）定当前图，四族实体
+   * （家具/掉落物/宠物/门）分成"当前图的"和"搁置的"。几何和当前图
+   * 家具由它直接灌进运行时；掉落物/宠物/门只**分拣不代灌**——下面
+   * 各 restore 按这里验证过的既有顺序（时钟先、宠物在需求后、门最后）
+   * 喂的是分拣后的当前图切片。
+   *
+   * position.mapId 在此之前从来没人读（审计发现：人在 B 图存的档，
+   * 读回来永远落在 home 的几何里，实体却是全量的）。
    */
-  restoreWorld({
-    maps: save.ownWorld.maps,
-    placedFurniture: save.ownWorld.placedFurniture,
-  });
+  const active = loadWorldEntities(
+    {
+      maps: save.ownWorld.maps,
+      placedFurniture: save.ownWorld.placedFurniture,
+      droppedItems: save.ownWorld.droppedItems ?? [],
+      pets: save.ownWorld.pets,
+      doors: save.ownWorld.doors ?? [],
+    },
+    save.player.character.position?.mapId,
+  );
 
   // 时钟与天气最先恢复：其他系统（离线结算、每日限额）要读时间
   restoreClock(save.ownWorld.clock);
   restoreWeather(save.ownWorld.weather);
   // 储物家具的内容属于世界，跟着房间一起恢复。
   // 恢复完立刻清一次幽灵库存——老存档里可能存着已经不在屋里的家具的箱子，
-  // 不清的话它会一直占着 WorldSave.inventories 且永远打不开
+  // 不清的话它会一直占着 WorldSave.inventories 且永远打不开。
+  // 储物/唱片机不分桶（按全局唯一 instanceId 存取，无逐帧遍历），
+  // 所以喂的仍是存档全量
   restoreStorages(save.ownWorld.inventories);
   restoreGramophones(save.ownWorld.gramophones);
-  // 老存档没有这个字段，restoreDroppedItems 会当空数组处理
-  restoreDroppedItems(save.ownWorld.droppedItems);
+  restoreDroppedItems(active.droppedItems);
   // 消息记录要在时钟之后恢复——裁剪按"今天是哪天"算
   restoreChatLog(save.ownWorld.chatLog);
   pruneOrphanStorages(
@@ -242,9 +254,11 @@ export function hydrateGameSave(save: GameSave): void {
   restoreResting(save.player.character.restingOn);
   // 带上上次存盘的时刻，startNeeds 的首次 tick 才能补算离线期间的衰减
   restoreNeeds(save.player.character.needs, save.meta?.updatedAtUtc);
-  restorePets(save.ownWorld.pets);
-  // 只寄存锁定状态；门实例要等 RoomScene 拿到房间几何后 initDoors 才建
-  restoreDoors(save.ownWorld.doors);
+  restorePets(active.pets);
+  // 只寄存锁定状态；门实例要等 RoomScene 拿到房间几何后 initDoors 才建。
+  // 只喂当前图的门——别图的门连同锁状态在搁置桶里，不再被 initDoors
+  // 认领后清空（审计抓的"换图存盘丢锁"就是这么来的）
+  restoreDoors(active.doors);
 
   restoreProgression({
     events: save.ownWorld.progression.events,

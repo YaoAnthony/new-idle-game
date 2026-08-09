@@ -119,6 +119,7 @@ import { getClock } from "../../Game/State/clock";
 import { getResting, isResting } from "../../Game/State/posture";
 import { pruneOrphanStorages } from "../../Game/State/storage";
 import { pruneOrphanGramophones } from "../../Game/State/gramophones";
+import { allFurnitureInstanceIds } from "../../Game/State/world/entities";
 import { getWeather } from "../../Game/State/weather";
 import {
   DEFAULT_POSTURE,
@@ -419,13 +420,12 @@ export class RoomScene {
         this.applyEnvironment();
         // 坐着的那把椅子被搬走了 / 房间被清空了 → 自动起身
         reconcileResting();
-        // 家具没了它的箱子也该没，否则存档会带着永远打不开的幽灵库存
-        pruneOrphanStorages(
-          getWorld().placedFurniture.map((item) => item.instanceId),
-        );
-        pruneOrphanGramophones(
-          getWorld().placedFurniture.map((item) => item.instanceId),
-        );
+        // 家具没了它的箱子也该没，否则存档会带着永远打不开的幽灵库存。
+        // 活名单必须是**全世界**（活跃 + 搁置）的家具：prune 的语义是
+        // "不在名单里就删"，只报当前图的话，别图所有箱子的内容会被当
+        // 孤儿清掉，下一次自动存盘就永久落盘（箱庭审计的第一红灯）
+        pruneOrphanStorages(allFurnitureInstanceIds());
+        pruneOrphanGramophones(allFurnitureInstanceIds());
       }),
     );
 

@@ -8,7 +8,7 @@ import {
 } from "core";
 import { emit } from "../EventBus";
 import { PetAgent, type PetActivity } from "./petAgent";
-import { getWorld } from "./worldRuntime";
+import { getWorld, roomIdAt } from "./worldRuntime";
 
 /**
  * 活着的宠物们。**每只都是 PetAgent 的实例**——行为状态机、吃喝睡、
@@ -174,10 +174,15 @@ export function tickPets(
 // ---- 存档 ----
 
 export function snapshotPets(): Record<string, PetSave> {
-  const { room } = getWorld();
   const saved: Record<string, PetSave> = {};
   for (const pet of pets.values()) {
-    saved[pet.petId] = pet.toSave(room.roomId);
+    /*
+     * 每只按**自己站的位置**记 roomId（屋里/院子各归各），不再全体
+     * 盖成当前房间——原来那行 `toSave(room.roomId)` 是审计抓出来的
+     * 存档损坏点：多地图之后一次存盘会把全世界宠物的户口集体迁到
+     * 当前房间。运行时分桶后场上只有本图的宠物，roomIdAt 恒正确。
+     */
+    saved[pet.petId] = pet.toSave(roomIdAt(pet.x, pet.z));
   }
   return saved;
 }

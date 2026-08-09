@@ -90,6 +90,20 @@ export class CameraRig {
     maxZ: number;
   } | null = null;
 
+  /**
+   * 相机的**禁入盒**（V0.13）：人在院子里时整栋房子是实体，
+   * 相机的弹簧臂不许缩进屋顶和外墙里去。和 bounds 是一对镜像——
+   * bounds 说"只能在这里面"，obstacle 说"不能进这里面"。
+   */
+  private obstacle: {
+    minX: number;
+    maxX: number;
+    minY: number;
+    maxY: number;
+    minZ: number;
+    maxZ: number;
+  } | null = null;
+
   constructor(aspect: number, options: CameraRigOptions = {}) {
     const {
       fov = 50,
@@ -183,6 +197,61 @@ export class CameraRig {
     }
 
     return Math.max(tMax, 0);
+  }
+
+  /** 设置 / 清除禁入盒（人在院子里 = 房子的外包围盒；进屋 = null） */
+  setObstacleBox(
+    box: {
+      minX: number;
+      maxX: number;
+      minY: number;
+      maxY: number;
+      minZ: number;
+      maxZ: number;
+    } | null,
+  ): void {
+    this.obstacle = box;
+  }
+
+  /**
+   * 从目标点沿视线方向**撞进**禁入盒的距离（slab 求交的入射 t）。
+   * 打不中或起点已在盒内返回 Infinity（后者不该发生——玩家在屋外
+   * 枢轴就在屋外；真发生了也不能把距离清零，那等于把相机怼进玩家脸）。
+   */
+  private distanceToObstacle(
+    origin: Vector3,
+    dirX: number,
+    dirY: number,
+    dirZ: number,
+  ): number {
+    const obstacle = this.obstacle;
+    if (!obstacle) return Infinity;
+
+    let tNear = -Infinity;
+    let tFar = Infinity;
+    const axes: Array<[number, number, number, number]> = [
+      [dirX, origin.x, obstacle.minX, obstacle.maxX],
+      [dirY, origin.y, obstacle.minY, obstacle.maxY],
+      [dirZ, origin.z, obstacle.minZ, obstacle.maxZ],
+    ];
+
+    for (const [dir, position, min, max] of axes) {
+      if (Math.abs(dir) < 1e-6) {
+        // 视线和这个轴平行：起点在槽外就永远打不中
+        if (position < min || position > max) return Infinity;
+        continue;
+      }
+      const t1 = (min - position) / dir;
+      const t2 = (max - position) / dir;
+      const enter = Math.min(t1, t2);
+      const exit = Math.max(t1, t2);
+      if (enter > tNear) tNear = enter;
+      if (exit < tFar) tFar = exit;
+    }
+
+    if (tNear > tFar || tFar < 0) return Infinity;
+    if (tNear < 0) return Infinity; // 起点已在盒内，见上
+    return tNear;
   }
 
   /** 跟随目标（角色胸口高度） */
@@ -363,8 +432,14 @@ export class CameraRig {
      * 这是所有第三人称游戏的既定语言，玩家一拖鼠标就知道该怎么办。
      */
     // 下限比 minDistance 更宽松：真到墙角就得贴脸，硬撑只会穿墙
+    // 内壁盒管"别出去"，禁入盒管"别进来"（房子实体），取更近的那个。
+    // 房子正好挡在身后时相机会贴近玩家——和屋内贴墙收臂是同一种让步，
+    // 挡视线但没挡到臂的墙走遮挡淡出，不归这里管
     const limit = Math.max(
-      this.distanceToBounds(PIVOT, dirX, dirY, dirZ),
+      Math.min(
+        this.distanceToBounds(PIVOT, dirX, dirY, dirZ),
+        this.distanceToObstacle(PIVOT, dirX, dirY, dirZ),
+      ),
       MIN_WALL_DISTANCE,
     );
 

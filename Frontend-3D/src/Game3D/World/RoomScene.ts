@@ -1600,8 +1600,13 @@ export class RoomScene {
 
     this.furnitureView.setOccluders(next);
 
-    // 内墙同理：挡在镜头和角色之间就整段让开（动森切妻）。
-    // 命中即淡出，放开要等几拍——和家具的滞回一个道理
+    // 墙体同理：挡在镜头和角色之间就整段让开（动森切妻）。
+    // 命中即淡出，放开要等几拍——和家具的滞回一个道理。
+    //
+    // V0.13 起检测三组：内墙隔断、外墙皮、屋顶。人在屋内时后两组
+    // 永远打不中（射线整段都在屋内，外皮和屋顶都在体外）；人在屋外、
+    // 房子挡住镜头时，命中的那面外墙/屋顶整体让开——"从外面看得到
+    // 屋里的布局"就是这一条在干活。
     const hitWalls = new Set<import("three").Object3D>();
     for (const sample of OCCLUSION_SAMPLES) {
       this.occlusionOrigin.copy(this.rig.camera.position);
@@ -1617,25 +1622,35 @@ export class RoomScene {
       this.occlusionDirection.divideScalar(distance);
       this.occlusionRaycaster.set(this.occlusionOrigin, this.occlusionDirection);
       this.occlusionRaycaster.far = Math.max(distance - 0.35, 0.01);
-      for (const hit of this.occlusionRaycaster.intersectObject(
-        this.built.interiorWalls,
-        true,
-      )) {
-        let node: import("three").Object3D | null = hit.object;
-        while (node && node.parent !== this.built.interiorWalls) node = node.parent;
-        if (node) hitWalls.add(node);
+      for (const group of this.occluderGroups()) {
+        for (const hit of this.occlusionRaycaster.intersectObject(group, true)) {
+          let node: import("three").Object3D | null = hit.object;
+          while (node && node.parent !== group) node = node.parent;
+          if (node) hitWalls.add(node);
+        }
       }
     }
 
-    for (const segment of this.built.interiorWalls.children) {
-      if (hitWalls.has(segment)) {
-        this.wallReleaseTicks.set(segment.uuid, 3);
-      } else {
-        const left = (this.wallReleaseTicks.get(segment.uuid) ?? 0) - 1;
-        if (left > 0) this.wallReleaseTicks.set(segment.uuid, left);
-        else this.wallReleaseTicks.delete(segment.uuid);
+    for (const group of this.occluderGroups()) {
+      for (const segment of group.children) {
+        if (hitWalls.has(segment)) {
+          this.wallReleaseTicks.set(segment.uuid, 3);
+        } else {
+          const left = (this.wallReleaseTicks.get(segment.uuid) ?? 0) - 1;
+          if (left > 0) this.wallReleaseTicks.set(segment.uuid, left);
+          else this.wallReleaseTicks.delete(segment.uuid);
+        }
       }
     }
+  }
+
+  /** 参与遮挡淡出的三组墙体（直接子节点 = 淡出单位） */
+  private occluderGroups(): import("three").Object3D[] {
+    return [
+      this.built.interiorWalls,
+      this.built.exteriorWalls,
+      this.built.roofShell,
+    ];
   }
 
   private update(deltaSeconds: number): void {
@@ -1693,10 +1708,15 @@ export class RoomScene {
       this.refreshOccluders();
     }
     this.furnitureView.tickFade(deltaSeconds);
-    // 内墙的淡出淡回每帧推进，检测在 refreshOccluders 里限流
-    for (const segment of this.built.interiorWalls.children) {
-      const hidden = this.wallReleaseTicks.has(segment.uuid);
-      stepFade(segment, hidden ? 0.25 : 1, deltaSeconds, hidden ? 6 : 3);
+    // 墙体（内墙/外墙/屋顶）的淡出淡回每帧推进，检测在 refreshOccluders 里限流。
+    // 外墙和屋顶淡得更透（0.12 vs 0.25）：内墙让开时半透着还能提示
+    // "这里有堵墙"，外墙让开是为了看清整个屋内布局，留太多就白让了
+    for (const group of this.occluderGroups()) {
+      const hiddenOpacity = group === this.built.interiorWalls ? 0.25 : 0.12;
+      for (const segment of group.children) {
+        const hidden = this.wallReleaseTicks.has(segment.uuid);
+        stepFade(segment, hidden ? hiddenOpacity : 1, deltaSeconds, hidden ? 6 : 3);
+      }
     }
 
     this.interactCheckTimer += deltaSeconds;
@@ -1807,35 +1827,55 @@ export class RoomScene {
   /**
    * 玩家进出屋子时切镜头边界盒。
    *
-   * 屋内是房子的内壁盒（弹簧臂贴墙收臂那套）；屋外换成整个院子——
-   * 不切的话人一出门，镜头目标还被夹在房子里，人越走越远直到出画。
+   * 屋内是房子的内壁盒（弹簧臂贴墙收臂那套）；屋外换成整个院子，
+   * **同时把房子设成禁入盒**——不切的话人一出门，镜头目标还被夹在
+   * 房子里，人越走越远直到出画。
    *
-   * 判据是玩家中心越过西墙线，不做滞回：切换的只是 desired 目标，
-   * CameraRig 的平滑插值天然把跳变抹成一段推拉，门口来回横跳
-   * 也只是镜头轻微呼吸，不值得为它加状态。
+   * 判据按房子占地的**四条边**判（V0.13 修复：原来只看西墙一条线
+   * `x < -width/2`，人绕到北/东/南面时系统仍认为在屋内，把镜头枢轴
+   * 硬夹回屋内边界盒——"贴着外墙走镜头被吸进屋"的病根就是这一行）。
+   * 几何和 worldRuntime 的 isIndoors 同一份，这里多了 0.25 的滞回：
+   * 站在门槛上反复横跳时两套盒子来回切，滞回把抖动吃掉。
    *
-   * 屋外的盒子把房子也包进去，代价是镜头拉远时可能穿房顶看到屋里——
-   * 治愈系的院子视角基本平视，实际很少触发；比起给房子做遮挡淡出
-   * 的第二套规则，先接受这个小瑕疵。
+   * 屋外的禁入盒罩到屋脊：房子现在有外墙皮和屋顶（阶段 B），镜头
+   * 缩进去会在近平面切出闪烁的碎片。房子挡住视线但没挡到弹簧臂的
+   * 情况走遮挡淡出（refreshOccluders 的三组墙体），不归这里管。
    */
   private syncCameraBounds(): void {
     const { width, depth } = this.built.size;
-    const outdoors = this.controller.x < -width / 2;
-    if (outdoors === this.cameraOutdoors) return;
-    this.cameraOutdoors = outdoors;
+    const halfW = width / 2;
+    const halfD = depth / 2;
 
-    if (outdoors) {
+    // 正值 = 在房子占地外多远（按最深越界的轴算）
+    const outside = Math.max(
+      Math.abs(this.controller.x) - halfW,
+      Math.abs(this.controller.z) - halfD,
+    );
+    const next = this.cameraOutdoors ? outside > -0.25 : outside > 0.25;
+    if (next === this.cameraOutdoors) return;
+    this.cameraOutdoors = next;
+
+    if (next) {
       const yardMargin = getCurrentMap().yardMargin;
       this.rig.setBoundsRect(
-        -width / 2 - yardMargin,
-        width / 2 + yardMargin,
-        -depth / 2 - yardMargin,
-        depth / 2 + yardMargin,
-        // 院子没有天花板，给个够拉高的天空盒
+        -halfW - yardMargin,
+        halfW + yardMargin,
+        -halfD - yardMargin,
+        halfD + yardMargin,
+        // 院子没有天花板；上限要够看全屋顶（屋脊 ~7.8）
         10,
       );
+      this.rig.setObstacleBox({
+        minX: -halfW - 0.3,
+        maxX: halfW + 0.3,
+        minY: 0,
+        maxY: this.built.ridgeHeight + 0.1,
+        minZ: -halfD - 0.3,
+        maxZ: halfD + 0.3,
+      });
     } else {
       this.rig.setRoomBounds(width, depth, this.built.wallHeight);
+      this.rig.setObstacleBox(null);
     }
   }
 

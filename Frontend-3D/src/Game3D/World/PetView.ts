@@ -2,6 +2,7 @@ import { findPetDefinition } from "core";
 import { Object3D } from "three";
 import { on } from "../../Game/EventBus";
 import { getPets } from "../../Game/State/petsRuntime";
+import { groundHeightAt } from "../../Game/State/worldRuntime";
 import { addOutline } from "../Engine/Outline.js";
 import { buildVisual } from "../Visual/VisualRegistry.js";
 
@@ -67,7 +68,10 @@ export class PetView {
         this.root.add(view);
       }
 
-      view.position.set(pet.x, 0, pet.z);
+      // 脚下的承托面（缘侧那类室外平台）。溜达到廊子上的猫要站在板上，
+      // 不是陷进去半截——和玩家读的是同一个地形高度
+      const ground = groundHeightAt(pet.x, pet.z);
+      view.position.set(pet.x, ground, pet.z);
       view.rotation.y = pet.heading;
 
       /**
@@ -85,7 +89,8 @@ export class PetView {
         const bounce = pet.moving
           ? Math.abs(Math.sin(this.elapsed * 9)) * 0.06
           : Math.sin(this.elapsed * 2.4) * 0.015;
-        view.position.y = bounce;
+        // 叠在承托面上，不是覆盖它——覆盖的话站在缘侧上的小团子会掉回地面
+        view.position.y = ground + bounce;
       }
     }
   }

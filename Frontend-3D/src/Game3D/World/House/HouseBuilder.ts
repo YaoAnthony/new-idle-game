@@ -14,6 +14,7 @@ import { box } from "../../Visual/primitives.js";
 import { createQuadMesh, type Quad } from "../quadMesh.js";
 import { buildEngawa } from "./Engawa.js";
 import { buildExteriorWalls } from "./ExteriorWalls.js";
+import { buildPorch } from "./Porch.js";
 import { buildRoof } from "./Roof.js";
 
 /**
@@ -661,6 +662,12 @@ export function buildHouse(
       else doors.push(anchor);
     }
   }
+
+  /*
+   * 玄关门廊：每个外墙门口一座。进屋顶组当独立淡出单位——它挑出
+   * 2.4 格又有实体山墙，玩家站门口时镜头俯角一大就会被它整个盖住。
+   */
+  for (const door of doors) roofShell.add(buildPorch(door));
 
   return {
     root,

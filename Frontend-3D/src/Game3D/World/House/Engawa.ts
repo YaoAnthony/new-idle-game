@@ -293,12 +293,15 @@ function hisashiOf(geometry: DeckGeometry): Object3D {
   group.add(fascia);
 
   // 檐柱：从缘侧台面撑到檐口。**廊子读成廊子全靠这排柱子**——
-  // 没有柱的檐是一片悬空的板，有了柱才是"外面那条走廊"
+  // 没有柱的檐是一片悬空的板，有了柱才是"外面那条走廊"。
+  //
+  // 柱子踩在台面**最外那道边**上（不是往里缩）：人现在能走上缘侧了，
+  // 往里缩的柱子正好立在走道中间，会被人直接穿过去；贴着外沿则是
+  // "走到头就是柱子和栏杆"，人自然停在里侧。
+  const postAlong = side * (outerAlong - HISASHI_OVERHANG - 0.09);
   const posts = Math.max(2, Math.round(fasciaLength / POST_SPACING));
   for (let i = 0; i <= posts; i += 1) {
     const s = span.from + 0.25 + ((fasciaLength - 0.5) * i) / posts;
-    // 柱子落在缘侧台面外沿内侧一点，别悬在台子外
-    const postAlong = side * (outerAlong - HISASHI_OVERHANG - 0.18);
     const height = outerY - DECK_HEIGHT + 0.1;
     group.add(
       box([0.16, height, 0.16], {
@@ -314,7 +317,7 @@ function hisashiOf(geometry: DeckGeometry): Object3D {
     group.add(
       box([0.14, DECK_HEIGHT, 0.14], {
         color: PALETTE.woodDark,
-        position: at(s, side * (outerAlong - HISASHI_OVERHANG - 0.15), DECK_HEIGHT / 2),
+        position: at(s, postAlong, DECK_HEIGHT / 2),
       }),
     );
   }

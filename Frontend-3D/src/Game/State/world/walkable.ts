@@ -1,5 +1,6 @@
 import {
   BLOCKED_TO_TOP,
+  DECK_HEIGHT,
   canPassAt,
   outdoorDeckRect,
   surfaceHeightAt,
@@ -134,32 +135,41 @@ export function roomIdAt(x: number, z: number): string {
 }
 
 /**
- * 碰撞圆压到缘侧了吗。
+ * 站在这个位置时**脚下的承托面有多高**（世界单位）。
  *
- * 缘侧是**走不上去的实体**，不是可站立的台面：角色控制器没有地形高度，
- * 踩上去人会陷进木板里（脚在 y=0，板面在 0.4）。现实里缘侧也是从屋里
- * 踏出来的，而北墙是窗不是门——本来就走不上去，所以这个妥协不亏。
- * 真正的用法是**站在院子里、坐到它边上**，那条走坐姿系统。
+ * 这是"室外地形高度"这个概念的全部——在它之前整个户外是一张绝对水平的
+ * 平面，角色的 y 恒为 0，缘侧因此只能是一堵挡路的墙（走不上去、跳不上去，
+ * 因为落地永远回到 0）。有了它，缘侧才从"障碍"变成"台阶"。
+ *
+ * 判点不判圆：问的是"我这个人站在哪个面上"，一个人只可能站在一个面上；
+ * 走到边沿时身体探出去一点是对的（真人也是这样），不该因为碰撞圆蹭到
+ * 台子就被抬起来。
+ *
+ * 室内不参与：屋里的高度差走占用图的 surfaceAt（台面、家具顶），
+ * 那套按格子算，和这里按矩形算的室外平台是两个坐标系。
  */
-function hitsOutdoorDeck(x: number, z: number, radius: number): boolean {
+export function groundHeightAt(x: number, z: number): number {
   const decks = worldState.map.outdoorDecks;
-  if (!decks?.length) return false;
+  if (!decks?.length) return 0;
 
+  let height = 0;
   for (const deck of decks) {
     const rect = outdoorDeckRect(deck, worldState.room.floorGrid);
-    if (
-      x + radius > rect.minX &&
-      x - radius < rect.maxX &&
-      z + radius > rect.minZ &&
-      z - radius < rect.maxZ
-    ) {
-      return true;
+    if (x >= rect.minX && x <= rect.maxX && z >= rect.minZ && z <= rect.maxZ) {
+      height = Math.max(height, DECK_HEIGHT);
     }
   }
-  return false;
+  return height;
 }
 
-/** 连续坐标下的通行检测：角色/宠物的圆形碰撞体压到的格子都不能是阻挡格 */
+/**
+ * 连续坐标下的通行检测：角色/宠物的圆形碰撞体压到的格子都不能是阻挡格。
+ *
+ * **缘侧不在这里挡**（V0.13 改）：它只有 0.4 高，是台阶不是墙，抬不抬得上去
+ * 由调用方拿 groundHeightAt 和自己当前的落脚高度比（只有调用方知道自己站多高）。
+ * 一度把它写成硬阻挡，结果是"人贴着廊子走，腿被挡在外面"——挡住了，
+ * 但挡住的是本该迈上去的一步。
+ */
 export function isWalkable(
   x: number,
   z: number,
@@ -168,9 +178,6 @@ export function isWalkable(
   selfId?: string,
 ): boolean {
   if (hitsCreature(x, z, radius, selfId)) return false;
-  // 缘侧在屋外，但要在下面的"越界就交给 outdoorPass"之前拦——
-  // outdoorPass 只认院子边界和大门，不知道墙边多了一条木台
-  if (hitsOutdoorDeck(x, z, radius)) return false;
 
   const halfW = worldState.room.floorGrid.width / 2;
   const halfD = worldState.room.floorGrid.height / 2;

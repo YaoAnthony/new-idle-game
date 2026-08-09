@@ -47,8 +47,12 @@ export const PALETTE = {
   deckPlank: "#b39268",
   deckPlankAlt: "#a5855d",
   deckEdge: "#6b4a30",
-  /** 沓脱石：踩着上下缘侧的那块石头 */
+  /** 沓脱石 / 踏み石：上下缘侧和进门的那些石头 */
   steppingStone: "#7e7a72",
+  /** 玄关灯的纸罩。白天也要比周围亮一档，它是"这儿是入口"的信号 */
+  lanternPaper: "#f6e6bd",
+  /** 玄关引き戸的毛玻璃：透光不透形，屋里的暖色透出来一点 */
+  doorGlass: "#e8e2d2",
 
   woodDark: "#5f4127",
   woodMid: "#8a5f3c",

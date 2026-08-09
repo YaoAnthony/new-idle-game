@@ -41,6 +41,11 @@ export type SlopeRafterParams = {
   spanTo: number;
   /** 椽距 */
   spacing: number;
+  /**
+   * 坡轴上的原点。房子的屋顶对称在世界原点上（默认 0），
+   * 但门廊那种挂在墙上某一处的小屋顶，屋脊在别的地方。
+   */
+  alongOrigin?: number;
 };
 
 export function slopeRafters(params: SlopeRafterParams): Quad[] {
@@ -54,11 +59,14 @@ export function slopeRafters(params: SlopeRafterParams): Quad[] {
     spanFrom,
     spanTo,
     spacing,
+    alongOrigin = 0,
   } = params;
 
-  /** (跨度, 坡轴, 高) → 世界坐标 */
+  /** (跨度, 坡轴, 高) → 世界坐标。坡轴带原点偏移 */
   const at = (span: number, along: number, y: number): Vec3 =>
-    axis === "z" ? [span, y, along] : [along, y, span];
+    axis === "z"
+      ? [span, y, alongOrigin + along]
+      : [alongOrigin + along, y, span];
 
   /** 跨度方向的法线（椽子两个侧面朝这儿） */
   const spanNormal = (dir: number): Vec3 =>

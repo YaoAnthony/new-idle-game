@@ -10,6 +10,7 @@ import {
 } from "../../Game/State/participants";
 import {
   PLAYER_OBSTACLE_ID,
+  groundHeightAt,
   isWalkable,
   setActorFootprint,
 } from "../../Game/State/worldRuntime";
@@ -41,6 +42,24 @@ const RADIUS = 0.32;
  */
 const JUMP_IMPULSE = 3.3;
 const JUMP_GRAVITY = 13;
+
+/**
+ * 一步能迈多高（世界单位）。缘侧台面 0.4，所以走过去就上去了。
+ *
+ * **上台阶不靠跳**，这是顺着上面那条"跳跃是纯装饰、不能用来够到
+ * 平时够不到的地方"来的：能不能上去必须是走位决定的，一旦要靠跳，
+ * 跳跃就从装饰变成了机制，那条约束就破了。现实里缘侧也是抬腿迈上去的，
+ * 0.4 米正是"能自然坐下再站起来"的高度（见 Core 的 OutdoorDeck 注释）。
+ *
+ * 0.55 留了余量：以后真有 0.5 的台子也迈得上，1 米的挡土墙仍然上不去。
+ */
+const MAX_STEP_UP = 0.55;
+
+/**
+ * 落脚面的跟随速度（一阶趋近的系数）。约 0.1 秒走完 0.4 的台阶——
+ * 快到不像在坐电梯，又慢到能看出"迈上去"这个动作。
+ */
+const GROUND_FOLLOW = 22;
 
 export class CharacterController {
   private readonly keys = new Set<string>();
@@ -292,11 +311,20 @@ export class CharacterController {
       const stepX = worldX * throttle * speed * deltaSeconds;
       const stepZ = worldZ * throttle * speed * deltaSeconds;
 
+      /*
+       * 能不能挪过去 = 平面上走得通 **且** 那儿的落脚面不比现在高出一步。
+       * 高度这一半只有这里知道——walkable 不清楚"我现在站多高"
+       * （站在院子里和站在缘侧上，对同一格缘侧的答案是不同的）。
+       */
+      const canStep = (nx: number, nz: number): boolean =>
+        isWalkable(nx, nz, RADIUS, PLAYER_OBSTACLE_ID) &&
+        groundHeightAt(nx, nz) - this.supportY <= MAX_STEP_UP;
+
       // 轴分离：撞墙时沿另一轴滑动。
       // 如果当前已经卡在阻挡格里（比如家具放在了人身上），放开限制让人走出来
       const stuck = !isWalkable(this.x, this.z, RADIUS, PLAYER_OBSTACLE_ID);
-      if (stuck || isWalkable(this.x + stepX, this.z, RADIUS, PLAYER_OBSTACLE_ID)) this.x += stepX;
-      if (stuck || isWalkable(this.x, this.z + stepZ, RADIUS, PLAYER_OBSTACLE_ID)) this.z += stepZ;
+      if (stuck || canStep(this.x + stepX, this.z)) this.x += stepX;
+      if (stuck || canStep(this.x, this.z + stepZ)) this.z += stepZ;
 
       const targetAngle = Math.atan2(worldX, worldZ);
       let delta = targetAngle - this.headingAngle;
@@ -310,6 +338,20 @@ export class CharacterController {
        */
       this.walkPhase =
         (this.walkPhase + deltaSeconds * 2.6 * (running ? RUN_MULTIPLIER : 1)) % 1;
+    }
+
+    /*
+     * 站着时脚跟着地形走（缘侧那类室外平台）。**坐着躺着不碰**——
+     * 那时 supportY 是 resting 系统按椅面算好的，跟地形抢会把人拽下椅子。
+     *
+     * 用趋近不用直接赋值：0.4 的台阶瞬移上去是"贴"上去的，趋近才是
+     * "迈"上去的。走下台子同理，是一步跨下来，不是自由落体——0.4 的
+     * 落差走重力反而会有一帧腾空，比抬腿难看。
+     */
+    if (!seated) {
+      const ground = groundHeightAt(this.x, this.z);
+      this.supportY +=
+        (ground - this.supportY) * Math.min(1, GROUND_FOLLOW * deltaSeconds);
     }
 
     // 坐着躺着时根节点要抬到承托面上（由 resting 系统写进 supportY）；

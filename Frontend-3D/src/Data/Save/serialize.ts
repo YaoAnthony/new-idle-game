@@ -1,4 +1,4 @@
-import { createSingleRoomMap, type GameSave } from "core";
+import { HOME_HOUSE_ID, type GameSave } from "core";
 import { restoreClock, snapshotClock } from "../../Game/State/clock";
 import {
   restoreChatLog,
@@ -82,10 +82,7 @@ import { SAVE_SCHEMA_VERSION } from "./types";
  * - WorldSave 属于世界：家具、宠物、房间几何、事件进度
  */
 
-const MAIN_MAP_ID = "home";
 const WORLD_ID = "world";
-
-
 
 function nowUtc(): string {
   return new Date().toISOString();
@@ -141,7 +138,7 @@ export function serializeGameSave(previous?: GameSave): GameSave {
        * 迟早出现"styleId 是海边小屋、regionId 还写着 forest"。
        */
       house: {
-        houseId: previous?.ownWorld.house.houseId ?? "home",
+        houseId: previous?.ownWorld.house.houseId ?? HOME_HOUSE_ID,
         regionId: style.regionId,
         styleId: style.id,
       },
@@ -150,19 +147,15 @@ export function serializeGameSave(previous?: GameSave): GameSave {
       weather: snapshotWeather(),
 
       /*
-       * `maps` 是 Record<MapId, MapSave>，这里只塞一张。
+       * 全量往返：运行时的 snapshotWorld 返回完整的 maps Record
+       * （当前地图的所有房间 + 搁置保管的其他地图），这里原样透传。
        *
-       * **现在是对的，但它是一条会到期的假设。** 今天全世界只有一个
-       * room（院子没有几何、活在渲染层的 OutdoorScene 里），所以"整份
-       * maps 就是主房间那一张"成立。等真有了二楼 / 独立的院子 room，
-       * 这一行会**静默丢掉除主房间外的一切**——不报错、不崩，只是存盘
-       * 之后那些房间没了，是最难查的那种数据丢失。
-       *
-       * 没有现在就改成多 map，是因为改它要先定"谁持有多张 map 的运行时
-       * 状态"（现在 worldRuntime 只有单个 `room`），那是比存档大得多的
-       * 一次重构，不该顺手做。留这段注释，加上下面的读回对称写法。
+       * 这行原来是 `{ home: 只塞主房间一张 }`，旁边挂着一大段
+       * "会到期的假设"的自白——多房间/多地图出现时会静默丢数据。
+       * V0.13 给运行时补了"当前地图 + 搁置地图"的持有者（world/state），
+       * 假设兑现，自白功成身退。
        */
-      maps: { [MAIN_MAP_ID]: createSingleRoomMap(MAIN_MAP_ID, world.room) },
+      maps: world.maps,
       pets: snapshotPets(),
       doors: snapshotDoors(),
       placedFurniture: world.placedFurniture,
@@ -191,18 +184,6 @@ export function serializeGameSave(previous?: GameSave): GameSave {
  */
 export function hydrateGameSave(save: GameSave): void {
   /*
-   * 取主 map 的第一个 room。
-   *
-   * 按 MAIN_MAP_ID 取而不是 `Object.values(...)[0]`：后者依赖对象键的
-   * 遍历顺序，多 map 的那天会随机读到二楼。存的时候用的是具名键，
-   * 读的时候也该用同一个名字——存/读不对称是存档最容易腐烂的地方。
-   * `?? 第一张` 是兜底：老存档的 map 键不一定叫 home。
-   */
-  const maps = save.ownWorld.maps ?? {};
-  const rooms = (maps[MAIN_MAP_ID] ?? Object.values(maps)[0])?.rooms;
-  const firstRoom = rooms ? Object.values(rooms)[0] : undefined;
-
-  /*
    * 换世界了，id 计数器先清零。
    *
    * 清空放在这里而不是各家 restore 里：报数的有好几家（家具一家、
@@ -216,8 +197,14 @@ export function hydrateGameSave(save: GameSave): void {
   // 和 restoreWorld 丢弃未知家具是同一个姿态——内容更新不该让存档读不出来
   setRoomStyleId(save.ownWorld.house.styleId);
 
+  /*
+   * 整份 maps 交给运行时：它按当前地图取几何（取不到退回第一张，
+   * 老存档的 map 键不一定叫 home），其余地图上架保管、存盘原样带回。
+   * "取哪张、搁哪张"是运行时的知识，serialize 只管透传——
+   * 存/读不对称是存档最容易腐烂的地方，两个方向现在都是同一份 Record。
+   */
   restoreWorld({
-    room: firstRoom,
+    maps: save.ownWorld.maps,
     placedFurniture: save.ownWorld.placedFurniture,
   });
 

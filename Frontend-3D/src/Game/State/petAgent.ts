@@ -21,6 +21,7 @@ import {
 } from "./droppedItems";
 import {
   creatureBlockedAt,
+  getCurrentMapId,
   getWorld,
   removeCreatureObstacle,
   setCreatureObstacle,
@@ -590,7 +591,8 @@ export class PetAgent {
       definitionId: this.definitionId,
       roomId,
       position: {
-        mapId: "home",
+        // 宠物跟着世界走：存的是当前地图（多地图时代宠物在哪张图存哪张）
+        mapId: getCurrentMapId(),
         x: this.x,
         y: this.z,
         // v19 起存连续弧度。原来这里是 headingToFacing(this.heading)——

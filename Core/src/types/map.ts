@@ -8,6 +8,7 @@ import type {
   VisualId,
   WallId,
 } from "./base.js";
+import type { RoomStyleDefinition } from "./roomStyle.js";
 
 export enum WallOpeningKind {
   Door = "door",
@@ -121,4 +122,40 @@ export type RoomSave = {
 export type MapSave = {
   mapId: MapId;
   rooms: Record<string, RoomSave>;
+};
+
+/**
+ * 一张地图的**定义**（注册表数据），和 MapSave 的分工：
+ * MapSave 是"生成结果"（实存进存档，联机时访客直接用房主的几何），
+ * MapDefinition 是"配方"（出生点、室外范围、怎么生成房间）。
+ *
+ * 归属规则（多地图的地基，2026-08-08 定）：**实体只带 roomId，
+ * 房间归地图所有，mapId 由归属推导**。家具/掉落物/宠物那些平坦数组
+ * 因此不用加 mapId 字段——roomId 在整个世界内唯一（注册表保证
+ * 各地图的房间不重名），要知道一件东西在哪张地图，查房间归谁就行。
+ */
+export type MapDefinition = {
+  mapId: MapId;
+  localizationKey: string;
+
+  /** 进入这张地图时玩家所在的房间（镜头、门、音景都以它初始化） */
+  primaryRoomId: RoomId;
+
+  /**
+   * 室外分区 id。院子不是一个真 room（没有墙、没有地板网格，几何在
+   * 渲染层），但"东西掉在哪"仍然需要一个答案，"客厅"是个错答案。
+   */
+  outdoorRoomId: RoomId;
+
+  /** 出了门能走多远（格）。只管"能走到哪"，草地的视觉大小渲染层自己定 */
+  yardMargin: number;
+
+  /** 出生点（也是读档读不到位置时的退路）。mapId 就是本地图，不重复存 */
+  spawn: { x: number; y: number; heading: number };
+
+  /**
+   * 按屋子风格生成全部房间几何。只在**新开世界**时调用——
+   * 老存档直接用 MapSave 里存的结果（"存结果不存配方"）。
+   */
+  generateRooms: (style: RoomStyleDefinition) => Record<string, RoomSave>;
 };

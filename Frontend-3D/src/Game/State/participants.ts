@@ -1,6 +1,7 @@
 import {
   GestureKind,
   Locomotion,
+  homeMapDefinition,
   type ActionId,
   type ParticipantAppearance,
   type ParticipantGesture,
@@ -48,19 +49,17 @@ export const LOCAL_PLAYER_ID: PlayerId = "local";
 const DEFAULT_POSTURE: PoseId = "stand";
 
 /**
- * 开局站位：玄关内侧（2LDK 户型门在西墙 z1~2）。
+ * 开局站位。**坐标是地图的知识**（每张地图的门开在哪、进门站哪只有
+ * 户型数据自己知道），V0.13 起从 home 地图定义读，这里只补上 mapId——
+ * 新游戏永远从 home 开始，读档读不到位置时也退回这里。
  *
- * 从 CharacterController 搬过来的。出生点是**游戏规则不是渲染细节**——
- * 新游戏放哪、读档读不到位置时退回哪，都要用它，而那两处都不该 import three。
- *
- * heading = π/2 是朝东（+X）。原来写的是 `Facing.East`，v19 之后
- * 朝向直接存弧度，见 Core 的 WorldPosition 注释。
+ * heading 存的是弧度（v19 起），见 Core 的 WorldPosition 注释。
  */
 export const SPAWN_POSITION: WorldPosition = {
-  mapId: "home",
-  x: -8.5,
-  y: -6,
-  heading: Math.PI / 2,
+  mapId: homeMapDefinition.mapId,
+  x: homeMapDefinition.spawn.x,
+  y: homeMapDefinition.spawn.y,
+  heading: homeMapDefinition.spawn.heading,
 };
 
 const participants = new Map<PlayerId, ParticipantState>();

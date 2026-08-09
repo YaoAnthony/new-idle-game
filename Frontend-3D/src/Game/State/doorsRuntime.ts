@@ -1,5 +1,4 @@
 import {
-  YARD_MARGIN,
   findDoorDefinition,
   findDoors,
   type DoorDefinition,
@@ -9,7 +8,12 @@ import {
 import { emit } from "../EventBus";
 import { Door, RoomDoor } from "./doorAgent";
 import { getPets } from "./petsRuntime";
-import { getWorld, setDoorBlocker, setOutdoorPass } from "./worldRuntime";
+import {
+  getCurrentMap,
+  getWorld,
+  setDoorBlocker,
+  setOutdoorPass,
+} from "./worldRuntime";
 
 /**
  * 门的集合管理（和 petsRuntime 同一套摆法：Agent 类管一扇门怎么动，
@@ -141,7 +145,8 @@ export function initDoors(): void {
 
   /*
    * 室外通行判定（isWalkable 的边界分支走这里）。三层，由外到内：
-   * 1. 院子有边——房子四周 YARD_MARGIN 格，草地视觉更大没关系，
+   * 1. 院子有边——房子四周 yardMargin 格（当前地图定义的知识，
+   *    V0.13 前是全局常量），草地视觉更大没关系，
    *    能看到的远处和能走到的范围不是一回事。
    * 2. 碰撞圆不压着房子 → 院子里自由走。
    * 3. 压着房子 = 正在穿墙，只有一种合法情况：大门开着、
@@ -149,11 +154,12 @@ export function initDoors(): void {
    *    z 校验挡住"贴着南北墙外侧蹭"，x 校验挡住"从东墙穿进来"。
    */
   setOutdoorPass((x, z, radius) => {
+    const yardMargin = getCurrentMap().yardMargin;
     if (
-      x - radius < -halfW - YARD_MARGIN ||
-      x + radius > halfW + YARD_MARGIN ||
-      z - radius < -halfD - YARD_MARGIN ||
-      z + radius > halfD + YARD_MARGIN
+      x - radius < -halfW - yardMargin ||
+      x + radius > halfW + yardMargin ||
+      z - radius < -halfD - yardMargin ||
+      z + radius > halfD + yardMargin
     ) {
       return false;
     }

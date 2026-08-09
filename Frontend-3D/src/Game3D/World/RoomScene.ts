@@ -4,7 +4,6 @@ import {
   Facing,
   FurnitureCapability,
   WeatherKind,
-  YARD_MARGIN,
   findItemDefinition,
   findPath,
   findPetDefinition,
@@ -85,6 +84,7 @@ import {
   tickPets,
 } from "../../Game/State/petsRuntime";
 import {
+  getCurrentMap,
   getDefinition,
   getRoomStyle,
   getWorld,
@@ -1825,11 +1825,12 @@ export class RoomScene {
     this.cameraOutdoors = outdoors;
 
     if (outdoors) {
+      const yardMargin = getCurrentMap().yardMargin;
       this.rig.setBoundsRect(
-        -width / 2 - YARD_MARGIN,
-        width / 2 + YARD_MARGIN,
-        -depth / 2 - YARD_MARGIN,
-        depth / 2 + YARD_MARGIN,
+        -width / 2 - yardMargin,
+        width / 2 + yardMargin,
+        -depth / 2 - yardMargin,
+        depth / 2 + yardMargin,
         // 院子没有天花板，给个够拉高的天空盒
         10,
       );

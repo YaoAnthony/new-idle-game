@@ -139,17 +139,27 @@ export type AnchorLookup = (
 /**
  * 整间屋子里的锚点，可按姿态筛。
  * 坐系统只问 Sit，睡觉只问 Lie——所以两边不会抢同一个锚点。
+ *
+ * `extraRoomIds`：额外放行的分区（据点③起传室外分区进来）——
+ * 院子里的园林长椅也要能坐，但院子不是真 room，锚点的格子换算
+ * 仍用当前室内房间的网格做仿射（这套坐标对界外是线性外推，成立）。
  */
 export function listRoomAnchors(
   room: RoomSave,
   placedFurniture: readonly PlacedFurniture[],
   lookup: AnchorLookup,
   posture?: BodyPosture,
+  extraRoomIds?: readonly string[],
 ): AnchorRef[] {
   const refs: AnchorRef[] = [];
 
   for (const placed of placedFurniture) {
-    if (placed.placement.roomId !== room.roomId) continue;
+    if (
+      placed.placement.roomId !== room.roomId &&
+      !extraRoomIds?.includes(placed.placement.roomId)
+    ) {
+      continue;
+    }
 
     const item = lookup(placed.furnitureId);
     if (!item?.placement.anchors) continue;

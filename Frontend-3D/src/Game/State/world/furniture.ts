@@ -208,6 +208,37 @@ export function seedInitialFurniture(): void {
     state: { lootTableId: box.lootTableId },
   }));
 
+  /*
+   * 据点庭院的固定装置（据点③）：前庭两把长椅夹着"路→玄关"的轴线
+   * 对坐，两盏路灯守在广场西缘的路口。roomId 是室外分区——它们不进
+   * 占用图（室内格专属），坐标沿室内网格线性外推（见 FurnitureView）。
+   * 老存档由迁移 v25 补同一批。
+   */
+  const estate: Array<{
+    furnitureId: string;
+    gridPosition: GridPosition;
+    facing: Facing;
+  }> = [
+    { furnitureId: "furniture_garden_bench", gridPosition: { x: -3, y: -1 }, facing: Facing.South },
+    { furnitureId: "furniture_garden_bench", gridPosition: { x: -3, y: 4 }, facing: Facing.North },
+    { furnitureId: "furniture_street_lamp", gridPosition: { x: -7, y: 4 }, facing: Facing.South },
+    { furnitureId: "furniture_street_lamp", gridPosition: { x: -7, y: -1 }, facing: Facing.South },
+  ];
+  worldState.placedFurniture = [
+    ...worldState.placedFurniture,
+    ...estate.map((piece) => ({
+      instanceId: nextInstanceId(piece.furnitureId),
+      furnitureId: piece.furnitureId,
+      placement: {
+        kind: PlacementSurface.Floor as const,
+        roomId: worldState.map.outdoorRoomId,
+        gridPosition: piece.gridPosition,
+        facing: piece.facing,
+      },
+      state: {},
+    })),
+  ];
+
   emit("world_changed", { reason: "seeded" });
 }
 

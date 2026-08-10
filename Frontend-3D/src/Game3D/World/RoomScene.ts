@@ -1445,9 +1445,15 @@ export class RoomScene {
 
     this.controller.teleport(world.x, world.z);
     this.controller.posture = poseId;
-    // 胯部落在承托面上；躺着还要再抬起半个身子的厚度，不然会陷进床垫
+    // 胯部落在承托面上；躺着还要再抬起半个身子的厚度，不然会陷进床垫。
+    // 锚点的 offset.y 是"相对家具底座"的高——底座在哪个面上
+    // （室内地板 0 / 院子 -floorLevel）由承托面查询补齐，
+    // 不补的话坐院里的长椅会悬空半人高
     this.controller.supportY =
-      world.y - HIP_HEIGHT + (pose.supportLift ?? 0);
+      groundHeightAt(world.x, world.z) +
+      world.y -
+      HIP_HEIGHT +
+      (pose.supportLift ?? 0);
     this.controller.faceToward(
       world.x + FACING_VECTOR[ref.facing][0],
       world.z + FACING_VECTOR[ref.facing][1],

@@ -11,7 +11,7 @@ import {
   isResting,
   setResting,
 } from "../State/posture";
-import { getDefinition, getWorld } from "../State/worldRuntime";
+import { getCurrentMap, getDefinition, getWorld } from "../State/worldRuntime";
 
 /**
  * 坐下 / 躺下 / 起身。
@@ -34,10 +34,12 @@ function toCell(x: number, z: number): { x: number; y: number } {
   };
 }
 
-/** 屋里所有该姿态的锚点 */
+/** 屋里 + 院子里所有该姿态的锚点（据点③起室外家具也能坐） */
 export function listAnchors(posture?: BodyPosture): AnchorRef[] {
   const { room, placedFurniture } = getWorld();
-  return listRoomAnchors(room, placedFurniture, getDefinition, posture);
+  return listRoomAnchors(room, placedFurniture, getDefinition, posture, [
+    getCurrentMap().outdoorRoomId,
+  ]);
 }
 
 export function findAnchor(

@@ -5,6 +5,7 @@ import {
   buildFloorLamp,
 } from "./recipes/ambience.js";
 import { buildCushion, buildWoodenBed } from "./recipes/bedroom.js";
+import { buildGardenBench, buildStreetLamp } from "./recipes/estate.js";
 import { buildCardboardBox, buildCardboardStack } from "./recipes/cardboardBox.js";
 import { buildDailyBoard } from "./recipes/dailyBoard.js";
 import { buildGramophone } from "./recipes/gramophone.js";
@@ -140,6 +141,8 @@ const REGISTRY: Record<string, VisualEntry> = {
   floor_cushion: { kind: "procedural", build: buildCushion },
   fireplace: { kind: "procedural", build: buildFireplace },
   floor_lamp: { kind: "procedural", build: buildFloorLamp },
+  garden_bench: { kind: "procedural", build: buildGardenBench },
+  street_lamp: { kind: "procedural", build: buildStreetLamp },
   potted_plant: { kind: "procedural", build: buildPottedPlant },
 
   // 铺地扩充：地毯撑覆盖率，大件家具撑体量

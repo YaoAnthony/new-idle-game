@@ -851,6 +851,49 @@ export const migrations: Migration[] = [
       return save;
     },
   },
+
+  /*
+   * v25（2026-08-10 据点③庭院家具）：前庭补两把园林长椅 + 两盏路灯，
+   * 和新档 seedInitialFurniture 摆的是同一批（位置字面量两边各自冻结，
+   * 这里不 import——迁移的行为必须定格在写它的那一刻）。
+   *
+   * instanceId 用 "migration" 当发号方：老档里所有本机产的 id 都是
+   * "local:" 前缀，联机改档后是玩家 id 前缀，"migration:" 和两者都
+   * 不会撞号，也不用去碰运行时的发号计数器（迁移时它还没加载）。
+   */
+  {
+    to: 25,
+    migrate: (save) => {
+      const placed = save.ownWorld?.placedFurniture;
+      if (!Array.isArray(placed)) return save;
+      const has = (id: string): boolean =>
+        placed.some((item) => item?.furnitureId === id);
+      if (has("furniture_garden_bench") || has("furniture_street_lamp")) {
+        return save;
+      }
+
+      const pieces = [
+        { furnitureId: "furniture_garden_bench", n: 1, gridPosition: { x: -3, y: -1 }, facing: "south" },
+        { furnitureId: "furniture_garden_bench", n: 2, gridPosition: { x: -3, y: 4 }, facing: "north" },
+        { furnitureId: "furniture_street_lamp", n: 1, gridPosition: { x: -7, y: 4 }, facing: "south" },
+        { furnitureId: "furniture_street_lamp", n: 2, gridPosition: { x: -7, y: -1 }, facing: "south" },
+      ];
+      for (const piece of pieces) {
+        placed.push({
+          instanceId: `migration:furniture:${piece.furnitureId}#${piece.n}`,
+          furnitureId: piece.furnitureId,
+          placement: {
+            kind: "floor",
+            roomId: "yard",
+            gridPosition: piece.gridPosition,
+            facing: piece.facing,
+          },
+          state: {},
+        } as never);
+      }
+      return save;
+    },
+  },
 ];
 
 /**

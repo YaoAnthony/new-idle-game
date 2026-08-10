@@ -3,7 +3,7 @@ import { FACING_ROTATION as FACING_ROTATION_LOCAL } from "./furnitureMath.js";
 import { hostGeometryOf, surfaceChildPose } from "./SurfacePlacement.js";
 import { Object3D } from "three";
 import { on } from "../../Game/EventBus";
-import { getDefinition, getWorld } from "../../Game/State/worldRuntime";
+import { getDefinition, getWorld, groundHeightAt } from "../../Game/State/worldRuntime";
 import { clearFade, stepFade } from "../Engine/Fade.js";
 import { addOutline, setOutlineVisible } from "../Engine/Outline.js";
 import { buildItemVisual } from "../Visual/VisualRegistry.js";
@@ -317,7 +317,11 @@ export class FurnitureView {
         gridPosition.y,
         this.size,
       );
-      visual.position.set(originX + (w - 1) / 2, 0, originZ + (h - 1) / 2);
+      const centerX = originX + (w - 1) / 2;
+      const centerZ = originZ + (h - 1) / 2;
+      // 落在脚下的承托面上：室内地板是 0（跟从前一样），院子里的
+      // 家具落到 -floorLevel——写死 0 的话据点的长椅会浮空半人高
+      visual.position.set(centerX, groundHeightAt(centerX, centerZ), centerZ);
       visual.rotation.y = FACING_ROTATION_LOCAL[facing];
     }
 

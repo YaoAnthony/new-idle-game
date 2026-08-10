@@ -691,6 +691,59 @@ export const itemDefinitions = [
     })),
     },
   },
+
+  /*
+   * ---- 据点庭院家具（据点③）----
+   *
+   * 头两件"住在室外"的真家具。室外没有占用图（占用图是室内格专属），
+   * 所以它们暂时不挡路、也不能被玩家重新摆到室外（正常放置校验只认
+   * 室内网格）——这是已知的将就，等室外占用收编那一批一起解决。
+   * 坐/亮这两个交互都走现成系统：锚点系统放行了室外分区，
+   * 灯光走 "lamp-light" 命名约定（Lighting 按昼夜相位统一扫描点亮）。
+   */
+  {
+    id: "furniture_garden_bench",
+    localizationKey: "item.furniture_garden_bench",
+    category: ItemCategory.Furniture,
+    stackLimit: 9,
+    rarity: Rarity.Common,
+    visual: { id: "garden_bench" },
+    placement: {
+      surface: PlacementSurface.Floor,
+      footprint: { width: 2, height: 1 },
+      capabilities: [FurnitureCapability.Sitting],
+      floorLayer: FloorLayer.Object,
+      blocksMovement: true,
+      /** 木条坐面。比沙发硬朗，高度照概念图的园林长椅取 0.45 */
+      surfaceHeight: 0.45,
+      interactHint: {
+        localizationKey: "hint.garden_bench",
+        action: "interact",
+        anchorHeight: 1.05,
+      },
+      anchors: [-0.45, 0.45].map((x, index) => ({
+        anchorId: `seat_${index}`,
+        posture: BodyPosture.Sit,
+        offset: [x, 0.45, 0.02] as [number, number, number],
+        facing: Facing.South,
+      })),
+    },
+  },
+  {
+    id: "furniture_street_lamp",
+    localizationKey: "item.furniture_street_lamp",
+    category: ItemCategory.Furniture,
+    stackLimit: 9,
+    rarity: Rarity.Common,
+    visual: { id: "street_lamp" },
+    placement: {
+      surface: PlacementSurface.Floor,
+      footprint: { width: 1, height: 1 },
+      capabilities: [FurnitureCapability.Ambience],
+      floorLayer: FloorLayer.Object,
+      blocksMovement: true,
+    },
+  },
   {
     id: "furniture_wardrobe",
     localizationKey: "item.furniture_wardrobe",

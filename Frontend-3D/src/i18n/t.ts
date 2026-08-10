@@ -427,6 +427,11 @@ const ZH: Record<string, string> = {
   "map.base": "玩家据点",
   // 名字来自用户的世界设定图《莉奥拉小镇——宁静生活在等待》
   "map.town": "莉奥拉小镇",
+  "item.furniture_garden_bench": "园林长椅",
+  "item.furniture_garden_bench.desc": "铁艺扶手的板条长椅。坐在前庭看田，是据点生活的正确打开方式。",
+  "item.furniture_street_lamp": "铁艺路灯",
+  "item.furniture_street_lamp.desc": "黑铁灯柱，入夜自己亮起来。夜里回家的路是顺着灯走的。",
+  "hint.garden_bench": "坐下歇歇",
   "ui.travel.moving": "移动中…",
   "ui.travel.in_session": "联机中不能离开这张地图",
 

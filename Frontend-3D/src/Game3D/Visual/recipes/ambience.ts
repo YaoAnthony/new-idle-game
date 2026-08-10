@@ -10,8 +10,8 @@ import { blob, box, cylinder, group, sphere } from "../primitives.js";
  * "点灯能改善夜里的屋子"从此是真的。
  */
 
-/** 灯具内嵌点光。名字是 Lighting 扫描用的约定，别改 */
-function lampLight(colorValue: string, x: number, y: number, z: number): PointLight {
+/** 灯具内嵌点光。名字是 Lighting 扫描用的约定，别改（estate 的路灯也用） */
+export function lampLight(colorValue: string, x: number, y: number, z: number): PointLight {
   const light = new PointLight(colorValue, 0, 7, 2);
   light.name = "lamp-light";
   light.castShadow = false;
@@ -20,7 +20,7 @@ function lampLight(colorValue: string, x: number, y: number, z: number): PointLi
 }
 
 /** 给 mesh 补上自发光。图元工厂造出来的材质是共享缓存，这里必须先克隆 */
-function makeGlow(mesh: Mesh, emissive: string, intensity: number): Mesh {
+export function makeGlow(mesh: Mesh, emissive: string, intensity: number): Mesh {
   const material = mesh.material;
   if (!Array.isArray(material)) {
     const owned = material.clone() as typeof material & {

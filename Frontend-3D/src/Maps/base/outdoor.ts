@@ -3,12 +3,14 @@ import {
   BufferAttribute,
   BufferGeometry,
   CircleGeometry,
+  Color,
   Mesh,
+  MeshLambertMaterial,
   Object3D,
   Points,
   PointsMaterial,
 } from "three";
-import { PALETTE } from "../../Game3D/Visual/palette.js";
+import { PALETTE, jitterShade } from "../../Game3D/Visual/palette.js";
 import { blob, box, cylinder, ownMaterial } from "../../Game3D/Visual/primitives.js";
 import {
   hash01,
@@ -97,16 +99,18 @@ function buildForest(root: Object3D, northZ: number): void {
   }
 
   for (let i = 40; i < 52; i += 1) {
-    // 河这一侧的近树：给厨房小窗当画框前景，避开庭院预留区
+    // 近树：西翼照旧伸向森林；东侧收在围墙内（墙外是河岸带，
+    // 树不能长在水里——河在据点②改道去了东墙外）
     const pick = hash01(i * 3.9);
-    const x = pick < 0.45 ? -3 - hash01(i * 5.1) * 24 : 12 + hash01(i * 5.3) * 22;
+    const x = pick < 0.45 ? -3 - hash01(i * 5.1) * 24 : 12 + hash01(i * 5.3) * 7;
     if (x > gardenMinX && x < gardenMaxX) continue;
     trees.push([x, northZ - 2.5 - hash01(i * 6.7) * 5, 0.9 + hash01(i * 9.1) * 0.5]);
   }
 
   for (let i = 60; i < 70; i += 1) {
-    // 东西两翼（门口方向也要有树可看）
-    const x = (hash01(i * 4.7) < 0.5 ? -1 : 1) * (16 + hash01(i * 8.9) * 26);
+    // 两翼：西边贴着墙外，东边推到河对岸（29 起，让开水面）
+    const west = hash01(i * 4.7) < 0.5;
+    const x = west ? -(16 + hash01(i * 8.9) * 26) : 29 + hash01(i * 8.9) * 16;
     trees.push([x, 6 - hash01(i * 6.1) * 16, 0.9 + hash01(i * 13.9) * 0.7]);
   }
 
@@ -165,39 +169,45 @@ function buildForest(root: Object3D, northZ: number): void {
   }
 }
 
-/** 河：一条缓波的三角带，两岸各镶一线浅色"岸沫"。返回流光条（update 用） */
+/**
+ * 河：一条缓波的三角带，两岸各镶一线浅色"岸沫"。返回流光条（update 用）。
+ *
+ * 据点②把河从北面**改道到东墙外**（设计稿 §2）：东缘侧隔着 0.9 的
+ * 矮墙看河，是把 home 的名场面换个方向继承；北窗景保住森林和樱花。
+ * 所以河带沿 z 展开（南北流向），中心线是 x 的缓波函数。
+ */
 function buildRiver(
   root: Object3D,
-  riverCenter: (x: number) => number,
+  riverCenter: (z: number) => number,
 ): Mesh[] {
   const SEGMENTS = 36;
-  const X_MIN = -70;
-  const X_MAX = 70;
+  const Z_MIN = -60;
+  const Z_MAX = 60;
 
   const buildStrip = (halfWidth: number, y: number, color: string): Mesh => {
     const positions = new Float32Array((SEGMENTS + 1) * 2 * 3);
     const indices = new Uint32Array(SEGMENTS * 6);
 
     for (let i = 0; i <= SEGMENTS; i += 1) {
-      const x = X_MIN + ((X_MAX - X_MIN) * i) / SEGMENTS;
-      const center = riverCenter(x);
+      const z = Z_MIN + ((Z_MAX - Z_MIN) * i) / SEGMENTS;
+      const center = riverCenter(z);
       const offset = i * 6;
-      positions[offset] = x;
+      positions[offset] = center - halfWidth;
       positions[offset + 1] = y;
-      positions[offset + 2] = center - halfWidth;
-      positions[offset + 3] = x;
+      positions[offset + 2] = z;
+      positions[offset + 3] = center + halfWidth;
       positions[offset + 4] = y;
-      positions[offset + 5] = center + halfWidth;
+      positions[offset + 5] = z;
     }
     for (let i = 0; i < SEGMENTS; i += 1) {
       const a = i * 2;
       const offset = i * 6;
       indices[offset] = a;
-      indices[offset + 1] = a + 2;
-      indices[offset + 2] = a + 1;
+      indices[offset + 1] = a + 1;
+      indices[offset + 2] = a + 2;
       indices[offset + 3] = a + 1;
-      indices[offset + 4] = a + 2;
-      indices[offset + 5] = a + 3;
+      indices[offset + 4] = a + 3;
+      indices[offset + 5] = a + 2;
     }
 
     const geometry = new BufferGeometry();
@@ -214,18 +224,391 @@ function buildRiver(
   root.add(buildStrip(RIVER_WIDTH / 2 + 0.22, 0.005, RIVER_FOAM));
   root.add(buildStrip(RIVER_WIDTH / 2, 0.02, RIVER_BLUE));
 
-  // 流光小白条：顺流（+x）漂，出界回绕
+  // 岸石与蕨草簇（照河桥概念图"河岸岩石与植被"那格）：
+  // 石头两三块一簇贴着岸线，绿簇塞在石缝
+  for (let i = 0; i < 10; i += 1) {
+    const z = Z_MIN + 12 + hash01(i * 5.9) * (Z_MAX - Z_MIN - 24);
+    const side = hash01(i * 3.7) < 0.5 ? -1 : 1;
+    const x = riverCenter(z) + side * (RIVER_WIDTH / 2 + 0.7 + hash01(i * 7.3) * 0.8);
+    const cluster = new Object3D();
+    for (let k = 0; k < 2 + Math.floor(hash01(i * 9.1) * 2); k += 1) {
+      const r = 0.28 + hash01(i * 4.3 + k) * 0.3;
+      const rock = blob(r, 0, {
+        color: k % 2 ? PALETTE.baseStoneMoss : PALETTE.baseStone,
+        position: [(hash01(i + k * 2.7) - 0.5) * 1.1, r * 0.5, (hash01(i + k * 5.1) - 0.5) * 0.9],
+        castShadow: false,
+      });
+      rock.scale.y = 0.62;
+      cluster.add(rock);
+    }
+    cluster.add(
+      blob(0.24, 0, {
+        color: PALETTE.leafGreenDark,
+        position: [0.35, 0.18, 0.2],
+        castShadow: false,
+      }),
+    );
+    cluster.position.set(x, 0, z);
+    root.add(cluster);
+  }
+
+  // 流光小白条：顺流（+z）漂，出界回绕
   const streaks: Mesh[] = [];
   for (let i = 0; i < 7; i += 1) {
-    const streak = box([0.9, 0.015, 0.09], {
+    const streak = box([0.09, 0.015, 0.9], {
       color: RIVER_FOAM,
-      position: [X_MIN + hash01(i * 4.1) * (X_MAX - X_MIN), 0.035, 0],
+      position: [0, 0.035, Z_MIN + hash01(i * 4.1) * (Z_MAX - Z_MIN)],
       castShadow: false,
     });
     streaks.push(streak);
     root.add(streak);
   }
   return streaks;
+}
+
+/**
+ * 石板铺装（前庭广场 + 入门通道）。**色块拼合，不是贴图**：每块石板
+ * 是一片真实的四边形薄片（四角抖动出不规则轮廓），全部合并进一个
+ * BufferGeometry 顶点着色——整个广场一次 draw call。缝隙露出的是垫底
+ * 的深色底板，就是"石板间长草苔"的那条缝（设计稿 §7b）。
+ *
+ * 边缘做**破边**：最外一圈按概率丢块，再往草里撒几块孤石——概念图的
+ * 铺装从来不是一条直线切进草地的。
+ */
+function buildPaving(root: Object3D, areas: DeckRect[]): void {
+  const positions: number[] = [];
+  const colors: number[] = [];
+  const scratch = new Color();
+
+  const stone = (
+    cx: number,
+    cz: number,
+    w: number,
+    d: number,
+    tint: Color,
+    seed: number,
+  ): void => {
+    // 四角各自抖动：矩形变成不规则四边形，"石"味全靠这一步
+    const jitter = (k: number): number => (hash01(seed * 13.7 + k) - 0.5) * 0.24;
+    const x0 = cx - w / 2 + jitter(1);
+    const z0 = cz - d / 2 + jitter(2);
+    const x1 = cx + w / 2 + jitter(3);
+    const z1 = cz - d / 2 + jitter(4);
+    const x2 = cx + w / 2 + jitter(5);
+    const z2 = cz + d / 2 + jitter(6);
+    const x3 = cx - w / 2 + jitter(7);
+    const z3 = cz + d / 2 + jitter(8);
+    const y = 0.012;
+    // 两个三角，同色（石板是一块）
+    positions.push(x0, y, z0, x2, y, z2, x1, y, z1);
+    positions.push(x0, y, z0, x3, y, z3, x2, y, z2);
+    for (let k = 0; k < 6; k += 1) colors.push(tint.r, tint.g, tint.b);
+  };
+
+  const STEP_X = 1.15;
+  const STEP_Z = 0.92;
+
+  for (const [areaIndex, area] of areas.entries()) {
+    // 垫底：比铺装略收 0.1，缝隙从上面看全是它
+    const under = box(
+      [area.maxX - area.minX + 0.2, 0.016, area.maxZ - area.minZ + 0.2],
+      {
+        color: PALETTE.pavingJoint,
+        position: [(area.minX + area.maxX) / 2, 0.002, (area.minZ + area.maxZ) / 2],
+      },
+    );
+    under.receiveShadow = true;
+    root.add(under);
+
+    const cols = Math.max(1, Math.round((area.maxX - area.minX) / STEP_X));
+    const rows = Math.max(1, Math.round((area.maxZ - area.minZ) / STEP_Z));
+    for (let i = 0; i < cols; i += 1) {
+      for (let j = 0; j < rows; j += 1) {
+        const seed = areaIndex * 1000 + i * 57 + j * 3.3;
+        const cx = area.minX + (i + 0.5) * ((area.maxX - area.minX) / cols);
+        const cz = area.minZ + (j + 0.5) * ((area.maxZ - area.minZ) / rows);
+        const edge = i === 0 || j === 0 || i === cols - 1 || j === rows - 1;
+
+        // 破边：外圈四成的块让给草地
+        if (edge && hash01(seed * 1.9) < 0.4) {
+          // 丢掉的块有一半"散"到更外面变孤石
+          if (hash01(seed * 2.7) < 0.5) {
+            const outX = i === 0 ? -0.9 : i === cols - 1 ? 0.9 : 0;
+            const outZ = j === 0 ? -0.8 : j === rows - 1 ? 0.8 : 0;
+            scratch.copy(jitterShade(PALETTE.pavingMid, i + 31, j + 17, 0.05));
+            stone(cx + outX, cz + outZ, 0.7, 0.55, scratch, seed + 99);
+          }
+          continue;
+        }
+
+        // 8% 的块换成长草的（缝色），其余浅/中两色棋盘微差
+        const base =
+          hash01(seed * 3.1) < 0.08
+            ? PALETTE.pavingJoint
+            : hash01(seed * 5.3) < 0.5
+              ? PALETTE.pavingLight
+              : PALETTE.pavingMid;
+        scratch.copy(jitterShade(base, i, j, 0.045));
+        stone(cx, cz, (area.maxX - area.minX) / cols - 0.1, (area.maxZ - area.minZ) / rows - 0.1, scratch, seed);
+      }
+    }
+  }
+
+  const geometry = new BufferGeometry();
+  geometry.setAttribute("position", new BufferAttribute(new Float32Array(positions), 3));
+  geometry.setAttribute("color", new BufferAttribute(new Float32Array(colors), 3));
+  geometry.computeVertexNormals();
+  const mesh = new Mesh(
+    geometry,
+    new MeshLambertMaterial({ vertexColors: true, flatShading: true }),
+  );
+  mesh.receiveShadow = true;
+  mesh.name = "paving";
+  root.add(mesh);
+}
+
+/**
+ * 种植区（15×7，先布景）：六垄作物 + 木栅栏 + 朝路的小门。
+ * 垄和作物是"镇上有田"的说明书，真种田系统立项时布景垄换可交互
+ * 田块，栅栏和门不动（设计稿 §8 留的口）。
+ */
+function buildField(root: Object3D, rect: DeckRect): void {
+  const { minX, maxX, minZ, maxZ } = rect;
+
+  // 垄：六条深土埂沿 x 展开，埂间留走道
+  const RIDGES = 6;
+  const usableD = maxZ - minZ - 1.2;
+  const crops = [
+    PALETTE.cabbageLeaf,
+    PALETTE.leafGreen,
+    PALETTE.tomatoRed,
+    PALETTE.leafGreenDark,
+    PALETTE.boardButter,
+    PALETTE.leafGreen,
+  ];
+  for (let r = 0; r < RIDGES; r += 1) {
+    const cz = minZ + 0.6 + (r + 0.5) * (usableD / RIDGES);
+    const ridge = box([maxX - minX - 1.2, 0.14, 0.72], {
+      color: PALETTE.plotSoil,
+      position: [(minX + maxX) / 2, 0.07, cz],
+    });
+    ridge.receiveShadow = true;
+    root.add(ridge);
+
+    // 一垄作物：一排小色球，颜色按垄轮换（概念图里最讨喜的就是整齐的行列）
+    const count = Math.floor((maxX - minX - 2) / 0.9);
+    for (let k = 0; k < count; k += 1) {
+      const scale = 0.16 + hash01(r * 31.7 + k * 3.1) * 0.08;
+      root.add(
+        blob(scale, 0, {
+          color: crops[r % crops.length],
+          position: [minX + 1.4 + k * 0.9, 0.18, cz],
+          castShadow: false,
+        }),
+      );
+    }
+  }
+
+  // 木栅栏一圈：矮桩 + 双横杆，东侧朝路留门洞
+  const GATE_Z0 = (minZ + maxZ) / 2 - 1;
+  const GATE_Z1 = (minZ + maxZ) / 2 + 1;
+  const post = (x: number, z: number): void => {
+    root.add(
+      box([0.14, 0.72, 0.14], { color: PALETTE.woodDark, position: [x, 0.36, z] }),
+    );
+  };
+  const rail = (x0: number, z0: number, x1: number, z1: number): void => {
+    const length = Math.hypot(x1 - x0, z1 - z0);
+    for (const h of [0.28, 0.52]) {
+      const bar = box([length, 0.07, 0.07], {
+        color: PALETTE.woodMid,
+        position: [(x0 + x1) / 2, h, (z0 + z1) / 2],
+      });
+      bar.rotation.y = -Math.atan2(z1 - z0, x1 - x0);
+      root.add(bar);
+    }
+  };
+  const STEP = 2.2;
+  for (let x = minX; x < maxX - 0.01; x += STEP) post(x, minZ), post(x, maxZ);
+  post(maxX, minZ);
+  post(maxX, maxZ);
+  for (let z = minZ; z < maxZ - 0.01; z += STEP) {
+    post(minX, z);
+    if (z + STEP < GATE_Z0 || z > GATE_Z1) post(maxX, z);
+  }
+  rail(minX, minZ, maxX, minZ);
+  rail(minX, maxZ, maxX, maxZ);
+  rail(minX, minZ, minX, maxZ);
+  rail(maxX, minZ, maxX, GATE_Z0);
+  rail(maxX, GATE_Z1, maxX, maxZ);
+  post(maxX, GATE_Z0);
+  post(maxX, GATE_Z1);
+}
+
+/**
+ * 后庭（宅北）：晾衣绳、香草花圃、储物角。铺装密度骤降——
+ * "安静"就是这里的设计（设计稿 §7b），东西少而生活气足。
+ */
+function buildBackyard(root: Object3D): void {
+  // 晾衣绳：两杆一绳两件衣
+  const line = new Object3D();
+  for (const side of [-1, 1] as const) {
+    line.add(
+      box([0.12, 1.7, 0.12], { color: PALETTE.woodDark, position: [side * 2.2, 0.85, 0] }),
+    );
+  }
+  line.add(box([4.4, 0.03, 0.03], { color: PALETTE.paperShade, position: [0, 1.58, 0] }));
+  line.add(box([0.8, 0.9, 0.04], { color: PALETTE.fabricCream, position: [-0.9, 1.1, 0] }));
+  line.add(box([0.7, 0.75, 0.04], { color: PALETTE.fabricRose, position: [0.6, 1.18, 0] }));
+  line.position.set(-6, 0, -13.2);
+  root.add(line);
+
+  // 香草花圃 ×3：矮木框 + 土 + 低绿簇（比种植区小一号——是"生活"不是"生产"）
+  for (let i = 0; i < 3; i += 1) {
+    const bed = new Object3D();
+    for (const [dx, dz, w, d] of [
+      [0, -0.65, 1.7, 0.1],
+      [0, 0.65, 1.7, 0.1],
+      [-0.8, 0, 0.1, 1.4],
+      [0.8, 0, 0.1, 1.4],
+    ] as const) {
+      bed.add(box([w, 0.24, d], { color: PALETTE.woodDark, position: [dx, 0.12, dz] }));
+    }
+    bed.add(box([1.5, 0.16, 1.2], { color: PALETTE.plotSoil, position: [0, 0.08, 0] }));
+    for (let k = 0; k < 4; k += 1) {
+      bed.add(
+        blob(0.14 + hash01(i * 7.7 + k) * 0.08, 0, {
+          color: k % 2 ? PALETTE.leafGreen : PALETTE.caneGreen,
+          position: [(hash01(i + k * 3.3) - 0.5) * 1.2, 0.22, (hash01(i + k * 5.9) - 0.5) * 0.8],
+          castShadow: false,
+        }),
+      );
+    }
+    bed.position.set(4 + i * 2.3, 0, -13);
+    root.add(bed);
+  }
+
+  // 储物角：两只桶 + 一个筐，靠北墙根
+  const corner = new Object3D();
+  for (const [dx, r, h] of [
+    [0, 0.42, 0.85],
+    [0.95, 0.36, 0.72],
+  ] as const) {
+    corner.add(cylinder(r, r * 0.92, h, 9, { color: PALETTE.woodMid, position: [dx, h / 2, 0] }));
+    corner.add(
+      box([r * 2.1, 0.05, 0.09], { color: PALETTE.ironMid, position: [dx, h * 0.62, 0] }),
+    );
+  }
+  corner.add(
+    box([0.7, 0.4, 0.5], { color: PALETTE.caneNode, position: [1.9, 0.2, 0.1] }),
+  );
+  corner.position.set(-12, 0, -15);
+  root.add(corner);
+}
+
+/**
+ * 前庭的圆形石沿花坛 ×2：石环 + 四色花簇（三个旧色 + 一个新紫，
+ * 花和屋里的软装同族，世界才统一——设计稿 §7e）。
+ */
+function buildFlowerbeds(root: Object3D): void {
+  const FLOWERS = [
+    PALETTE.boardButter,
+    PALETTE.fabricRose,
+    PALETTE.terracotta,
+    PALETTE.flowerViolet,
+  ];
+  for (const [bedIndex, [bx, bz]] of ([[-4.5, 13.1], [6, 13.1]] as const).entries()) {
+    const bed = new Object3D();
+    bed.add(cylinder(1.0, 1.05, 0.3, 12, { color: PALETTE.baseStone, position: [0, 0.15, 0] }));
+    bed.add(cylinder(0.85, 0.85, 0.3, 12, { color: PALETTE.plotSoil, position: [0, 0.18, 0] }));
+    for (let k = 0; k < 7; k += 1) {
+      const angle = (k / 7) * Math.PI * 2 + bedIndex * 0.9;
+      const radius = 0.25 + hash01(bedIndex * 17 + k * 3.7) * 0.4;
+      bed.add(
+        blob(0.13 + hash01(k * 9.1) * 0.06, 0, {
+          // 两坛花色错开：不对称配色、对称摆位
+          color: FLOWERS[(k + bedIndex * 2) % FLOWERS.length],
+          position: [Math.cos(angle) * radius, 0.42, Math.sin(angle) * radius],
+          castShadow: false,
+        }),
+      );
+      bed.add(
+        blob(0.1, 0, {
+          color: PALETTE.leafGreen,
+          position: [Math.cos(angle + 0.5) * radius * 0.7, 0.36, Math.sin(angle + 0.5) * radius * 0.7],
+          castShadow: false,
+        }),
+      );
+    }
+    bed.position.set(bx, 0, bz);
+    root.add(bed);
+  }
+}
+
+/**
+ * 东墙外的封头木桥（照河桥概念图的桥梁结构格）：桥板 + 护栏 + 桥墩，
+ * 墙这头用三根木桩封死。**纯布景**——不声明承托面就天然走不上去，
+ * 未来通新地区时拆桩、声明桥面、加出入口，三条数据（设计稿 §8）。
+ */
+function buildBridge(root: Object3D, wallX: number, riverCenter: (z: number) => number): void {
+  const bridge = new Object3D();
+  const BZ = -4;
+  const spanFrom = wallX + 0.2;
+  const spanTo = riverCenter(BZ) + RIVER_WIDTH / 2 + 2.2;
+  const length = spanTo - spanFrom;
+  const mid = (spanFrom + spanTo) / 2;
+
+  // 桥板：一整块微拱不做，低多边形直板 + 两条压边
+  const deck = box([length, 0.14, 2.2], {
+    color: PALETTE.deckPlank,
+    position: [mid, 0.55, BZ],
+  });
+  deck.receiveShadow = true;
+  bridge.add(deck);
+  for (const side of [-1, 1] as const) {
+    bridge.add(
+      box([length, 0.08, 0.16], {
+        color: PALETTE.deckEdge,
+        position: [mid, 0.64, BZ + side * 1.1],
+      }),
+    );
+    // 护栏：立柱 + 扶手
+    for (let x = spanFrom + 0.4; x < spanTo; x += 1.4) {
+      bridge.add(
+        box([0.12, 0.62, 0.12], {
+          color: PALETTE.woodDark,
+          position: [x, 0.93, BZ + side * 1.02],
+        }),
+      );
+    }
+    bridge.add(
+      box([length, 0.09, 0.11], {
+        color: PALETTE.woodMid,
+        position: [mid, 1.24, BZ + side * 1.02],
+      }),
+    );
+  }
+  // 桥墩：河两岸各一对斜撑短柱
+  for (const px of [riverCenter(BZ) - RIVER_WIDTH / 2 - 0.4, riverCenter(BZ) + RIVER_WIDTH / 2 + 0.4]) {
+    for (const side of [-1, 1] as const) {
+      bridge.add(
+        box([0.18, 0.6, 0.18], {
+          color: PALETTE.woodDark,
+          position: [px, 0.22, BZ + side * 0.8],
+        }),
+      );
+    }
+  }
+  // 封头桩：墙这头三根斜插的木桩拦住桥口
+  for (const [k, dz] of [-0.7, 0, 0.7].entries()) {
+    const stake = box([0.14, 1.0, 0.14], {
+      color: PALETTE.woodDark,
+      position: [spanFrom + 0.3, 0.95, BZ + dz],
+    });
+    stake.rotation.z = 0.18 * (k - 1);
+    bridge.add(stake);
+  }
+  root.add(bridge);
 }
 
 /**
@@ -433,34 +816,42 @@ export function buildBaseTerrain(context: TerrainContext): OutdoorTerrain {
   const root = new Object3D();
   root.name = "terrain-base";
 
-  const riverZ = northZ - 11;
-  const riverCenter = (x: number): number => riverZ + Math.sin(x * 0.11) * 1.4;
+  // roomSize 是 {width, depth}，yardBoundsOf 吃的是户型网格 {width, height}
+  const bounds = yardBoundsOf(baseMapDefinition, {
+    width: context.roomSize.width,
+    height: context.roomSize.depth,
+  });
+  // 河在东墙外（据点②改道）：中心线是 z 的缓波
+  const riverCenter = (z: number): number =>
+    bounds.maxX + 5.5 + Math.sin(z * 0.11) * 1.2;
 
   buildGround(root, northZ);
   buildForest(root, northZ);
   const streaks = buildRiver(root, riverCenter);
   buildSakura(root, northZ);
-  // roomSize 是 {width, depth}，yardBoundsOf 吃的是户型网格 {width, height}
-  buildWalls(
-    root,
-    yardBoundsOf(baseMapDefinition, {
-      width: context.roomSize.width,
-      height: context.roomSize.depth,
-    }),
-  );
+  buildWalls(root, bounds);
+  buildPaving(root, [
+    // 前庭广场（宅南墙外）+ 入门通道（对齐南门）
+    { minX: -7, maxX: 9, minZ: 10.8, maxZ: 15.4 },
+    { minX: -1.35, maxX: 1.35, minZ: 15.4, maxZ: bounds.maxZ },
+  ]);
+  buildField(root, { minX: -16.5, maxX: -1.5, minZ: 16, maxZ: 23 });
+  buildFlowerbeds(root);
+  buildBackyard(root);
+  buildBridge(root, bounds.maxX, riverCenter);
   const petals = buildPetals(northZ);
   root.add(petals.points);
 
   return {
     root,
     update(deltaSeconds, elapsed, tick) {
-      // 河面流光顺流漂
+      // 河面流光顺流（+z）漂
       for (let i = 0; i < streaks.length; i += 1) {
         const streak = streaks[i];
-        streak.position.x += (0.9 + hash01(i * 7.7) * 0.5) * deltaSeconds;
-        if (streak.position.x > 70) streak.position.x = -70;
-        streak.position.z =
-          riverCenter(streak.position.x) + (hash01(i * 3.7) - 0.5) * 1.6;
+        streak.position.z += (0.9 + hash01(i * 7.7) * 0.5) * deltaSeconds;
+        if (streak.position.z > 60) streak.position.z = -60;
+        streak.position.x =
+          riverCenter(streak.position.z) + (hash01(i * 3.7) - 0.5) * 1.6;
       }
 
       // 花瓣：下落 + 正弦横摆，落地回到树冠。风天飘得更斜更快

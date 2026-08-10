@@ -94,6 +94,7 @@ import {
   seedInitialFurniture,
 } from "../../Game/State/worldRuntime";
 import { outdoorTerrainOf } from "../../Maps/index";
+import { buildGroundFixtures } from "./groundFixtures.js";
 import { getActiveAction } from "../../Game/Systems/actions";
 import { getActiveDialogue, startDialogue } from "../../Game/Systems/dialogue";
 import { getEventStage } from "../../Game/Systems/events";
@@ -306,6 +307,9 @@ export class RoomScene {
       this.built.size,
       outdoorTerrainOf(getCurrentMapId()),
     );
+    // 声明的可走固定件（石阶、平台）。挂 scene 不挂 outdoor.root：
+    // 声明里的标高是世界 Y，outdoor.root 整体压了 -floorLevel
+    this.scene.add(buildGroundFixtures(getCurrentMap()));
     this.remotePlayers = new RemotePlayersView(this.scene);
     // 现查不缓存：机器可能被收走或摆第二台
     this.dailyBoardAnimator = new DailyBoardAnimator(() =>

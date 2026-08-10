@@ -1,4 +1,4 @@
-import { DEFAULT_MAP_ID, type MapDefinition } from "core";
+import { DEFAULT_MAP_ID, GroundKind, type MapDefinition } from "core";
 import { YARD_MARGIN, generateHouse } from "./layout.js";
 import { homePortals } from "./portals.js";
 
@@ -18,14 +18,16 @@ import { homePortals } from "./portals.js";
  * - portals.ts  出入口 —— 阶段② 建
  */
 
+/** 床高 0.45：日式住宅 40~60cm 取中，且不超过角色一步能迈的高度 */
+const FLOOR_LEVEL = 0.45;
+
 export const homeMapDefinition: MapDefinition = {
   mapId: DEFAULT_MAP_ID,
   localizationKey: "map.home",
   primaryRoomId: "living",
   outdoorRoomId: "yard",
   yardMargin: YARD_MARGIN,
-  /** 床高 0.45：日式住宅 40~60cm 取中，且不超过角色一步能迈的高度 */
-  floorLevel: 0.45,
+  floorLevel: FLOOR_LEVEL,
 
   /**
    * 玄关内侧（2LDK 户型门在西墙 z1~2）。heading = π/2 是朝东（+X）。
@@ -49,6 +51,45 @@ export const homeMapDefinition: MapDefinition = {
   outdoorDecks: [
     { deckId: "engawa-north", side: "north", from: -12, to: 14, depth: 2 },
     { deckId: "engawa-east", side: "east", from: -10, to: 10, depth: 2 },
+  ],
+
+  /**
+   * 南院的石阶高台——承托面系统的**声明制样板**：下面这两条数据就是
+   * 它的全部"碰撞代码"。坡道从院面爬升到高台，逐帧步进每一步的高差
+   * 都在一步高之内，所以走得上去；从侧面直接贴，1.2 的立面超过一步高，
+   * 上不去——没有任何配套逻辑，规则全在数据里。视觉（石阶分级、台身）
+   * 由 Game3D/World/groundFixtures.ts 从同一份声明取尺寸，看得见的板
+   * 和走得上的面不可能错位。
+   *
+   * 摆南院：北面缘侧对着河景，西面是玄关和去小镇的路，南院一直空着。
+   * 高台 0.75（比室内地板还高 0.3）故意超过"一步高"，好让"只能从
+   * 坡道上"这条规则真的被用到。
+   */
+  groundFixtures: [
+    {
+      surfaceId: "ramp:yard-stairs",
+      kind: GroundKind.Ramp,
+      roomId: "yard",
+      floorIndex: 0,
+      rect: { minX: 6, maxX: 8, minZ: 13, maxZ: 16 },
+      elevation: 0.75,
+      slope: {
+        axis: "z",
+        from: 16,
+        to: 13,
+        fromElevation: -FLOOR_LEVEL,
+        toElevation: 0.75,
+      },
+    },
+    {
+      surfaceId: "platform:yard-lookout",
+      kind: GroundKind.Platform,
+      roomId: "yard",
+      floorIndex: 0,
+      // 南墙在 z=10，留半格缝，台子不啃墙皮
+      rect: { minX: 6, maxX: 8, minZ: 10.5, maxZ: 13 },
+      elevation: 0.75,
+    },
   ],
 
   portals: homePortals,

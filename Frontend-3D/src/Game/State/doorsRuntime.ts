@@ -1,6 +1,7 @@
 import {
   findDoorDefinition,
   findDoors,
+  yardBoundsOf,
   type DoorDefinition,
   type DoorSave,
   type GridPosition,
@@ -145,8 +146,8 @@ export function initDoors(): void {
 
   /*
    * 室外通行判定（isWalkable 的边界分支走这里）。三层，由外到内：
-   * 1. 院子有边——房子四周 yardMargin 格（当前地图定义的知识，
-   *    V0.13 前是全局常量），草地视觉更大没关系，
+   * 1. 院子有边——可走边界从地图定义推（yardBoundsOf，四向边距可以
+   *    不均匀），草地视觉更大没关系，
    *    能看到的远处和能走到的范围不是一回事。
    * 2. 碰撞圆不压着房子 → 院子里自由走。
    * 3. 压着房子 = 正在穿墙，只有一种合法情况：大门开着、
@@ -154,12 +155,12 @@ export function initDoors(): void {
    *    z 校验挡住"贴着南北墙外侧蹭"，x 校验挡住"从东墙穿进来"。
    */
   setOutdoorPass((x, z, radius) => {
-    const yardMargin = getCurrentMap().yardMargin;
+    const bounds = yardBoundsOf(getCurrentMap(), getWorld().room.floorGrid);
     if (
-      x - radius < -halfW - yardMargin ||
-      x + radius > halfW + yardMargin ||
-      z - radius < -halfD - yardMargin ||
-      z + radius > halfD + yardMargin
+      x - radius < bounds.minX ||
+      x + radius > bounds.maxX ||
+      z - radius < bounds.minZ ||
+      z + radius > bounds.maxZ
     ) {
       return false;
     }

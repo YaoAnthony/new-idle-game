@@ -171,8 +171,11 @@ export type OutdoorDeck = {
  * 复用的包。所以定义全部住在 `Frontend-3D/src/Maps/<id>/`，一图一
  * 文件夹；Core 只留类型，外加这个 id——存档结构里到处要用它当键，
  * Backend 建会话时也要一个占位的 mapId。
+ *
+ * "home" → "base"（2026-08-10 据点改造）：起始图从野地小屋升级成
+ * 围墙据点，老图退役。老存档由迁移 v24 把地图键和玩家位置一并改名。
  */
-export const DEFAULT_MAP_ID = "home";
+export const DEFAULT_MAP_ID = "base";
 
 /**
  * 箱庭之间的出入口（箱庭②）。
@@ -227,6 +230,16 @@ export type MapDefinition = {
 
   /** 出了门能走多远（格）。只管"能走到哪"，草地的视觉大小渲染层自己定 */
   yardMargin: number;
+
+  /**
+   * 四向各自的活动边距（格），不填的方向退回 yardMargin。
+   *
+   * 据点这种图南边要装下种植区+广场（≈16 格）、北边只要后庭（≈6 格），
+   * 均匀边距会在窄的方向留一大块尴尬空地——而围墙的视觉就画在可走
+   * 边界上，"看得见的墙 = 走得到的边"，边距不诚实墙就不诚实。
+   * 读值一律走 yardBoundsOf()，别自己拼四条边。
+   */
+  yardMargins?: { north: number; south: number; east: number; west: number };
 
   /**
    * **室内地板比院子地面高多少**（世界单位）。和式住宅的"床高"。

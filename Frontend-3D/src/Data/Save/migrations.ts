@@ -10,9 +10,9 @@ import {
   type InventoryStack,
 } from "core";
 // 老存档的 v7/v8 用当年的户型重新生成房间几何。户型跟着地图走了
-// （Maps/home/layout），迁移就从那儿取——迁移读的是**历史**，
+// （Maps/base/layout，据点改造前叫 Maps/home），迁移就从那儿取——迁移读的是**历史**，
 // 但历史里那栋房子就是 home 这张图的房子，不是另一份拷贝
-import { generateHouse } from "../../Maps/home/layout";
+import { generateHouse } from "../../Maps/base/layout";
 import { INVENTORY_SIZE } from "../../Game/State/inventory";
 import { FURNITURE_ID_KIND } from "../../Game/State/worldRuntime";
 import { LOCAL_PLAYER_ID } from "../../Game/State/participants";
@@ -821,6 +821,35 @@ export const migrations: Migration[] = [
   {
     to: 23,
     migrate: (save) => save,
+  },
+
+  /*
+   * v24（2026-08-10 据点改造）：起始图 "home" 退役，继任者 "base"
+   * （围墙据点）**继承了 living/yard 两个房间名**，所以家具/宠物/
+   * 掉落物/门这些只带 roomId 的实体一个字段都不用动——要改名的只有
+   * 两处："哪张图"的键（world.maps）和"人在哪张图"（position.mapId）。
+   *
+   * 字面量写死不引 DEFAULT_MAP_ID：迁移的行为必须定格在写它的那一刻，
+   * 那个常量以后要是再改名，这条旧迁移不能跟着变。
+   * maps 里已有 "base" 键的档（未来存档被降级客户端碰过的残档）不动
+   * home，宁可留一张多余的旧图也不覆盖新图。
+   */
+  {
+    to: 24,
+    migrate: (save) => {
+      const maps = save.ownWorld?.maps;
+      if (maps?.["home"] && !maps["base"]) {
+        maps["base"] = { ...maps["home"], mapId: "base" };
+        delete maps["home"];
+      }
+
+      const position = save.player?.character?.position as
+        | { mapId?: string }
+        | undefined;
+      if (position?.mapId === "home") position.mapId = "base";
+
+      return save;
+    },
   },
 ];
 

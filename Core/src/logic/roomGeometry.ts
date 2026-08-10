@@ -2,6 +2,7 @@ import type { GridPosition } from "../types/base.js";
 import {
   WallOpeningKind,
   type HouseZone,
+  type MapDefinition,
   type OutdoorDeck,
   type RoomSave,
   type WallOpening,
@@ -94,6 +95,26 @@ export function outdoorDeckRect(
     default:
       return { minX: halfW, maxX: halfW + deck.depth, minZ: deck.from, maxZ: deck.to };
   }
+}
+
+/**
+ * 院子的可走边界（世界坐标矩形）。**读边距的唯一入口**——四向边距
+ * 是可选的（yardMargins，缺哪向退回均匀的 yardMargin），让每个消费方
+ * 自己做这个回退，迟早有一处忘了，那一侧的墙和可走边界就错位了。
+ */
+export function yardBoundsOf(
+  map: Pick<MapDefinition, "yardMargin" | "yardMargins">,
+  floorGrid: { width: number; height: number },
+): DeckRect {
+  const halfW = floorGrid.width / 2;
+  const halfD = floorGrid.height / 2;
+  const margins = map.yardMargins;
+  return {
+    minX: -halfW - (margins?.west ?? map.yardMargin),
+    maxX: halfW + (margins?.east ?? map.yardMargin),
+    minZ: -halfD - (margins?.north ?? map.yardMargin),
+    maxZ: halfD + (margins?.south ?? map.yardMargin),
+  };
 }
 
 /** 缘侧往外挑的方向（单位向量的两个分量）。庇、椽子、缘束都按它排 */

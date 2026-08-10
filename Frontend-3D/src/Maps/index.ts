@@ -1,7 +1,7 @@
 import type { MapDefinition } from "core";
 import type { OutdoorTerrainBuilder } from "../Game3D/World/outdoorTerrain.js";
-import { homeMapDefinition } from "./home/index.js";
-import { buildHomeTerrain } from "./home/outdoor.js";
+import { baseMapDefinition } from "./base/index.js";
+import { buildBaseTerrain } from "./base/outdoor.js";
 import { townMapDefinition } from "./town/index.js";
 import { buildTownTerrain } from "./town/outdoor.js";
 
@@ -23,9 +23,12 @@ import { buildTownTerrain } from "./town/outdoor.js";
  * 房间 id 必须**全世界唯一**（不只是本图内唯一）：实体只带 roomId，
  * 靠"这个房间属于哪张图"反查归属，重名会让实体串图。地图多了再上
  * audit（storyAudit 那一套）。
+ *
+ * home 已退役（2026-08-10）：据点 base 是它的继任者，继承了 living/yard
+ * 两个房间名，老存档由迁移 v24 改名接入。
  */
 export const mapDefinitions: MapDefinition[] = [
-  homeMapDefinition,
+  baseMapDefinition,
   townMapDefinition,
 ];
 
@@ -50,7 +53,7 @@ export function mapOfRoom(roomId: string): MapDefinition | undefined {
  * 的规矩不破，这里只是登记表。
  */
 const terrainBuilders: Record<string, OutdoorTerrainBuilder> = {
-  home: buildHomeTerrain,
+  base: buildBaseTerrain,
   town: buildTownTerrain,
 };
 
@@ -59,4 +62,4 @@ export function outdoorTerrainOf(mapId: string): OutdoorTerrainBuilder {
   return terrainBuilders[mapId] ?? buildTownTerrain;
 }
 
-export { homeMapDefinition, townMapDefinition };
+export { baseMapDefinition, townMapDefinition };

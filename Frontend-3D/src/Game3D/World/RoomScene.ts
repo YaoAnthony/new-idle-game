@@ -7,6 +7,7 @@ import {
   findItemDefinition,
   findPath,
   findPetDefinition,
+  yardBoundsOf,
 } from "core";
 import type { InteractHint } from "core";
 import { Raycaster, Scene, Vector2, Vector3 } from "three";
@@ -1906,23 +1907,24 @@ export class RoomScene {
     this.cameraOutdoors = next;
 
     if (next) {
-      const { yardMargin, floorLevel } = getCurrentMap();
+      const map = getCurrentMap();
+      const bounds = yardBoundsOf(map, { width, height: depth });
       this.rig.setBoundsRect(
-        -halfW - yardMargin,
-        halfW + yardMargin,
-        -halfD - yardMargin,
-        halfD + yardMargin,
+        bounds.minX,
+        bounds.maxX,
+        bounds.minZ,
+        bounds.maxZ,
         // 院子没有天花板；上限要够看全屋顶（屋脊 ~7.8）
         10,
         undefined,
-        -floorLevel,
+        -map.floorLevel,
       );
       this.rig.setObstacleBox({
         minX: -halfW - 0.3,
         maxX: halfW + 0.3,
         // 房子架空之后底面在院子地面上，禁入盒要跟着下探——
         // 不然镜头能从基礎底下的那条缝钻进屋里
-        minY: -floorLevel,
+        minY: -map.floorLevel,
         maxY: this.built.ridgeHeight + 0.1,
         minZ: -halfD - 0.3,
         maxZ: halfD + 0.3,

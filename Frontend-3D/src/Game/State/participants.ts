@@ -10,7 +10,7 @@ import {
   type PoseId,
   type WorldPosition,
 } from "core";
-import { homeMapDefinition } from "../../Maps/index.js";
+import { baseMapDefinition } from "../../Maps/index.js";
 
 /**
  * 「谁在哪、在干什么、看起来什么样」。
@@ -56,10 +56,10 @@ const DEFAULT_POSTURE: PoseId = "stand";
  * heading 存的是弧度（v19 起），见 Core 的 WorldPosition 注释。
  */
 export const SPAWN_POSITION: WorldPosition = {
-  mapId: homeMapDefinition.mapId,
-  x: homeMapDefinition.spawn.x,
-  y: homeMapDefinition.spawn.y,
-  heading: homeMapDefinition.spawn.heading,
+  mapId: baseMapDefinition.mapId,
+  x: baseMapDefinition.spawn.x,
+  y: baseMapDefinition.spawn.y,
+  heading: baseMapDefinition.spawn.heading,
 };
 
 const participants = new Map<PlayerId, ParticipantState>();

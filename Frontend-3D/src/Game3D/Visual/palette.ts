@@ -143,6 +143,18 @@ export const PALETTE = {
 
   stoneWarm: "#a89a89",
   stoneWarmDark: "#8d8071",
+
+  // ---- 据点庄园（2026-08-10，色值从概念图参考条采样，见
+  //      gpt设计稿/据点箱庭设计稿.md §7a）。石材一族比 foundation
+  //      暖一档——墙要"接住"暖木老宅，不能让宅子孤立在冷灰墙里 ----
+  baseStone: "#9d8f74",
+  baseStoneDark: "#7c7159",
+  baseStoneMoss: "#8a8160",
+  pavingLight: "#b49b70",
+  pavingMid: "#ab9168",
+  pavingJoint: "#95875f",
+  plotSoil: "#6a5138",
+  flowerViolet: "#8b84b8",
   hearthDark: "#3a3230",
   emberOrange: "#ff9d3d",
   emberYellow: "#ffd27a",

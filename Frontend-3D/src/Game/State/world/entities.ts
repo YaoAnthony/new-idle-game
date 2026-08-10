@@ -7,7 +7,7 @@ import {
   type PetSave,
   type PlacedFurniture,
 } from "core";
-import { findMapDefinition, homeMapDefinition, mapDefinitions } from "../../../Maps/index.js";
+import { baseMapDefinition, findMapDefinition, mapDefinitions } from "../../../Maps/index.js";
 import { syncIdCounters } from "../ids";
 import { restoreDroppedItems, snapshotDroppedItems } from "../droppedItems";
 import { restorePets, snapshotPets } from "../petsRuntime";
@@ -116,7 +116,7 @@ export function loadWorldEntities(
 ): ActiveEntities {
   const definition =
     (currentMapId ? findMapDefinition(currentMapId) : undefined) ??
-    homeMapDefinition;
+    baseMapDefinition;
 
   // 和 restoreWorld 的几何兜底同一条规则：定义的图在存档里没有几何时
   // 退回第一张（老存档的 map 键不一定叫 home）

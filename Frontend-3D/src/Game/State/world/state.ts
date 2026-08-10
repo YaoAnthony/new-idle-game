@@ -11,7 +11,7 @@ import {
   type RoomOccupancy,
   type RoomSave,
 } from "core";
-import { homeMapDefinition } from "../../../Maps/index.js";
+import { baseMapDefinition } from "../../../Maps/index.js";
 
 /**
  * 一张**非当前地图**的实体行李：以存档原始形态躺着——不构造 agent、
@@ -43,7 +43,7 @@ let style = roomStyleDefinitions[0];
  * 一个凭空出现的 room，"在哪张地图"从来不是一个问题；现在游戏
  * 启动即进 home，将来切地图就是换这里 + 重建 rooms。
  */
-let map: MapDefinition = homeMapDefinition;
+let map: MapDefinition = baseMapDefinition;
 
 /** 当前地图的全部房间几何（读档后来自存档，新世界由地图定义生成） */
 let rooms: Record<string, RoomSave> = map.generateRooms(style);

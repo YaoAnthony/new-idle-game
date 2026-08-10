@@ -1,3 +1,4 @@
+import { yardBoundsOf, type DeckRect } from "core";
 import {
   BufferAttribute,
   BufferGeometry,
@@ -14,15 +15,17 @@ import {
   type OutdoorTerrain,
   type TerrainContext,
 } from "../../Game3D/World/outdoorTerrain.js";
+import { baseMapDefinition } from "./index.js";
 
 /**
- * home 的地形：**纯野森林 + 一条河**，没有任何人间烟火——唯一的例外
- * 是庭院（樱花树与落花）。箱庭③从 OutdoorScene 整体搬进地图文件夹，
- * 构图逻辑原封不动：
+ * base（玩家据点）的地形。骨架版（据点①）= home 的野森林构图原样
+ * 继承 + **围墙与南大门**；种植区/前庭石板/东河改道/封头桥在据点②
+ * 逐区落地（设计稿 §7b）。
  *
  * 布景哲学是剧场：只在窗户看得到的方向做细（北面），东西两翼稀疏，
- * 南面几乎不做。所有"离房子多远"的量都从北墙位置推导（房子尺寸改过
- * 一次 16×12→24×20，写死距离的教训只吃一次）。
+ * 南面几乎不做——据点②会把"南面不做"改成"南面是正门动线"。
+ * 所有"离房子多远"的量都从北墙位置推导（房子尺寸改过一次
+ * 16×12→24×20，写死距离的教训只吃一次）。
  */
 
 const GROUND_GREEN = "#7fa063";
@@ -324,10 +327,111 @@ function buildPetals(northZ: number): { points: Points; seeds: Float32Array } {
   return { points, seeds };
 }
 
-export function buildHomeTerrain(context: TerrainContext): OutdoorTerrain {
+/**
+ * 围墙与南大门（据点①的第一版，柱-墙-柱节奏见设计稿 §7c）。
+ *
+ * 墙画在**可走边界的外侧**（内立面贴着边界线）：通行上"走不出去"
+ * 本来就是那条看不见的线，墙只是把它画出来——内立面若压进边界，
+ * 人贴墙走会看着嵌进石头里（碰撞圆判的是中心点到边界）。
+ */
+function buildWalls(root: Object3D, bounds: DeckRect): void {
+  const WALL_H = 0.9;
+  const WALL_T = 0.45;
+  const POST_STEP = 6;
+  /** 南门洞：净宽 3（x -1.5..1.5），两侧加粗门柱中心在 ±1.9 */
+  const GATE_HALF = 1.9;
+
+  const post = (x: number, z: number, big: boolean): void => {
+    const side = big ? 0.7 : 0.5;
+    const height = big ? 1.6 : 1.25;
+    root.add(
+      box([side, height, side], {
+        color: PALETTE.baseStone,
+        position: [x, height / 2, z],
+      }),
+    );
+    // 压顶帽：探出一圈，柱子才有"戴帽"的轮廓
+    root.add(
+      box([side + 0.16, 0.14, side + 0.16], {
+        color: PALETTE.pavingLight,
+        position: [x, height + 0.07, z],
+      }),
+    );
+    if (big) {
+      // 门柱顶的灯箱：自发光色块假亮（真路灯是据点③的家具）
+      root.add(
+        box([0.26, 0.3, 0.26], {
+          color: PALETTE.lampGlow,
+          position: [x, height + 0.32, z],
+        }),
+      );
+    }
+  };
+
+  /** 一段墙体 + 沿途的柱。start/end 是这段墙的两端（沿 axis 的坐标） */
+  const run = (
+    axis: "x" | "z",
+    start: number,
+    end: number,
+    at: number,
+    outward: 1 | -1,
+  ): void => {
+    const length = end - start;
+    if (length <= 0) return;
+    // 墙身中心往外推半个墙厚：内立面贴着可走边界
+    const center = at + outward * (WALL_T / 2);
+    const mid = (start + end) / 2;
+
+    const size: [number, number, number] =
+      axis === "x" ? [length, WALL_H, WALL_T] : [WALL_T, WALL_H, length];
+    const position: [number, number, number] =
+      axis === "x" ? [mid, WALL_H / 2, center] : [center, WALL_H / 2, mid];
+    const body = box(size, { color: PALETTE.baseStone, position });
+    body.receiveShadow = true;
+    root.add(body);
+
+    // 压顶条：略宽于墙身，压出一条水平明暗线
+    const capSize: [number, number, number] =
+      axis === "x"
+        ? [length, 0.12, WALL_T + 0.14]
+        : [WALL_T + 0.14, 0.12, length];
+    root.add(
+      box(capSize, {
+        color: PALETTE.baseStoneDark,
+        position: axis === "x" ? [mid, WALL_H + 0.06, center] : [center, WALL_H + 0.06, mid],
+      }),
+    );
+
+    // 沿途的柱（两端由转角/门柱负责，这里只立中间的）
+    for (let d = POST_STEP; d < length - 0.5; d += POST_STEP) {
+      const cx = axis === "x" ? start + d : center;
+      const cz = axis === "x" ? center : start + d;
+      post(cx, cz, false);
+    }
+  };
+
+  // 南墙：门洞两翼
+  run("x", bounds.minX, -GATE_HALF - 0.35, bounds.maxZ, 1);
+  run("x", GATE_HALF + 0.35, bounds.maxX, bounds.maxZ, 1);
+  // 北、西、东三面整段
+  run("x", bounds.minX, bounds.maxX, bounds.minZ, -1);
+  run("z", bounds.minZ, bounds.maxZ, bounds.minX, -1);
+  run("z", bounds.minZ, bounds.maxZ, bounds.maxX, 1);
+
+  // 四角柱 + 南门加粗门柱（灯箱）
+  const wallOff = WALL_T / 2;
+  post(bounds.minX - wallOff, bounds.minZ - wallOff, false);
+  post(bounds.maxX + wallOff, bounds.minZ - wallOff, false);
+  post(bounds.minX - wallOff, bounds.maxZ + wallOff, false);
+  post(bounds.maxX + wallOff, bounds.maxZ + wallOff, false);
+  post(-GATE_HALF, bounds.maxZ + wallOff, true);
+  post(GATE_HALF, bounds.maxZ + wallOff, true);
+}
+
+export function buildBaseTerrain(context: TerrainContext): OutdoorTerrain {
   const { northZ } = context;
   const root = new Object3D();
-  root.name = "terrain-home";
+  root.name = "terrain-base";
 
   const riverZ = northZ - 11;
   const riverCenter = (x: number): number => riverZ + Math.sin(x * 0.11) * 1.4;
@@ -336,6 +440,14 @@ export function buildHomeTerrain(context: TerrainContext): OutdoorTerrain {
   buildForest(root, northZ);
   const streaks = buildRiver(root, riverCenter);
   buildSakura(root, northZ);
+  // roomSize 是 {width, depth}，yardBoundsOf 吃的是户型网格 {width, height}
+  buildWalls(
+    root,
+    yardBoundsOf(baseMapDefinition, {
+      width: context.roomSize.width,
+      height: context.roomSize.depth,
+    }),
+  );
   const petals = buildPetals(northZ);
   root.add(petals.points);
 

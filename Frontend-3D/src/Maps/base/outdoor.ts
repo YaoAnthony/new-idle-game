@@ -37,6 +37,8 @@ const TREE_GREEN_LIGHT = PALETTE.leafGreen;
 const TRUNK_BROWN = PALETTE.wallTrim;
 const RIVER_BLUE = PALETTE.waterBlue;
 const RIVER_FOAM = "#dcedf4";
+/** 墙外土路。和 town 的路面同色——两张图的路要认得出是同一种路 */
+const PATH_DIRT = "#c3a06e";
 
 const RIVER_WIDTH = 2.8;
 
@@ -555,6 +557,115 @@ function buildFlowerbeds(root: Object3D): void {
 }
 
 /**
+ * 墙外的世界（用户点破："外面不应该一望无际"）。概念图里据点是被
+ * 密林抱着的，据点又坐在莉奥拉小镇的西南角——墙外要有三层粗略布景：
+ * **密林圈**贴着墙外把视线接住（北面原有林墙照旧，补南、西两面），
+ * **西门外的土路**顺着出门方向伸向小镇，路尽头给几栋**粗建模屋影**
+ * （盒身+坡顶+烟囱，雾一罩就是"镇子在那边"的说明，不是能去的建筑）。
+ */
+function buildOuterWorld(root: Object3D, bounds: DeckRect): void {
+  const outerTree = (x: number, z: number, scale: number, seed: number): void => {
+    const tree = new Object3D();
+    const trunkHeight = 1.1 * scale + hash01(seed * 2.9) * 0.6;
+    tree.add(
+      cylinder(0.12 * scale, 0.17 * scale, trunkHeight, 5, {
+        color: TRUNK_BROWN,
+        position: [0, trunkHeight / 2, 0],
+        castShadow: false,
+      }),
+    );
+    tree.add(
+      blob(0.85 * scale, 0, {
+        color: hash01(seed * 11.3) < 0.4 ? TREE_GREEN_LIGHT : TREE_GREEN,
+        position: [0, trunkHeight + 0.55 * scale, 0],
+        castShadow: false,
+      }),
+    );
+    tree.position.set(x, 0, z);
+    tree.rotation.y = hash01(seed * 23.1) * Math.PI * 2;
+    root.add(tree);
+  };
+
+  // 南、西两面的密林带：两排错位，靠墙一排小、外圈一排大。
+  // 西面让开大门走廊（z -11..-5），东面是河不种
+  let seed = 500;
+  for (let x = bounds.minX - 1; x < bounds.maxX + 2; x += 3.4) {
+    const jitterX = (hash01(seed * 3.1) - 0.5) * 1.8;
+    outerTree(x + jitterX, bounds.maxZ + 2.2 + hash01(seed * 5.3) * 1.6, 0.95 + hash01(seed * 7.7) * 0.5, seed);
+    seed += 1;
+    outerTree(x + jitterX * 1.5 + 1.6, bounds.maxZ + 5.6 + hash01(seed * 4.9) * 2.5, 1.3 + hash01(seed * 9.1) * 0.7, seed);
+    seed += 1;
+  }
+  for (let z = bounds.minZ - 1; z < bounds.maxZ + 1; z += 3.4) {
+    if (z > -12.5 && z < -3.5) continue; // 大门走廊留白，路要透出去
+    const jitterZ = (hash01(seed * 3.7) - 0.5) * 1.8;
+    outerTree(bounds.minX - 2.2 - hash01(seed * 5.9) * 1.6, z + jitterZ, 0.95 + hash01(seed * 6.1) * 0.5, seed);
+    seed += 1;
+    outerTree(bounds.minX - 5.8 - hash01(seed * 4.3) * 2.5, z + jitterZ * 1.5, 1.3 + hash01(seed * 8.3) * 0.7, seed);
+    seed += 1;
+  }
+
+  // 西门外的土路：顺出门方向伸出去，尽头拐向小镇的屋影
+  const road = box([16, 0.06, 2.4], {
+    color: PATH_DIRT,
+    position: [bounds.minX - 8, -0.035, -8],
+  });
+  road.receiveShadow = true;
+  root.add(road);
+
+  // 小镇方向的粗建模屋影：盒身+双坡顶+烟囱，雾里当剪影。
+  // 参照莉奥拉小镇全景图——据点在镇西南角，镇子在西北方向
+  const ROOFS = ["#5c6b80", "#7d5a52", "#5f7361"];
+  for (const [i, [hx, hz, s, rot]] of (
+    [
+      [-42, -14, 2.6, 0.3],
+      [-48, -4, 3.1, -0.15],
+      [-44, 6, 2.3, 0.5],
+    ] as const
+  ).entries()) {
+    const house = new Object3D();
+    const w = 2.6 * s;
+    const d = 2.0 * s;
+    const wallH = 1.5 * s;
+    const rise = 0.9 * s;
+    house.add(box([w, wallH, d], { color: PALETTE.extWallShade, position: [0, wallH / 2, 0], castShadow: false }));
+    const slopeLen = Math.hypot(d / 2 + 0.2, rise);
+    const pitch = Math.atan2(rise, d / 2 + 0.2);
+    for (const side of [-1, 1] as const) {
+      const slope = box([w + 0.4, 0.09, slopeLen], {
+        color: ROOFS[i % ROOFS.length],
+        position: [0, wallH + rise / 2, (side * (d / 2 + 0.2)) / 2],
+        castShadow: false,
+      });
+      slope.rotation.x = -side * pitch;
+      house.add(slope);
+    }
+    house.add(
+      box([0.26 * s, 0.7 * s, 0.26 * s], {
+        color: PALETTE.foundation,
+        position: [w * 0.25, wallH + rise * 0.8, 0],
+        castShadow: false,
+      }),
+    );
+    house.position.set(hx, 0, hz);
+    house.rotation.y = rot;
+    root.add(house);
+  }
+
+  // 补远丘：南、西各一座把地平线围拢（北面三座是老底子）
+  for (const [hx, hz, hr, hh] of [
+    [-14, 52, 26, 9],
+    [-56, 20, 22, 8],
+    [52, 30, 24, 9],
+  ] as const) {
+    const hill = blob(hr, 1, { color: "#54724a", position: [hx, 0, hz], castShadow: false });
+    hill.scale.y = hh / hr;
+    hill.receiveShadow = false;
+    root.add(hill);
+  }
+}
+
+/**
  * 东墙外的封头木桥（照河桥概念图的桥梁结构格）：桥板 + 护栏 + 桥墩，
  * 墙这头用三根木桩封死。**纯布景**——不声明承托面就天然走不上去，
  * 未来通新地区时拆桩、声明桥面、加出入口，三条数据（设计稿 §8）。
@@ -850,6 +961,7 @@ export function buildBaseTerrain(context: TerrainContext): OutdoorTerrain {
   buildFlowerbeds(root);
   buildBackyard(root);
   buildBridge(root, bounds.maxX, riverCenter);
+  buildOuterWorld(root, bounds);
   const petals = buildPetals(northZ);
   root.add(petals.points);
 

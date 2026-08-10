@@ -425,7 +425,8 @@ const ZH: Record<string, string> = {
 
   // 箱庭地图（①B）
   "map.base": "玩家据点",
-  "map.town": "小镇",
+  // 名字来自用户的世界设定图《莉奥拉小镇——宁静生活在等待》
+  "map.town": "莉奥拉小镇",
   "ui.travel.moving": "移动中…",
   "ui.travel.in_session": "联机中不能离开这张地图",
 

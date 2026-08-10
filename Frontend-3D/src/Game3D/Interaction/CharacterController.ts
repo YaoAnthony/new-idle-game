@@ -1,4 +1,4 @@
-import { GestureKind, Locomotion, type PoseId } from "core";
+import { GestureKind, Locomotion, canStepUp, type PoseId } from "core";
 import { MathUtils } from "three";
 import { getHeld } from "../../Game/State/heldItem";
 import {
@@ -43,17 +43,14 @@ const RADIUS = 0.32;
 const JUMP_IMPULSE = 3.3;
 const JUMP_GRAVITY = 13;
 
-/**
- * 一步能迈多高（世界单位）。缘侧台面 0.4，所以走过去就上去了。
+/*
+ * 一步能迈多高的常量住进了 Core（groundMap 的 MAX_STEP_UP / canStepUp）：
+ * 它不只是走路手感，还是坡道数据的设计约束（楼梯每段的坡度要保证
+ * 逐帧步进都过得了这条规则），得让声明数据的一侧看得见同一个数。
  *
- * **上台阶不靠跳**，这是顺着上面那条"跳跃是纯装饰、不能用来够到
- * 平时够不到的地方"来的：能不能上去必须是走位决定的，一旦要靠跳，
- * 跳跃就从装饰变成了机制，那条约束就破了。现实里缘侧也是抬腿迈上去的，
- * 0.4 米正是"能自然坐下再站起来"的高度（见 Core 的 OutdoorDeck 注释）。
- *
- * 0.55 留了余量：以后真有 0.5 的台子也迈得上，1 米的挡土墙仍然上不去。
+ * **上台阶不靠跳**这条不变：能不能上去必须是走位决定的，一旦要靠跳，
+ * 跳跃就从装饰变成了机制（见下面 JUMP_IMPULSE 的注释）。
  */
-const MAX_STEP_UP = 0.55;
 
 /**
  * 落脚面的跟随速度（一阶趋近的系数）。约 0.1 秒走完 0.4 的台阶——
@@ -321,7 +318,7 @@ export class CharacterController {
        */
       const canStep = (nx: number, nz: number): boolean =>
         isWalkable(nx, nz, RADIUS, PLAYER_OBSTACLE_ID) &&
-        groundHeightAt(nx, nz) - this.supportY <= MAX_STEP_UP;
+        canStepUp(this.supportY, groundHeightAt(nx, nz));
 
       // 轴分离：撞墙时沿另一轴滑动。
       // 如果当前已经卡在阻挡格里（比如家具放在了人身上），放开限制让人走出来

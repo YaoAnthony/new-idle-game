@@ -1,8 +1,12 @@
 import {
   BLOCKED_TO_TOP,
+  GroundKind,
+  buildGroundMap,
   canPassAt,
-  outdoorDeckRect,
+  groundSurfaceAt,
+  surfaceElevationAt,
   surfaceHeightAt,
+  type GroundMap,
 } from "core";
 import { hitsCreature } from "./obstacles.js";
 import { worldState } from "./state.js";
@@ -110,59 +114,63 @@ export function setOutdoorPass(
   outdoorPass = fn;
 }
 
+/*
+ * 承托面（GroundMap）缓存。按 map/room 的对象身份失效——换图和读档
+ * 都会换掉这两个对象，而两者不变时面也不可能变（面是地图数据的纯编译
+ * 产物，玩家改不了）。每帧多次查询，不缓存就是每帧重编译。
+ */
+let cachedGround: {
+  map: typeof worldState.map;
+  room: typeof worldState.room;
+  ground: GroundMap;
+} | null = null;
+
+function currentGround(): GroundMap {
+  const map = worldState.map;
+  const room = worldState.room;
+  if (!cachedGround || cachedGround.map !== map || cachedGround.room !== room) {
+    cachedGround = { map, room, ground: buildGroundMap(map, room) };
+  }
+  return cachedGround.ground;
+}
+
 /**
- * 这个位置在屋里吗（纯几何：碰撞点落没落在地板网格内）。
+ * 这个位置在屋里吗。= 脚下的面是不是室内地板——不再自己算矩形，
+ * "地板铺到哪"只有编译器一处知道。
  *
  * 判点不判圆：调用方问的是"这个人算在屋里还是院里"，一个人不可能
  * 半间屋半个院；而通行检测那边判的是碰撞圆压到哪些格子，是另一个问题。
  */
 export function isIndoors(x: number, z: number): boolean {
-  const halfW = worldState.room.floorGrid.width / 2;
-  const halfD = worldState.room.floorGrid.height / 2;
-  return x >= -halfW && x <= halfW && z >= -halfD && z <= halfD;
+  return groundSurfaceAt(currentGround(), x, z).kind === GroundKind.Floor;
 }
 
 /**
  * 这个位置属于哪个分区。给掉落物这类"东西在哪"的记账用。
- *
- * 院子不是一个真 room（没有墙、没有地板网格，几何在渲染层的
- * OutdoorScene），但"东西掉在哪"仍然需要一个答案——室外分区 id
- * 从当前地图定义读（V0.13 前是写死的 "yard" 常量）。
+ * 面自带归属（roomId），院子不是真 room 但兜底面替它答了这个问题。
  */
 export function roomIdAt(x: number, z: number): string {
-  return isIndoors(x, z) ? worldState.room.roomId : worldState.map.outdoorRoomId;
+  return groundSurfaceAt(currentGround(), x, z).roomId;
 }
 
 /**
  * 站在这个位置时**脚下的承托面有多高**（世界单位）。
  *
- * 这是"地形高度"这个概念的全部——在它之前整个世界是一张绝对水平的
- * 平面，角色的 y 恒为 0，架空的东西只能是挡路的墙（走不上去也跳不上去，
- * 因为落地永远回到 0）。有了它，缘侧才从"障碍"变成"台阶"。
- *
- * 三档，全部由地图数据推导：
- * - **室内地板 = 0**（世界原点就定在这儿，见 MapDefinition.floorLevel）
- * - **缘侧 = 0**：它是室内楼板伸到屋外的一截，和地板永远齐平
- * - **院子 = -floorLevel**：房子架空在它之上
+ * 曾经这里手写三段 if-else（室内 0/缘侧 0/院子 -floorLevel），每加
+ * 一种可走结构就要多一段——楼梯永远不会"自动有碰撞"。现在规则住在
+ * buildGroundMap 编译器里，这里只剩"查第一个命中的面"：加楼梯 =
+ * 地图数据里多声明一个面，本函数一个字不改。
  *
  * 判点不判圆：问的是"我这个人站在哪个面上"，一个人只可能站在一个面上；
  * 走到边沿时身体探出去一点是对的（真人也是这样），不该因为碰撞圆蹭到
  * 台子就被抬起来。
  *
  * 和 surfaceAt 的分工：那个管**屋里的家具顶**（按格子算，来自占用图），
- * 这个管**大地本身**（按矩形算）。两者的基准同为室内地板 0。
+ * 这个管**大地本身**（按面算）。两者的基准同为室内地板 0。
  */
 export function groundHeightAt(x: number, z: number): number {
-  if (isIndoors(x, z)) return 0;
-
-  for (const deck of worldState.map.outdoorDecks ?? []) {
-    const rect = outdoorDeckRect(deck, worldState.room.floorGrid);
-    if (x >= rect.minX && x <= rect.maxX && z >= rect.minZ && z <= rect.maxZ) {
-      return 0;
-    }
-  }
-
-  return -worldState.map.floorLevel;
+  const surface = groundSurfaceAt(currentGround(), x, z);
+  return surfaceElevationAt(surface, x, z);
 }
 
 /**

@@ -5,7 +5,6 @@ import {
   type RoomStyleDefinition,
   type WallSave,
 } from "core";
-import type { ShopSpec } from "../town/shops.js";
 
 /**
  * 店铺内部的房间壳子。六家共用一个生成器——店与店的差别在**陈设**
@@ -19,12 +18,12 @@ import type { ShopSpec } from "../town/shops.js";
 export const SHOP_ROOM = { width: 20, height: 14 } as const;
 
 /** 房间 id 必须**全世界唯一**（实体归属反查靠它），所以带店铺前缀 */
-export function shopRoomId(spec: ShopSpec): string {
-  return `${spec.mapId}-room`;
+export function shopRoomId(mapId: string): string {
+  return `${mapId}-room`;
 }
 
 export function generateShopRoom(
-  spec: ShopSpec,
+  mapId: string,
   style: RoomStyleDefinition,
 ): RoomSave {
   /*
@@ -46,7 +45,7 @@ export function generateShopRoom(
       // 后墙一扇高窗：店里全封死会闷，一点天光就够
       openings: [
         {
-          openingId: `${spec.mapId}-back-window`,
+          openingId: `${mapId}-back-window`,
           kind: WallOpeningKind.Window,
           gridPosition: { x: 8, y: 2 },
           size: { width: 4, height: 2 },
@@ -68,7 +67,7 @@ export function generateShopRoom(
       origin: { x: 0, y: 0 },
       openings: [
         {
-          openingId: `${spec.mapId}-door`,
+          openingId: `${mapId}-door`,
           kind: WallOpeningKind.Door,
           gridPosition: { x: 9, y: 0 },
           size: { width: 2, height: 3 },
@@ -76,7 +75,7 @@ export function generateShopRoom(
         },
         // 门两侧的橱窗：从店里往外看得见街，这条街才是活的
         ...[3, 14].map((x) => ({
-          openingId: `${spec.mapId}-front-window-${x}`,
+          openingId: `${mapId}-front-window-${x}`,
           kind: WallOpeningKind.Window,
           gridPosition: { x, y: 1 },
           size: { width: 3, height: 2 },
@@ -94,7 +93,7 @@ export function generateShopRoom(
   };
 
   return {
-    roomId: shopRoomId(spec),
+    roomId: shopRoomId(mapId),
     floorGrid: { ...SHOP_ROOM },
     walls,
     floor: 0,

@@ -1,12 +1,8 @@
 import { GroundKind, type GroundSurface, type MapDefinition } from "core";
 import { generatePlaza } from "./layout.js";
 import { townPortals } from "./portals.js";
-import {
-  SHOP_SPECS,
-  TERRACE_BACK,
-  TERRACE_FRONT,
-  shopFootprint,
-} from "./shops.js";
+import { buildingBlockers } from "../../Buildings/index.js";
+import { TERRACE_BACK, TERRACE_FRONT, TOWN_BUILDINGS } from "./buildings.js";
 
 /**
  * 商业街的两级台地和上去的石阶——**声明出来就有碰撞、就能走**
@@ -97,11 +93,15 @@ export const townMapDefinition: MapDefinition = {
   /** 广场是露天的：不建天花板/屋顶，镜头不按 2 格矮墙锁竖向 */
   openAir: true,
 
+  /** 这张图立着哪些楼。碰撞/店门/出入口/铺装全部从它推导 */
+  buildings: TOWN_BUILDINGS,
+
   /**
    * 六家店的主体是实心的：走不进去，只能从店门（出入口触发带）进。
-   * 从同一张规格表推导——建筑摆哪、碰撞在哪，不能是两份数据。
+   * **从摆放表推**——建筑摆哪、碰撞在哪不能是两份数据，转个朝向时
+   * 尤其致命（视觉转了碰撞没转 = 撞空气）。
    */
-  outdoorBlockers: SHOP_SPECS.map(shopFootprint),
+  outdoorBlockers: buildingBlockers(TOWN_BUILDINGS),
 
   /** 两级台地 + 两段石阶。声明即碰撞，寻路也会自己找上去 */
   groundFixtures: TERRACES,

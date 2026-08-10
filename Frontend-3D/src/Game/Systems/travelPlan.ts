@@ -1,6 +1,7 @@
 import type { MapDefinition, MapPortal } from "core";
 import { findMapDefinition, mapDefinitions } from "../../Maps/index";
-import { SHOP_SPECS, shopDoorAt } from "../../Maps/town/shops";
+import { buildingDoorOutward, findBuilding } from "../../Buildings/index";
+import { TOWN_BUILDINGS } from "../../Maps/town/buildings";
 import { t } from "../../i18n/t";
 
 /**
@@ -40,13 +41,17 @@ export function destinations(): Destination[] {
    * 别的图上，路线本来就会先到小镇再进店；但如果只想走到门口不进去，
    * 门口这条也得能点名。
    */
-  for (const spec of SHOP_SPECS) {
-    const door = shopDoorAt(spec);
+  for (const placement of TOWN_BUILDINGS) {
+    const definition = findBuilding(placement.buildingId);
+    if (!definition) continue;
+    const name = t(definition.localizationKey as never) || placement.buildingId;
+    // 站到门外一步半。**朝向从摆放推**，这栋楼转 180° 站位跟着转
+    const spot = buildingDoorOutward(placement, 1.6);
     list.push({
-      keys: [`${spec.shopId}门口`, `${spec.name}门口`],
-      label: `${spec.name}门口`,
+      keys: [`${placement.buildingId}门口`, `${name}门口`],
+      label: `${name}门口`,
       mapId: "town",
-      spot: { x: door.x, z: door.z + 1.6 },
+      spot: { x: spot.x, z: spot.z },
     });
   }
 

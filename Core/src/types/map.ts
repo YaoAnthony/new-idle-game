@@ -8,6 +8,7 @@ import type {
   VisualId,
   WallId,
 } from "./base.js";
+import type { BuildingPlacement } from "./building.js";
 import type { GroundSurface } from "./ground.js";
 import type { RoomStyleDefinition } from "./roomStyle.js";
 
@@ -280,6 +281,14 @@ export type MapDefinition = {
    * 这是"建完楼梯自动能走"的入口。视觉建模从同一份声明取尺寸。
    */
   groundFixtures?: GroundSurface[];
+
+  /**
+   * 这张图上立着哪些楼（实例）。型号住在 Frontend 的 Buildings 注册表。
+   *
+   * **碰撞、店门、门口的出入口、门前铺装全部从它推导**，不再各写一份：
+   * 挪一栋楼、转个朝向就是改这里的一条数据，其余自动跟上。
+   */
+  buildings?: BuildingPlacement[];
 
   /** 通向其他箱庭的出入口 */
   portals?: MapPortal[];

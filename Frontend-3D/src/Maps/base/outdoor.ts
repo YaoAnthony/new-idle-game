@@ -210,7 +210,7 @@ function buildLand(root: Object3D): void {
  * 所以河对岸是一道又高又密的林墙，河这边散几棵近树给窗景当前景。
  * 庭院预留区（落地窗正外）留空给樱花树。
  */
-function buildForest(root: Object3D, northZ: number): void {
+function buildForest(root: Object3D): void {
   const trees: Array<[number, number, number]> = [];
 
   /*
@@ -1115,7 +1115,7 @@ export function buildBaseTerrain(context: TerrainContext): OutdoorTerrain {
   // 水在底、陆地浮在上面
   const streaks = buildWater(root);
   buildLand(root);
-  buildForest(root, northZ);
+  buildForest(root);
   buildSakura(root, northZ);
   buildWalls(root, bounds);
   buildPaving(root, [

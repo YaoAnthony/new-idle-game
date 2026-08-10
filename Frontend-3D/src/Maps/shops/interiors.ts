@@ -549,7 +549,8 @@ const BUILDERS: Record<string, (node: Object3D) => void> = {
   "shop-market": marketInterior,
 };
 
-/** 一家店内部的场景建造器（喂给地图注册表的 outdoorTerrainOf） */
+/** 一家店内部的场景建造器（喂给地图注册表的 outdoorTerrainOf）。
+ * key 就是型号的 interiorMapId——加一家店只要在这张表里补一行陈设。 */
 export function shopInteriorBuilder(mapId: string) {
   return (_context: TerrainContext): OutdoorTerrain => {
     const root = new Object3D();

@@ -1,19 +1,36 @@
-import type { MapDefinition, MapPortal } from "core";
-import { SHOP_SPECS, shopDoorAt, type ShopSpec } from "../town/shops.js";
+import type { BuildingPlacement, MapDefinition, MapPortal } from "core";
+import {
+  buildingDoorOutward,
+  buildingEntranceZone,
+  findBuilding,
+  type BuildingDefinition,
+} from "../../Buildings/index.js";
+import { TOWN_BUILDINGS } from "../town/buildings.js";
 import { generateShopRoom, shopRoomId, SHOP_ROOM } from "./layout.js";
 
 /**
- * 六家店的**内部地图**，由 SHOP_SPECS 规格表批量生成。
+ * 能进去的建筑，它们的**内部地图**。
  *
- * 为什么六张图挤在一个文件夹里（"一张箱庭 = 一个文件夹"的规矩之下）：
- * 六家店是**同一类东西的六个实例**，户型、出入口、加载方式全一样，
- * 差别只在陈设。开六个几乎一模一样的兄弟文件夹，改一次层高要改六遍——
- * 那正是当初立这条规矩要防的事。规矩的本意是"一张图的东西别散在三个
- * 包里"，一族店铺聚在 Maps/shops 完全满足。
+ * 从两张表推导，一处不写死：**型号表**说"这个型号进去是哪张图"
+ * （`BuildingDefinition.interiorMapId`），**摆放表**说"那扇门在世界的
+ * 哪儿"（出门落在哪、门口的触发带在哪）。加一家店 = 加一个型号文件 +
+ * 在小镇摆一行，这个文件一个字不用改。
  *
- * 店门口的出入口是**成对的两条**：小镇那边一条（town/portals 生成）、
- * 店里这边一条（本文件）。落点各自落在对方触发带之外。
+ * 为什么六张图挤在一个文件夹：它们是同一类东西的六个实例，户型、
+ * 出入口、加载方式全一样，差别只在陈设。开六个几乎一样的兄弟文件夹，
+ * 改一次层高要改六遍——那正是"一图一文件夹"这条规矩本来要防的事。
  */
+
+/** 有内部地图的摆放（今天是小镇那六家；以后别的图有了自动带上） */
+function enterablePlacements(): Array<{
+  placement: BuildingPlacement;
+  definition: BuildingDefinition;
+}> {
+  return TOWN_BUILDINGS.flatMap((placement) => {
+    const definition = findBuilding(placement.buildingId);
+    return definition?.interiorMapId ? [{ placement, definition }] : [];
+  });
+}
 
 /**
  * 进店后站在门内、面朝店里（北）。
@@ -26,54 +43,54 @@ function spawnOf(): { x: number; y: number; heading: number } {
   return { x: 0, y: SHOP_ROOM.height / 2 - 4, heading: Math.PI };
 }
 
-/** 店里出门那一条：踩到门口那块地就回小镇 */
-function exitPortal(spec: ShopSpec): MapPortal {
-  const halfD = SHOP_ROOM.height / 2;
-  return {
-    portalId: `${spec.mapId}-exit`,
-    // 贴着南墙门洞的一小块（门洞在 x 中间，净宽 2）
-    zone: { minX: -1.2, maxX: 1.2, minZ: halfD - 1.0, maxZ: halfD },
-    targetMapId: "town",
-    // 落回自家门口的石板上，面朝街（南）。必须在小镇那条触发带之外
-    landing: { x: shopDoorAt(spec).x, y: shopDoorAt(spec).z + 2.6, heading: 0 },
-    localizationKey: "map.town",
-  };
-}
+export const shopMapDefinitions: MapDefinition[] = enterablePlacements().map(
+  ({ placement, definition }) => {
+    const mapId = definition.interiorMapId!;
+    const halfD = SHOP_ROOM.height / 2;
+    // 出门落回自家门口外 2.6 格——**朝向由摆放推**，店转了落点跟着转
+    const outside = buildingDoorOutward(placement, 2.6);
+    const exitPortal: MapPortal = {
+      portalId: `${mapId}-exit`,
+      zone: { minX: -1.2, maxX: 1.2, minZ: halfD - 1.0, maxZ: halfD },
+      targetMapId: "town",
+      landing: { x: outside.x, y: outside.z, heading: 0 },
+      localizationKey: "map.town",
+    };
 
-export const shopMapDefinitions: MapDefinition[] = SHOP_SPECS.map((spec) => ({
-  mapId: spec.mapId,
-  localizationKey: spec.localizationKey,
-  primaryRoomId: shopRoomId(spec),
-  /*
-   * 店里没有院子。室外分区仍要有一个（"东西掉在哪"总得有答案），
-   * 给一个本店专属的 id——房间 id 全世界唯一这条同样管着它。
-   */
-  outdoorRoomId: `${spec.mapId}-outside`,
-  /** 出了门就是墙，活动范围只有屋里。留 1 格容差免得贴墙判越界 */
-  yardMargin: 1,
-  /** 店铺是平地起，没有架空 */
-  floorLevel: 0,
-  /*
-   * 店铺内部是**内容不是玩家状态**：玩家改不了这里的墙，几何跟着
-   * 代码走。不标的话改一次层高，老存档还按旧尺寸开门。
-   */
-  volatileRooms: true,
-  spawn: spawnOf(),
-  portals: [exitPortal(spec)],
-  generateRooms: (style) => {
-    const room = generateShopRoom(spec, style);
-    return { [room.roomId]: room };
+    return {
+      mapId,
+      localizationKey: definition.localizationKey,
+      primaryRoomId: shopRoomId(mapId),
+      /*
+       * 店里没有院子。室外分区仍要有一个（"东西掉在哪"总得有答案），
+       * 给一个本店专属的 id——房间 id 全世界唯一这条同样管着它。
+       */
+      outdoorRoomId: `${mapId}-outside`,
+      /** 出了门就是墙，活动范围只有屋里。留 1 格容差免得贴墙判越界 */
+      yardMargin: 1,
+      /** 店铺是平地起，没有架空 */
+      floorLevel: 0,
+      /*
+       * 店铺内部是**内容不是玩家状态**：玩家改不了这里的墙，几何跟着
+       * 代码走。不标的话改一次层高，老存档还按旧尺寸开门。
+       */
+      volatileRooms: true,
+      spawn: spawnOf(),
+      portals: [exitPortal],
+      generateRooms: (style) => {
+        const room = generateShopRoom(mapId, style);
+        return { [room.roomId]: room };
+      },
+    } satisfies MapDefinition;
   },
-}));
+);
 
-/** 小镇那一侧的六条：走到店门口就进店 */
-export const shopEntrancePortals: MapPortal[] = SHOP_SPECS.map((spec) => {
-  const door = shopDoorAt(spec);
-  return {
-    portalId: `${spec.shopId}-entrance`,
-    // 门前那块台阶地：比门洞宽半格，走过去自然踩得到
-    zone: { minX: door.x - 1.3, maxX: door.x + 1.3, minZ: door.z, maxZ: door.z + 1.2 },
-    targetMapId: spec.mapId,
-    localizationKey: spec.localizationKey,
-  };
-});
+/** 小镇那一侧的六条：走到店门台阶上就进店。触发带按朝向推 */
+export const shopEntrancePortals: MapPortal[] = enterablePlacements().map(
+  ({ placement, definition }) => ({
+    portalId: `${placement.instanceId}-entrance`,
+    zone: buildingEntranceZone(placement),
+    targetMapId: definition.interiorMapId!,
+    localizationKey: definition.localizationKey,
+  }),
+);

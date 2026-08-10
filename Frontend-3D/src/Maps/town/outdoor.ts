@@ -6,7 +6,8 @@ import {
   type OutdoorTerrain,
   type TerrainContext,
 } from "../../Game3D/World/outdoorTerrain.js";
-import { buildTownShops } from "./shops.js";
+import { buildingDoorOutward, buildPlacedBuilding } from "../../Buildings/index.js";
+import { TERRACE_BACK, TERRACE_FRONT, TOWN_BUILDINGS } from "./buildings.js";
 
 /**
  * town 的地形（箱庭③，第一版）。
@@ -193,8 +194,11 @@ export function buildTownTerrain(context: TerrainContext): OutdoorTerrain {
    * ---- 商业街：北边两排六家店（照店铺概念图）----
    * 占位的彩顶布景房退役了：那是"镇上有人住"的说明书，现在有真店铺
    * 顶上。住宅区留给以后按世界设定图往南边铺。
+   *
+   * **照摆放表建，不写死**：挪一栋、转个朝向就是改 buildings.ts 的
+   * 一行，这里和碰撞、店门、出入口一起自动跟上。
    */
-  buildTownShops(root);
+  buildTownStreet(root);
 
   // ---- 广场南边留两栋住家布景，把广场围住（北边归商业街） ----
   for (const [i, [x, z, scale, facing]] of (
@@ -255,4 +259,57 @@ export function buildTownTerrain(context: TerrainContext): OutdoorTerrain {
   root.add(well);
 
   return { root };
+}
+
+/**
+ * 商业街：**照摆放表**把六栋楼建出来，再补街道、路灯、街树。
+ *
+ * 门前那块石板铺装的位置也是从摆放推的（`buildingDoorOutward`）——
+ * 上一版它写死在"建筑中心 +z"，那正是转个朝向就会露馅的那种写法：
+ * 楼转了，门口的石板还铺在屁股后面。
+ */
+function buildTownStreet(root: Object3D): void {
+  for (const placement of TOWN_BUILDINGS) {
+    const node = buildPlacedBuilding(placement);
+    if (node) root.add(node);
+
+    const apron = buildingDoorOutward(placement, 1.9);
+    const slab = box([9.2, 0.08, 3.4], {
+      color: "#c9c0ab",
+      position: [apron.x, placement.elevation - 0.04, apron.z],
+    });
+    slab.receiveShadow = true;
+    root.add(slab);
+  }
+
+  // 两排之间的街 + 通向广场的南北路（土色，和据点的路同族）
+  const street = box([58, 0.07, 5.4], { color: PATH_DIRT, position: [0, TERRACE_FRONT - 0.045, -25] });
+  street.receiveShadow = true;
+  root.add(street);
+  const avenue = box([4.6, 0.07, 12], { color: PATH_DIRT, position: [0, TERRACE_FRONT - 0.045, -16] });
+  avenue.receiveShadow = true;
+  root.add(avenue);
+
+  // 街边路灯：夜里这条街要连成一串灯
+  for (const lx of [-27, -9, 9, 27]) {
+    const lamp = new Object3D();
+    lamp.add(cylinder(0.16, 0.2, 0.12, 8, { color: PALETTE.ironDark, position: [0, 0.06, 0] }));
+    lamp.add(cylinder(0.05, 0.07, 2.4, 6, { color: PALETTE.ironDark, position: [0, 1.2, 0] }));
+    lamp.add(box([0.22, 0.3, 0.22], { color: PALETTE.lampGlow, position: [0, 2.55, 0], castShadow: false }));
+    lamp.add(box([0.3, 0.06, 0.3], { color: PALETTE.ironDark, position: [0, 2.74, 0] }));
+    lamp.position.set(lx, TERRACE_BACK - 0.9, -25);
+    root.add(lamp);
+  }
+
+  // 街树：楼与楼之间的空当，把立面切开
+  for (const [i, tx] of [-27, -9, 9, 27].entries()) {
+    for (const [tz, elevation] of [[-34, TERRACE_BACK], [-16, TERRACE_FRONT]] as const) {
+      const node = new Object3D();
+      const h = 1.5 + hash01(i * 3.3 + tz) * 0.5;
+      node.add(cylinder(0.16, 0.22, h, 5, { color: PALETTE.wallTrim, position: [0, h / 2, 0], castShadow: false }));
+      node.add(blob(1.15, 0, { color: TREE_GREEN, position: [0, h + 0.9, 0], castShadow: false }));
+      node.position.set(tx, elevation, tz);
+      root.add(node);
+    }
+  }
 }

@@ -155,7 +155,8 @@ export function initDoors(): void {
    *    z 校验挡住"贴着南北墙外侧蹭"，x 校验挡住"从东墙穿进来"。
    */
   setOutdoorPass((x, z, radius) => {
-    const bounds = yardBoundsOf(getCurrentMap(), getWorld().room.floorGrid);
+    const map = getCurrentMap();
+    const bounds = yardBoundsOf(map, getWorld().room.floorGrid);
     if (
       x - radius < bounds.minX ||
       x + radius > bounds.maxX ||
@@ -163,6 +164,21 @@ export function initDoors(): void {
       z + radius > bounds.maxZ
     ) {
       return false;
+    }
+
+    /*
+     * 室外的实心占地（小镇的店铺这类）。碰撞圆压到就不许过——
+     * 布景建筑能穿墙走过去的话，"这是一栋房子"的说服力当场归零。
+     */
+    for (const blocker of map.outdoorBlockers ?? []) {
+      if (
+        x + radius > blocker.minX &&
+        x - radius < blocker.maxX &&
+        z + radius > blocker.minZ &&
+        z - radius < blocker.maxZ
+      ) {
+        return false;
+      }
     }
 
     const overlapsHouse =

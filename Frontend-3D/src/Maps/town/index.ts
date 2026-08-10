@@ -1,13 +1,14 @@
 import type { MapDefinition } from "core";
 import { generatePlaza } from "./layout.js";
 import { townPortals } from "./portals.js";
+import { SHOP_SPECS, shopFootprint } from "./shops.js";
 
 /**
- * town —— 小镇箱庭（占位版，箱庭①B）。
+ * town —— 莉奥拉小镇。
  *
- * 现在的唯一职责是当**换图流程的另一头**：/goto town 能过去、
- * 走一走、存个盘、/goto home 回来，家里的一切原样。真正的小镇
- * 内容（街道、店铺、外景）是阶段③的活，长在这个文件夹里。
+ * 广场是这张图的房间（openAir，钟楼广场的位置），北边是**商业街**：
+ * 两排六家店，照世界设定图和店铺概念图摆。往北的边距特意放大到 34，
+ * 就是为了装下这条街——四向边距不均匀正是为这种事加的。
  */
 export const townMapDefinition: MapDefinition = {
   mapId: "town",
@@ -15,10 +16,20 @@ export const townMapDefinition: MapDefinition = {
   primaryRoomId: "town-plaza",
   outdoorRoomId: "town-field",
   yardMargin: 10,
+
+  /** 北边是商业街（两排店 + 街），所以放得比其他三面深得多 */
+  yardMargins: { north: 38, south: 10, east: 20, west: 20 },
+
   /** 广场地台直接铺在地上，没有床高 */
   floorLevel: 0,
   /** 广场是露天的：不建天花板/屋顶，镜头不按 2 格矮墙锁竖向 */
   openAir: true,
+
+  /**
+   * 六家店的主体是实心的：走不进去，只能从店门（出入口触发带）进。
+   * 从同一张规格表推导——建筑摆哪、碰撞在哪，不能是两份数据。
+   */
+  outdoorBlockers: SHOP_SPECS.map(shopFootprint),
 
   /** 广场中央偏西，面朝东（回头就能看到出去的门） */
   spawn: { x: -2, y: 0, heading: Math.PI / 2 },

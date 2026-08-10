@@ -6,6 +6,7 @@ import {
   type OutdoorTerrain,
   type TerrainContext,
 } from "../../Game3D/World/outdoorTerrain.js";
+import { buildTownShops } from "./shops.js";
 
 /**
  * town 的地形（箱庭③，第一版）。
@@ -59,7 +60,7 @@ function cottage(
       color: roofColor,
       position: [0, wallH + roofRise / 2, (side * (d / 2 + 0.3)) / 2],
     });
-    slope.rotation.x = -side * pitch;
+    slope.rotation.x = side * pitch;
     house.add(slope);
   }
   house.add(
@@ -189,40 +190,39 @@ export function buildTownTerrain(context: TerrainContext): OutdoorTerrain {
   }
 
   /*
-   * ---- 围着广场的布景房 ----
-   * 概念图的骨架：房子朝广场围坐，彩顶错开。北面两栋、南面两栋、
-   * 西北东北各一栋；东侧留白给回家的路（出入口那边不堵）。
-   * 全部退到广场（±8, ±6）外一圈，路让开。
+   * ---- 商业街：北边两排六家店（照店铺概念图）----
+   * 占位的彩顶布景房退役了：那是"镇上有人住"的说明书，现在有真店铺
+   * 顶上。住宅区留给以后按世界设定图往南边铺。
    */
-  const cottages: Array<[number, number, number, number]> = [
-    // [x, z, scale, facing]（facing 0 = 门朝 +z；房子门都要朝向广场）
-    [-6, -12, 1.15, 0],
-    [6, -12, 1.0, 0],
-    [-13, -4, 0.95, Math.PI / 2],
-    [-12, 7, 1.1, Math.PI / 2],
-    [-4, 12, 1.0, Math.PI],
-    [7, 12, 0.9, Math.PI],
-  ];
-  for (const [i, [x, z, scale, facing]] of cottages.entries()) {
+  buildTownShops(root);
+
+  // ---- 广场南边留两栋住家布景，把广场围住（北边归商业街） ----
+  for (const [i, [x, z, scale, facing]] of (
+    [
+      [-12, 11, 1.05, Math.PI],
+      [11, 12, 0.95, Math.PI],
+      [-15, 2, 0.9, Math.PI / 2],
+    ] as const
+  ).entries()) {
     root.add(cottage(x, z, scale, facing, ROOF_COLORS[i % ROOF_COLORS.length], i + 1));
   }
 
-  // ---- 树：镇子边缘一圈 + 广场旁两棵歇脚树 ----
+  // ---- 树：镇子边缘一圈（避开北边的商业街）+ 广场旁一棵歇脚树 ----
   for (let i = 0; i < 14; i += 1) {
     const angle = (i / 14) * Math.PI * 2 + hash01(i * 5.3) * 0.4;
-    const radius = 22 + hash01(i * 7.7) * 14;
-    root.add(
-      tree(Math.cos(angle) * radius, Math.sin(angle) * radius, 0.9 + hash01(i * 3.3) * 0.6, i),
-    );
+    const radius = 26 + hash01(i * 7.7) * 14;
+    const tx = Math.cos(angle) * radius;
+    const tz = Math.sin(angle) * radius;
+    if (tz < -8 && Math.abs(tx) < 30) continue; // 商业街那片让开
+    root.add(tree(tx, tz, 0.9 + hash01(i * 3.3) * 0.6, i));
   }
-  root.add(tree(-10, -9, 1.2, 91));
   root.add(tree(11, 9, 1.1, 92));
 
-  // ---- 远丘：把地平线抬起来（和 home 一个手法，换了摆位） ----
+  // ---- 远丘：把地平线抬起来（和据点一个手法，换了摆位） ----
   for (const [hx, hz, hr, hh] of [
-    [-30, -40, 20, 8],
-    [24, -44, 26, 10],
-    [0, 46, 24, 9],
+    [-46, -52, 20, 8],
+    [30, -56, 26, 10],
+    [0, 52, 24, 9],
   ] as const) {
     const hill = blob(hr, 1, { color: "#5e7d52", position: [hx, 0, hz], castShadow: false });
     hill.scale.y = hh / hr;

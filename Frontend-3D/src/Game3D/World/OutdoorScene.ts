@@ -68,11 +68,16 @@ const SUN_COLOR = "#ffe9a8";
 const MOON_COLOR = "#e6ecff";
 
 /**
- * 雾把远树推向天色，是参考画风里"空气感"的来源。
+ * 雾把远景推向天色，是参考画风里"空气感"的来源。
+ *
  * near 必须大于室内最远视距（约 20），否则屋里也会起雾。
+ * far 一度是 78——那是按"院子 + 一圈树"的老尺度定的，小镇长出
+ * 两排店铺的商业街（进深近 70）之后，站在街这头看那头整排店铺白成
+ * 一片。远景该淡，**在演的东西不该淡**：far 推到 190，雾只负责收
+ * 远山和对岸，不再吃掉正在逛的那条街。
  */
-const FOG_NEAR = 26;
-const FOG_FAR = 78;
+const FOG_NEAR = 48;
+const FOG_FAR = 190;
 
 const RAIN_MAX = 420;
 const RAIN_COUNT_LIGHT = 190;

@@ -425,6 +425,13 @@ const ZH: Record<string, string> = {
 
   // 箱庭地图（①B）
   "map.base": "玩家据点",
+  // 六家店铺（店名同时是招牌上的字，见 Maps/town/shops.ts 的规格表）
+  "map.shop_bookstore": "书店",
+  "map.shop_arcane": "神秘商店",
+  "map.shop_convenience": "便利店",
+  "map.shop_cafe": "咖啡厅",
+  "map.shop_restaurant": "餐厅",
+  "map.shop_market": "超市",
   // 名字来自用户的世界设定图《莉奥拉小镇——宁静生活在等待》
   "map.town": "莉奥拉小镇",
   "item.furniture_garden_bench": "园林长椅",

@@ -774,7 +774,7 @@ function buildOuterWorld(root: Object3D, bounds: DeckRect): void {
         position: [0, wallH + rise / 2, (side * (d / 2 + 0.2)) / 2],
         castShadow: false,
       });
-      slope.rotation.x = -side * pitch;
+      slope.rotation.x = side * pitch;
       house.add(slope);
     }
     house.add(

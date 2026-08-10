@@ -20,8 +20,8 @@ export const basePortals: MapPortal[] = [
     zone: { minX: 18.5, maxX: 20, minZ: -5.5, maxZ: -2.5 },
     targetMapId: "town",
     // 落在小镇西侧的土路上，面朝广场（东）。必须在 town 西出入口
-    // （x≤-16.5）的外面，否则一到就被弹回来
-    landing: { x: -15, y: 0, heading: Math.PI / 2 },
+    // （x≤-26.5）的外面，否则一到就被弹回来
+    landing: { x: -25, y: 0, heading: Math.PI / 2 },
     localizationKey: "map.town",
   },
   {

@@ -8,7 +8,7 @@ import type { MapPortal } from "core";
 export const townPortals: MapPortal[] = [
   {
     portalId: "town-west-path",
-    zone: { minX: -18, maxX: -16.5, minZ: -8, maxZ: 8 },
+    zone: { minX: -28, maxX: -26.5, minZ: -8, maxZ: 8 },
     targetMapId: "base",
     // 落在据点东桥桥头内侧，面朝大宅（西）。必须在 base 东桥触发带
     // （x≥18.5）的外面，否则一到就被弹回小镇

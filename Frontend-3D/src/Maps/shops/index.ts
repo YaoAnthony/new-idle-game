@@ -15,9 +15,15 @@ import { generateShopRoom, shopRoomId, SHOP_ROOM } from "./layout.js";
  * 店里这边一条（本文件）。落点各自落在对方触发带之外。
  */
 
-/** 进店后站在门内、面朝店里（北） */
+/**
+ * 进店后站在门内、面朝店里（北）。
+ *
+ * **离门 4 格不是 1.6**：三人称弹簧臂在角色背后，贴着南墙站会把镜头
+ * 挤到墙上（实测臂长塌到 1.4，满屏一个后脑勺）。往里站几步，臂就有
+ * 地方伸了。
+ */
 function spawnOf(): { x: number; y: number; heading: number } {
-  return { x: 0, y: SHOP_ROOM.height / 2 - 1.6, heading: Math.PI };
+  return { x: 0, y: SHOP_ROOM.height / 2 - 4, heading: Math.PI };
 }
 
 /** 店里出门那一条：踩到门口那块地就回小镇 */
@@ -26,7 +32,7 @@ function exitPortal(spec: ShopSpec): MapPortal {
   return {
     portalId: `${spec.mapId}-exit`,
     // 贴着南墙门洞的一小块（门洞在 x 中间，净宽 2）
-    zone: { minX: -1.2, maxX: 1.2, minZ: halfD - 0.9, maxZ: halfD },
+    zone: { minX: -1.2, maxX: 1.2, minZ: halfD - 1.0, maxZ: halfD },
     targetMapId: "town",
     // 落回自家门口的石板上，面朝街（南）。必须在小镇那条触发带之外
     landing: { x: shopDoorAt(spec).x, y: shopDoorAt(spec).z + 2.6, heading: 0 },
@@ -47,6 +53,11 @@ export const shopMapDefinitions: MapDefinition[] = SHOP_SPECS.map((spec) => ({
   yardMargin: 1,
   /** 店铺是平地起，没有架空 */
   floorLevel: 0,
+  /*
+   * 店铺内部是**内容不是玩家状态**：玩家改不了这里的墙，几何跟着
+   * 代码走。不标的话改一次层高，老存档还按旧尺寸开门。
+   */
+  volatileRooms: true,
   spawn: spawnOf(),
   portals: [exitPortal(spec)],
   generateRooms: (style) => {

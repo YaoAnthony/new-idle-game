@@ -94,7 +94,15 @@ export function restoreWorld(saved: {
      */
     const current =
       saved.maps[worldState.map.mapId] ?? Object.values(saved.maps)[0];
-    const rooms = current?.rooms ?? {};
+    /*
+     * volatileRooms 的图（店铺这类纯内容的室内）**忽略存档里那份几何**，
+     * 按当前定义重新生成。换图那条路（switchMapState）也有同一句——
+     * 两条都要，漏了读档这条的后果是"存档时人正好在店里，改了层高
+     * 却怎么都不生效"（实测踩到过）。
+     */
+    const rooms = worldState.map.volatileRooms
+      ? worldState.map.generateRooms(worldState.style)
+      : (current?.rooms ?? {});
     if (Object.keys(rooms).length > 0) {
       worldState.replaceRooms(rooms);
     }

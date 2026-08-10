@@ -253,7 +253,11 @@ export function switchMapState(target: MapDefinition): void {
   const { [target.mapId]: targetGeometry, ...restMaps } = worldState.shelvedMaps;
   worldState.shelvedMaps = restMaps;
   worldState.replaceRooms(
-    targetGeometry?.rooms ?? target.generateRooms(worldState.style),
+    // volatileRooms 的图（店铺这类纯内容的室内）忽略存档里那份，
+    // 每次按当前定义重新生成——不然改了层高老档还按旧尺寸开门
+    target.volatileRooms
+      ? target.generateRooms(worldState.style)
+      : (targetGeometry?.rooms ?? target.generateRooms(worldState.style)),
   );
 
   const { [target.mapId]: bucket, ...restEntities } = worldState.shelvedEntities;

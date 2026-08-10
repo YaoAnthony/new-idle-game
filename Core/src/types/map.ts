@@ -295,8 +295,20 @@ export type MapDefinition = {
   spawn: { x: number; y: number; heading: number };
 
   /**
+   * 这张图的几何是**内容不是状态**：每次进图都重新生成，存档里那份
+   * 直接忽略。
+   *
+   * "存结果不存配方"是给**玩家能改的地方**定的（自家宅子的墙、以后
+   * 的扩建）——那种地方重新生成会抹掉玩家的改动。但店铺内部玩家动
+   * 不了，几何纯粹是内容：改一次层高，老存档却还按旧尺寸开门，实测
+   * 就是"天花板压着镜头怎么调都不生效"。内容型的图必须跟着代码走。
+   */
+  volatileRooms?: boolean;
+
+  /**
    * 按屋子风格生成全部房间几何。只在**新开世界**时调用——
-   * 老存档直接用 MapSave 里存的结果（"存结果不存配方"）。
+   * 老存档直接用 MapSave 里存的结果（"存结果不存配方"），
+   * 除非这张图标了 volatileRooms。
    */
   generateRooms: (style: RoomStyleDefinition) => Record<string, RoomSave>;
 };

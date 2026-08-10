@@ -7,6 +7,7 @@ import {
   type OutdoorTerrain,
   type TerrainContext,
 } from "../../Game3D/World/outdoorTerrain.js";
+import { SHOP_ROOM } from "./layout.js";
 
 /**
  * 六家店的**室内陈设**。
@@ -20,9 +21,21 @@ import {
  * 的店，做成真家具只会白白吃掉占用图和存档。等哪天要"买下一家店"
  * 再谈。
  *
- * 房间 16×12，所以 x∈[-8,8]、z∈[-6,6]，门在南墙正中（z=+6）。
- * 靠门那一带（|x|<2.2 且 z>3）一律留空：进门先有块能站的地方。
+ * 房间 20×14，所以 x∈[-10,10]、z∈[-7,7]，门在南墙正中（z=+7）。
+ * 靠门那一带（|x|<2.2 且 z>3.5）一律留空：进门先有块能站的地方，
+ * 三人称的弹簧臂也要有地方伸（贴墙站会把镜头挤成一个后脑勺）。
  */
+
+/*
+ * 贴墙的坐标一律从房间尺寸推导。**上一版写死 ±7.4 / ±5.4**，房间从
+ * 16×12 放大到 20×14 之后靠墙的架子全浮在半空里——布景的位置只要
+ * 和房间有关，就不能是字面量。
+ */
+const HALF_W = SHOP_ROOM.width / 2;
+const HALF_D = SHOP_ROOM.height / 2;
+/** 靠墙陈设的中心线（架子半深 0.25 + 一点缝） */
+const WALL_X = HALF_W - 0.6;
+const WALL_Z = HALF_D - 0.6;
 
 const SHELF_WOOD = PALETTE.gramOak;
 const SHELF_WOOD_DARK = PALETTE.gramOakPanel;
@@ -204,18 +217,19 @@ function rug(node: Object3D, x: number, z: number, radius: number, color: string
 
 /** 六家共有的底子：横梁、踢脚、门口的地垫 */
 function commonShell(node: Object3D, trim: string): void {
-  for (const bz of [-3.5, 0, 3.5]) {
-    node.add(box([16, 0.22, 0.3], { color: trim, position: [0, 3.86, bz] }));
+  // 横梁：三道，把天花板断开
+  for (const bz of [-HALF_D * 0.55, 0, HALF_D * 0.55]) {
+    node.add(box([SHOP_ROOM.width, 0.22, 0.3], { color: trim, position: [0, 4.44, bz] }));
   }
-  for (const [size, pos] of [
-    [[16, 0.26, 0.12], [0, 0.13, -5.94]],
-    [[16, 0.26, 0.12], [0, 0.13, 5.94]],
-    [[0.12, 0.26, 12], [-7.94, 0.13, 0]],
-    [[0.12, 0.26, 12], [7.94, 0.13, 0]],
-  ] as const) {
-    node.add(box([...size] as [number, number, number], { color: trim, position: [...pos] as [number, number, number] }));
+  // 踢脚：四面贴着墙根
+  for (const bz of [-HALF_D + 0.06, HALF_D - 0.06]) {
+    node.add(box([SHOP_ROOM.width, 0.26, 0.12], { color: trim, position: [0, 0.13, bz] }));
   }
-  rug(node, 0, 4.6, 1.1, PALETTE.matGrey);
+  for (const bx of [-HALF_W + 0.06, HALF_W - 0.06]) {
+    node.add(box([0.12, 0.26, SHOP_ROOM.height], { color: trim, position: [bx, 0.13, 0] }));
+  }
+  // 门口的地垫
+  rug(node, 0, HALF_D - 1.4, 1.1, PALETTE.matGrey);
 }
 
 // ---------------------------------------------------------------- 书店
@@ -224,11 +238,11 @@ function bookstoreInterior(node: Object3D): void {
   commonShell(node, PALETTE.woodDark);
   // 三面靠墙的高书架
   for (const [x, z, rot, w] of [
-    [-7.4, -2.5, Math.PI / 2, 6.0],
-    [-7.4, 3.0, Math.PI / 2, 3.6],
-    [7.4, -1.0, -Math.PI / 2, 8.0],
-    [-2.0, -5.4, 0, 6.0],
-    [3.5, -5.4, 0, 3.4],
+    [-WALL_X, -2.5, Math.PI / 2, 6.0],
+    [-WALL_X, 3.0, Math.PI / 2, 3.6],
+    [WALL_X, -1.0, -Math.PI / 2, 8.0],
+    [-2.0, -WALL_Z, 0, 6.0],
+    [3.5, -WALL_Z, 0, 3.4],
   ] as const) {
     shelfUnit(node, x, z, rot, w, 2.9, 0.5, SHELF_WOOD, x * 7 + z, "book");
   }
@@ -240,7 +254,7 @@ function bookstoreInterior(node: Object3D): void {
   rug(node, 4.2, 2.6, 2.0, PALETTE.rugRust);
   tableSet(node, 4.2, 2.6, null, 2);
   // 柜台在门左手边
-  const desk = counter(node, -5.4, 4.2, 0, 3.2, 1.1, SHELF_WOOD, PALETTE.woodLight);
+  const desk = counter(node, -6.0, 4.6, 0, 3.2, 1.1, SHELF_WOOD, PALETTE.woodLight);
   desk.add(box([0.5, 0.34, 0.4], { color: PALETTE.ironMid, position: [0.9, 1.27, 0] }));
   desk.add(box([0.44, 0.06, 0.3], { color: PALETTE.paperCream, position: [-0.6, 1.13, 0.1] }));
   // 滑动梯（书店的标志）：斜靠在东墙书架上
@@ -277,9 +291,9 @@ function bookstoreInterior(node: Object3D): void {
 function arcaneInterior(node: Object3D): void {
   commonShell(node, "#4a3a63");
   for (const [x, z, rot, w] of [
-    [-7.4, -1.5, Math.PI / 2, 7.0],
-    [7.4, -1.5, -Math.PI / 2, 7.0],
-    [-3.0, -5.4, 0, 6.0],
+    [-WALL_X, -1.5, Math.PI / 2, 7.0],
+    [WALL_X, -1.5, -Math.PI / 2, 7.0],
+    [-3.0, -WALL_Z, 0, 6.0],
   ] as const) {
     shelfUnit(node, x, z, rot, w, 3.0, 0.5, "#4a3a63", x * 5 + z, "bottle");
   }
@@ -343,8 +357,8 @@ function arcaneInterior(node: Object3D): void {
 function convenienceInterior(node: Object3D): void {
   commonShell(node, PALETTE.woodMid);
   // 靠墙货架 + 中间两排岛架
-  shelfUnit(node, -7.4, -1.0, Math.PI / 2, 8.0, 2.2, 0.5, PALETTE.ironLight, 3, "goods");
-  shelfUnit(node, -2.5, -5.4, 0, 7.0, 2.2, 0.5, PALETTE.ironLight, 5, "goods");
+  shelfUnit(node, -WALL_X, -1.0, Math.PI / 2, 8.0, 2.2, 0.5, PALETTE.ironLight, 3, "goods");
+  shelfUnit(node, -2.5, -WALL_Z, 0, 7.0, 2.2, 0.5, PALETTE.ironLight, 5, "goods");
   for (const z of [-1.5, 1.5]) {
     shelfUnit(node, -2.0, z, 0, 7.0, 1.5, 0.5, PALETTE.ironLight, z * 9, "goods");
   }
@@ -404,20 +418,20 @@ function cafeInterior(node: Object3D): void {
     node.add(cylinder(0.28, 0.28, 0.05, 8, { color: PALETTE.ironDark, position: [sx, 0.2, -2.2] }));
   }
   // 后墙的杯架 + 咖啡豆袋
-  shelfUnit(node, -3.5, -5.5, 0, 6.5, 2.2, 0.4, PALETTE.gramOak, 21, "goods");
+  shelfUnit(node, -3.5, -WALL_Z, 0, 6.5, 2.2, 0.4, PALETTE.gramOak, 21, "goods");
   // 散座
   tableSet(node, 4.2, -2.0, PALETTE.fabricCream, 2);
   tableSet(node, 4.6, 2.2, PALETTE.fabricCream, 3);
   tableSet(node, -1.2, 3.0, PALETTE.fabricCream, 2);
   rug(node, 4.4, 0.2, 3.4, PALETTE.rugRustDark);
   // 黑板菜单：挂在吧台后墙
-  node.add(box([2.6, 1.7, 0.08], { color: PALETTE.boardSlateDark, position: [1.6, 2.6, -5.86] }));
-  node.add(box([2.85, 0.14, 0.12], { color: PALETTE.woodDark, position: [1.6, 3.5, -5.84] }));
+  node.add(box([2.6, 1.7, 0.08], { color: PALETTE.boardSlateDark, position: [1.6, 2.6, -(HALF_D - 0.14)] }));
+  node.add(box([2.85, 0.14, 0.12], { color: PALETTE.woodDark, position: [1.6, 3.5, -(HALF_D - 0.16)] }));
   for (let i = 0; i < 5; i += 1) {
     node.add(
       box([1.5 - (i % 2) * 0.5, 0.07, 0.02], {
         color: PALETTE.paperCream,
-        position: [1.3, 3.2 - i * 0.3, -5.8],
+        position: [1.3, 3.2 - i * 0.3, -(HALF_D - 0.2)],
       }),
     );
   }
@@ -436,12 +450,12 @@ function restaurantInterior(node: Object3D): void {
   tableSet(node, 4.0, 1.6, PALETTE.fabricCream, 3);
   rug(node, 0, -0.8, 3.0, PALETTE.rugRust);
   // 出餐窗口（通后厨）：墙上一个洞 + 台板 + 上面两盘菜
-  node.add(box([4.6, 0.3, 0.5], { color: PALETTE.woodLight, position: [0, 1.35, -5.7] }));
-  node.add(box([4.9, 0.24, 0.35], { color: PALETTE.woodDark, position: [0, 2.6, -5.78] }));
-  node.add(box([4.6, 1.0, 0.12], { color: "#2a2422", position: [0, 1.98, -5.9] }));
+  node.add(box([4.6, 0.3, 0.5], { color: PALETTE.woodLight, position: [0, 1.35, -(HALF_D - 0.3)] }));
+  node.add(box([4.9, 0.24, 0.35], { color: PALETTE.woodDark, position: [0, 2.6, -(HALF_D - 0.22)] }));
+  node.add(box([4.6, 1.0, 0.12], { color: "#2a2422", position: [0, 1.98, -(HALF_D - 0.1)] }));
   for (const dx of [-1.1, 1.1]) {
-    node.add(cylinder(0.3, 0.28, 0.07, 10, { color: PALETTE.ceramicWhite, position: [dx, 1.53, -5.6] }));
-    node.add(blob(0.16, 0, { color: PALETTE.friedTomatoEgg, position: [dx, 1.63, -5.6], castShadow: false }));
+    node.add(cylinder(0.3, 0.28, 0.07, 10, { color: PALETTE.ceramicWhite, position: [dx, 1.53, -(HALF_D - 0.4)] }));
+    node.add(blob(0.16, 0, { color: PALETTE.friedTomatoEgg, position: [dx, 1.63, -(HALF_D - 0.4)], castShadow: false }));
   }
   // 迎宾台 + 酒架
   const host = counter(node, 6.0, 4.0, -0.5, 2.2, 1.0, PALETTE.gramOakPanel, PALETTE.woodLight);
@@ -480,7 +494,7 @@ function marketInterior(node: Object3D): void {
   for (const z of [-3.4, -0.6, 2.2]) {
     shelfUnit(node, -1.5, z, 0, 9.0, 1.8, 0.6, PALETTE.ironLight, z * 13, "goods");
   }
-  shelfUnit(node, -7.4, -1.0, Math.PI / 2, 8.0, 2.4, 0.5, PALETTE.ironLight, 31, "goods");
+  shelfUnit(node, -WALL_X, -1.0, Math.PI / 2, 8.0, 2.4, 0.5, PALETTE.ironLight, 31, "goods");
   // 果蔬台：斜面木箱，堆着彩色球
   for (const [i, bx] of [4.4, 6.4].entries()) {
     const bin = new Object3D();

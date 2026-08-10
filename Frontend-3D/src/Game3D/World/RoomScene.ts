@@ -1925,23 +1925,39 @@ export class RoomScene {
         undefined,
         -map.floorLevel,
       );
-      this.rig.setObstacleBox({
-        minX: -halfW - 0.3,
-        maxX: halfW + 0.3,
-        // 房子架空之后底面在院子地面上，禁入盒要跟着下探——
-        // 不然镜头能从基礎底下的那条缝钻进屋里
-        minY: -map.floorLevel,
-        maxY: this.built.ridgeHeight + 0.1,
-        minZ: -halfD - 0.3,
-        maxZ: halfD + 0.3,
-      });
+      this.rig.setObstacleBoxes([
+        {
+          minX: -halfW - 0.3,
+          maxX: halfW + 0.3,
+          // 房子架空之后底面在院子地面上，禁入盒要跟着下探——
+          // 不然镜头能从基礎底下的那条缝钻进屋里
+          minY: -map.floorLevel,
+          maxY: this.built.ridgeHeight + 0.1,
+          minZ: -halfD - 0.3,
+          maxZ: halfD + 0.3,
+        },
+        /*
+         * 室外的实心建筑（小镇那六家店）也要挡镜头。它们和挡人用的
+         * 是**同一份 outdoorBlockers**——挡得住人却挡不住镜头的话，
+         * 沿街走一路镜头都在店铺体内，满屏一块深色（用户报的正是它）。
+         * 顶高按经验给 12：店铺连屋脊差不多这么高，宁高勿低。
+         */
+        ...(map.outdoorBlockers ?? []).map((rect) => ({
+          minX: rect.minX - 0.3,
+          maxX: rect.maxX + 0.3,
+          minY: -map.floorLevel,
+          maxY: 12,
+          minZ: rect.minZ - 0.3,
+          maxZ: rect.maxZ + 0.3,
+        })),
+      ]);
     } else {
       this.rig.setRoomBounds(
         width,
         depth,
         getCurrentMap().openAir ? 10 : this.built.wallHeight,
       );
-      this.rig.setObstacleBox(null);
+      this.rig.setObstacleBoxes([]);
     }
   }
 

@@ -16,7 +16,7 @@ import type { ShopSpec } from "../town/shops.js";
  * 落在小镇的哪一点由 portals 保证，这里只管墙上有个洞。
  */
 
-export const SHOP_ROOM = { width: 16, height: 12 } as const;
+export const SHOP_ROOM = { width: 20, height: 14 } as const;
 
 /** 房间 id 必须**全世界唯一**（实体归属反查靠它），所以带店铺前缀 */
 export function shopRoomId(spec: ShopSpec): string {
@@ -27,7 +27,13 @@ export function generateShopRoom(
   spec: ShopSpec,
   style: RoomStyleDefinition,
 ): RoomSave {
-  const wallHeight = 4;
+  /*
+   * 层高 5.2（住宅是 4）。不只是店铺挑高好看——**三人称镜头的臂长
+   * 是被天花板卡死的**：相机沿俯角上升，撞到天花板就把臂长压回去。
+   * 4.6 的层高实测只剩 3.1 的臂，满屏一个后脑勺；5.2 能伸到约 5.9，
+   * 比住宅还宽裕，正好配临街商铺的高门脸。
+   */
+  const wallHeight = 5.2;
   const alongX = { width: SHOP_ROOM.width, height: wallHeight };
   const alongY = { width: SHOP_ROOM.height, height: wallHeight };
 
@@ -42,7 +48,7 @@ export function generateShopRoom(
         {
           openingId: `${spec.mapId}-back-window`,
           kind: WallOpeningKind.Window,
-          gridPosition: { x: 6, y: 2 },
+          gridPosition: { x: 8, y: 2 },
           size: { width: 4, height: 2 },
           visualId: style.visual.windowVisualId,
         },
@@ -64,12 +70,12 @@ export function generateShopRoom(
         {
           openingId: `${spec.mapId}-door`,
           kind: WallOpeningKind.Door,
-          gridPosition: { x: 7, y: 0 },
+          gridPosition: { x: 9, y: 0 },
           size: { width: 2, height: 3 },
           visualId: style.visual.doorVisualId,
         },
         // 门两侧的橱窗：从店里往外看得见街，这条街才是活的
-        ...[2, 12].map((x) => ({
+        ...[3, 14].map((x) => ({
           openingId: `${spec.mapId}-front-window-${x}`,
           kind: WallOpeningKind.Window,
           gridPosition: { x, y: 1 },

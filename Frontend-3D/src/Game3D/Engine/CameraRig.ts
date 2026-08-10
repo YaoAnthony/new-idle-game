@@ -28,6 +28,16 @@ export type CameraRigOptions = {
  * 上限 62°：再高就成俯视图，人物变成一个头顶，也会顶到天花板。
  */
 const MIN_PITCH = 8;
+
+/** 一个轴对齐的盒子。禁入盒用它，一栋建筑一个 */
+export type ObstacleBox = {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+  minZ: number;
+  maxZ: number;
+};
 const MAX_PITCH = 62;
 
 /** 鼠标拖拽的灵敏度：每像素转多少度 */
@@ -91,18 +101,15 @@ export class CameraRig {
   } | null = null;
 
   /**
-   * 相机的**禁入盒**（V0.13）：人在院子里时整栋房子是实体，
+   * 相机的**禁入盒**（V0.13）：人在室外时每栋实心建筑都是实体，
    * 相机的弹簧臂不许缩进屋顶和外墙里去。和 bounds 是一对镜像——
-   * bounds 说"只能在这里面"，obstacle 说"不能进这里面"。
+   * bounds 说"只能在这里面"，obstacles 说"不能进这些里面"。
+   *
+   * **是一组不是一个**（2026-08-10）：原来只挂得下一栋房子，小镇长出
+   * 商业街之后六家店铺全在禁入盒之外——人走在街上镜头直接缩进店铺
+   * 体内，满屏一块深色。房子从来就不止一栋。
    */
-  private obstacle: {
-    minX: number;
-    maxX: number;
-    minY: number;
-    maxY: number;
-    minZ: number;
-    maxZ: number;
-  } | null = null;
+  private obstacles: ObstacleBox[] = [];
 
   constructor(aspect: number, options: CameraRigOptions = {}) {
     const {
@@ -204,18 +211,9 @@ export class CameraRig {
     return Math.max(tMax, 0);
   }
 
-  /** 设置 / 清除禁入盒（人在院子里 = 房子的外包围盒；进屋 = null） */
-  setObstacleBox(
-    box: {
-      minX: number;
-      maxX: number;
-      minY: number;
-      maxY: number;
-      minZ: number;
-      maxZ: number;
-    } | null,
-  ): void {
-    this.obstacle = box;
+  /** 设置 / 清除禁入盒（人在室外 = 每栋实心建筑一个盒；进屋 = 空数组） */
+  setObstacleBoxes(boxes: ObstacleBox[]): void {
+    this.obstacles = boxes;
   }
 
   /**
@@ -229,9 +227,23 @@ export class CameraRig {
     dirY: number,
     dirZ: number,
   ): number {
-    const obstacle = this.obstacle;
-    if (!obstacle) return Infinity;
+    // 每个盒子算一遍，取最近的一次撞击（挡在最前面的那栋说了算）
+    let nearest = Infinity;
+    for (const obstacle of this.obstacles) {
+      const hit = this.hitBox(obstacle, origin, dirX, dirY, dirZ);
+      if (hit < nearest) nearest = hit;
+    }
+    return nearest;
+  }
 
+  /** 单个盒子的 slab 求交 */
+  private hitBox(
+    obstacle: ObstacleBox,
+    origin: Vector3,
+    dirX: number,
+    dirY: number,
+    dirZ: number,
+  ): number {
     let tNear = -Infinity;
     let tFar = Infinity;
     const axes: Array<[number, number, number, number]> = [

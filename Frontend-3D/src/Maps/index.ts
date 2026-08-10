@@ -2,6 +2,8 @@ import type { MapDefinition } from "core";
 import type { OutdoorTerrainBuilder } from "../Game3D/World/outdoorTerrain.js";
 import { baseMapDefinition } from "./base/index.js";
 import { buildBaseTerrain } from "./base/outdoor.js";
+import { shopMapDefinitions } from "./shops/index.js";
+import { shopInteriorBuilder } from "./shops/interiors.js";
 import { townMapDefinition } from "./town/index.js";
 import { buildTownTerrain } from "./town/outdoor.js";
 
@@ -30,6 +32,8 @@ import { buildTownTerrain } from "./town/outdoor.js";
 export const mapDefinitions: MapDefinition[] = [
   baseMapDefinition,
   townMapDefinition,
+  // 六家店铺的内部（同一族，由规格表批量生成——见 Maps/shops/index）
+  ...shopMapDefinitions,
 ];
 
 export function findMapDefinition(mapId: string): MapDefinition | undefined {
@@ -55,6 +59,14 @@ export function mapOfRoom(roomId: string): MapDefinition | undefined {
 const terrainBuilders: Record<string, OutdoorTerrainBuilder> = {
   base: buildBaseTerrain,
   town: buildTownTerrain,
+  /*
+   * 店铺的"地形"就是**店里的家什**。这个钩子本来就是"这张图的
+   * bespoke 场景"，对室内地图来说场景在屋里。走这条路还白捡：
+   * 天气机照常运转，下雨天在店里从橱窗看得见。
+   */
+  ...Object.fromEntries(
+    shopMapDefinitions.map((map) => [map.mapId, shopInteriorBuilder(map.mapId)]),
+  ),
 };
 
 /** 没登记外景的图给一块素草地兜底，别让新图一进去就掉进虚空 */

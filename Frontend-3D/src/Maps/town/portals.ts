@@ -1,4 +1,5 @@
 import type { MapPortal } from "core";
+import { shopEntrancePortals } from "../shops/index.js";
 
 /**
  * town 的出入口，和据点的两座桥各自成对（走哪座桥来，就从哪条路回）。
@@ -24,4 +25,6 @@ export const townPortals: MapPortal[] = [
     landing: { x: -14, y: 15, heading: 0 },
     localizationKey: "map.base",
   },
+  // 六家店门口：走到台阶上就进店（另一半在 Maps/shops）
+  ...shopEntrancePortals,
 ];

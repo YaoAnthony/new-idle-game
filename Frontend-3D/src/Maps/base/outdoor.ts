@@ -20,14 +20,21 @@ import {
 import { baseMapDefinition } from "./index.js";
 
 /**
- * base（玩家据点）的地形。骨架版（据点①）= home 的野森林构图原样
- * 继承 + **围墙与南大门**；种植区/前庭石板/东河改道/封头桥在据点②
- * 逐区落地（设计稿 §7b）。
+ * base（玩家据点）的地形。
  *
- * 布景哲学是剧场：只在窗户看得到的方向做细（北面），东西两翼稀疏，
- * 南面几乎不做——据点②会把"南面不做"改成"南面是正门动线"。
- * 所有"离房子多远"的量都从北墙位置推导（房子尺寸改过一次
- * 16×12→24×20，写死距离的教训只吃一次）。
+ * **据点是一块伸进河里的岬角**（2026-08-10 按世界设定图定死的地理）：
+ * 水从北、东、南三面包过来，只有西面一条"脖子"连着大陆，而那边是
+ * 一整片森林。莉奥拉小镇在河对岸，靠**两座桥**过去。
+ *
+ * 这条地理不是装饰，它解释了整个据点的构造：
+ * - **围墙 = 护岸墙**，沿着岬角的岸线砌一圈，不是圈地是地的边界；
+ * - 所以临水三面是石墙（压顶+柱，概念图那种），只有西面陆地侧掺
+ *   木栅栏——概念图里两种材料的分布本来就是跟着地形走的；
+ * - 缘侧在北面和东面：两面都临水，坐在廊上看出去是开阔水面。
+ *
+ * 布景哲学仍是剧场：近岸做细，对岸只给一道林线接住视线。所有"离
+ * 房子多远"的量都从北墙位置推导（房子尺寸改过一次 16×12→24×20，
+ * 写死距离的教训只吃一次）。
  */
 
 const GROUND_GREEN = "#7fa063";
@@ -40,7 +47,30 @@ const RIVER_FOAM = "#dcedf4";
 /** 墙外土路。和 town 的路面同色——两张图的路要认得出是同一种路 */
 const PATH_DIRT = "#c3a06e";
 
-const RIVER_WIDTH = 2.8;
+/** 水面高度（本地坐标，0 = 院子地面）。低于地面，岸沿才有落差 */
+const WATER_Y = -0.42;
+/** 岸壁往下探多深。低视角看过去不穿帮就够 */
+const BANK_DROP = 2.2;
+
+/**
+ * 岬角的岸线（本地坐标的闭合多边形，从"脖子"北岸起顺着北岸往东绕一圈）。
+ * 围墙在 x[-28,20]、z[-16,18]，岸线在墙外留 3~6 格的滩地。
+ * 最后一点回到脖子南岸，脖子本身由 NECK 单独接出去。
+ */
+const PENINSULA: Array<[number, number]> = [
+  [-36, -13], [-33, -19], [-24, -22.5], [-12, -24], [2, -23],
+  [14, -21], [22.5, -17.5], [26, -9.5], [26.5, 1], [24.5, 10],
+  [21, 18], [13, 22.5], [0, 24], [-13, 23], [-24, 20.5],
+  [-31, 16], [-35, 6], [-36, -2],
+];
+
+/** 脖子：把岬角接到西面的大陆。窄窄一条，"突出来的地方"靠它成立 */
+const NECK: Array<[number, number]> = [
+  [-36, -13], [-36, -2], [-58, 1], [-60, -16],
+];
+
+/** 岸壁的石色。临水一圈都是它，和围墙同族 */
+const BANK_STONE = PALETTE.baseStoneDark;
 
 /** 樱花树：落地窗正外的庭院地标（常开的奇观，不接季节） */
 const SAKURA_X = 7.5;
@@ -54,28 +84,121 @@ const SAKURA_DISTANCE = 4.2;
 
 const PETAL_COUNT = 90;
 
-function buildGround(root: Object3D, northZ: number): void {
-  // 大草地。房子地板自己有网格，外景地面压低一点避免共面
-  const ground = box([170, 0.1, 150], {
-    color: GROUND_GREEN,
-    position: [0, -0.08, -20],
-  });
-  ground.receiveShadow = true;
-  root.add(ground);
+/**
+ * 一块陆地：顶面（多边形扇形三角化）+ 一圈往下探的岸壁。
+ *
+ * **绕向自动纠正**：按鞋带公式判断多边形的朝向，负数才是"从上往下
+ * 看逆时针"、法线朝上的那种。手写岸线时没人算得清绕向，写反了就是
+ * 一整块地从上面看不见——屋檐那次的教训，能自动纠正的一律自动纠正。
+ */
+function landPatch(
+  outline: Array<[number, number]>,
+  topY: number,
+  topColor: string,
+): Object3D {
+  const node = new Object3D();
 
-  // 几块深色草斑打破单调。必须是**零厚度的贴地圆片**——
-  // 用扁盒子的话，窗里以掠射角看过去侧面会露出来，像浮空的台阶
-  for (let i = 0; i < 9; i += 1) {
-    const px = (hash01(i * 3.1) - 0.5) * 90;
-    const pz = northZ - 2 - hash01(i * 5.7) * 40;
-    const size = 3 + hash01(i * 9.3) * 6;
+  let area = 0;
+  for (let i = 0; i < outline.length; i += 1) {
+    const [x0, z0] = outline[i];
+    const [x1, z1] = outline[(i + 1) % outline.length];
+    area += x0 * z1 - x1 * z0;
+  }
+  const ring = area > 0 ? [...outline].reverse() : outline;
+
+  let cx = 0;
+  let cz = 0;
+  for (const [x, z] of ring) {
+    cx += x / ring.length;
+    cz += z / ring.length;
+  }
+
+  // 顶面：从重心打扇形。岸线是星形的（脖子也从重心看得见），扇形够用
+  const top: number[] = [];
+  for (let i = 0; i < ring.length; i += 1) {
+    const [x0, z0] = ring[i];
+    const [x1, z1] = ring[(i + 1) % ring.length];
+    top.push(cx, topY, cz, x0, topY, z0, x1, topY, z1);
+  }
+  const topGeometry = new BufferGeometry();
+  topGeometry.setAttribute("position", new BufferAttribute(new Float32Array(top), 3));
+  topGeometry.computeVertexNormals();
+  const topMesh = new Mesh(topGeometry, ownMaterial(topColor));
+  topMesh.receiveShadow = true;
+  node.add(topMesh);
+
+  // 岸壁：沿岸线拉一圈裙边往下。双面材质——从水里那侧看也得是实的
+  const skirt: number[] = [];
+  const bottomY = topY - BANK_DROP;
+  for (let i = 0; i < ring.length; i += 1) {
+    const [x0, z0] = ring[i];
+    const [x1, z1] = ring[(i + 1) % ring.length];
+    skirt.push(x0, topY, z0, x0, bottomY, z0, x1, topY, z1);
+    skirt.push(x1, topY, z1, x0, bottomY, z0, x1, bottomY, z1);
+  }
+  const skirtGeometry = new BufferGeometry();
+  skirtGeometry.setAttribute("position", new BufferAttribute(new Float32Array(skirt), 3));
+  skirtGeometry.computeVertexNormals();
+  node.add(new Mesh(skirtGeometry, ownMaterial(BANK_STONE, true)));
+
+  return node;
+}
+
+/**
+ * 陆地：岬角 + 脖子 + 西面大陆 + 对岸。
+ * 水是底，陆是浮在水上的几块——不是"草地上挖一条河"。
+ */
+function buildLand(root: Object3D): void {
+  root.add(landPatch(PENINSULA, -0.02, GROUND_GREEN));
+  // 脖子压低一丝，和岬角重叠处不打架（同色，看不出来）
+  root.add(landPatch(NECK, -0.03, GROUND_GREEN));
+
+  // 西面大陆：一整片森林地，从脖子接出去
+  root.add(
+    landPatch(
+      [[-58, -80], [-58, 80], [-150, 80], [-150, -80]],
+      -0.04,
+      GROUND_GREEN,
+    ),
+  );
+
+  /*
+   * 对岸：小镇那一侧（东）+ 南北两道远岸。围成一圈把地平线接住，
+   * 不然三面水会一直铺到雾里，又变成"一望无际"。
+   */
+  root.add(
+    landPatch(
+      [[44, -70], [46, -30], [43, 2], [47, 28], [44, 70], [150, 70], [150, -70]],
+      -0.05,
+      GROUND_GREEN,
+    ),
+  );
+  root.add(
+    landPatch(
+      [[-58, -44], [-20, -47], [16, -45], [46, -48], [150, -60], [150, -110], [-58, -110]],
+      -0.06,
+      GROUND_GREEN,
+    ),
+  );
+  root.add(
+    landPatch(
+      [[-58, 46], [-18, 49], [18, 47], [45, 50], [150, 62], [150, 110], [-58, 110]],
+      -0.07,
+      GROUND_GREEN,
+    ),
+  );
+
+  // 岬角上的几块深色草斑。零厚度贴地圆片：扁盒子在掠射角会露侧面
+  for (let i = 0; i < 7; i += 1) {
+    const px = -26 + hash01(i * 3.1) * 44;
+    const pz = -20 + hash01(i * 5.7) * 40;
     const patch = new Mesh(
-      new CircleGeometry(size / 2, 10),
+      new CircleGeometry(1.6 + hash01(i * 9.3) * 3, 10),
       ownMaterial(GROUND_GREEN_DARK),
     );
     patch.rotation.x = -Math.PI / 2;
     patch.scale.y = 0.7;
-    patch.position.set(px, -0.015, pz);
+    patch.position.set(px, -0.005, pz);
     patch.receiveShadow = true;
     root.add(patch);
   }
@@ -90,39 +213,49 @@ function buildGround(root: Object3D, northZ: number): void {
 function buildForest(root: Object3D, northZ: number): void {
   const trees: Array<[number, number, number]> = [];
 
-  const gardenMinX = 3.5;
-  const gardenMaxX = 11.5;
+  /*
+   * **树只长在陆地上**。三面是水之后这条不再是构图偏好，是物理约束：
+   * 岬角的墙外全是河，往那儿撒树就是树站在水面上。所以只有三处能种：
+   * 西面的大陆森林、脖子两侧的滩地、对岸的林线。
+   */
 
-  for (let i = 0; i < 34; i += 1) {
-    // 河对岸的主林墙：高大、紧密，是窗景的"绿色背景板"
-    const x = (hash01(i * 3.3) - 0.5) * 96;
-    const z = northZ - 12.5 - hash01(i * 7.1) * 13;
-    trees.push([x, z, 1.5 + hash01(i * 17.7) * 1.1]);
+  // 西面大陆：一整片森林，越往西越密越高（雾里收成一道墙）
+  for (let i = 0; i < 46; i += 1) {
+    const x = -60 - hash01(i * 3.3) * 62;
+    const z = (hash01(i * 7.1) - 0.5) * 150;
+    trees.push([x, z, 1.2 + hash01(i * 17.7) * 1.2]);
+  }
+  // 脖子口的疏林：从大门望出去，路两侧几棵近树当画框
+  for (let i = 50; i < 64; i += 1) {
+    const x = -38 - hash01(i * 5.1) * 20;
+    const z = -14 + hash01(i * 6.7) * 16;
+    // 让开大门那条路（z -11..-5），路要透出去
+    if (z > -11.5 && z < -4.5) continue;
+    trees.push([x, z, 0.9 + hash01(i * 9.1) * 0.6]);
+  }
+  // 对岸（东，小镇那侧）的林线：只在近岸一条带上，后面留给屋影
+  for (let i = 70; i < 92; i += 1) {
+    const x = 46 + hash01(i * 4.7) * 12;
+    const z = (hash01(i * 8.9) - 0.5) * 120;
+    trees.push([x, z, 1.1 + hash01(i * 13.9) * 0.9]);
+  }
+  // 南北两道远岸的林线
+  for (let i = 100; i < 126; i += 1) {
+    const north = hash01(i * 2.3) < 0.5;
+    const x = -50 + hash01(i * 5.9) * 100;
+    const z = north ? -48 - hash01(i * 7.7) * 16 : 50 + hash01(i * 7.7) * 16;
+    trees.push([x, z, 1.2 + hash01(i * 11.1) * 1.0]);
   }
 
-  for (let i = 40; i < 52; i += 1) {
-    // 近树：西翼照旧伸向森林；东侧收在围墙内（墙外是河岸带，
-    // 树不能长在水里——河在据点②改道去了东墙外）
-    const pick = hash01(i * 3.9);
-    const x = pick < 0.45 ? -3 - hash01(i * 5.1) * 24 : 12 + hash01(i * 5.3) * 7;
-    if (x > gardenMinX && x < gardenMaxX) continue;
-    trees.push([x, northZ - 2.5 - hash01(i * 6.7) * 5, 0.9 + hash01(i * 9.1) * 0.5]);
-  }
-
-  for (let i = 60; i < 70; i += 1) {
-    // 两翼：西边推到墙外（30 起——西边距扩到 16 之后墙在 -28），
-    // 东边推到河对岸（29 起，让开水面）
-    const west = hash01(i * 4.7) < 0.5;
-    const x = west ? -(30 + hash01(i * 8.9) * 16) : 29 + hash01(i * 8.9) * 16;
-    trees.push([x, 6 - hash01(i * 6.1) * 16, 0.9 + hash01(i * 13.9) * 0.7]);
-  }
-
-  // 远丘：三座压扁的绿色圆顶垫在林墙后面，把地平线抬起来，
+  // 远丘：压扁的绿色圆顶垫在林线后面，把地平线抬起来，
   // 雾一罩就是参考画风里那种远处发白的层次
   const hills: Array<[number, number, number, number]> = [
-    [-34, -48, 22, 9],
-    [10, -54, 30, 12],
-    [46, -46, 20, 8],
+    [-30, -72, 26, 10],
+    [40, -70, 30, 12],
+    [-96, -20, 28, 12],
+    [-90, 34, 24, 10],
+    [30, 76, 28, 11],
+    [86, 22, 26, 10],
   ];
   for (const [hx, hz, hr, hh] of hills) {
     // blob 第二参数是细分级别不是随机种子——传坐标进去要么几百万面要么直接空掉
@@ -173,94 +306,101 @@ function buildForest(root: Object3D, northZ: number): void {
 }
 
 /**
- * 河：一条缓波的三角带，两岸各镶一线浅色"岸沫"。返回流光条（update 用）。
- *
- * 据点②把河从北面**改道到东墙外**（设计稿 §2）：东缘侧隔着 0.9 的
- * 矮墙看河，是把 home 的名场面换个方向继承；北窗景保住森林和樱花。
- * 所以河带沿 z 展开（南北流向），中心线是 x 的缓波函数。
+ * 水：一整片水面铺在最底下，陆地浮在它上面（不是"草地上挖一条河"）。
+ * 顺手撒岸沫、睡莲、岸石——概念图河岸那三样。返回流光条（update 用）。
  */
-function buildRiver(
-  root: Object3D,
-  riverCenter: (z: number) => number,
-): Mesh[] {
-  const SEGMENTS = 36;
-  const Z_MIN = -60;
-  const Z_MAX = 60;
+function buildWater(root: Object3D): Mesh[] {
+  const water = box([320, 0.4, 320], {
+    color: RIVER_BLUE,
+    position: [0, WATER_Y - 0.2, 0],
+    castShadow: false,
+  });
+  water.receiveShadow = true;
+  water.name = "water";
+  root.add(water);
 
-  const buildStrip = (halfWidth: number, y: number, color: string): Mesh => {
-    const positions = new Float32Array((SEGMENTS + 1) * 2 * 3);
-    const indices = new Uint32Array(SEGMENTS * 6);
+  /*
+   * 岸沫：贴着岬角岸线镶一圈浅色薄带。做法是把岸线整体往外推一点
+   * 再画一圈略高于水面的窄条——"水拍在岸上"那道白边，低多边形做法
+   * 里最便宜也最有效的一笔。
+   */
+  const foam: number[] = [];
+  for (let i = 0; i < PENINSULA.length; i += 1) {
+    const [x0, z0] = PENINSULA[i];
+    const [x1, z1] = PENINSULA[(i + 1) % PENINSULA.length];
+    const push = (x: number, z: number, k: number): [number, number] => {
+      const len = Math.hypot(x, z) || 1;
+      return [x + (x / len) * k, z + (z / len) * k];
+    };
+    const [ax, az] = push(x0, z0, 0.1);
+    const [bx, bz] = push(x1, z1, 0.1);
+    const [cx, cz] = push(x0, z0, 1.3);
+    const [dx, dz] = push(x1, z1, 1.3);
+    const y = WATER_Y + 0.03;
+    foam.push(ax, y, az, cx, y, cz, bx, y, bz);
+    foam.push(bx, y, bz, cx, y, cz, dx, y, dz);
+  }
+  const foamGeometry = new BufferGeometry();
+  foamGeometry.setAttribute("position", new BufferAttribute(new Float32Array(foam), 3));
+  foamGeometry.computeVertexNormals();
+  root.add(new Mesh(foamGeometry, ownMaterial(RIVER_FOAM, true)));
 
-    for (let i = 0; i <= SEGMENTS; i += 1) {
-      const z = Z_MIN + ((Z_MAX - Z_MIN) * i) / SEGMENTS;
-      const center = riverCenter(z);
-      const offset = i * 6;
-      positions[offset] = center - halfWidth;
-      positions[offset + 1] = y;
-      positions[offset + 2] = z;
-      positions[offset + 3] = center + halfWidth;
-      positions[offset + 4] = y;
-      positions[offset + 5] = z;
+  // 睡莲：概念图河面上那些圆叶子，成簇贴在近岸的静水里
+  for (let i = 0; i < 22; i += 1) {
+    const angle = (i / 22) * Math.PI * 2 + hash01(i * 3.7) * 0.5;
+    const radius = 30 + hash01(i * 5.3) * 8;
+    const cx = Math.cos(angle) * radius;
+    const cz = Math.sin(angle) * radius * 1.15;
+    for (let k = 0; k < 3; k += 1) {
+      const pad = new Mesh(
+        new CircleGeometry(0.34 + hash01(i * 9.1 + k) * 0.22, 7),
+        ownMaterial(k % 2 ? PALETTE.leafGreenDark : PALETTE.leafGreen),
+      );
+      pad.rotation.x = -Math.PI / 2;
+      pad.position.set(
+        cx + (hash01(i + k * 2.7) - 0.5) * 2.4,
+        WATER_Y + 0.04,
+        cz + (hash01(i + k * 5.1) - 0.5) * 2.4,
+      );
+      root.add(pad);
     }
-    for (let i = 0; i < SEGMENTS; i += 1) {
-      const a = i * 2;
-      const offset = i * 6;
-      indices[offset] = a;
-      indices[offset + 1] = a + 1;
-      indices[offset + 2] = a + 2;
-      indices[offset + 3] = a + 1;
-      indices[offset + 4] = a + 3;
-      indices[offset + 5] = a + 2;
-    }
+  }
 
-    const geometry = new BufferGeometry();
-    geometry.setAttribute("position", new BufferAttribute(positions, 3));
-    geometry.setIndex(new BufferAttribute(indices, 1));
-    geometry.computeVertexNormals();
-
-    const mesh = new Mesh(geometry, ownMaterial(color));
-    mesh.receiveShadow = true;
-    return mesh;
-  };
-
-  // 岸沫垫在水面下、更宽一圈，露出的边就是两条浅色岸线
-  root.add(buildStrip(RIVER_WIDTH / 2 + 0.22, 0.005, RIVER_FOAM));
-  root.add(buildStrip(RIVER_WIDTH / 2, 0.02, RIVER_BLUE));
-
-  // 岸石与蕨草簇（照河桥概念图"河岸岩石与植被"那格）：
-  // 石头两三块一簇贴着岸线，绿簇塞在石缝
-  for (let i = 0; i < 10; i += 1) {
-    const z = Z_MIN + 12 + hash01(i * 5.9) * (Z_MAX - Z_MIN - 24);
-    const side = hash01(i * 3.7) < 0.5 ? -1 : 1;
-    const x = riverCenter(z) + side * (RIVER_WIDTH / 2 + 0.7 + hash01(i * 7.3) * 0.8);
+  // 岸石与蕨草簇（照河桥概念图"河岸岩石与植被"那格）：贴着岸线蹲着
+  for (let i = 0; i < 14; i += 1) {
+    const [x0, z0] = PENINSULA[i % PENINSULA.length];
+    const [x1, z1] = PENINSULA[(i + 1) % PENINSULA.length];
+    const t = hash01(i * 6.1);
+    const bx = x0 + (x1 - x0) * t;
+    const bz = z0 + (z1 - z0) * t;
     const cluster = new Object3D();
     for (let k = 0; k < 2 + Math.floor(hash01(i * 9.1) * 2); k += 1) {
-      const r = 0.28 + hash01(i * 4.3 + k) * 0.3;
+      const r = 0.34 + hash01(i * 4.3 + k) * 0.36;
       const rock = blob(r, 0, {
         color: k % 2 ? PALETTE.baseStoneMoss : PALETTE.baseStone,
-        position: [(hash01(i + k * 2.7) - 0.5) * 1.1, r * 0.5, (hash01(i + k * 5.1) - 0.5) * 0.9],
+        position: [(hash01(i + k * 2.7) - 0.5) * 1.3, 0, (hash01(i + k * 5.1) - 0.5) * 1.1],
         castShadow: false,
       });
       rock.scale.y = 0.62;
       cluster.add(rock);
     }
     cluster.add(
-      blob(0.24, 0, {
+      blob(0.26, 0, {
         color: PALETTE.leafGreenDark,
-        position: [0.35, 0.18, 0.2],
+        position: [0.4, 0.1, 0.24],
         castShadow: false,
       }),
     );
-    cluster.position.set(x, 0, z);
+    cluster.position.set(bx, WATER_Y + 0.1, bz);
     root.add(cluster);
   }
 
-  // 流光小白条：顺流（+z）漂，出界回绕
+  // 流光小白条：在东面主航道上顺流（+z）漂，出界回绕
   const streaks: Mesh[] = [];
-  for (let i = 0; i < 7; i += 1) {
-    const streak = box([0.09, 0.015, 0.9], {
+  for (let i = 0; i < 8; i += 1) {
+    const streak = box([0.09, 0.015, 1.1], {
       color: RIVER_FOAM,
-      position: [0, 0.035, Z_MIN + hash01(i * 4.1) * (Z_MAX - Z_MIN)],
+      position: [32 + hash01(i * 6.7) * 8, WATER_Y + 0.05, -60 + hash01(i * 4.1) * 120],
       castShadow: false,
     });
     streaks.push(streak);
@@ -586,131 +726,145 @@ function buildOuterWorld(root: Object3D, bounds: DeckRect): void {
     root.add(tree);
   };
 
-  // 南、西两面的密林带：两排错位，靠墙一排小、外圈一排大。
-  // 西面让开大门走廊（z -11..-5），东面是河不种
+  /*
+   * **西面只有一处能种树，就是脖子**——北东南三面出了墙就是水。
+   * 沿脖子两侧压两排，把出门那条路夹成一条林间小道；越往西越密，
+   * 接上大陆的整片森林（那批树在 buildForest 里）。
+   */
   let seed = 500;
-  for (let x = bounds.minX - 1; x < bounds.maxX + 2; x += 3.4) {
-    const jitterX = (hash01(seed * 3.1) - 0.5) * 1.8;
-    outerTree(x + jitterX, bounds.maxZ + 2.2 + hash01(seed * 5.3) * 1.6, 0.95 + hash01(seed * 7.7) * 0.5, seed);
+  for (let x = bounds.minX - 2; x > -58; x -= 3.2) {
+    const jitter = (hash01(seed * 3.1) - 0.5) * 1.6;
+    // 路在 z=-8，两侧各让开 3 格
+    outerTree(x + jitter, -12.5 - hash01(seed * 5.3) * 2.5, 0.95 + hash01(seed * 7.7) * 0.5, seed);
     seed += 1;
-    outerTree(x + jitterX * 1.5 + 1.6, bounds.maxZ + 5.6 + hash01(seed * 4.9) * 2.5, 1.3 + hash01(seed * 9.1) * 0.7, seed);
-    seed += 1;
-  }
-  for (let z = bounds.minZ - 1; z < bounds.maxZ + 1; z += 3.4) {
-    if (z > -12.5 && z < -3.5) continue; // 大门走廊留白，路要透出去
-    const jitterZ = (hash01(seed * 3.7) - 0.5) * 1.8;
-    outerTree(bounds.minX - 2.2 - hash01(seed * 5.9) * 1.6, z + jitterZ, 0.95 + hash01(seed * 6.1) * 0.5, seed);
-    seed += 1;
-    outerTree(bounds.minX - 5.8 - hash01(seed * 4.3) * 2.5, z + jitterZ * 1.5, 1.3 + hash01(seed * 8.3) * 0.7, seed);
+    outerTree(x + jitter * 1.4, -3.5 + hash01(seed * 4.9) * 3, 1.0 + hash01(seed * 9.1) * 0.6, seed);
     seed += 1;
   }
 
-  // 西门外的土路：顺出门方向伸出去，钻进山口——这是去小镇的**陆路**
-  // （世界图上小镇在河对岸，西边是山；陆路沿山谷绕远，过河的桥是近路）
-  const road = box([14, 0.06, 2.4], {
+  // 西门外的林间土路：出门往西钻进森林。**这条路不通小镇**——
+  // 去镇上要过桥；西面是林子，留给以后的森林区域
+  const road = box([26, 0.06, 2.4], {
     color: PATH_DIRT,
-    position: [bounds.minX - 7, -0.035, -8],
+    position: [bounds.minX - 14, -0.035, -8],
   });
   road.receiveShadow = true;
   root.add(road);
 
-  /*
-   * 西边的山地（用户定的地理：一边是山、一边是河）。低多边形棱锥
-   * 两两一簇，主峰配肩峰，路的尽头留一道山口让陆路钻出去。
-   * 石灰绿的山体 + 更浅的顶：雾一罩自动分出远近两层。
-   */
-  const mountain = (x: number, z: number, radius: number, height: number, seed: number): void => {
-    const peak = cylinder(0.4, radius, height, 5, {
-      color: "#66755c",
-      position: [x, height / 2 - 0.4, z],
-      castShadow: false,
-    });
-    peak.rotation.y = hash01(seed * 7.7) * Math.PI;
-    peak.receiveShadow = false;
-    root.add(peak);
-    const cap = cylinder(0.2, radius * 0.45, height * 0.4, 5, {
-      color: "#7d8a70",
-      position: [x + radius * 0.12, height * 0.78, z - radius * 0.1],
-      castShadow: false,
-    });
-    cap.rotation.y = hash01(seed * 3.1) * Math.PI;
-    cap.receiveShadow = false;
-    root.add(cap);
-  };
-  // 山口开在路的延长线（z≈-8）上：两簇主峰夹着它
-  mountain(-46, -22, 13, 15, 1);
-  mountain(-54, -10, 15, 18, 2);
-  mountain(-48, 4, 12, 13, 3);
-  mountain(-56, 18, 14, 16, 4);
-  mountain(-40, 14, 9, 9, 5);
-  mountain(-38, -16, 8, 8, 6);
-
-  // 远丘：南、东各一座把地平线围拢（北面三座是老底子，西面归山）
-  for (const [hx, hz, hr, hh] of [
-    [-14, 52, 26, 9],
-    [52, 30, 24, 9],
-  ] as const) {
-    const hill = blob(hr, 1, { color: "#54724a", position: [hx, 0, hz], castShadow: false });
-    hill.scale.y = hh / hr;
-    hill.receiveShadow = false;
-    root.add(hill);
+  // 对岸（东）的小镇屋影：盒身+坡顶+烟囱，雾里当剪影，不是能去的建筑
+  const ROOFS = ["#5c6b80", "#7d5a52", "#5f7361"];
+  for (const [i, [hx, hz, s, rot]] of (
+    [
+      [62, -18, 2.6, 0.3],
+      [68, -4, 3.1, -0.15],
+      [64, 12, 2.3, 0.5],
+      [74, 24, 2.0, 0.2],
+    ] as const
+  ).entries()) {
+    const house = new Object3D();
+    const w = 2.6 * s;
+    const d = 2.0 * s;
+    const wallH = 1.5 * s;
+    const rise = 0.9 * s;
+    house.add(box([w, wallH, d], { color: PALETTE.extWallShade, position: [0, wallH / 2, 0], castShadow: false }));
+    const slopeLen = Math.hypot(d / 2 + 0.2, rise);
+    const pitch = Math.atan2(rise, d / 2 + 0.2);
+    for (const side of [-1, 1] as const) {
+      const slope = box([w + 0.4, 0.09, slopeLen], {
+        color: ROOFS[i % ROOFS.length],
+        position: [0, wallH + rise / 2, (side * (d / 2 + 0.2)) / 2],
+        castShadow: false,
+      });
+      slope.rotation.x = -side * pitch;
+      house.add(slope);
+    }
+    house.add(
+      box([0.26 * s, 0.7 * s, 0.26 * s], {
+        color: PALETTE.foundation,
+        position: [w * 0.25, wallH + rise * 0.8, 0],
+        castShadow: false,
+      }),
+    );
+    house.position.set(hx, 0, hz);
+    house.rotation.y = rot;
+    root.add(house);
   }
 }
 
 /**
- * 东墙外的封头木桥（照河桥概念图的桥梁结构格）：桥板 + 护栏 + 桥墩，
- * 墙这头用三根木桩封死。**纯布景**——不声明承托面就天然走不上去，
- * 未来通新地区时拆桩、声明桥面、加出入口，三条数据（设计稿 §8）。
+ * 跨河木桥（照河桥概念图的桥梁结构格）：桥板 + 护栏 + 桥墩 + 桥头灯柱。
+ *
+ * **据点有两座**（用户定：三面是水，靠两座桥过河）：东桥直通镇口，
+ * 南桥落在镇子南边。两座共用这一个建造器——桥的样子必须一模一样，
+ * 各写一份迟早长歪。沿 `axis` 方向架设，`at` 是另一轴上的位置。
+ *
+ * 桥面**纯布景**：不声明承托面就天然走不上去（承托面系统的免费红利）。
+ * 出入口触发带在墙内的桥头地面上——"走上桥头就出发"，真正的过桥
+ * 运镜留给以后。
  */
-function buildBridge(root: Object3D, wallX: number, riverCenter: (z: number) => number): void {
+function buildBridge(
+  root: Object3D,
+  axis: "x" | "z",
+  at: number,
+  from: number,
+  to: number,
+): void {
   const bridge = new Object3D();
-  const BZ = -4;
-  const spanFrom = wallX + 0.2;
-  const spanTo = riverCenter(BZ) + RIVER_WIDTH / 2 + 2.2;
-  const length = spanTo - spanFrom;
-  const mid = (spanFrom + spanTo) / 2;
+  const length = to - from;
+  const mid = (from + to) / 2;
+  const along = (v: number, cross: number, y: number): [number, number, number] =>
+    axis === "x" ? [v, y, at + cross] : [at + cross, y, v];
+  const sizeAlong = (len: number, thick: number, width: number): [number, number, number] =>
+    axis === "x" ? [len, thick, width] : [width, thick, len];
 
-  // 桥板：一整块微拱不做，低多边形直板 + 两条压边
-  const deck = box([length, 0.14, 2.2], {
+  const deck = box(sizeAlong(length, 0.14, 2.2), {
     color: PALETTE.deckPlank,
-    position: [mid, 0.55, BZ],
+    position: along(mid, 0, 0.55),
   });
   deck.receiveShadow = true;
   bridge.add(deck);
+
   for (const side of [-1, 1] as const) {
     bridge.add(
-      box([length, 0.08, 0.16], {
+      box(sizeAlong(length, 0.08, 0.16), {
         color: PALETTE.deckEdge,
-        position: [mid, 0.64, BZ + side * 1.1],
+        position: along(mid, side * 1.1, 0.64),
       }),
     );
     // 护栏：立柱 + 扶手
-    for (let x = spanFrom + 0.4; x < spanTo; x += 1.4) {
+    for (let v = from + 0.6; v < to; v += 1.6) {
       bridge.add(
-        box([0.12, 0.62, 0.12], {
-          color: PALETTE.woodDark,
-          position: [x, 0.93, BZ + side * 1.02],
-        }),
+        box([0.12, 0.62, 0.12], { color: PALETTE.woodDark, position: along(v, side * 1.02, 0.93) }),
       );
     }
     bridge.add(
-      box([length, 0.09, 0.11], {
+      box(sizeAlong(length, 0.09, 0.11), {
         color: PALETTE.woodMid,
-        position: [mid, 1.24, BZ + side * 1.02],
+        position: along(mid, side * 1.02, 1.24),
       }),
     );
   }
-  // 桥墩：河两岸各一对斜撑短柱
-  for (const px of [riverCenter(BZ) - RIVER_WIDTH / 2 - 0.4, riverCenter(BZ) + RIVER_WIDTH / 2 + 0.4]) {
+
+  // 桥墩：等距几组斜撑短柱扎进水里
+  for (let v = from + length * 0.25; v < to; v += length * 0.25) {
     for (const side of [-1, 1] as const) {
       bridge.add(
-        box([0.18, 0.6, 0.18], {
-          color: PALETTE.woodDark,
-          position: [px, 0.22, BZ + side * 0.8],
-        }),
+        box([0.2, 1.6, 0.2], { color: PALETTE.woodDark, position: along(v, side * 0.8, -0.3) }),
       );
     }
   }
+
+  // 对岸桥头的一盏铁艺灯（概念图桥两头各一盏，我们这头的灯由门柱负责）
+  bridge.add(
+    cylinder(0.05, 0.07, 1.9, 6, { color: PALETTE.ironDark, position: along(to - 0.6, 1.3, 1.5) }),
+  );
+  bridge.add(
+    box([0.2, 0.26, 0.2], {
+      color: PALETTE.lampGlow,
+      position: along(to - 0.6, 1.3, 2.5),
+      castShadow: false,
+    }),
+  );
+
   root.add(bridge);
 }
 
@@ -827,8 +981,10 @@ function buildWalls(root: Object3D, bounds: DeckRect): void {
   /** 西门洞：净宽 3（z -9.5..-6.5，对齐玄关），门柱中心在 z=-8±1.9 */
   const GATE_CENTER_Z = -8;
   const GATE_HALF = 1.9;
-  /** 东墙桥头门洞：对齐木桥（buildBridge 的 BZ），和西门同宽 */
-  const BRIDGE_Z = -4;
+  /** 东墙桥头门洞（东桥直通镇口），和西门同宽 */
+  const BRIDGE_E_Z = -4;
+  /** 南墙桥头门洞（南桥落在镇子南边）。摆在西半边，离前庭近 */
+  const BRIDGE_S_X = -14;
 
   const post = (x: number, z: number, big: boolean): void => {
     const side = big ? 0.7 : 0.5;
@@ -899,17 +1055,40 @@ function buildWalls(root: Object3D, bounds: DeckRect): void {
     }
   };
 
-  // 西墙：门洞两翼（大门对齐玄关轴线）
-  run("z", bounds.minZ, GATE_CENTER_Z - GATE_HALF - 0.35, bounds.minX, -1);
-  run("z", GATE_CENTER_Z + GATE_HALF + 0.35, bounds.maxZ, bounds.minX, -1);
-  // 东墙：桥头门洞两翼（桥开通成第二条去小镇的路——过河近路）
-  run("z", bounds.minZ, BRIDGE_Z - GATE_HALF - 0.35, bounds.maxX, 1);
-  run("z", BRIDGE_Z + GATE_HALF + 0.35, bounds.maxZ, bounds.maxX, 1);
-  // 北、南两面整段
-  run("x", bounds.minX, bounds.maxX, bounds.minZ, -1);
-  run("x", bounds.minX, bounds.maxX, bounds.maxZ, 1);
+  /**
+   * 木栅栏段：矮石礅 + 双横杆。**只用在西面陆地侧**——概念图里石墙
+   * 和木栅栏的分布不是随机的，跟着地形走：临水一圈是护岸的石墙，
+   * 接陆地那面才是围院子的木栅栏。
+   */
+  const fenceRun = (start: number, end: number, at: number): void => {
+    if (end - start <= 0) return;
+    const x = at - WALL_T / 2;
+    for (let z = start; z <= end + 0.01; z += 2.4) {
+      root.add(box([0.16, 0.8, 0.16], { color: PALETTE.woodDark, position: [x, 0.4, z] }));
+    }
+    for (const h of [0.34, 0.62]) {
+      root.add(
+        box([0.1, 0.08, end - start], {
+          color: PALETTE.woodMid,
+          position: [x, h, (start + end) / 2],
+        }),
+      );
+    }
+  };
 
-  // 四角柱 + 西门/桥头加粗门柱（灯箱，桥头灯柱照河桥概念图）
+  /*
+   * 临水三面（北、东、南）= 石护岸墙；西面陆地侧 = 木栅栏。
+   * 三个口子：西门（正对玄关的主门）、东桥头、南桥头。
+   */
+  run("x", bounds.minX, bounds.maxX, bounds.minZ, -1);
+  run("z", bounds.minZ, BRIDGE_E_Z - GATE_HALF - 0.35, bounds.maxX, 1);
+  run("z", BRIDGE_E_Z + GATE_HALF + 0.35, bounds.maxZ, bounds.maxX, 1);
+  run("x", bounds.minX, BRIDGE_S_X - GATE_HALF - 0.35, bounds.maxZ, 1);
+  run("x", BRIDGE_S_X + GATE_HALF + 0.35, bounds.maxX, bounds.maxZ, 1);
+  fenceRun(bounds.minZ, GATE_CENTER_Z - GATE_HALF - 0.35, bounds.minX);
+  fenceRun(GATE_CENTER_Z + GATE_HALF + 0.35, bounds.maxZ, bounds.minX);
+
+  // 四角柱 + 三处加粗门柱（柱顶灯箱，照概念图的门柱灯与桥头灯）
   const wallOff = WALL_T / 2;
   post(bounds.minX - wallOff, bounds.minZ - wallOff, false);
   post(bounds.maxX + wallOff, bounds.minZ - wallOff, false);
@@ -917,8 +1096,10 @@ function buildWalls(root: Object3D, bounds: DeckRect): void {
   post(bounds.maxX + wallOff, bounds.maxZ + wallOff, false);
   post(bounds.minX - wallOff, GATE_CENTER_Z - GATE_HALF, true);
   post(bounds.minX - wallOff, GATE_CENTER_Z + GATE_HALF, true);
-  post(bounds.maxX + wallOff, BRIDGE_Z - GATE_HALF, true);
-  post(bounds.maxX + wallOff, BRIDGE_Z + GATE_HALF, true);
+  post(bounds.maxX + wallOff, BRIDGE_E_Z - GATE_HALF, true);
+  post(bounds.maxX + wallOff, BRIDGE_E_Z + GATE_HALF, true);
+  post(BRIDGE_S_X - GATE_HALF, bounds.maxZ + wallOff, true);
+  post(BRIDGE_S_X + GATE_HALF, bounds.maxZ + wallOff, true);
 }
 
 export function buildBaseTerrain(context: TerrainContext): OutdoorTerrain {
@@ -931,13 +1112,10 @@ export function buildBaseTerrain(context: TerrainContext): OutdoorTerrain {
     width: context.roomSize.width,
     height: context.roomSize.depth,
   });
-  // 河在东墙外（据点②改道）：中心线是 z 的缓波
-  const riverCenter = (z: number): number =>
-    bounds.maxX + 5.5 + Math.sin(z * 0.11) * 1.2;
-
-  buildGround(root, northZ);
+  // 水在底、陆地浮在上面
+  const streaks = buildWater(root);
+  buildLand(root);
   buildForest(root, northZ);
-  const streaks = buildRiver(root, riverCenter);
   buildSakura(root, northZ);
   buildWalls(root, bounds);
   buildPaving(root, [
@@ -949,7 +1127,9 @@ export function buildBaseTerrain(context: TerrainContext): OutdoorTerrain {
   buildField(root, { minX: -26.9, maxX: -12.9, minZ: -2.6, maxZ: 4.4 });
   buildFlowerbeds(root);
   buildBackyard(root);
-  buildBridge(root, bounds.maxX, riverCenter);
+  // 两座跨河桥：东桥直通镇口，南桥落在镇子南边（对岸都在 ±44 一线）
+  buildBridge(root, "x", -4, bounds.maxX + 0.2, 43);
+  buildBridge(root, "z", -14, bounds.maxZ + 0.2, 45);
   buildOuterWorld(root, bounds);
   const petals = buildPetals(northZ);
   root.add(petals.points);
@@ -962,8 +1142,6 @@ export function buildBaseTerrain(context: TerrainContext): OutdoorTerrain {
         const streak = streaks[i];
         streak.position.z += (0.9 + hash01(i * 7.7) * 0.5) * deltaSeconds;
         if (streak.position.z > 60) streak.position.z = -60;
-        streak.position.x =
-          riverCenter(streak.position.z) + (hash01(i * 3.7) - 0.5) * 1.6;
       }
 
       // 花瓣：下落 + 正弦横摆，落地回到树冠。风天飘得更斜更快

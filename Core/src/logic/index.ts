@@ -8,6 +8,7 @@ export * from "./crafting.js";
 export * from "./facing.js";
 export * from "./giftRules.js";
 export * from "./grid.js";
+export * from "./groundMap.js";
 export * from "./needs.js";
 export * from "./occupancy.js";
 export * from "./pathfinding.js";

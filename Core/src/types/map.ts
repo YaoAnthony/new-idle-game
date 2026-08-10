@@ -8,6 +8,7 @@ import type {
   VisualId,
   WallId,
 } from "./base.js";
+import type { GroundSurface } from "./ground.js";
 import type { RoomStyleDefinition } from "./roomStyle.js";
 
 export enum WallOpeningKind {
@@ -247,6 +248,13 @@ export type MapDefinition = {
 
   /** 贴着外墙的缘侧。渲染建木台 + 下檐，通行判定当实体挡住 */
   outdoorDecks?: OutdoorDeck[];
+
+  /**
+   * 声明的可走固定件（楼梯、平台）。**声明即碰撞**：写在这里的面
+   * 由 buildGroundMap 编译进承托面查询，不需要任何配套代码——
+   * 这是"建完楼梯自动能走"的入口。视觉建模从同一份声明取尺寸。
+   */
+  groundFixtures?: GroundSurface[];
 
   /** 通向其他箱庭的出入口 */
   portals?: MapPortal[];

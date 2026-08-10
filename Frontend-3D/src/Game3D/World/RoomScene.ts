@@ -97,6 +97,11 @@ import {
 import { outdoorTerrainOf } from "../../Maps/index";
 import { buildGroundFixtures } from "./groundFixtures.js";
 import { getActiveAction } from "../../Game/Systems/actions";
+import {
+  cancelAutoWalk,
+  isAutoWalking,
+  setAutoWalker,
+} from "../../Game/Systems/autoWalk";
 import { getActiveDialogue, startDialogue } from "../../Game/Systems/dialogue";
 import { getEventStage } from "../../Game/Systems/events";
 import {
@@ -521,6 +526,17 @@ export class RoomScene {
 
     this.detachInput = this.attachInput();
 
+    /*
+     * 把"沿路点走"的能力交给自动跑腿系统。Game 层不碰 three，所以
+     * 由场景注册一个行走器进去——换图重建场景时重新注册，正在进行的
+     * 跑腿计划因此能接着走下一段。
+     */
+    setAutoWalker({
+      walk: (points, onArrive) => this.controller.walkAlong(points, onArrive),
+      cancel: () => this.controller.cancelScriptedWalk(),
+      position: () => ({ x: this.controller.x, z: this.controller.z }),
+    });
+
     // 补一次初始同步。**必须在 placement 建好之后**——读档进来时手上可能
     // 已经拿着家具了，而 held_changed 早在场景构造之前就发完了
     this.syncPlacementToHeld();
@@ -544,6 +560,8 @@ export class RoomScene {
       // 想走就自动起身，不用先按 F。坐着躺着时移动输入被控制器忽略，
       // 所以这里必须先把姿态改回站立，否则玩家会以为卡住了
       if ("wasd".includes(key) && isResting()) standUp("moved");
+      // 玩家一动就接管自动跑腿。自动走永远不该跟玩家抢操作权
+      if ("wasd".includes(key) && isAutoWalking()) cancelAutoWalk("player");
 
       // Q/E 转向已退役：镜头改成鼠标左键拖拽（标准第三人称）
       if (key === "r") this.placement.rotate();
@@ -1341,6 +1359,8 @@ export class RoomScene {
     this.controller.setExternalMove(x, z);
     // 坐着躺着时摇杆推不动人，得先起身——和键盘 WASD 那条一样的处理
     if ((x !== 0 || z !== 0) && isResting()) standUp("moved");
+    // 摇杆一推也接管自动跑腿（和 WASD 同一条规矩）
+    if ((x !== 0 || z !== 0) && isAutoWalking()) cancelAutoWalk("player");
   }
 
   /** 把手上那一份扔出去（键盘 Q / 手机上的扔出按钮） */

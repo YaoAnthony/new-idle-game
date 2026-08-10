@@ -92,6 +92,32 @@ export function downhillDirection(
  * 回调而不是直接 import——doorsRuntime 需要这边的 getWorld，
  * 反向 import 是循环依赖。
  */
+/**
+ * **当作所有能开的门都开着**。只在导航采样时短暂打开。
+ *
+ * 寻路要回答的是"走得过去吗"，不是"此刻站着不动能不能过"——一扇
+ * 关着但没锁的门不是障碍，是一个"到了那儿要开一下"的动作。不这么
+ * 分的话，站在自家客厅说"去书店"会直接失败：前门关着，导航如实
+ * 判定出不去（实测踩到过）。真正走到门口时由自动跑腿把门打开，
+ * 所以这个假设不会凭空穿墙。
+ */
+let assumeDoorsOpen = false;
+
+export function doorsAssumedOpen(): boolean {
+  return assumeDoorsOpen;
+}
+
+/** 在"门都开着"的假设下跑一段查询（导航采样用） */
+export function withDoorsOpen<T>(fn: () => T): T {
+  const previous = assumeDoorsOpen;
+  assumeDoorsOpen = true;
+  try {
+    return fn();
+  } finally {
+    assumeDoorsOpen = previous;
+  }
+}
+
 let doorBlocker: ((gx: number, gy: number) => boolean) | null = null;
 
 export function setDoorBlocker(
@@ -217,7 +243,7 @@ export function isWalkable(
     for (let gx = minGX; gx <= maxGX; gx += 1) {
       if (worldState.occupancy.blocked.has(`${gx},${gy}`)) return false;
       // 关着的门占的格子。不进 occupancy：开合是高频状态，塞进去每次都要重建占用图
-      if (doorBlocker?.(gx, gy)) return false;
+      if (!assumeDoorsOpen && doorBlocker?.(gx, gy)) return false;
     }
   }
 

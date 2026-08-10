@@ -22,6 +22,8 @@ export type StationCapability =
 export type GameEvents = {
   /** 世界数据变化（家具增删等），渲染层据此同步场景图 */
   world_changed: { reason: string };
+  /** 自动跑腿结束：到了 / 玩家接管 / 找不到路 */
+  auto_walk_ended: { label: string; reason: "player" | "done" | "failed" };
 
   /**
    * 换了箱庭地图（箱庭①B）。**状态层已经切完**（实体上架/取下、

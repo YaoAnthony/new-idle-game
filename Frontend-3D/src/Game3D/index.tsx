@@ -83,6 +83,8 @@ import { unlockAudio } from "./Engine/AudioEngine";
 import { initAudioSettings } from "./Engine/audioSettings";
 import { startParticipantSync } from "../Game/Systems/participantSync";
 import { travelTo } from "../Game/Systems/mapTravel";
+import { autoWalkTo, initAutoWalk } from "../Game/Systems/autoWalk";
+import { destinations } from "../Game/Systems/travelPlan";
 import { mapDefinitions } from "../Maps/index";
 import { TravelOverlay } from "../Components/MapTravel/TravelOverlay";
 import { getCurrentMapId } from "../Game/State/worldRuntime";
@@ -183,6 +185,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
 
     // 时钟必须最先起：天气要读世界日，剧情与行动要读时间
     const stopClock = startClock();
+    initAutoWalk();
     /*
      * 做客（世界是房主的）时不跑天气重掷：天气属于世界，重掷是**改世界**。
      * 房客这边自己重掷会和房主各演各的天——房主的天气变化经 world:refresh
@@ -483,6 +486,38 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
             default:
               return fail(`没有这张地图：${args[0] ?? "(空)"}`);
           }
+        },
+      }),
+      registerCommand({
+        name: "go",
+        arguments: [
+          {
+            name: "地方",
+            suggest: () =>
+              destinations().map((place) => ({
+                value: place.label,
+                description: place.mapId,
+              })),
+          },
+        ],
+        usage: "go <地方>",
+        description: "自动走过去（会跨地图一路走到底，按 WASD 随时接管）",
+        handler: (args) => {
+          const query = args.join(" ");
+          if (!query) return fail("用法：go <地方>，比如 go 书店");
+          const result = autoWalkTo(query);
+          if (result.ok !== false) {
+            return ok(
+              result.legs > 1
+                ? `出发去${result.label}（要过 ${result.legs - 1} 道门）`
+                : `出发去${result.label}`,
+            );
+          }
+          return fail(
+            result.reason === "unknown_place"
+              ? `没听说过这个地方：${query}`
+              : `找不到去${query}的路`,
+          );
         },
       }),
       registerCommand({

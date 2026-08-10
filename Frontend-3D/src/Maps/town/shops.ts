@@ -47,12 +47,27 @@ export type ShopSpec = {
   accent: string;
   /** 招牌牌底色 */
   board: string;
+  /** 这栋楼所在台地的标高。地不是平的，房子要坐在自己那层上 */
+  elevation: number;
   /** 这家店的独门记号 */
   mark: "turret" | "orb" | "awning" | "terrace" | "chimney" | "stripes";
 };
 
 const SHOP_DEPTH = 9.5;
 const SHOP_WIDTH = 11.5;
+
+/**
+ * 商业街的台地标高（世界单位）。
+ *
+ * **小镇不是一块绝对平的地**：真实的镇子依地势起，商业街常常抬在
+ * 一道挡土墙上，从广场要上几级石阶。抬起来这一下同时买到三样东西——
+ * 立面有了层次、街和广场分了区、**寻路有了非平地的实测场景**
+ * （承托面系统声明的石阶，A* 会自己找上去）。
+ *
+ * 前排 0.9、后排 1.8：两排各一级台地，从广场一路往北爬。
+ */
+export const TERRACE_FRONT = 0.9;
+export const TERRACE_BACK = 1.8;
 
 /**
  * 两排三列，照概念图的排法：后排书店/神秘商店/便利店，
@@ -75,6 +90,7 @@ export const SHOP_SPECS: ShopSpec[] = [
     timber: "#6b4a30",
     accent: "#6fb3c9",
     board: "#d8c39a",
+    elevation: TERRACE_BACK,
     mark: "turret",
   },
   {
@@ -93,6 +109,7 @@ export const SHOP_SPECS: ShopSpec[] = [
     timber: "#5a4670",
     accent: "#b98fe0",
     board: "#cbbde0",
+    elevation: TERRACE_BACK,
     mark: "orb",
   },
   {
@@ -111,6 +128,7 @@ export const SHOP_SPECS: ShopSpec[] = [
     timber: "#7a5433",
     accent: "#d98d5a",
     board: "#e0c9a2",
+    elevation: TERRACE_BACK,
     mark: "awning",
   },
   {
@@ -129,6 +147,7 @@ export const SHOP_SPECS: ShopSpec[] = [
     timber: "#6b4a30",
     accent: "#c9a24f",
     board: "#d8c39a",
+    elevation: TERRACE_FRONT,
     mark: "terrace",
   },
   {
@@ -147,6 +166,7 @@ export const SHOP_SPECS: ShopSpec[] = [
     timber: "#5f4127",
     accent: "#c9a24f",
     board: "#d3b380",
+    elevation: TERRACE_FRONT,
     mark: "chimney",
   },
   {
@@ -165,6 +185,7 @@ export const SHOP_SPECS: ShopSpec[] = [
     timber: "#6b4a30",
     accent: "#e8e0cc",
     board: "#cfe0cf",
+    elevation: TERRACE_FRONT,
     mark: "stripes",
   },
 ];
@@ -623,7 +644,7 @@ export function buildShop(spec: ShopSpec): Object3D {
   roofOf(node, spec, eaveY);
   shopMark(node, spec, eaveY);
 
-  node.position.set(spec.x, 0, spec.z);
+  node.position.set(spec.x, spec.elevation, spec.z);
   return node;
 }
 

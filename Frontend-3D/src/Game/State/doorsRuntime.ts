@@ -7,6 +7,7 @@ import {
   type GridPosition,
 } from "core";
 import { emit } from "../EventBus";
+import { doorsAssumedOpen } from "./world/walkable";
 import { Door, RoomDoor } from "./doorAgent";
 import { getPets } from "./petsRuntime";
 import {
@@ -188,8 +189,25 @@ export function initDoors(): void {
       z - radius < halfD;
     if (!overlapsHouse) return true;
 
+    /*
+     * 到这儿说明正在穿越"房间"的边界。房子只有开着大门才过得去；
+     * **露天场地（小镇广场这类）不一样**——它墙上的那个口子是个豁口，
+     * 不是一扇要按 F 开的门。硬套房子的规矩会把广场变成一个封死的
+     * 院子：玩家 /goto town 落在广场正中，四面矮墙，走不出去。
+     * （实测踩到过，是这次做寻路时导航网格只连出 660 格才发现的。）
+     */
+    if (map.openAir) {
+      return (
+        z - radius >= passMinZ &&
+        z + radius <= passMaxZ &&
+        x - radius < -halfW + 0.01
+      );
+    }
+
     const frontDoor = frontDoorRef ? doors.get(frontDoorRef) : undefined;
-    if (!frontDoor?.open) return false;
+    // 导航采样时当门开着（走到跟前自动跑腿会开）——见 walkable 的 withDoorsOpen
+    const passable = frontDoor?.open || (doorsAssumedOpen() && !frontDoor?.locked);
+    if (!passable) return false;
     if (z - radius < passMinZ || z + radius > passMaxZ) return false;
     return x - radius < -halfW + 0.01;
   });

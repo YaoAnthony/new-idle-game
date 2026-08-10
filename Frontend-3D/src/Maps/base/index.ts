@@ -26,11 +26,14 @@ export const baseMapDefinition: MapDefinition = {
   yardMargin: YARD_MARGIN,
 
   /**
-   * 四向边距（设计稿 §2）：南边要装下种植区+前庭广场+入门通道，
-   * 北边只要后庭，东西各留一圈。围墙的视觉画在这条边界上——
-   * 看得见的墙 = 走得到的边。
+   * 四向边距（设计稿 §2，2026-08-10 改）：**西边装入口动线**——
+   * 老宅玄关开在西墙，大门/田/前庭整套构图跟着转到西边，
+   * "进门→穿田→前庭→正对宅门"的轴线才成立（用户点破：大门朝南
+   * 而宅门朝西，进了门要自己绕，轴线断了）。北边只要后庭，
+   * 南/东各留一圈。围墙的视觉画在这条边界上——看得见的墙 =
+   * 走得到的边。
    */
-  yardMargins: { north: 6, south: 16, east: 8, west: 8 },
+  yardMargins: { north: 6, south: 8, east: 8, west: 16 },
 
   floorLevel: FLOOR_LEVEL,
 

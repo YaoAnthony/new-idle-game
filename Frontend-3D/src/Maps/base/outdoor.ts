@@ -108,9 +108,10 @@ function buildForest(root: Object3D, northZ: number): void {
   }
 
   for (let i = 60; i < 70; i += 1) {
-    // 两翼：西边贴着墙外，东边推到河对岸（29 起，让开水面）
+    // 两翼：西边推到墙外（30 起——西边距扩到 16 之后墙在 -28），
+    // 东边推到河对岸（29 起，让开水面）
     const west = hash01(i * 4.7) < 0.5;
-    const x = west ? -(16 + hash01(i * 8.9) * 26) : 29 + hash01(i * 8.9) * 16;
+    const x = west ? -(30 + hash01(i * 8.9) * 16) : 29 + hash01(i * 8.9) * 16;
     trees.push([x, 6 - hash01(i * 6.1) * 16, 0.9 + hash01(i * 13.9) * 0.7]);
   }
 
@@ -409,9 +410,10 @@ function buildField(root: Object3D, rect: DeckRect): void {
     }
   }
 
-  // 木栅栏一圈：矮桩 + 双横杆，东侧朝路留门洞
-  const GATE_Z0 = (minZ + maxZ) / 2 - 1;
-  const GATE_Z1 = (minZ + maxZ) / 2 + 1;
+  // 木栅栏一圈：矮桩 + 双横杆，**北侧朝路留门洞**（路在田的北边，
+  // 入口构图转西之后田的开口跟着朝路）
+  const GATE_X0 = (minX + maxX) / 2 - 1;
+  const GATE_X1 = (minX + maxX) / 2 + 1;
   const post = (x: number, z: number): void => {
     root.add(
       box([0.14, 0.72, 0.14], { color: PALETTE.woodDark, position: [x, 0.36, z] }),
@@ -429,20 +431,26 @@ function buildField(root: Object3D, rect: DeckRect): void {
     }
   };
   const STEP = 2.2;
-  for (let x = minX; x < maxX - 0.01; x += STEP) post(x, minZ), post(x, maxZ);
+  for (let x = minX; x < maxX - 0.01; x += STEP) {
+    if (x + STEP >= GATE_X0 && x <= GATE_X1) post(x, maxZ);
+    else {
+      post(x, minZ);
+      post(x, maxZ);
+    }
+  }
   post(maxX, minZ);
   post(maxX, maxZ);
   for (let z = minZ; z < maxZ - 0.01; z += STEP) {
     post(minX, z);
-    if (z + STEP < GATE_Z0 || z > GATE_Z1) post(maxX, z);
+    post(maxX, z);
   }
-  rail(minX, minZ, maxX, minZ);
+  rail(minX, minZ, GATE_X0, minZ);
+  rail(GATE_X1, minZ, maxX, minZ);
   rail(minX, maxZ, maxX, maxZ);
   rail(minX, minZ, minX, maxZ);
-  rail(maxX, minZ, maxX, GATE_Z0);
-  rail(maxX, GATE_Z1, maxX, maxZ);
-  post(maxX, GATE_Z0);
-  post(maxX, GATE_Z1);
+  rail(maxX, minZ, maxX, maxZ);
+  post(GATE_X0, minZ);
+  post(GATE_X1, minZ);
 }
 
 /**
@@ -517,7 +525,8 @@ function buildFlowerbeds(root: Object3D): void {
     PALETTE.terracotta,
     PALETTE.flowerViolet,
   ];
-  for (const [bedIndex, [bx, bz]] of ([[-4.5, 13.1], [6, 13.1]] as const).entries()) {
+  // 两坛夹着"路→玄关"的轴线摆（门在西墙 z≈-8），对称摆位、错开配色
+  for (const [bedIndex, [bx, bz]] of ([[-16, -4.4], [-16, -11.6]] as const).entries()) {
     const bed = new Object3D();
     bed.add(cylinder(1.0, 1.05, 0.3, 12, { color: PALETTE.baseStone, position: [0, 0.15, 0] }));
     bed.add(cylinder(0.85, 0.85, 0.3, 12, { color: PALETTE.plotSoil, position: [0, 0.18, 0] }));
@@ -721,7 +730,8 @@ function buildWalls(root: Object3D, bounds: DeckRect): void {
   const WALL_H = 0.9;
   const WALL_T = 0.45;
   const POST_STEP = 6;
-  /** 南门洞：净宽 3（x -1.5..1.5），两侧加粗门柱中心在 ±1.9 */
+  /** 西门洞：净宽 3（z -9.5..-6.5，对齐玄关），门柱中心在 z=-8±1.9 */
+  const GATE_CENTER_Z = -8;
   const GATE_HALF = 1.9;
 
   const post = (x: number, z: number, big: boolean): void => {
@@ -793,22 +803,22 @@ function buildWalls(root: Object3D, bounds: DeckRect): void {
     }
   };
 
-  // 南墙：门洞两翼
-  run("x", bounds.minX, -GATE_HALF - 0.35, bounds.maxZ, 1);
-  run("x", GATE_HALF + 0.35, bounds.maxX, bounds.maxZ, 1);
-  // 北、西、东三面整段
+  // 西墙：门洞两翼（大门对齐玄关轴线）
+  run("z", bounds.minZ, GATE_CENTER_Z - GATE_HALF - 0.35, bounds.minX, -1);
+  run("z", GATE_CENTER_Z + GATE_HALF + 0.35, bounds.maxZ, bounds.minX, -1);
+  // 北、南、东三面整段
   run("x", bounds.minX, bounds.maxX, bounds.minZ, -1);
-  run("z", bounds.minZ, bounds.maxZ, bounds.minX, -1);
+  run("x", bounds.minX, bounds.maxX, bounds.maxZ, 1);
   run("z", bounds.minZ, bounds.maxZ, bounds.maxX, 1);
 
-  // 四角柱 + 南门加粗门柱（灯箱）
+  // 四角柱 + 西门加粗门柱（灯箱）
   const wallOff = WALL_T / 2;
   post(bounds.minX - wallOff, bounds.minZ - wallOff, false);
   post(bounds.maxX + wallOff, bounds.minZ - wallOff, false);
   post(bounds.minX - wallOff, bounds.maxZ + wallOff, false);
   post(bounds.maxX + wallOff, bounds.maxZ + wallOff, false);
-  post(-GATE_HALF, bounds.maxZ + wallOff, true);
-  post(GATE_HALF, bounds.maxZ + wallOff, true);
+  post(bounds.minX - wallOff, GATE_CENTER_Z - GATE_HALF, true);
+  post(bounds.minX - wallOff, GATE_CENTER_Z + GATE_HALF, true);
 }
 
 export function buildBaseTerrain(context: TerrainContext): OutdoorTerrain {
@@ -831,11 +841,12 @@ export function buildBaseTerrain(context: TerrainContext): OutdoorTerrain {
   buildSakura(root, northZ);
   buildWalls(root, bounds);
   buildPaving(root, [
-    // 前庭广场（宅南墙外）+ 入门通道（对齐南门）
-    { minX: -7, maxX: 9, minZ: 10.8, maxZ: 15.4 },
-    { minX: -1.35, maxX: 1.35, minZ: 15.4, maxZ: bounds.maxZ },
+    // 前庭广场（玄关门廊外，门 z≈-8 居中）+ 入门通道（对齐西门轴线）
+    { minX: -19.5, maxX: -12.3, minZ: -12, maxZ: -4 },
+    { minX: bounds.minX, maxX: -19.5, minZ: -9.35, maxZ: -6.65 },
   ]);
-  buildField(root, { minX: -16.5, maxX: -1.5, minZ: 16, maxZ: 23 });
+  // 种植区在广场南侧：进门右手边一路是田，整齐行列迎着来人
+  buildField(root, { minX: -26.9, maxX: -12.9, minZ: -2.6, maxZ: 4.4 });
   buildFlowerbeds(root);
   buildBackyard(root);
   buildBridge(root, bounds.maxX, riverCenter);

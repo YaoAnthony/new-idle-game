@@ -605,57 +605,49 @@ function buildOuterWorld(root: Object3D, bounds: DeckRect): void {
     seed += 1;
   }
 
-  // 西门外的土路：顺出门方向伸出去，尽头拐向小镇的屋影
-  const road = box([16, 0.06, 2.4], {
+  // 西门外的土路：顺出门方向伸出去，钻进山口——这是去小镇的**陆路**
+  // （世界图上小镇在河对岸，西边是山；陆路沿山谷绕远，过河的桥是近路）
+  const road = box([14, 0.06, 2.4], {
     color: PATH_DIRT,
-    position: [bounds.minX - 8, -0.035, -8],
+    position: [bounds.minX - 7, -0.035, -8],
   });
   road.receiveShadow = true;
   root.add(road);
 
-  // 小镇方向的粗建模屋影：盒身+双坡顶+烟囱，雾里当剪影。
-  // 参照莉奥拉小镇全景图——据点在镇西南角，镇子在西北方向
-  const ROOFS = ["#5c6b80", "#7d5a52", "#5f7361"];
-  for (const [i, [hx, hz, s, rot]] of (
-    [
-      [-42, -14, 2.6, 0.3],
-      [-48, -4, 3.1, -0.15],
-      [-44, 6, 2.3, 0.5],
-    ] as const
-  ).entries()) {
-    const house = new Object3D();
-    const w = 2.6 * s;
-    const d = 2.0 * s;
-    const wallH = 1.5 * s;
-    const rise = 0.9 * s;
-    house.add(box([w, wallH, d], { color: PALETTE.extWallShade, position: [0, wallH / 2, 0], castShadow: false }));
-    const slopeLen = Math.hypot(d / 2 + 0.2, rise);
-    const pitch = Math.atan2(rise, d / 2 + 0.2);
-    for (const side of [-1, 1] as const) {
-      const slope = box([w + 0.4, 0.09, slopeLen], {
-        color: ROOFS[i % ROOFS.length],
-        position: [0, wallH + rise / 2, (side * (d / 2 + 0.2)) / 2],
-        castShadow: false,
-      });
-      slope.rotation.x = -side * pitch;
-      house.add(slope);
-    }
-    house.add(
-      box([0.26 * s, 0.7 * s, 0.26 * s], {
-        color: PALETTE.foundation,
-        position: [w * 0.25, wallH + rise * 0.8, 0],
-        castShadow: false,
-      }),
-    );
-    house.position.set(hx, 0, hz);
-    house.rotation.y = rot;
-    root.add(house);
-  }
+  /*
+   * 西边的山地（用户定的地理：一边是山、一边是河）。低多边形棱锥
+   * 两两一簇，主峰配肩峰，路的尽头留一道山口让陆路钻出去。
+   * 石灰绿的山体 + 更浅的顶：雾一罩自动分出远近两层。
+   */
+  const mountain = (x: number, z: number, radius: number, height: number, seed: number): void => {
+    const peak = cylinder(0.4, radius, height, 5, {
+      color: "#66755c",
+      position: [x, height / 2 - 0.4, z],
+      castShadow: false,
+    });
+    peak.rotation.y = hash01(seed * 7.7) * Math.PI;
+    peak.receiveShadow = false;
+    root.add(peak);
+    const cap = cylinder(0.2, radius * 0.45, height * 0.4, 5, {
+      color: "#7d8a70",
+      position: [x + radius * 0.12, height * 0.78, z - radius * 0.1],
+      castShadow: false,
+    });
+    cap.rotation.y = hash01(seed * 3.1) * Math.PI;
+    cap.receiveShadow = false;
+    root.add(cap);
+  };
+  // 山口开在路的延长线（z≈-8）上：两簇主峰夹着它
+  mountain(-46, -22, 13, 15, 1);
+  mountain(-54, -10, 15, 18, 2);
+  mountain(-48, 4, 12, 13, 3);
+  mountain(-56, 18, 14, 16, 4);
+  mountain(-40, 14, 9, 9, 5);
+  mountain(-38, -16, 8, 8, 6);
 
-  // 补远丘：南、西各一座把地平线围拢（北面三座是老底子）
+  // 远丘：南、东各一座把地平线围拢（北面三座是老底子，西面归山）
   for (const [hx, hz, hr, hh] of [
     [-14, 52, 26, 9],
-    [-56, 20, 22, 8],
     [52, 30, 24, 9],
   ] as const) {
     const hill = blob(hr, 1, { color: "#54724a", position: [hx, 0, hz], castShadow: false });
@@ -718,15 +710,6 @@ function buildBridge(root: Object3D, wallX: number, riverCenter: (z: number) => 
         }),
       );
     }
-  }
-  // 封头桩：墙这头三根斜插的木桩拦住桥口
-  for (const [k, dz] of [-0.7, 0, 0.7].entries()) {
-    const stake = box([0.14, 1.0, 0.14], {
-      color: PALETTE.woodDark,
-      position: [spanFrom + 0.3, 0.95, BZ + dz],
-    });
-    stake.rotation.z = 0.18 * (k - 1);
-    bridge.add(stake);
   }
   root.add(bridge);
 }
@@ -844,6 +827,8 @@ function buildWalls(root: Object3D, bounds: DeckRect): void {
   /** 西门洞：净宽 3（z -9.5..-6.5，对齐玄关），门柱中心在 z=-8±1.9 */
   const GATE_CENTER_Z = -8;
   const GATE_HALF = 1.9;
+  /** 东墙桥头门洞：对齐木桥（buildBridge 的 BZ），和西门同宽 */
+  const BRIDGE_Z = -4;
 
   const post = (x: number, z: number, big: boolean): void => {
     const side = big ? 0.7 : 0.5;
@@ -917,12 +902,14 @@ function buildWalls(root: Object3D, bounds: DeckRect): void {
   // 西墙：门洞两翼（大门对齐玄关轴线）
   run("z", bounds.minZ, GATE_CENTER_Z - GATE_HALF - 0.35, bounds.minX, -1);
   run("z", GATE_CENTER_Z + GATE_HALF + 0.35, bounds.maxZ, bounds.minX, -1);
-  // 北、南、东三面整段
+  // 东墙：桥头门洞两翼（桥开通成第二条去小镇的路——过河近路）
+  run("z", bounds.minZ, BRIDGE_Z - GATE_HALF - 0.35, bounds.maxX, 1);
+  run("z", BRIDGE_Z + GATE_HALF + 0.35, bounds.maxZ, bounds.maxX, 1);
+  // 北、南两面整段
   run("x", bounds.minX, bounds.maxX, bounds.minZ, -1);
   run("x", bounds.minX, bounds.maxX, bounds.maxZ, 1);
-  run("z", bounds.minZ, bounds.maxZ, bounds.maxX, 1);
 
-  // 四角柱 + 西门加粗门柱（灯箱）
+  // 四角柱 + 西门/桥头加粗门柱（灯箱，桥头灯柱照河桥概念图）
   const wallOff = WALL_T / 2;
   post(bounds.minX - wallOff, bounds.minZ - wallOff, false);
   post(bounds.maxX + wallOff, bounds.minZ - wallOff, false);
@@ -930,6 +917,8 @@ function buildWalls(root: Object3D, bounds: DeckRect): void {
   post(bounds.maxX + wallOff, bounds.maxZ + wallOff, false);
   post(bounds.minX - wallOff, GATE_CENTER_Z - GATE_HALF, true);
   post(bounds.minX - wallOff, GATE_CENTER_Z + GATE_HALF, true);
+  post(bounds.maxX + wallOff, BRIDGE_Z - GATE_HALF, true);
+  post(bounds.maxX + wallOff, BRIDGE_Z + GATE_HALF, true);
 }
 
 export function buildBaseTerrain(context: TerrainContext): OutdoorTerrain {

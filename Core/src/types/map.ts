@@ -90,6 +90,14 @@ export enum HouseZoneKind {
   Genkan = "genkan",
   Bedroom = "bedroom",
   Bath = "bath",
+  /**
+   * 露天石板地（小镇广场）。
+   *
+   * 房间的地板默认铺木板——对屋子是对的，对镇口广场就成了"草地上
+   * 架了一块木台子"。分区本来就是"这块地该是什么材质"的答案，
+   * 加一档石板比给广场另开一套地板生成器省得多。
+   */
+  Plaza = "plaza",
 }
 
 /**

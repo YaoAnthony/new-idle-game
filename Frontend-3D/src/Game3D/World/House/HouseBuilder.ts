@@ -11,6 +11,7 @@ import {
 import { Object3D } from "three";
 import { PALETTE, jitterShade } from "../../Visual/palette.js";
 import { box } from "../../Visual/primitives.js";
+import { hash01 } from "../outdoorTerrain.js";
 import { createQuadMesh, type Quad } from "../quadMesh.js";
 import { buildEngawa } from "./Engawa.js";
 import { buildExteriorWalls } from "./ExteriorWalls.js";
@@ -166,7 +167,30 @@ function buildFloor(room: RoomSave): Object3D {
 
       let base: string;
       let jitter = 0.03;
-      if (kind === HouseZoneKind.Genkan) {
+      if (kind === HouseZoneKind.Plaza) {
+        /*
+         * 广场石板：**三色轮换**，不是两色棋盘。棋盘一眼就看出是格子
+         * （屋里的瓷砖要的正是这个），而铺装要的是"石头一块块不一样"。
+         * 用 (x*2+y) 走三档，同一行不会出现相邻同色的长条。
+         */
+        /*
+         * 三色**按格子哈希**取，不按 (x,y) 的算式。
+         *
+         * 上一版用 (x*2+y)%3，结果是一张明晃晃的棋盘——任何简单算式
+         * 都会在网格上留下周期，而人眼对周期极其敏感，一眼就看出
+         * "这是程序刷的"。哈希打散之后同样三种颜色就变成了随机铺的
+         * 石板。这和外景里到处在用的 hash01 是同一个手法。
+         */
+        const tone = Math.floor(hash01(x * 7.7 + y * 3.1) * 3);
+        base =
+          tone === 0
+            ? PALETTE.pavingLight
+            : tone === 1
+              ? PALETTE.pavingMid
+              : PALETTE.pavingJoint;
+        // 抖动压到室内水平：三色本身已经拉开了，再抖就成花地砖
+        jitter = 0.018;
+      } else if (kind === HouseZoneKind.Genkan) {
         base = (x + y) % 2 === 0 ? PALETTE.genkanTile : PALETTE.genkanTileAlt;
         jitter = 0.015;
       } else if (kind === HouseZoneKind.Bath) {
@@ -632,16 +656,33 @@ export function buildHouse(
     : buildCeiling(width, depth, wallHeight);
   root.add(ceiling);
 
-  root.add(buildTimberFrame(room, wallHeight));
+  /*
+   * 柱和长押是**墙的一部分**，不是地板的。没有墙就不该有它们——
+   * 但这个函数是照 floorGrid 画的，不看 room.walls，所以广场把墙
+   * 拆光之后照样在四角立了柱、四边拉了长押：石板地上凭空框出一个
+   * 木框子，从空中看正是那块"孤零零的台子"。判据放调用处而不是
+   * 塞进函数里：函数本身没错，是"要不要墙的装饰"该由外面回答。
+   */
+  const hasWalls = Object.keys(room.walls).length > 0;
+  if (hasWalls) root.add(buildTimberFrame(room, wallHeight));
   const genkanStep = buildGenkanStep(room);
   if (genkanStep) root.add(genkanStep);
 
   const interiorWalls = buildInteriorWalls(room, wallHeight);
   root.add(interiorWalls);
 
-  // 外皮和屋顶（V0.13）：从外面看它是房子，从屋里看全是背面（剔除），
-  // 室内视野和光照零变化——投影仍由内皮负责，外皮不投（见 ExteriorWalls）
-  const exterior = buildExteriorWalls(room, floorLevel);
+  /*
+   * 外皮和屋顶（V0.13）：从外面看它是房子，从屋里看全是背面（剔除），
+   * 室内视野和光照零变化——投影仍由内皮负责，外皮不投（见 ExteriorWalls）。
+   *
+   * 没墙就整份跳过。这里面除了外墙皮，还有**照 floorGrid 画的**转角板
+   * 和基礎——和上面的柱/长押是同一个坑：它们都是"墙的配件"，却不看
+   * room.walls。广场拆墙后四角还立着四根 3 米高的转角板，从空中看
+   * 就是围着石板地的四根杆子。用空组占位，保住 BuiltHouse 的形状。
+   */
+  const exterior = hasWalls
+    ? buildExteriorWalls(room, floorLevel)
+    : { walls: new Object3D(), plinth: new Object3D() };
   root.add(exterior.walls);
   root.add(exterior.plinth);
 

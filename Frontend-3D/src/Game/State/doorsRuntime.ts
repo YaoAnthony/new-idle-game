@@ -182,6 +182,19 @@ export function initDoors(): void {
       }
     }
 
+    /*
+     * **一堵墙都没有的房间没有边界**（小镇广场）。
+     *
+     * 下面那两段（豁口 / 大门）默认"房间是围起来的"，围墙上开了一个
+     * 口子，能不能过就看那个口子。广场把矮墙拆掉之后这个前提没了：
+     * 没有开口，passMinZ/passMaxZ 是初值，判定退化成"哪儿都过不去"，
+     * 人被封在广场正中——寻路套件一跑就是"广场→台地找不到路"。
+     *
+     * 与其在下面补特例，不如把前提写出来：墙是边界的定义，没有墙就
+     * 没有边界。以后再有别的露天场地（集市、码头）自动适用。
+     */
+    if (Object.keys(getWorld().room.walls).length === 0) return true;
+
     const overlapsHouse =
       x + radius > -halfW &&
       x - radius < halfW &&

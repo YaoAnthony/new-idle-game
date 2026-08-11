@@ -1,4 +1,4 @@
-import { Object3D } from "three";
+import { Color, MeshStandardMaterial, Object3D } from "three";
 import { PALETTE } from "../Game3D/Visual/palette.js";
 import { blob, box } from "../Game3D/Visual/primitives.js";
 import { buildTownhouse } from "./shell.js";
@@ -33,14 +33,33 @@ export const restaurant: BuildingDefinition = {
     const cx = halfW - 1.6;
     node.add(box([1.0, 4.2, 1.0], { color: PALETTE.foundation, position: [cx, eaveY - 0.4, -1.5] }));
     node.add(box([1.25, 0.24, 1.25], { color: palette.roofDark, position: [cx, eaveY + 1.75, -1.5] }));
+    /*
+     * 炊烟：**必须是半透明的**。
+     *
+     * 上一版是四个不透明白球，从街上看还行（背景是天），一升空俯瞰
+     * 就露馅——变成一坨压在餐厅屋脊上的白疙瘩，看着像模型穿帮。
+     * /overview 拍的第一张小镇全景就是这么被抓到的。
+     *
+     * 越往上越淡（0.5 → 0.17）也越大：烟本来就是往上散的，这一条
+     * 同时解决了另一个毛病——最上面那团离屋顶最远、最容易被当成
+     * 独立物件，恰好也是最淡的那个。
+     *
+     * 每团各一份材质（Color 对象走 ownMaterial 那条）：共享材质是按
+     * 颜色缓存的，直接改上面的 opacity 会把全场同色的东西一起改透。
+     */
     for (let i = 0; i < 4; i += 1) {
-      node.add(
-        blob(0.3 + i * 0.16, 0, {
-          color: "#e8e6e0",
-          position: [cx + i * 0.4, eaveY + 2.4 + i * 0.85, -1.5 - i * 0.25],
-          castShadow: false,
-        }),
-      );
+      const puff = blob(0.34 + i * 0.2, 0, {
+        color: new Color("#e8e6e0"),
+        position: [cx + i * 0.34, eaveY + 2.5 + i * 0.95, -1.5 - i * 0.2],
+        castShadow: false,
+        receiveShadow: false,
+      });
+      const material = puff.material as MeshStandardMaterial;
+      material.transparent = true;
+      material.opacity = 0.5 - i * 0.11;
+      // 不写深度：四团互相重叠，写了会切出硬边，烟就成了积木
+      material.depthWrite = false;
+      node.add(puff);
     }
     return node as Object3D;
   },

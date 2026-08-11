@@ -267,6 +267,13 @@ export const zoneAudioProfiles: Record<
   [HouseZoneKind.Ldk]: { weatherVolumeScale: 1, ambienceVolumeScale: 1 },
   [HouseZoneKind.Bedroom]: { weatherVolumeScale: 0.7, ambienceVolumeScale: 0.6 },
   [HouseZoneKind.Bath]: { weatherVolumeScale: 0.55, ambienceVolumeScale: 0.45 },
+  /*
+   * 广场是**露天**的：头顶什么都没有，雨直接打在人身上，环境声也
+   * 一点不隔。所以它是唯一大于 1 的一档——上面那句"基准就是屋里"
+   * 到这里第一次不成立了。玄关的 1.05 是"贴着门缝"，广场是"根本
+   * 没有门"，两者不该是同一个数。
+   */
+  [HouseZoneKind.Plaza]: { weatherVolumeScale: 1.35, ambienceVolumeScale: 1.3 },
 };
 
 /** 站在墙格上（穿门洞）查不到分区，用这份兜底，等于"屋里的普通位置" */

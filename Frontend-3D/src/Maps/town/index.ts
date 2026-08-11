@@ -90,8 +90,16 @@ export const townMapDefinition: MapDefinition = {
 
   /** 广场地台直接铺在地上，没有床高 */
   floorLevel: 0,
-  /** 广场是露天的：不建天花板/屋顶，镜头不按 2 格矮墙锁竖向 */
+  /** 广场是露天的：不建天花板/屋顶，镜头不按矮墙锁竖向 */
   openAir: true,
+
+  /**
+   * 广场是**内容不是玩家状态**：玩家改不了镇口的地，几何跟着代码走。
+   * 和店铺内部同一个理由。不标的话这次拆掉那圈矮墙对老档不生效——
+   * 存档里存着旧几何，进城看到的还是那个带栅栏的木台子。
+   * （只影响房间几何，玩家在这张图放的东西存在实体桶里，不受影响）
+   */
+  volatileRooms: true,
 
   /** 这张图立着哪些楼。碰撞/店门/出入口/铺装全部从它推导 */
   buildings: TOWN_BUILDINGS,
@@ -111,8 +119,8 @@ export const townMapDefinition: MapDefinition = {
 
   portals: townPortals,
 
-  generateRooms: (style) => {
-    const plaza = generatePlaza(style);
+  generateRooms: () => {
+    const plaza = generatePlaza();
     return { [plaza.roomId]: plaza };
   },
 };

@@ -9,7 +9,21 @@ import { MathUtils, PerspectiveCamera, Vector3 } from "three";
  * 相机沿视线拉近。角色退到墙角时镜头自然贴近，和主流第三人称游戏一致。
  */
 
-export type CameraMode = "follow" | "cutscene" | "decorate" | "focus";
+export type CameraMode = "follow" | "cutscene" | "decorate" | "focus" | "overview";
+
+/** 全景模式要看的那一片：中心、地面高度、要装下的半径 */
+export type OverviewShot = {
+  centerX: number;
+  centerZ: number;
+  /** 这一片的地面在多高（院子是 -floorLevel） */
+  groundY: number;
+  /** 要装进画面的半径（世界单位）。距离按 fov 反推，不写死 */
+  radius: number;
+  /** 俯角。默认 55°，比跟随镜头的上限还高一截 */
+  pitchDegrees?: number;
+  /** 方位角。不给就保持当前朝向（截图想换角度再传） */
+  yawDegrees?: number;
+};
 
 export type CameraRigOptions = {
   fov?: number;
@@ -28,6 +42,20 @@ export type CameraRigOptions = {
  * 上限 62°：再高就成俯视图，人物变成一个头顶，也会顶到天花板。
  */
 const MIN_PITCH = 8;
+
+/**
+ * 全景模式的俯角上限（度）。
+ *
+ * 跟随镜头卡在 62° 是为了别把人拍成一个头顶；全景没有这个顾虑，
+ * 但也**不给到 90°**：正俯视图会让所有立面消失，屋顶一块块贴在地上，
+ * 看不出高低差——恰恰是想验证台地和楼梯时最需要看见的东西。
+ * 85° 留一点点透视，仍然能看出哪儿高哪儿低。
+ */
+const OVERVIEW_MAX_PITCH = 85;
+
+/** 全景的远裁剪面。日常是 200（够用且省深度精度），全景要看到放大后的天穹 */
+const OVERVIEW_FAR_PLANE = 900;
+const DEFAULT_FAR_PLANE = 200;
 
 /** 一个轴对齐的盒子。禁入盒用它，一栋建筑一个 */
 export type ObstacleBox = {
@@ -111,6 +139,25 @@ export class CameraRig {
    */
   private obstacles: ObstacleBox[] = [];
 
+  /**
+   * 全景模式：不为空就**整套约束全停**——内壁盒、禁入盒、弹簧臂、
+   * 肩后偏移、距离上限、俯角上限，一个都不生效。
+   *
+   * 为什么是"停"不是"放宽"：这些限制每一条都是为了"跟在人身后还能
+   * 看得见"服务的，全景根本不跟人。留着任何一条都会在某张图上莫名
+   * 其妙地把镜头拽回去——据点的镜头会被院子的内壁盒压到 10 的高度，
+   * 小镇的会被六个店铺禁入盒切成一段一段。
+   */
+  private overview: OverviewShot | null = null;
+
+  /** 进全景前的机位，退出时原样放回（否则玩家回来发现镜头飞了） */
+  private beforeOverview: {
+    yaw: number;
+    pitch: number;
+    distance: number;
+    mode: CameraMode;
+  } | null = null;
+
   constructor(aspect: number, options: CameraRigOptions = {}) {
     const {
       fov = 50,
@@ -123,7 +170,7 @@ export class CameraRig {
     } = options;
     this.shoulderOffset = shoulderOffset;
 
-    this.camera = new PerspectiveCamera(fov, aspect, 0.1, 200);
+    this.camera = new PerspectiveCamera(fov, aspect, 0.1, DEFAULT_FAR_PLANE);
     this.pitch = MathUtils.degToRad(pitchDegrees);
     this.desiredPitch = this.pitch;
     this.minDistance = minDistance;
@@ -279,6 +326,9 @@ export class CameraRig {
    * 院子就会被框低一截——镜头看的还是屋里的胸口高度。
    */
   lookAtPoint(x: number, z: number, footY = 0): void {
+    // 全景不跟人。RoomScene 每帧都会调这个，不挡住的话镜头会被一路
+    // 拽回角色身上——"看全景"变成"从很远处看这个人"
+    if (this.overview) return;
     this.desiredTarget.set(x, footY + 1.1, z);
   }
 
@@ -301,7 +351,8 @@ export class CameraRig {
       MathUtils.clamp(
         MathUtils.radToDeg(this.desiredPitch) + deltaYPixels * DRAG_PITCH_PER_PIXEL,
         MIN_PITCH,
-        MAX_PITCH,
+        // 全景里可以一路抬到近乎正俯视：绕着看构图正是它的用处
+        this.overview ? OVERVIEW_MAX_PITCH : MAX_PITCH,
       ),
     );
   }
@@ -332,6 +383,17 @@ export class CameraRig {
    */
 
   zoom(delta: number): void {
+    if (this.overview) {
+      // 全景的上限跟着这一片的大小走（能退到装下两倍半径），
+      // 而不是跟随镜头那个为室内定的 10——那点行程在箱庭尺度上等于没有
+      const far = this.fitDistance(this.overview.radius * 2);
+      this.desiredDistance = MathUtils.clamp(
+        this.desiredDistance + delta * 4,
+        this.minDistance,
+        far,
+      );
+      return;
+    }
     this.desiredDistance = MathUtils.clamp(
       this.desiredDistance + delta,
       this.minDistance,
@@ -342,6 +404,81 @@ export class CameraRig {
   /** 拉到最远，纵览整个房间 */
   zoomToFit(): void {
     this.desiredDistance = this.maxDistance;
+  }
+
+  /**
+   * 进全景：镜头脱离角色，升到高处俯瞰整片箱庭。
+   *
+   * 距离**按 fov 反推**不写死一个数：`radius / tan(半张角)`，取横竖
+   * 两个张角里更窄的那个（横屏时是竖向）。写死的话换一张更大的图就
+   * 装不下，改 fov 或换个宽高比也会露馅——而这个命令的全部用处就是
+   * "一眼看全"，装不下就等于没用。
+   */
+  enterOverview(shot: OverviewShot): void {
+    if (!this.beforeOverview) {
+      this.beforeOverview = {
+        yaw: this.desiredYaw,
+        pitch: this.desiredPitch,
+        distance: this.desiredDistance,
+        mode: this.mode,
+      };
+    }
+    this.overview = shot;
+    this.mode = "overview";
+    // 远裁剪面：默认 200 是按地面视角定的，高空俯瞰时天穹和对岸都在
+    // 那之外，不推出去会看见天被切掉一半
+    this.camera.far = OVERVIEW_FAR_PLANE;
+    this.camera.updateProjectionMatrix();
+
+    this.desiredPitch = MathUtils.degToRad(
+      MathUtils.clamp(shot.pitchDegrees ?? 55, MIN_PITCH, OVERVIEW_MAX_PITCH),
+    );
+    if (shot.yawDegrees !== undefined) this.desiredYaw = shot.yawDegrees;
+    this.desiredDistance = this.fitDistance(shot.radius);
+
+    // 一步到位，不看镜头飞上去的过程：飞行途中会穿过屋顶和树冠，
+    // 而这个命令是给截图用的，过程越短越好
+    this.yaw = this.desiredYaw;
+    this.pitch = this.desiredPitch;
+    this.distance = this.desiredDistance;
+    this.target.set(shot.centerX, shot.groundY, shot.centerZ);
+    this.desiredTarget.copy(this.target);
+    this.applyImmediately();
+  }
+
+  /** 退全景，机位放回进去之前的样子 */
+  exitOverview(): void {
+    if (!this.overview) return;
+    this.overview = null;
+    this.camera.far = DEFAULT_FAR_PLANE;
+    this.camera.updateProjectionMatrix();
+    const saved = this.beforeOverview;
+    this.beforeOverview = null;
+    if (!saved) {
+      this.mode = "follow";
+      return;
+    }
+    this.desiredYaw = saved.yaw;
+    this.yaw = saved.yaw;
+    this.desiredPitch = saved.pitch;
+    this.pitch = saved.pitch;
+    this.desiredDistance = saved.distance;
+    this.distance = saved.distance;
+    this.mode = saved.mode === "overview" ? "follow" : saved.mode;
+    // 弹簧臂重新量一遍：全景期间它一直是 Infinity，直接跟随会先穿一帧墙
+    this.wallDistance = Infinity;
+    this.applyImmediately();
+  }
+
+  get inOverview(): boolean {
+    return this.overview !== null;
+  }
+
+  /** 装下半径 radius 的一片需要多远。横竖两个张角取更窄的那个 */
+  private fitDistance(radius: number): number {
+    const vHalf = MathUtils.degToRad(this.camera.fov / 2);
+    const hHalf = Math.atan(Math.tan(vHalf) * this.camera.aspect);
+    return radius / Math.tan(Math.max(Math.min(vHalf, hHalf), 1e-3));
   }
 
   private distanceBeforeFocus: number | null = null;
@@ -420,6 +557,21 @@ export class CameraRig {
     const dirX = Math.sin(azimuth) * Math.cos(this.pitch);
     const dirY = Math.sin(this.pitch);
     const dirZ = Math.cos(azimuth) * Math.cos(this.pitch);
+
+    /*
+     * 全景：约束整套停用，机位就是"中心点 + 视线方向 × 距离"。
+     * 提前返回而不是层层加 if——夹取、肩后偏移、弹簧臂三段都要绕过，
+     * 混在一起写下去这个函数就没人敢改了。
+     */
+    if (this.overview) {
+      this.camera.position.set(
+        this.target.x + dirX * this.distance,
+        this.target.y + dirY * this.distance,
+        this.target.z + dirZ * this.distance,
+      );
+      this.camera.lookAt(this.target);
+      return;
+    }
 
     // 目标点先夹回盒内（角色贴墙时胸口可能落在相机安全边距之外）
     const bounds = this.bounds;

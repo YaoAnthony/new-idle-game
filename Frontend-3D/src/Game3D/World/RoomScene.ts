@@ -933,6 +933,19 @@ export class RoomScene {
 
   /** 找角色附近最近的可交互目标（每 0.15s 查一次，遍历便宜） */
   private refreshInteractTarget(): void {
+    // 全景里不提示"按 F 干什么"：镜头都飞到天上了，那个气泡只会
+    // 挂在画面中央挡住截图。退出时下一轮检查会自己把它找回来
+    if (this.rig.inOverview) {
+      // 两样都要清：interactTarget 管"按 F 会发生什么"，hintTarget 管
+      // 那个挂在家具上的气泡。只清前者的话气泡照样浮在半空——
+      // 它们是同一次检查算出来的两份结果，退出时也要一起回来
+      this.hintTarget = null;
+      if (this.interactTarget !== null) {
+        this.interactTarget = null;
+        emit("interact_target_changed", null);
+      }
+      return;
+    }
     const { placedFurniture } = getWorld();
     const { width, depth } = this.built.size;
 
@@ -1622,6 +1635,16 @@ export class RoomScene {
    * 淡掉它们只会让屋子平白空一块。采样点的取法见 `OCCLUSION_SAMPLES`。
    */
   private refreshOccluders(): void {
+    /*
+     * 全景不做遮挡淡出：这套东西的目的是"别挡住玩家"，而全景里玩家
+     * 只是院子里的一个小点——按它的位置算下去，整个屋顶和外墙会全部
+     * 判成遮挡物淡掉，俯瞰图里房子就成了一个没有盖的模型剖面。
+     * 而"屋顶什么样"恰恰是升空要看的东西之一。
+     */
+    if (this.rig.inOverview) {
+      this.wallReleaseTicks.clear();
+      return;
+    }
     const camera = this.rig.camera.position;
 
     // 屏幕右方（水平面内、垂直于相机→角色的方向），横向采样沿它偏移
@@ -1736,7 +1759,14 @@ export class RoomScene {
     );
     // 宠物走完再让门看一眼谁靠近了——同帧的位置，门不会慢半拍
     tickDoors();
-    this.syncCameraBounds();
+    // 全景期间不碰镜头边界：syncCameraBounds 会按人在屋内/屋外重设
+    // 内壁盒，而全景正是靠"没有盒子"才升得上去
+    if (this.overviewRemaining > 0) {
+      this.overviewRemaining -= deltaSeconds;
+      if (this.overviewRemaining <= 0) this.exitOverview();
+    } else {
+      this.syncCameraBounds();
+    }
     this.petView.update(deltaSeconds);
     this.remotePlayers.update(deltaSeconds);
     this.dailyBoardAnimator.update(deltaSeconds);
@@ -1899,6 +1929,72 @@ export class RoomScene {
 
   zoomToFit(): void {
     this.rig.zoomToFit();
+  }
+
+  /** 全景还剩几秒。>0 就是在全景里，每帧递减，归零自动退出 */
+  private overviewRemaining = 0;
+
+  /**
+   * 升空俯瞰整片箱庭，看 `seconds` 秒再自己落回角色身后。
+   *
+   * **取景范围从地图注册表推**，不是每张图记一组机位：`yardBoundsOf`
+   * 已经是"这张图能走多大"的唯一答案，外景（树林、河、对岸）再往外
+   * 铺一圈，所以半径按院子的外接圆再放宽一截。新加一张图不用来这儿
+   * 补一行——补了就会有人忘。
+   *
+   * 定时自动退出而不是切成一个常驻模式：这是给"看一眼确认没问题"用
+   * 的，忘了退出会卡在天上不知道发生了什么。要多看几秒就传大点的数。
+   */
+  enterOverview(seconds: number, options: { pitch?: number; yaw?: number } = {}): {
+    center: { x: number; z: number };
+    radius: number;
+  } {
+    const map = getCurrentMap();
+    const { width, depth } = this.built.size;
+    const bounds = yardBoundsOf(map, { width, height: depth });
+
+    const centerX = (bounds.minX + bounds.maxX) / 2;
+    const centerZ = (bounds.minZ + bounds.maxZ) / 2;
+    // 外接圆再放宽 30%：围墙、河、林线都在可走范围之外，只框住院子
+    // 会把箱庭的边界正好切在画面边上，看不出"外面还有东西"
+    const radius =
+      0.5 *
+      Math.hypot(bounds.maxX - bounds.minX, bounds.maxZ - bounds.minZ) *
+      1.3;
+
+    this.outdoor.setOverviewAtmosphere(true);
+    /*
+     * 墙和屋顶**立刻**恢复不透明，不走 0.3 秒的淡回。升空是瞬时的，
+     * 淡回要三分之一秒——正好是"命令发完马上截图"会拍到的那一段，
+     * 屋顶还是半透的，看着像个 bug。
+     */
+    this.wallReleaseTicks.clear();
+    for (const group of this.occluderGroups()) {
+      for (const segment of group.children) stepFade(segment, 1, 1, 999);
+    }
+    this.rig.enterOverview({
+      centerX,
+      centerZ,
+      // 看向地面稍上方：正对地面的话近处地皮会占掉画面下半
+      groundY: -map.floorLevel + 2,
+      radius,
+      pitchDegrees: options.pitch,
+      yawDegrees: options.yaw,
+    });
+    this.overviewRemaining = seconds;
+    return { center: { x: centerX, z: centerZ }, radius };
+  }
+
+  exitOverview(): void {
+    if (!this.rig.inOverview) return;
+    this.overviewRemaining = 0;
+    this.outdoor.setOverviewAtmosphere(false);
+    this.rig.exitOverview();
+    // 边界盒是进出屋时才切的（syncCameraBounds 有滞回），全景期间没走过
+    // 那条路；回来直接按当前所在重设一次，免得第一帧还用着旧盒子
+    this.cameraOutdoors = !this.cameraOutdoors;
+    this.syncCameraBounds();
+    this.rig.snapBehind(this.controller.heading);
   }
 
   /**

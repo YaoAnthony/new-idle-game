@@ -79,6 +79,21 @@ const MOON_COLOR = "#e6ecff";
 const FOG_NEAR = 48;
 const FOG_FAR = 190;
 
+/**
+ * 全景模式的大气参数（/overview 用）。
+ *
+ * 天穹半径 85 是按"人站在地面上"定的——镜头一升到几十米高、退到
+ * 上百米远就飞到穹顶外面去了（BackSide 的球从外面看是空的，天会没）。
+ * 雾也一样：near 48 的雾在那个距离上会把整张图糊成一片天色。
+ *
+ * 所以全景期间把天穹整个放大、雾整体外推，退出时还原。**不是永久
+ * 改大**：穹顶放大之后云和星点的相对位置就散了，日常视角看着不对，
+ * 而全景只看几秒，那几秒里没人盯着云。
+ */
+const OVERVIEW_SKY_SCALE = 3.2;
+const OVERVIEW_FOG_NEAR = 220;
+const OVERVIEW_FOG_FAR = 560;
+
 const RAIN_MAX = 420;
 const RAIN_COUNT_LIGHT = 190;
 
@@ -89,6 +104,7 @@ export class OutdoorScene {
   private readonly fog: Fog;
   private readonly skyGeometry: SphereGeometry;
   private readonly skyMaterial: MeshBasicMaterial;
+  private readonly sky: Mesh;
 
   private readonly starMaterial: PointsMaterial;
   private starBaseOpacity = 0;
@@ -140,10 +156,10 @@ export class OutdoorScene {
       fog: false,
       depthWrite: false,
     });
-    const sky = new Mesh(this.skyGeometry, this.skyMaterial);
-    sky.name = "sky-dome";
-    sky.renderOrder = -3;
-    this.root.add(sky);
+    this.sky = new Mesh(this.skyGeometry, this.skyMaterial);
+    this.sky.name = "sky-dome";
+    this.sky.renderOrder = -3;
+    this.root.add(this.sky);
 
     // ---- 星点：贴在天穹内侧的上半球 ----
     this.starMaterial = new PointsMaterial({
@@ -398,6 +414,19 @@ export class OutdoorScene {
       if (array[index] < 0) array[index] = 20;
     }
     attribute.needsUpdate = true;
+  }
+
+  /**
+   * 全景模式的大气开关：天穹放大、雾外推，退出还原。
+   *
+   * 只动这两样，云/星/日月不跟着放大——它们贴在原来那圈半径上，从
+   * 高空看会显得离得近。全景是几秒钟的截图工具，为它把整套天象参数
+   * 化一遍不值当；真正会毁掉截图的只有"没有天"和"全是雾"这两件。
+   */
+  setOverviewAtmosphere(active: boolean): void {
+    this.sky.scale.setScalar(active ? OVERVIEW_SKY_SCALE : 1);
+    this.fog.near = active ? OVERVIEW_FOG_NEAR : FOG_NEAR;
+    this.fog.far = active ? OVERVIEW_FOG_FAR : FOG_FAR;
   }
 
   dispose(): void {

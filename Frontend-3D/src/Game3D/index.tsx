@@ -145,6 +145,24 @@ const WEATHERS = [
   WeatherKind.Storm,
 ] as const;
 
+/**
+ * /overview 的方位选项：**镜头站在哪一边**（不是"朝哪边看"）。
+ *
+ * 相机的 yaw 是它相对目标的方位角，yaw=0 时相机在正南、往北看。
+ * 写成"镜头在南边"而不是"看向北边"是因为截图时脑子里想的是
+ * "我要从南边拍这排店"——按看的方向命名每次都要在心里反一次。
+ */
+const OVERVIEW_YAW: Record<string, number> = {
+  s: 0,
+  sw: 45,
+  w: 90,
+  nw: 135,
+  n: 180,
+  ne: 225,
+  e: 270,
+  se: 315,
+};
+
 type GameViewProps = {
   /** 存档已经灌进运行时：跳过开局行李/摆设，也不重播开场剧情 */
   loadedFromSave?: boolean;
@@ -337,6 +355,49 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
         handler: () => {
           sceneRef.current?.zoomToFit();
           return ok("已缩到最远");
+        },
+      }),
+      registerCommand({
+        name: "overview",
+        arguments: [
+          { name: "秒数" },
+          {
+            name: "俯角",
+            suggest: () => asSuggestions(["40", "55", "70", "85"]),
+          },
+          {
+            name: "方位",
+            suggest: () =>
+              asSuggestions(Object.keys(OVERVIEW_YAW)),
+          },
+        ],
+        usage: "overview [秒数] [俯角] [方位]",
+        description: "升空俯瞰整张箱庭，看几秒自动落回（截图/检查构图用）",
+        handler: (args) => {
+          const scene = sceneRef.current;
+          if (!scene) return fail("场景还没就绪");
+
+          const seconds = args[0] ? Number(args[0]) : 8;
+          if (!Number.isFinite(seconds) || seconds <= 0) {
+            return fail("秒数要是个正数，比如 overview 10");
+          }
+          const pitch = args[1] ? Number(args[1]) : undefined;
+          if (args[1] && !Number.isFinite(pitch)) return fail("俯角要是个数字（度）");
+
+          let yaw: number | undefined;
+          if (args[2]) {
+            const key = args[2].toLowerCase();
+            if (!(key in OVERVIEW_YAW)) {
+              return fail(`方位只认：${Object.keys(OVERVIEW_YAW).join(" / ")}`);
+            }
+            yaw = OVERVIEW_YAW[key];
+          }
+
+          const shot = scene.enterOverview(seconds, { pitch, yaw });
+          return ok(
+            `升空 ${seconds} 秒：中心 (${shot.center.x.toFixed(0)}, ${shot.center.z.toFixed(0)})，` +
+              `框住半径 ${shot.radius.toFixed(0)}。到点自动落回`,
+          );
         },
       }),
       registerCommand({

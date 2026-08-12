@@ -18,6 +18,22 @@ import {
   type TerrainContext,
 } from "../../Game3D/World/outdoorTerrain.js";
 import { baseMapDefinition } from "./index.js";
+import {
+  BRIDGES,
+  PENINSULA,
+  BRIDGE_WIDTH,
+  GATE_EAST_Z,
+  GATE_HALF,
+  GATE_SOUTH_X,
+  GATE_WEST_Z,
+  LAND_PATCHES,
+  RIVER_BED_Y,
+  WALL_HEIGHT,
+  WALL_RECT,
+  WALL_THICKNESS,
+  WATER_LEVEL_Y,
+  YARD_Y,
+} from "./terrain.js";
 
 /**
  * base（玩家据点）的地形。
@@ -47,27 +63,19 @@ const RIVER_FOAM = "#dcedf4";
 /** 墙外土路。和 town 的路面同色——两张图的路要认得出是同一种路 */
 const PATH_DIRT = "#c3a06e";
 
-/** 水面高度（本地坐标，0 = 院子地面）。低于地面，岸沿才有落差 */
-const WATER_Y = -0.42;
-/** 岸壁往下探多深。低视角看过去不穿帮就够 */
-const BANK_DROP = 2.2;
-
-/**
- * 岬角的岸线（本地坐标的闭合多边形，从"脖子"北岸起顺着北岸往东绕一圈）。
- * 围墙在 x[-28,20]、z[-16,18]，岸线在墙外留 3~6 格的滩地。
- * 最后一点回到脖子南岸，脖子本身由 NECK 单独接出去。
+/*
+ * 水面和岸壁**从地形数据推**，不再各写一个数（2026-08-12）。
+ *
+ * outdoor 这一整棵树挂在 y = -floorLevel 上，所以本地坐标 0 就是院子
+ * 地面（世界 YARD_Y）。把世界标高减掉 YARD_Y 就得到本地值——这样
+ * 改河深只用改 terrain.ts 一个数，看得见的水和走得到的地不会再分家。
+ *
+ * 上一版：水面 -0.42、岸壁 2.2。那是个路沿不是河谷，桥架在上面纯属
+ * 装饰——用户那句"我们为什么要建造桥"问的就是这个。
  */
-const PENINSULA: Array<[number, number]> = [
-  [-36, -13], [-33, -19], [-24, -22.5], [-12, -24], [2, -23],
-  [14, -21], [22.5, -17.5], [26, -9.5], [26.5, 1], [24.5, 10],
-  [21, 18], [13, 22.5], [0, 24], [-13, 23], [-24, 20.5],
-  [-31, 16], [-35, 6], [-36, -2],
-];
-
-/** 脖子：把岬角接到西面的大陆。窄窄一条，"突出来的地方"靠它成立 */
-const NECK: Array<[number, number]> = [
-  [-36, -13], [-36, -2], [-58, 1], [-60, -16],
-];
+const WATER_Y = WATER_LEVEL_Y - YARD_Y;
+/** 岸壁往下探到河床，再多探一点埋进去，免得底沿和河床共面闪烁 */
+const BANK_DROP = YARD_Y - RIVER_BED_Y + 0.6;
 
 /** 岸壁的石色。临水一圈都是它，和围墙同族 */
 const BANK_STONE = PALETTE.baseStoneDark;
@@ -92,7 +100,7 @@ const PETAL_COUNT = 90;
  * 一整块地从上面看不见——屋檐那次的教训，能自动纠正的一律自动纠正。
  */
 function landPatch(
-  outline: Array<[number, number]>,
+  outline: ReadonlyArray<readonly [number, number]>,
   topY: number,
   topColor: string,
 ): Object3D {
@@ -104,7 +112,8 @@ function landPatch(
     const [x1, z1] = outline[(i + 1) % outline.length];
     area += x0 * z1 - x1 * z0;
   }
-  const ring = area > 0 ? [...outline].reverse() : outline;
+  const ring: ReadonlyArray<readonly [number, number]> =
+    area > 0 ? [...outline].reverse() : outline;
 
   let cx = 0;
   let cz = 0;
@@ -147,46 +156,17 @@ function landPatch(
 /**
  * 陆地：岬角 + 脖子 + 西面大陆 + 对岸。
  * 水是底，陆是浮在水上的几块——不是"草地上挖一条河"。
+ *
+ * **轮廓一份，两处消费**（2026-08-12）：这里建看得见的地，terrain.ts
+ * 拿同一批轮廓烤高度场供通行判定。上一版视觉和物理各有一份数据，
+ * 结果是"岸壁是贴图、真正拦人的是隐形矩形"。
+ *
+ * 每块压低一丝（i * 0.01）纯粹是防同面 z-fighting，重叠处同色看不出来。
  */
 function buildLand(root: Object3D): void {
-  root.add(landPatch(PENINSULA, -0.02, GROUND_GREEN));
-  // 脖子压低一丝，和岬角重叠处不打架（同色，看不出来）
-  root.add(landPatch(NECK, -0.03, GROUND_GREEN));
-
-  // 西面大陆：一整片森林地，从脖子接出去
-  root.add(
-    landPatch(
-      [[-58, -80], [-58, 80], [-150, 80], [-150, -80]],
-      -0.04,
-      GROUND_GREEN,
-    ),
-  );
-
-  /*
-   * 对岸：小镇那一侧（东）+ 南北两道远岸。围成一圈把地平线接住，
-   * 不然三面水会一直铺到雾里，又变成"一望无际"。
-   */
-  root.add(
-    landPatch(
-      [[44, -70], [46, -30], [43, 2], [47, 28], [44, 70], [150, 70], [150, -70]],
-      -0.05,
-      GROUND_GREEN,
-    ),
-  );
-  root.add(
-    landPatch(
-      [[-58, -44], [-20, -47], [16, -45], [46, -48], [150, -60], [150, -110], [-58, -110]],
-      -0.06,
-      GROUND_GREEN,
-    ),
-  );
-  root.add(
-    landPatch(
-      [[-58, 46], [-18, 49], [18, 47], [45, 50], [150, 62], [150, 110], [-58, 110]],
-      -0.07,
-      GROUND_GREEN,
-    ),
-  );
+  for (const [i, patch] of LAND_PATCHES.entries()) {
+    root.add(landPatch(patch.outline, -0.02 - i * 0.01, GROUND_GREEN));
+  }
 
   // 岬角上的几块深色草斑。零厚度贴地圆片：扁盒子在掠射角会露侧面
   for (let i = 0; i < 7; i += 1) {
@@ -797,9 +777,14 @@ function buildOuterWorld(root: Object3D, bounds: DeckRect): void {
  * 南桥落在镇子南边。两座共用这一个建造器——桥的样子必须一模一样，
  * 各写一份迟早长歪。沿 `axis` 方向架设，`at` 是另一轴上的位置。
  *
- * 桥面**纯布景**：不声明承托面就天然走不上去（承托面系统的免费红利）。
- * 出入口触发带在墙内的桥头地面上——"走上桥头就出发"，真正的过桥
- * 运镜留给以后。
+ * **桥面是真能走的**（2026-08-12）：承托面声明在 terrain.ts 的
+ * BRIDGE_SURFACES 里，这里只管长什么样。上一版桥面是纯布景、触发带
+ * 贴在墙内的桥头——那时河才 0.42 深，走上去也没意义；河挖到 4.5 米
+ * 之后桥成了唯一通路，就得真的走过去。
+ *
+ * 桥板顶面**和两岸齐平**（本地 y=0）。原来浮在 0.55，那是"桥搁在
+ * 水沟上"的高度；跨 4.5 米深的河谷，桥面必须接着岸走，否则上桥要迈
+ * 一步——而 0.55 正好卡在一步高的上限上，人会被自己的桥绊住。
  */
 function buildBridge(
   root: Object3D,
@@ -816,9 +801,10 @@ function buildBridge(
   const sizeAlong = (len: number, thick: number, width: number): [number, number, number] =>
     axis === "x" ? [len, thick, width] : [width, thick, len];
 
-  const deck = box(sizeAlong(length, 0.14, 2.2), {
+  const DECK_THICK = 0.14;
+  const deck = box(sizeAlong(length, DECK_THICK, BRIDGE_WIDTH), {
     color: PALETTE.deckPlank,
-    position: along(mid, 0, 0.55),
+    position: along(mid, 0, -DECK_THICK / 2),
   });
   deck.receiveShadow = true;
   bridge.add(deck);
@@ -827,40 +813,48 @@ function buildBridge(
     bridge.add(
       box(sizeAlong(length, 0.08, 0.16), {
         color: PALETTE.deckEdge,
-        position: along(mid, side * 1.1, 0.64),
+        position: along(mid, side * 1.1, 0.09),
       }),
     );
     // 护栏：立柱 + 扶手
     for (let v = from + 0.6; v < to; v += 1.6) {
       bridge.add(
-        box([0.12, 0.62, 0.12], { color: PALETTE.woodDark, position: along(v, side * 1.02, 0.93) }),
+        box([0.12, 0.62, 0.12], { color: PALETTE.woodDark, position: along(v, side * 1.02, 0.38) }),
       );
     }
     bridge.add(
       box(sizeAlong(length, 0.09, 0.11), {
         color: PALETTE.woodMid,
-        position: along(mid, side * 1.02, 1.24),
+        position: along(mid, side * 1.02, 0.69),
       }),
     );
   }
 
-  // 桥墩：等距几组斜撑短柱扎进水里
+  /*
+   * 桥墩：从桥板一路扎到河床。原来是 1.6 的短柱——那是照 0.42 深的
+   * "河"配的，河谷挖到 4.5 米之后它们会悬在半空，桥看着像浮着。
+   * 长度从地形数据推，改河深不用回来改这里。
+   */
+  const pierHeight = YARD_Y - RIVER_BED_Y;
   for (let v = from + length * 0.25; v < to; v += length * 0.25) {
     for (const side of [-1, 1] as const) {
       bridge.add(
-        box([0.2, 1.6, 0.2], { color: PALETTE.woodDark, position: along(v, side * 0.8, -0.3) }),
+        box([0.24, pierHeight, 0.24], {
+          color: PALETTE.woodDark,
+          position: along(v, side * 0.8, -pierHeight / 2),
+        }),
       );
     }
   }
 
   // 对岸桥头的一盏铁艺灯（概念图桥两头各一盏，我们这头的灯由门柱负责）
   bridge.add(
-    cylinder(0.05, 0.07, 1.9, 6, { color: PALETTE.ironDark, position: along(to - 0.6, 1.3, 1.5) }),
+    cylinder(0.05, 0.07, 1.9, 6, { color: PALETTE.ironDark, position: along(to - 0.6, 1.3, 0.95) }),
   );
   bridge.add(
     box([0.2, 0.26, 0.2], {
       color: PALETTE.lampGlow,
-      position: along(to - 0.6, 1.3, 2.5),
+      position: along(to - 0.6, 1.3, 1.95),
       castShadow: false,
     }),
   );
@@ -970,21 +964,24 @@ function buildPetals(northZ: number): { points: Points; seeds: Float32Array } {
 /**
  * 围墙与南大门（据点①的第一版，柱-墙-柱节奏见设计稿 §7c）。
  *
- * 墙画在**可走边界的外侧**（内立面贴着边界线）：通行上"走不出去"
- * 本来就是那条看不见的线，墙只是把它画出来——内立面若压进边界，
- * 人贴墙走会看着嵌进石头里（碰撞圆判的是中心点到边界）。
+ * 墙**照 terrain.ts 的 WALL_RECT 建，不再照可走边界**（2026-08-12）。
+ *
+ * 原来两者是同一条线，"看得见的墙 = 走得到的边"。挖河之后可走范围
+ * 放开到了对岸（要能走上桥），墙要是跟着放开就跑到河里去了。所以
+ * 围墙从此是自己的一份数据，同时进 outdoorBlockers 真的挡人——
+ * 以前它只是把那条隐形线画出来，其实是假的。
+ *
+ * 内立面贴着 WALL_RECT：墙身往外推半个墙厚，人贴墙走才不会嵌进石头。
  */
-function buildWalls(root: Object3D, bounds: DeckRect): void {
-  const WALL_H = 0.9;
-  const WALL_T = 0.45;
+function buildWalls(root: Object3D): void {
+  const bounds = WALL_RECT;
+  const WALL_H = WALL_HEIGHT;
+  const WALL_T = WALL_THICKNESS;
   const POST_STEP = 6;
-  /** 西门洞：净宽 3（z -9.5..-6.5，对齐玄关），门柱中心在 z=-8±1.9 */
-  const GATE_CENTER_Z = -8;
-  const GATE_HALF = 1.9;
-  /** 东墙桥头门洞（东桥直通镇口），和西门同宽 */
-  const BRIDGE_E_Z = -4;
-  /** 南墙桥头门洞（南桥落在镇子南边）。摆在西半边，离前庭近 */
-  const BRIDGE_S_X = -14;
+  /** 三个门洞的位置和净宽全在 terrain.ts——墙、柱、桥、出入口读同一份 */
+  const GATE_CENTER_Z = GATE_WEST_Z;
+  const BRIDGE_E_Z = GATE_EAST_Z;
+  const BRIDGE_S_X = GATE_SOUTH_X;
 
   const post = (x: number, z: number, big: boolean): void => {
     const side = big ? 0.7 : 0.5;
@@ -1117,7 +1114,7 @@ export function buildBaseTerrain(context: TerrainContext): OutdoorTerrain {
   buildLand(root);
   buildForest(root);
   buildSakura(root, northZ);
-  buildWalls(root, bounds);
+  buildWalls(root);
   buildPaving(root, [
     // 前庭广场（玄关门廊外，门 z≈-8 居中）+ 入门通道（对齐西门轴线）
     { minX: -19.5, maxX: -12.3, minZ: -12, maxZ: -4 },
@@ -1127,9 +1124,11 @@ export function buildBaseTerrain(context: TerrainContext): OutdoorTerrain {
   buildField(root, { minX: -26.9, maxX: -12.9, minZ: -2.6, maxZ: 4.4 });
   buildFlowerbeds(root);
   buildBackyard(root);
-  // 两座跨河桥：东桥直通镇口，南桥落在镇子南边（对岸都在 ±44 一线）
-  buildBridge(root, "x", -4, bounds.maxX + 0.2, 43);
-  buildBridge(root, "z", -14, bounds.maxZ + 0.2, 45);
+  // 两座跨河桥。跨度和承托面读同一份 BRIDGES——桥板画到哪儿、
+  // 人能走到哪儿，不可能再对不上
+  for (const bridge of BRIDGES) {
+    buildBridge(root, bridge.axis, bridge.at, bridge.from, bridge.to);
+  }
   buildOuterWorld(root, bounds);
   const petals = buildPetals(northZ);
   root.add(petals.points);

@@ -281,7 +281,20 @@ export type MapDefinition = {
    * 只挡人不挡镜头。门口要留缺口：矩形按建筑主体划，门前的台阶、雨棚
    * 不算在内，否则人站不到自家门口。
    */
-  outdoorBlockers?: { minX: number; maxX: number; minZ: number; maxZ: number }[];
+  outdoorBlockers?: {
+    minX: number;
+    maxX: number;
+    minZ: number;
+    maxZ: number;
+    /**
+     * 这东西有多高。**只有相机在意**——挡人是二维的事，挡镜头不是。
+     *
+     * 不填按店铺那种整栋楼算（RoomScene 里的默认值）。据点那圈 0.9 的
+     * 矮围墙必须填：按整栋楼算的话，人在院子里镜头会被自家院墙顶住，
+     * 而现实中你一眼就能望过一道齐腰的墙。
+     */
+    height?: number;
+  }[];
 
   /**
    * 声明的可走固定件（楼梯、平台）。**声明即碰撞**：写在这里的面

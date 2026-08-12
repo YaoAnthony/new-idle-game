@@ -4,6 +4,7 @@ import {
   buildGroundMap,
   canPassAt,
   groundSurfaceAt,
+  isStandable,
   surfaceElevationAt,
   surfaceHeightAt,
   type GroundMap,
@@ -215,6 +216,17 @@ export function isWalkable(
   selfId?: string,
 ): boolean {
   if (hitsCreature(x, z, radius, selfId)) return false;
+
+  /*
+   * **太陡就站不住**（2026-08-12）。这一条挡的是"斜切岸壁溜进河里"：
+   * 迈步规则只看单步落差，而斜着走能把落差摊到任意小——连续的高度场
+   * 里永远有一条足够缓的斜路。改成问"这个点站不站得住"之后，整条岸壁
+   * 不再是可走面，从哪个角度靠近都一样。
+   *
+   * 放在 isWalkable 里而不是导航模块里：这样寻路和玩家按 WASD 走
+   * 拿到的是同一个答案（控制器也调它）。平地上恒为真，零行为变化。
+   */
+  if (!isStandable(currentGround(), x, z)) return false;
 
   const halfW = worldState.room.floorGrid.width / 2;
   const halfD = worldState.room.floorGrid.height / 2;

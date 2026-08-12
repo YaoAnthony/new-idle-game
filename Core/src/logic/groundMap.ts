@@ -198,6 +198,54 @@ export function canStepUp(fromElevation: number, toElevation: number): boolean {
   return toElevation - fromElevation <= MAX_STEP_UP;
 }
 
+/**
+ * 站得住的最大坡度（高度差 / 水平距离）。1.0 = 45°。
+ *
+ * **为什么光有"一步迈多高"不够**（2026-08-12，挖河那天泛洪抓到的）：
+ * 迈步规则问的是"这一步落差多少"，而落差 = 坡度 × 这一步在坡上的
+ * 水平投影。**斜着走可以把投影拉得任意长**——岬角东北角那段岸线是
+ * 斜的，人朝正南走就是斜切过岸壁，1.2 米宽的坡被摊成 3 米，每步只
+ * 降 0.75，全程合法，于是溜进了河里。
+ *
+ * 这不是把岸壁修陡能解决的：坡度的方向分量 = |∇h|·cos(θ)，θ 一大
+ * 就一定小于任何步高上限。连续的高度场里**永远存在一条足够缓的斜路**。
+ *
+ * 所以要换个问法：不问"这一步能不能迈"，问"**那个点站不站得住**"。
+ * 太陡的地方根本不是可走面，从哪个角度靠近都一样。这是地形引擎的
+ * 通行做法（Unity NavMesh 的 maxSlope、UE 的 walkable floor angle）。
+ */
+export const MAX_WALKABLE_SLOPE = 1.0;
+
+/**
+ * 面在这一点有多陡（梯度模长）。中心差分，只问**这个面自己**的形状。
+ *
+ * 只问自己是关键：平台的边缘是**故意**不连续的（那正是"平台"的定义），
+ * 跨面去算梯度的话，桥沿、缘侧沿、挡土墙顶会全部变成站不住的地方。
+ */
+export function surfaceSlopeAt(
+  surface: GroundSurface,
+  x: number,
+  z: number,
+): number {
+  if (!surface.heightfield && !surface.slope) return 0;
+  const h = 0.25;
+  const dx =
+    (surfaceElevationAt(surface, x + h, z) - surfaceElevationAt(surface, x - h, z)) /
+    (h * 2);
+  const dz =
+    (surfaceElevationAt(surface, x, z + h) - surfaceElevationAt(surface, x, z - h)) /
+    (h * 2);
+  return Math.hypot(dx, dz);
+}
+
+/**
+ * 这一点站不站得住。太陡就不是可走面——**悬崖靠这条成立**，
+ * 不靠任何手写的禁行盒。
+ */
+export function isStandable(ground: GroundMap, x: number, z: number): boolean {
+  return surfaceSlopeAt(groundSurfaceAt(ground, x, z), x, z) <= MAX_WALKABLE_SLOPE;
+}
+
 /** 从 fromElevation 往下迈到 toElevation 会不会太深（跳崖） */
 export function canStepDown(fromElevation: number, toElevation: number): boolean {
   return fromElevation - toElevation <= MAX_STEP_DOWN;

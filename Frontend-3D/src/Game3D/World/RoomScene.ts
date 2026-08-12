@@ -2062,7 +2062,9 @@ export class RoomScene {
           minX: rect.minX - 0.3,
           maxX: rect.maxX + 0.3,
           minY: -map.floorLevel,
-          maxY: 12,
+          // 不填按整栋楼算（12 是店铺连屋脊的经验值，宁高勿低）。
+          // 填了的按填的来——据点那圈 0.9 的矮围墙不该把镜头顶住
+          maxY: -map.floorLevel + (rect.height ?? 12),
           minZ: rect.minZ - 0.3,
           maxZ: rect.maxZ + 0.3,
         })),

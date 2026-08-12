@@ -103,7 +103,15 @@ export function bakeHeightfield(recipe: TerrainRecipe): GroundHeightfield {
       // 后面的形状盖前面的（作者是按"先铺大地再挖河"的顺序想的）
       for (const shape of recipe.shapes) {
         const weight = influenceAt(shape, x, z);
-        if (weight > 0) height += (shape.elevation - height) * weight;
+        /*
+         * 满权重**直接赋值**，不走插值。`h + (e - h) * 1` 在浮点下不等于
+         * `e`：−4.95 + 4.5 = −0.44999999999999996。差的这 1e-17 肉眼当然
+         * 看不见，但"院子标高恰好等于 −0.45"是一堆地方在用 === 断言的
+         * 事实（家具落地、缘侧齐平），一位小数的尾巴会让它们全线飘红。
+         * 形状**内部**本来就该是精确的形状标高，插值只属于过渡带。
+         */
+        if (weight >= 1) height = shape.elevation;
+        else if (weight > 0) height += (shape.elevation - height) * weight;
       }
       heights[row * columns + column] = height;
     }

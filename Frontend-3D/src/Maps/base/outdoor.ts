@@ -60,8 +60,16 @@ const TREE_GREEN_LIGHT = PALETTE.leafGreen;
 const TRUNK_BROWN = PALETTE.wallTrim;
 const RIVER_BLUE = PALETTE.waterBlue;
 const RIVER_FOAM = "#dcedf4";
-/** 墙外土路。和 town 的路面同色——两张图的路要认得出是同一种路 */
-const PATH_DIRT = "#c3a06e";
+/*
+ * 据点**没有土路**了。原来西门外那条用的是和小镇路面同色的 PATH_DIRT，
+ * 那正是"看着像第三条通往小镇的路"的由来——去镇上只有两座桥，
+ * 岛上不该有第三条官道。
+ */
+/**
+ * 林间小径。**刻意和 PATH_DIRT 不同族**：土路是"通向某处的官道"，
+ * 小径是"被踩秃的草"。西门外那条不通小镇，它就不能长得像那两条桥路。
+ */
+const FOREST_TRAIL = "#8f9668";
 
 /*
  * 水面和岸壁**从地形数据推**，不再各写一个数（2026-08-12）。
@@ -721,14 +729,40 @@ function buildOuterWorld(root: Object3D, bounds: DeckRect): void {
     seed += 1;
   }
 
-  // 西门外的林间土路：出门往西钻进森林。**这条路不通小镇**——
-  // 去镇上要过桥；西面是林子，留给以后的森林区域
-  const road = box([26, 0.06, 2.4], {
-    color: PATH_DIRT,
-    position: [bounds.minX - 14, -0.035, -8],
-  });
-  road.receiveShadow = true;
-  root.add(road);
+  /*
+   * 西门外的**林间小径**。这条路不通小镇——去镇上要过桥，西面是林子，
+   * 留给以后的森林区域。
+   *
+   * 上一版它是一条 26 米长、2.4 米宽的 PATH_DIRT 直条，**和通往小镇的
+   * 那两条路一模一样**。结果从空中数出口是三个，玩家凭什么知道其中
+   * 一条不通？用户一眼就点出来了："我给你的地图是只有两条路去小镇，
+   * 你怎么变出3条了"。
+   *
+   * 所以现在它必须**长得不像一条路**：
+   *  - 换色：土路是"人走出来的官道"，小径用踩秃的草色，不是一个族
+   *  - 越往西越窄、越淡，最后被林子吞掉——尽头是"看不清了"而不是
+   *    "断在这儿"。断头路和岔路口一样会招人去走
+   *  - 分段画而不是一根长条，才有收窄的余地
+   */
+  const TRAIL_FROM = bounds.minX - 1.5;
+  const TRAIL_TO = -52;
+  const TRAIL_STEPS = 7;
+  for (let i = 0; i < TRAIL_STEPS; i += 1) {
+    const t0 = i / TRAIL_STEPS;
+    const t1 = (i + 1) / TRAIL_STEPS;
+    const x0 = TRAIL_FROM + (TRAIL_TO - TRAIL_FROM) * t0;
+    const x1 = TRAIL_FROM + (TRAIL_TO - TRAIL_FROM) * t1;
+    // 宽度 1.9 → 0.5，末段基本只剩一道印子
+    const width = 1.9 - 1.4 * t0;
+    const segment = box([Math.abs(x1 - x0) + 0.2, 0.05, width], {
+      color: jitterShade(FOREST_TRAIL, i * 3.7, 0.05),
+      // 小径顺着地形轻微摆，直线一看就是画上去的
+      position: [(x0 + x1) / 2, -0.04, -8 + Math.sin(i * 1.1) * 0.7],
+      castShadow: false,
+    });
+    segment.receiveShadow = true;
+    root.add(segment);
+  }
 
   // 对岸（东）的小镇屋影：盒身+坡顶+烟囱，雾里当剪影，不是能去的建筑
   const ROOFS = ["#5c6b80", "#7d5a52", "#5f7361"];

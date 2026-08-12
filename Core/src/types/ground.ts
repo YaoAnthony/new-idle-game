@@ -51,6 +51,37 @@ export type GroundSlope = {
   toElevation: number;
 };
 
+/**
+ * 高度场：一张规则网格的标高表，格点之间双线性插值。
+ *
+ * 这是标高的**第三种答法**（前两种：常数、单轴线性坡）。加它的直接
+ * 原因是那条河：水面原来只比院子低 0.42，而"落差"根本没进承托面——
+ * 拦住人的是一个隐形矩形，桥只是架在路沿上的装饰。真要挖出河谷，
+ * 岸壁就得是地形本身。
+ *
+ * 为什么是网格不是更多矩形平台：小镇地形图里每一块台地都是肾形的，
+ * 矩形拼不出那些边界；而"缓坡""微起伏"这类词，矩形连近似都做不了。
+ *
+ * **陡度即障碍**：MAX_STEP_UP 0.55 配 0.5 的导航格 = 最大可走坡度约
+ * 47°。所以岸壁只要比这陡，寻路和迈步就都过不去——悬崖不用声明，
+ * 它是地形形状的推论。这正是"碰撞必须自动推导"那条规矩要的东西。
+ *
+ * 采样间距建议 1.0~1.5：0.5 的话一张 130×120 的图要 12 万面，
+ * 这种画风没有 LOD 撑不住；而 1.5 的格子在 47° 上限下仍能表达
+ * 2.2 米的单格落差，够陡了。
+ */
+export type GroundHeightfield = {
+  /** heights[0] 对应的世界坐标 */
+  originX: number;
+  originZ: number;
+  /** 格距（世界单位 = 米） */
+  spacing: number;
+  columns: number;
+  rows: number;
+  /** 行主序，长度 = columns * rows。索引 = row * columns + column */
+  heights: number[];
+};
+
 export type GroundSurface = {
   surfaceId: string;
   kind: GroundKind;
@@ -70,10 +101,52 @@ export type GroundSurface = {
    */
   rect: GroundRect | null;
 
-  /** 平面标高（世界 Y）。带 slope 时只作兜底值，查询以 slope 为准 */
+  /**
+   * 平面标高（世界 Y）。带 slope 或 heightfield 时只作兜底值，
+   * 查询以那两个为准（同时给了以 heightfield 优先——它更具体）。
+   */
   elevation: number;
 
   slope?: GroundSlope;
+
+  /** 起伏地形。给了之后这个面的标高逐点采样，见 GroundHeightfield */
+  heightfield?: GroundHeightfield;
+};
+
+/**
+ * 一块地：闭合轮廓 + 目标标高 + 岸壁过渡宽度。地形的**作者视角**。
+ *
+ * 不手写高度网格是因为没人写得动，也没人读得懂——写"岬角这块地
+ * 高 0，岸壁 1.5 米宽过渡到河床"是人话，一张 60×50 的数组不是。
+ * 网格由 bakeHeightfield 从这些形状烤出来，地形网格和碰撞都读那一份。
+ */
+export type TerrainShape = {
+  shapeId: string;
+  /** 闭合多边形（世界坐标，首尾不用重复）。绕向随意 */
+  outline: Array<readonly [number, number]>;
+  elevation: number;
+  /**
+   * 边缘往外过渡多宽（米）。**0 = 断崖**，2 = 两米内落到底。
+   * 岸壁要陡就给小值：低于约 0.9 米宽、落差 1 米以上就已经超过
+   * 47° 的可走上限，自动成为障碍。
+   */
+  falloff: number;
+};
+
+/**
+ * 一张图的地形配方。形状**按顺序叠加，后面的盖前面的**——
+ * 和承托面列表"第一个命中的赢"相反，这里是绘画的顺序（后画的在上），
+ * 因为作者想的是"先铺一片大地，再在上面挖河、垫台地"。
+ */
+export type TerrainRecipe = {
+  originX: number;
+  originZ: number;
+  spacing: number;
+  columns: number;
+  rows: number;
+  /** 兜底标高：所有形状都没盖到的地方。据点这里是河床 */
+  base: number;
+  shapes: TerrainShape[];
 };
 
 /**

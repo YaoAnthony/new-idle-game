@@ -1,4 +1,9 @@
-import { GestureKind, Locomotion, canStepUp, type PoseId } from "core";
+import {
+  GestureKind,
+  Locomotion,
+  canStep as canStepBetween,
+  type PoseId,
+} from "core";
 import { MathUtils } from "three";
 import { getHeld } from "../../Game/State/heldItem";
 import {
@@ -312,13 +317,17 @@ export class CharacterController {
       const stepZ = worldZ * throttle * speed * deltaSeconds;
 
       /*
-       * 能不能挪过去 = 平面上走得通 **且** 那儿的落脚面不比现在高出一步。
+       * 能不能挪过去 = 平面上走得通 **且** 那儿的落脚面在一步之内。
        * 高度这一半只有这里知道——walkable 不清楚"我现在站多高"
        * （站在院子里和站在缘侧上，对同一格缘侧的答案是不同的）。
+       *
+       * **上下都要判**（2026-08-12）。原来只判上行，于是人可以径直
+       * 走下任意深的坑——平地时代看不出来，挖出河谷之后就是"徒步走
+       * 进河里再也上不来"。现在和寻路问的是同一个 canStep。
        */
       const canStep = (nx: number, nz: number): boolean =>
         isWalkable(nx, nz, RADIUS, PLAYER_OBSTACLE_ID) &&
-        canStepUp(this.supportY, groundHeightAt(nx, nz));
+        canStepBetween(this.supportY, groundHeightAt(nx, nz));
 
       // 轴分离：撞墙时沿另一轴滑动。
       // 如果当前已经卡在阻挡格里（比如家具放在了人身上），放开限制让人走出来

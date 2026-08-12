@@ -9,7 +9,7 @@ import type {
   WallId,
 } from "./base.js";
 import type { BuildingPlacement } from "./building.js";
-import type { GroundSurface } from "./ground.js";
+import type { GroundHeightfield, GroundSurface } from "./ground.js";
 import type { RoomStyleDefinition } from "./roomStyle.js";
 
 export enum WallOpeningKind {
@@ -289,6 +289,15 @@ export type MapDefinition = {
    * 这是"建完楼梯自动能走"的入口。视觉建模从同一份声明取尺寸。
    */
   groundFixtures?: GroundSurface[];
+
+  /**
+   * 这张图的起伏地形。给了它，室外大地就不再是一块平板，而是逐点
+   * 采样的高度场——**地形网格和通行判定读的是同一份**。
+   *
+   * 一般不手写，用 `bakeHeightfield(recipe)` 从轮廓烤（见 terrainBake）。
+   * 不给 = 老行为，一整块平的 -floorLevel。
+   */
+  terrainHeightfield?: GroundHeightfield;
 
   /**
    * 这张图上立着哪些楼（实例）。型号住在 Frontend 的 Buildings 注册表。

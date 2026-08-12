@@ -1,4 +1,4 @@
-import { canStepUp, yardBoundsOf } from "core";
+import { MAX_STEP_DOWN, canStepUp, yardBoundsOf } from "core";
 import { on } from "../EventBus";
 import {
   PLAYER_OBSTACLE_ID,
@@ -38,10 +38,13 @@ const CELL = 0.5;
 /** 走路的家伙的碰撞半径。和 CharacterController 的 RADIUS 一致 */
 const ACTOR_RADIUS = 0.32;
 /**
- * 允许往下迈多深。上行由 canStepUp 管（一步高 0.55），下行放宽到 1.6：
- * 从台子上跳下来是合理的，但不能让寻路把人从高处的边缘"抄近道"扔下去。
+ * 允许往下迈多深——**改从 Core 读**（2026-08-12）。
+ *
+ * 这个数原来是本地常量 1.6，和 Core 那边上行的 0.55 各管一头。挖河谷
+ * 那天暴露了代价：寻路按 1.6 判、角色迈步压根不判下行，于是同一道岸壁
+ * 三个模块三种答案。迈步规则只能有一份，见 Core 的 MAX_STEP_DOWN。
  */
-const MAX_DROP = 1.6;
+const MAX_DROP = MAX_STEP_DOWN;
 /** A* 的节点上限。超了就认输——宁可不走，也不要卡住一帧 */
 const MAX_NODES = 60000;
 

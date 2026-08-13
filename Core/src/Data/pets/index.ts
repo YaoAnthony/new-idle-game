@@ -19,13 +19,14 @@ export const petDefinitions = [
     defaultNicknameKey: "pet.moss_wisp.nickname",
     visualId: "moss_wisp",
     species: "wisp",
-    /**
-     * 原来这两个对话 id 和 pet_arrival 事件是直接写死在 RoomScene 的
-     * F 键处理里的——加舒舒才发现那处理只认得苔灵一个物种。挪进这里，
-     * F 交互只需要问"这只宠物的对话在哪"，不需要知道有几种宠物。
+    /*
+     * dialogues / bondEventId 随旧剧情一起摘掉了（2026-08-13）。
+     *
+     * 这两个字段是**对话在哪、认没认识过**的认领口——RoomScene 的 F 交互
+     * 按它们查，不认识具体物种（原来那处理写死了苔灵两个字面量 id，
+     * 加舒舒才发现只认得一只）。新剧情写好对话之后填回来即可，
+     * 交互那段一行不用动。字段空着时按 F 静默不出对话。
      */
-    dialogues: { firstMeet: "moss_wisp_first_meet", casual: "moss_wisp_casual" },
-    bondEventId: "pet_arrival",
   },
   {
     id: "foam_wisp",
@@ -65,8 +66,7 @@ export const petDefinitions = [
     },
     /** 体宽约 1.6 米，圆形碰撞半径取到肩宽略收——蹭着毛边走得过去 */
     collisionRadius: 0.95,
-    dialogues: { firstMeet: "shushu_first_meet", casual: "shushu_casual" },
-    bondEventId: "shushu_bond",
+    // 同上：对话与羁绊事件等新剧情写好再认领
   },
 ] satisfies PetDefinition[];
 

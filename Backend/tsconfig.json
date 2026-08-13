@@ -4,16 +4,31 @@
     "lib": ["ES2022"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "rootDir": "src",
-    "outDir": "dist",
     "strict": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "sourceMap": true,
-    "declaration": true
+    "noEmit": true,
+
+    /*
+     * **开发期直接读 Core 的源码**，和 Frontend-3D 对齐（那边是
+     * `tsconfig.app.json` 的 paths + vite alias 指向同一个文件）。
+     *
+     * 原来这里没有映射，`import "core"` 走 node 解析 → Core/package.json
+     * 的 exports → `Core/dist/index.js`。代价是 Core 改完必须先 tsc 一遍：
+     * 没 build 过时报 "Cannot find module 'core'"；**build 过期时更糟**
+     * ——它拿着旧的 .d.ts 一路绿灯，骗你说类型没问题。
+     *
+     * 这一份是**默认配置**（`tsx` 不带参数时读的就是它），所以 dev / test /
+     * typecheck 三条路都自动走源码，不需要任何 pre 钩子。
+     * 真正要产出 dist 的构建走 `tsconfig.build.json`。
+     */
+    "baseUrl": ".",
+    "paths": {
+      "core": ["../Core/src/index.ts"]
+    }
   },
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "../Core/src/**/*.ts"],
   "exclude": ["dist", "node_modules"]
 }

@@ -6,15 +6,15 @@
   "type": "module",
   "main": "dist/server.js",
   "scripts": {
-    "predev": "npm --prefix ../Core run build",
     "dev": "tsx watch src/server.ts",
-    "pretest": "npm --prefix ../Core run build",
     "dev:nodemon": "nodemon",
-    "build": "tsc -p tsconfig.json",
+    "test": "tsx --test tests/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "typecheck:tests": "tsc -p tsconfig.test.json",
+    "prebuild": "npm --prefix ../Core run build",
+    "build": "tsc -p tsconfig.build.json",
     "start": "node dist/server.js",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "clean": "rimraf dist",
-    "test": "tsx --test tests/*.test.ts"
+    "clean": "rimraf dist"
   },
   "keywords": [],
   "dependencies": {

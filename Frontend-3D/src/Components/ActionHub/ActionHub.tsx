@@ -23,7 +23,7 @@ import { getDefinition, getWorld } from "../../Game/State/worldRuntime";
 import { t } from "../../i18n/t";
 
 /**
- * 行动面板。三屏，对照 版本期望/figures 的像素稿：
+ * 行动面板。三屏，对照 `old/版本期望/figures` 的像素稿：
  *
  *   A 分类网格（四张卡 + 数字角标 + 锁定态）
  *     → B 分类列表（信纸区 + 已存的行动 + 添加按钮）

@@ -4,7 +4,8 @@ import type { ItemQuality } from "./inventory.js";
 import type { ItemId } from "./items.js";
 
 /**
- * 厨房系统的共享类型（设计见 `版本期望/V0.X - 厨房系统.md`）。
+ * 厨房系统的共享类型（当初的设计草案在 `old/版本期望/V0.X - 厨房系统.md`，
+ * 那是历史档案不是规格——实现以本文件和 `logic/cookingRules.ts` 为准）。
  *
  * 三条铁律，都是为了"加内容不改代码"：
  * 1. 厨具、加工方式、配方全部是注册表数据，没有任何字面量联合类型

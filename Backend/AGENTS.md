@@ -4,9 +4,12 @@ Backend 用于支持可选的在线能力和权威操作，不拥有离线 Core 
 
 ## 必须阅读的 Context
 
-阅读仓库根目录的 `AGENTS.md`、`README.md`、`版本期望/整体架构.md`、`版本期望/V0.2 - 游戏架构.md`，以及 `Core/src/types/` 和 `Core/src/Data/` 中与当前 Backend 工作相关的共享数据结构。
+1. 仓库根目录的 `AGENTS.md` 和 `README.md`。
+2. `contracts/multiplayer_protocol.md` —— 人读的协议语义与生命周期。
+3. **`Core/src/types/net.ts`** —— 消息形状的**唯一真相源**，客户端和服务端 import 的是同一个文件。协议改动两边同步改。
+4. `Core/src/types/` 和 `Core/src/Data/` 中与当前工作相关的共享数据结构。
 
-Godot 文档只在明确处理 `godot/` 客户端兼容或历史迁移时读取。
+`old/` 里的设计草案（含 `整体架构.md`、`V0.2 - 游戏架构.md`）是历史档案，**不是规格**，其中一部分已经过期。需要设计意图时可以查，但冲突一律以代码为准。
 
 ## Backend 所有权
 

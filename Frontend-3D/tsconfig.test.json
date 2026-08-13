@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.test.tsbuildinfo",
+    "types": ["vite/client", "node"],
+    /*
+     * 测试文件里大量存在"故意造一份坏数据"的写法（缺字段的存档、
+     * 越界的槽位号）。它们本来就该编译不过，用 @ts-expect-error 逐个
+     * 标注太吵，所以这一档只做**引用是否存在**的检查——真正的类型
+     * 契约由 src 自己那份 typecheck 保证。
+     */
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
+  },
+  "include": ["src", "tests", "../Core/src"]
+}

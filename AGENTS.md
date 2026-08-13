@@ -1,45 +1,54 @@
 # Repository Agent 指南
 
-本仓库当前转为 **Phaser 网页端优先**。Godot 版本暂时暂停，Godot 专属 Harness、Version、Eval 和历史架构文档保留在 `godot/` 内部，只有在明确处理 Godot 客户端时才读取和遵守。
+主客户端是 **`Frontend-3D/`**（React + Vite + 自研 three.js 场景）。
+
+**活的只有三个包：`Frontend-3D/`、`Core/`、`Backend/`。** 早期的 Phaser 客户端、Godot 客户端、地图工具和全部设计草案已经收进 `old/`——那里的东西只作考古用，不构建、不测试、不参与依赖，**也不要照它们的写法办事**。
 
 ## 必须阅读的入口
 
-规划或实现功能前，依次阅读：
+规划或实现功能前，依次读：
 
-1. `README.md`：当前项目方向和目录职责。
-2. `版本期望/整体架构.md`：长期产品愿景。
-3. `版本期望/V0.2 - 游戏架构.md`：当前 Web/Phaser 架构草案。
-4. 即将修改目录中距离最近的 `AGENTS.md`。
-5. `Core/src/` 中已有共享 type，涉及数据结构时优先复用或扩展它们。
+1. **`README.md`** —— 当前真实架构、分层纪律、贯穿全局的规矩。这是唯一的架构入口。
+2. 即将修改目录中距离最近的 `AGENTS.md`（今天只有 `Backend/AGENTS.md`）。
+3. **要动的那几个文件本身**。这个项目的代码注释密度很高，几乎每个非显然的决定都写了为什么、以及否掉了哪些备选。改之前读注释，比读任何文档都准。
+4. `Core/src/types/` 里已有的共享 type——涉及数据结构时优先复用或扩展，不要另造一套。
 
-不要再默认从 `godot/HARNESS.md` 或 `godot/docs/versions/` 开始规划 Web 客户端工作。那些文件只约束 `godot/` 内部。
+### `old/版本期望/` 不是规格
+
+那 18 篇是**按版本组织的路线图**，记录的是当时的设计意图，**不等于已实现代码，其中一部分已经过期**。
+
+`old/版本期望/整体架构.md` 尤其要小心：它的「第一天流程」和「事件解锁功能」两节描述的是**已经删除的租房剧情**，照它规划会做出一个不存在的游戏。它现在是历史档案，不再是必读入口。
+
+需要设计意图时可以查它们，但**任何冲突一律以代码和 `README.md` 为准**。
 
 ## Repository 所有权
 
-- `Frontend/`：当前主要 Phaser + React + Vite 网页游戏客户端。
-- `Core/`：前后端共享 TypeScript types、内容注册表数据和轻量数据工具；不得依赖 Phaser、React、Express 或 Godot。
-- `Backend/`：身份、Cloud Save、Multiplayer 权威逻辑与传输、LLM Provider 和 Commerce 验证。
-- `godot/`：暂停的 Godot 客户端与 Godot 专属文档；除非用户明确要求恢复 Godot，否则不继续扩展。
-- `版本期望/`：产品与版本期望草案，作为设计来源，不等于已实现代码。
+- **`Frontend-3D/`** —— 主客户端。three.js / React / Canvas / 音频播放 / 资源加载全部属于这里。
+- **`Core/`** —— 前后端共享的 TS 契约：`types/`（数据形状）、`logic/`（纯规则）、`Data/`（内容注册表）。**不得依赖 three.js、React、Express**。
+- **`Backend/`** —— 可选的在线能力。今天只实现了联机会话；身份、云存档、LLM、商业化都还是空壳。
+- `contracts/` —— 人读的联机协议说明。形状的真相在 `Core/src/types/net.ts`，两边必须同步改。
+- **`old/`** —— 全是历史（旧 Phaser 客户端、Godot 客户端、地图工具、18 篇设计草案）。**不要扩展，不要修，也不要"顺手清理一下"**；它存在的意义就是留着能翻。
 
 ## 全局约束
 
-- 不得在 gameplay scripts 中 hardcode 内容、物理按键、用户可见文本、Service URL、Balance 数值或 Save Version。
-- 本地 Core Loop 必须在无 Login、无网络 Service 时正常运行。
-- Client 中不得包含 Secret 或权威在线奖励逻辑。
-- Durable State 的变更必须分析 Save 和 Migration 影响。
-- 共享在线行为的变更必须分析 Contract 影响。
-- 共享数据结构优先放在 `Core/src/types/`，共享注册表数据优先放在 `Core/src/Data/`。
-- Phaser、React、Canvas、音频播放和资源加载逻辑属于 `Frontend/`，不要塞进 `Core/`。
-- Backend 不得复制一份独立的内容规则；需要校验时读取或引用 `Core` 的类型和注册表。
-- 发现无关的既有改动时，只报告，不修改。
+- **内容零硬编码**。gameplay 代码里不得出现内容分支、平衡数值、用户可见文案、物理按键字面量、Service URL、存档版本号。共享数据结构进 `Core/src/types/`，内容与平衡数值进 `Core/src/Data/`。
+- **本地核心循环必须在没有登录、没有网络的情况下正常运行。**
+- Client 里不得有 Secret，也不得有权威的在线奖励逻辑。
+- **改 Durable State 必须分析存档与迁移影响**；改共享在线行为必须分析契约影响。
+- `Backend` 不得复制一份独立的内容规则——要校验就读 `Core` 的类型和注册表。
+- **世界的东西归世界，人的东西跟着人走**（`WorldSave` vs `PlayerSave`）。加字段前先想清楚它属于哪一边，联机时这条决定它落进谁的存档。
+- 发现无关的既有改动时，**只报告，不修改**。
+
+## 关于 `.claude/rules/`
+
+仓库里装了 Claude Code Game Studios 模板，`.claude/rules/` 下有 11 条通用编码规范。它们是泛用模板，**和本文冲突时以本文为准**——这个项目的约束更具体，而且多数是踩出来的。
 
 ## 完成要求
 
-每次实现或文档调整都应报告：
+每次实现或文档调整都要报告：
 
-- Player-visible 或 developer-visible 结果。
-- Changed Files。
-- 执行过的 typecheck/build/test。
-- Save、Schema、API 或共享 type 影响。
-- Known Limitations。
+- Player-visible 或 developer-visible 的结果
+- 改了哪些文件
+- 跑过的 typecheck / build / test（**三个包各有 `test` 和 `typecheck:tests`**）
+- 存档、Schema、API 或共享 type 的影响
+- 已知限制

@@ -36,6 +36,7 @@
 - Client 里不得有 Secret，也不得有权威的在线奖励逻辑。
 - **改 Durable State 必须分析存档与迁移影响**；改共享在线行为必须分析契约影响。
 - `Backend` 不得复制一份独立的内容规则——要校验就读 `Core` 的类型和注册表。
+- **和 server 说话只能在 `Frontend-3D/src/Api/` 里**。`socket.emit` / `socket.on` / `NET_EVENTS` / `NET_PROTOCOL_VERSION` 出现在 `Api/` 之外就是违规；`Game/` 一律调 `Api/game/websocket` 导出的类型化函数。反向也不许：`Api/` 不得 import `Game/`（入站用回调交出去，别在 `Api/` 里发 EventBus）。`tests/netBoundary.test.ts` 会拦。
 - **世界的东西归世界，人的东西跟着人走**（`WorldSave` vs `PlayerSave`）。加字段前先想清楚它属于哪一边，联机时这条决定它落进谁的存档。
 - 发现无关的既有改动时，**只报告，不修改**。
 

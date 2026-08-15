@@ -1,50 +1,78 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { Facing, NET_EVENTS, type GameSave, type WorldSave } from "core";
+import { Facing, type GameSave, type WorldSave } from "core";
 
-// ---- 假 socket。必须在 import session 之前声明 ----
+// ---- 假 Api 层。必须在 import session 之前声明 ----
 
-type Handler = (payload: unknown) => void;
+type Listener = (payload: never) => void;
 
-/** 假 socket：记录出站、可手动灌入站，不碰真网络 */
-const fakeSocket = {
-  connected: true,
-  handlers: new Map<string, Handler[]>(),
-  outbound: [] as Array<{ event: string; payload: unknown }>,
-  /** 测试按事件名塞应答 */
+/**
+ * 假的 `Api/game/websocket`：记录出站、可手动灌入站，不碰真网络。
+ *
+ * **mock 的是 Api 而不是 socket**——`Game/Multiplayer` 现在只认识那一层
+ * 类型化函数，连事件名都不知道。用例因此也不用再拼协议载荷，
+ * 读起来就是"调了哪个函数、收到了什么"。
+ *
+ * 真实链路（前端载荷 ↔ 真后端）由 `Backend/tests` 那 91 个用例守着。
+ */
+const fakeApi = {
+  /** 出站记录。kind 是 Api 的函数名，不是线上事件名 */
+  outbound: [] as Array<{ kind: string; payload: unknown }>,
+  /** 测试塞 create / join 的应答 */
   replies: new Map<string, unknown>(),
+  listeners: new Map<string, Listener[]>(),
 
-  emit(event: string, payload: unknown) {
-    this.outbound.push({ event, payload });
+  record(kind: string, payload?: unknown) {
+    this.outbound.push({ kind, payload });
   },
-  async emitWithAck(event: string, payload: unknown) {
-    this.outbound.push({ event, payload });
-    const reply = this.replies.get(event);
-    if (!reply) throw new Error(`测试没有为 ${event} 准备应答`);
+  async ack(kind: string, payload: unknown) {
+    this.record(kind, payload);
+    const reply = this.replies.get(kind);
+    if (!reply) throw new Error(`测试没有为 ${kind} 准备应答`);
     return reply;
   },
-  on(event: string, handler: Handler) {
-    const list = this.handlers.get(event) ?? [];
-    list.push(handler);
-    this.handlers.set(event, list);
+  subscribe(kind: string, listener: Listener) {
+    const list = this.listeners.get(kind) ?? [];
+    list.push(listener);
+    this.listeners.set(kind, list);
+    return () => {
+      this.listeners.set(kind, (this.listeners.get(kind) ?? []).filter((l) => l !== listener));
+    };
   },
-  once(event: string, handler: Handler) {
-    this.on(event, handler);
-  },
-  off() {},
-
-  /** 从"服务端"推一条事件下来 */
-  inbound(event: string, payload: unknown) {
-    for (const handler of this.handlers.get(event) ?? []) handler(payload);
+  /** 从"服务端"推一条下来 */
+  inbound(kind: string, payload: unknown) {
+    for (const listener of this.listeners.get(kind) ?? []) (listener as (p: unknown) => void)(payload);
   },
   reset() {
     this.outbound = [];
   },
 };
 
-vi.mock("../src/Game/Net/socket", () => ({
-  getSocket: () => fakeSocket,
-  ensureConnected: async () => fakeSocket,
-  disconnectSocket: () => {},
+vi.mock("../src/Api/game/websocket", () => ({
+  ensureConnected: async () => {},
+  disconnect: () => {},
+  isConnected: () => true,
+
+  createSession: (r: unknown) => fakeApi.ack("create", r),
+  joinSession: (r: unknown) => fakeApi.ack("join", r),
+  leaveSession: async () => fakeApi.record("leave"),
+
+  sendTransform: (p: unknown) => fakeApi.record("transform", p),
+  sendAppearance: (p: unknown) => fakeApi.record("appearance", p),
+  sendGesture: (p: unknown) => fakeApi.record("gesture", p),
+  sendChat: (p: unknown) => fakeApi.record("chat", p),
+  sendWorldOp: (p: unknown) => fakeApi.record("op", p),
+  sendWorldRefresh: (p: unknown) => fakeApi.record("refresh", p),
+
+  onParticipantJoined: (l: Listener) => fakeApi.subscribe("participantJoined", l),
+  onParticipantLeft: (l: Listener) => fakeApi.subscribe("participantLeft", l),
+  onTransform: (l: Listener) => fakeApi.subscribe("transform", l),
+  onAppearance: (l: Listener) => fakeApi.subscribe("appearance", l),
+  onGesture: (l: Listener) => fakeApi.subscribe("gesture", l),
+  onChat: (l: Listener) => fakeApi.subscribe("chat", l),
+  onWorldOp: (l: Listener) => fakeApi.subscribe("worldOp", l),
+  onWorldRefresh: (l: Listener) => fakeApi.subscribe("worldRefresh", l),
+  onSessionEnded: (l: Listener) => fakeApi.subscribe("sessionEnded", l),
+  onDisconnect: (l: Listener) => fakeApi.subscribe("disconnect", l),
 }));
 
 import {
@@ -54,7 +82,7 @@ import {
   isRemoteWorldActive,
   joinSession,
   leaveSession,
-} from "../src/Game/Net/session";
+} from "../src/Game/Multiplayer/session";
 import { getSaveRepository } from "../src/Data/Save/SaveRepository";
 import { SAVE_KEYS, SAVE_SCHEMA_VERSION } from "../src/Data/Save/types";
 import { saveNow, setBaseline } from "../src/Data/Save/autosave";
@@ -150,15 +178,15 @@ async function settle(): Promise<void> {
 
 beforeEach(async () => {
   await settle();
-  fakeSocket.reset();
-  fakeSocket.replies.set(NET_EVENTS.c2s.sessionCreate, {
+  fakeApi.reset();
+  fakeApi.replies.set("create", {
     ok: true,
     sessionId: "s-test",
     joinCode: "ABC234",
     playerId: "p-host001",
     revision: 0,
   });
-  fakeSocket.replies.set(NET_EVENTS.c2s.sessionLeave, { ok: true });
+  
 
   await store.remove(SAVE_KEYS.main);
   await store.remove(SAVE_KEYS.backup);
@@ -195,16 +223,22 @@ describe("开房（房主）", () => {
     expect(getWorld().placedFurniture).toHaveLength(before);
   });
 
-  test("握手带上协议版本、存档版本和自己的位置", async () => {
+  test("建房请求带上存档版本、世界和自己的位置", async () => {
     await hostSession();
 
-    const create = fakeSocket.outbound.find((o) => o.event === NET_EVENTS.c2s.sessionCreate);
+    const create = fakeApi.outbound.find((o) => o.kind === "create");
     const payload = create?.payload as Record<string, unknown>;
-    expect(payload.protocolVersion).toBeTypeOf("number");
     expect(payload.saveSchemaVersion).toBe(SAVE_SCHEMA_VERSION);
     expect(payload.world).toBeTruthy();
     // 带上位置，晚加入的人第一帧就把房主摆对
     expect(payload.transform).toBeTruthy();
+
+    /*
+     * **`protocolVersion` 不在这儿**——它由 `Api/game/websocket/session.ts`
+     * 填，这一层压根不知道有协议版本这回事（少一个能忘的地方）。
+     * 它真的填对了由 Backend 的端到端用例验：版本不匹配服务端会拒连。
+     */
+    expect(payload.protocolVersion).toBeUndefined();
   });
 
   test("拿到服务端身份后，此后新发的对象 id 带上它", async () => {
@@ -225,7 +259,7 @@ describe("做客（房客）", () => {
   test("入房后运行时里是房主的世界", async () => {
     placeFurniture("furniture_table", { x: 3, y: 3 }, Facing.North);
     const host = hostWorld();
-    fakeSocket.replies.set(NET_EVENTS.c2s.sessionJoin, joinReply(host));
+    fakeApi.replies.set("join", joinReply(host));
 
     const swapped = vi.fn();
     const off = on("net_world_swapped", swapped);
@@ -240,10 +274,10 @@ describe("做客（房客）", () => {
   });
 
   test("房里已有的人先进名册，重挂载后第一帧就看得见", async () => {
-    fakeSocket.replies.set(NET_EVENTS.c2s.sessionJoin, joinReply(hostWorld()));
+    fakeApi.replies.set("join", joinReply(hostWorld()));
     await joinSession("ABC234");
 
-    const { listRemote } = await import("../src/Game/Net/roster");
+    const { listRemote } = await import("../src/Game/Multiplayer/roster");
     expect(listRemote().map((p) => p.playerId)).toEqual(["p-host001"]);
   });
 
@@ -255,7 +289,7 @@ describe("做客（房客）", () => {
     placeFurniture("furniture_table", { x: 3, y: 3 }, Facing.North);
     addItem("wood", 5);
 
-    fakeSocket.replies.set(NET_EVENTS.c2s.sessionJoin, joinReply(hostWorld()));
+    fakeApi.replies.set("join", joinReply(hostWorld()));
     await joinSession("ABC234");
 
     // 在房主家捡到点东西
@@ -280,7 +314,7 @@ describe("做客（房客）", () => {
     restoreLocalPosition({ mapId: "base", x: -3.25, y: 7.5, heading: 1.25 });
     const home = snapshotLocalPosition();
 
-    fakeSocket.replies.set(NET_EVENTS.c2s.sessionJoin, joinReply(hostWorld()));
+    fakeApi.replies.set("join", joinReply(hostWorld()));
     await joinSession("ABC234");
 
     // 在房主家走到别处（运行时里的坐标现在是别人家的）
@@ -300,7 +334,7 @@ describe("做客（房客）", () => {
 
   test("回家：世界换回自己的，做客期间的收获留着", async () => {
     placeFurniture("furniture_table", { x: 3, y: 3 }, Facing.North);
-    fakeSocket.replies.set(NET_EVENTS.c2s.sessionJoin, joinReply(hostWorld()));
+    fakeApi.replies.set("join", joinReply(hostWorld()));
     await joinSession("ABC234");
 
     addItem("iron_ingot", 2);
@@ -315,7 +349,7 @@ describe("做客（房客）", () => {
   });
 
   test("回家之后合成器卸掉，落盘恢复成照抄运行时", async () => {
-    fakeSocket.replies.set(NET_EVENTS.c2s.sessionJoin, joinReply(hostWorld()));
+    fakeApi.replies.set("join", joinReply(hostWorld()));
     await joinSession("ABC234");
     await leaveSession();
     await settle(); // 等回家那一次 void saveNow() 落地，免得它盖掉下面这次
@@ -332,11 +366,11 @@ describe("做客（房客）", () => {
 
   test("房主跑了：被动结束也走同一条回家路", async () => {
     placeFurniture("furniture_table", { x: 3, y: 3 }, Facing.North);
-    fakeSocket.replies.set(NET_EVENTS.c2s.sessionJoin, joinReply(hostWorld()));
+    fakeApi.replies.set("join", joinReply(hostWorld()));
     await joinSession("ABC234");
     addItem("iron_ingot", 1);
 
-    fakeSocket.inbound(NET_EVENTS.s2c.sessionEnded, { reason: "host_left" });
+    fakeApi.inbound("sessionEnded", { reason: "host_left" });
 
     expect(getSessionState().kind).toBe("idle");
     expect(getWorld().placedFurniture.map((p) => p.furnitureId)).toEqual(["furniture_table"]);
@@ -345,7 +379,7 @@ describe("做客（房客）", () => {
 
   test("回标题：房客先把自家世界灌回去，App 的存盘才不会写错", async () => {
     placeFurniture("furniture_table", { x: 3, y: 3 }, Facing.North);
-    fakeSocket.replies.set(NET_EVENTS.c2s.sessionJoin, joinReply(hostWorld()));
+    fakeApi.replies.set("join", joinReply(hostWorld()));
     await joinSession("ABC234");
 
     emit("ui_return_to_title", {});
@@ -360,13 +394,13 @@ describe("做客（房客）", () => {
   });
 
   test("已经在房里时再入房要报错", async () => {
-    fakeSocket.replies.set(NET_EVENTS.c2s.sessionJoin, joinReply(hostWorld()));
+    fakeApi.replies.set("join", joinReply(hostWorld()));
     await joinSession("ABC234");
     await expect(joinSession("XYZ789")).rejects.toThrow();
   });
 
   test("服务端拒绝时抛出人话，状态留在 idle", async () => {
-    fakeSocket.replies.set(NET_EVENTS.c2s.sessionJoin, {
+    fakeApi.replies.set("join", {
       ok: false,
       code: "not_found",
       message: "没有这个邀请码的房间",
@@ -381,29 +415,29 @@ describe("做客（房客）", () => {
 
 describe("op 通道", () => {
   test("单机时本地突变不往外发", async () => {
-    fakeSocket.reset();
+    fakeApi.reset();
     placeFurniture("furniture_table", { x: 3, y: 3 }, Facing.North);
 
-    expect(fakeSocket.outbound.filter((o) => o.event === NET_EVENTS.c2s.worldOp)).toEqual([]);
+    expect(fakeApi.outbound.filter((o) => o.kind === "op")).toEqual([]);
   });
 
   test("会话中本地突变转发给全房", async () => {
     await hostSession();
-    fakeSocket.reset();
+    fakeApi.reset();
 
     placeFurniture("furniture_table", { x: 3, y: 3 }, Facing.North);
     await Promise.resolve(); // sendOp 走的是 ensureConnected().then
 
-    const ops = fakeSocket.outbound.filter((o) => o.event === NET_EVENTS.c2s.worldOp);
+    const ops = fakeApi.outbound.filter((o) => o.kind === "op");
     expect(ops).toHaveLength(1);
     expect((ops[0].payload as { kind: string }).kind).toBe("furniture_placed");
   });
 
   test("收到别人的 op 在本地重放，且不再广播回去（无回环）", async () => {
     await hostSession();
-    fakeSocket.reset();
+    fakeApi.reset();
 
-    fakeSocket.inbound(NET_EVENTS.s2c.worldOp, {
+    fakeApi.inbound("worldOp", {
       playerId: "p-guest01",
       op: {
         kind: "furniture_placed",
@@ -424,7 +458,7 @@ describe("op 通道", () => {
 
     expect(getWorld().placedFurniture.map((p) => p.furnitureId)).toContain("furniture_chair");
     // 重放入口不发 world_op，所以没有回环
-    expect(fakeSocket.outbound.filter((o) => o.event === NET_EVENTS.c2s.worldOp)).toEqual([]);
+    expect(fakeApi.outbound.filter((o) => o.kind === "op")).toEqual([]);
   });
 
   test("重放是幂等的：同一条 op 送两遍只生效一次", async () => {
@@ -447,15 +481,15 @@ describe("op 通道", () => {
       },
     };
 
-    fakeSocket.inbound(NET_EVENTS.s2c.worldOp, op);
-    fakeSocket.inbound(NET_EVENTS.s2c.worldOp, op);
+    fakeApi.inbound("worldOp", op);
+    fakeApi.inbound("worldOp", op);
 
     const chairs = getWorld().placedFurniture.filter((p) => p.furnitureId === "furniture_chair");
     expect(chairs).toHaveLength(1);
   });
 
   test("不在会话里时收到 op 不重放", () => {
-    fakeSocket.inbound(NET_EVENTS.s2c.worldOp, {
+    fakeApi.inbound("worldOp", {
       playerId: "p-x",
       op: { kind: "furniture_removed", instanceId: "随便" },
     });
@@ -468,10 +502,10 @@ describe("op 通道", () => {
 
 describe("整片刷新", () => {
   test("房客应用房主推来的切片", async () => {
-    fakeSocket.replies.set(NET_EVENTS.c2s.sessionJoin, joinReply(hostWorld()));
+    fakeApi.replies.set("join", joinReply(hostWorld()));
     await joinSession("ABC234");
 
-    fakeSocket.inbound(NET_EVENTS.s2c.worldRefresh, {
+    fakeApi.inbound("worldRefresh", {
       revision: 4,
       slices: {
         placedFurniture: [
@@ -499,7 +533,7 @@ describe("整片刷新", () => {
     await hostSession();
     placeFurniture("furniture_table", { x: 3, y: 3 }, Facing.North);
 
-    fakeSocket.inbound(NET_EVENTS.s2c.worldRefresh, {
+    fakeApi.inbound("worldRefresh", {
       revision: 9,
       slices: { placedFurniture: [] },
     });

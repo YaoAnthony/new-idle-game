@@ -11,7 +11,7 @@ import {
   setRemoteAppearance,
   setRemoteGesture,
   upsertRemote,
-} from "../src/Game/Net/roster";
+} from "../src/Game/Multiplayer/roster";
 
 /**
  * 远端玩家的回放缓冲。

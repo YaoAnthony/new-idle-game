@@ -1,6 +1,6 @@
 import { findMapDefinition } from "../../Maps/index.js";
 import { emit } from "../EventBus";
-import { isInSession } from "../Net/session";
+import { isInSession } from "../Multiplayer/session";
 import { restoreLocalPosition } from "../State/participants";
 import { switchMapState } from "../State/world/entities";
 import { getCurrentMap, getCurrentMapId } from "../State/worldRuntime";

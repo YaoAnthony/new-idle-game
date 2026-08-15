@@ -25,7 +25,7 @@ let dirty = false;
 
 /**
  * 存档合成器。null = 正常路径（serializeGameSave 全量序列化运行时）；
- * 联机做客期间由 Game/Net/session 装一个合成函数进来：**玩家侧取
+ * 联机做客期间由 Game/Multiplayer/session 装一个合成函数进来：**玩家侧取
  * 运行时现状（背包、需求——做客捡到的东西要保住），世界侧取入房前
  * 的快照（运行时里那份是房主的世界，绝不能写进自己的存档）**。
  *

@@ -18,8 +18,8 @@
 |---|---|---|
 | **`Frontend-3D/`** | **活跃，主客户端** | React + Vite 外壳，**自研 three.js 3D 场景**（不是 Phaser，不是引擎） |
 | **`Core/`** | **活跃** | 前后端共享的 TS 契约：类型 + 纯规则 + 内容注册表。零运行时依赖 |
-| **`Backend/`** | **活跃，但只做联机** | Express（只有 `/health`）+ socket.io 会话。其余目录全是 `.gitkeep` 空壳 |
-| `contracts/` | 活跃 | 人读的联机协议说明（形状的真相在 `Core/src/types/net.ts`） |
+| **`Backend/`** | **活跃：联机 + 账户 + 云存档** | Express + socket.io 会话；`/api/auth`（邮箱密码 + Google，JWT）、`/api/saves`（云存档，SQLite）。commerce/llm/rooms 仍是 `.gitkeep` 空壳 |
+| `contracts/` | 活跃 | 人读的协议说明：联机（`multiplayer_protocol.md`）+ 账户与云存档（`account_protocol.md`）。形状的真相在 `Core/src/types/{net,account}.ts` |
 | **`old/`** | **全是历史，不要改** | 见下 |
 | `production/` `prompt/` | 杂物 | 工具生成的状态文件、提示词草稿 |
 
@@ -86,7 +86,8 @@ main.tsx        DEV 下跑三个注册表体检（剧情 / 捏人 / 门）
 
 - `Game/State/` — 背包、掉落物、宠物、门、储物、唱片机、时钟、天气、`world/`（地图与家具）
 - `Game/Systems/` — 厨房、行动、导航、自动寻路、换图、剧情、对话、制作、每日任务
-- `Game/Net/` — 会话状态机、名册、同步泵、op 重放
+- `Game/Multiplayer/` — 会话状态机、名册插值、同步泵、op 重放（**不碰 socket**）
+- `Api/game/websocket/` — **和 server 说话的唯一出口**：连接、三条 ack 请求、六种出站、九种入站订阅
 - `Game3D/Engine/` — 渲染器、相机、光照、后期、音频、音景、BGM
 - `Game3D/World/` — 场景、房屋、家具、角色、宠物、远端玩家
 - `Game3D/Visual/recipes/` — **程序化建模**，没有外部 3D 资源
@@ -124,7 +125,9 @@ main.tsx        DEV 下跑三个注册表体检（剧情 / 捏人 / 门）
 
 **服务端是保管员不是裁判**：只做结构与字节封顶的校验，身份一律查连接表（载荷里自称的 playerId 直接无视），游戏规则不校验。两类流量——`world:op` 管即时（谁做了什么立刻广播），`world:refresh` 管收敛（房主定期整片刷新）。
 
-**房客的存档纪律**是整个联机里最容易出事的一段：入房前抓一份自家世界的快照 → 装存档合成器（玩家侧照抄运行时、世界侧永远用快照）→ 退出时合成回去。顺序错一步，要么丢做客期间的收获，要么把别人家写进自己档。见 [`Game/Net/session.ts`](Frontend-3D/src/Game/Net/session.ts)。
+**网络边界**：`socket.emit` / `socket.on` / `NET_EVENTS` 只允许出现在 `src/Api/` 里。`Game/Multiplayer/` 只调 `Api/game/websocket` 导出的类型化函数，拿不到 socket 实例，也不知道事件名和协议版本长什么样。这条界由 [`tests/netBoundary.test.ts`](Frontend-3D/tests/netBoundary.test.ts) 守着——写在文档里的约定只有人记得时才有效，写成测试才是真的。
+
+**房客的存档纪律**是整个联机里最容易出事的一段：入房前抓一份自家世界的快照 → 装存档合成器（玩家侧照抄运行时、世界侧永远用快照）→ 退出时合成回去。顺序错一步，要么丢做客期间的收获，要么把别人家写进自己档。见 [`Game/Multiplayer/session.ts`](Frontend-3D/src/Game/Multiplayer/session.ts)。
 
 ---
 
@@ -142,7 +145,7 @@ cd Backend && npm install && npm run dev
 
 ## 测试
 
-616 个用例，全绿。
+625 个用例，全绿。
 
 ```bash
 cd Core && npm test && cd ../Backend && npm test && cd ../Frontend-3D && npm test
@@ -152,7 +155,7 @@ cd Core && npm test && cd ../Backend && npm test && cd ../Frontend-3D && npm tes
 |---|---|---|
 | Core | 273 | `tsx --test`（node:test） |
 | Backend | 91 | 同上（含真 socket.io 端到端） |
-| Frontend-3D | 252 | vitest + jsdom + fake-indexeddb |
+| Frontend-3D | 261 | vitest + jsdom + fake-indexeddb |
 
 三个包都另有 `typecheck:tests`——各自的 `tsc` include 只覆盖 `src`，不单独跑这个的话测试里的类型错误会整个漏过去。
 

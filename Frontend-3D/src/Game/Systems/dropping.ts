@@ -1,5 +1,5 @@
 import { roomIdAt } from "../State/worldRuntime";
-import { guardWorldMutation } from "../Net/worldLock";
+import { guardWorldMutation } from "../Multiplayer/worldLock";
 import {
   consumeSelectedOne,
   getSelectedStack,

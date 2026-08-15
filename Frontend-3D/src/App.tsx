@@ -7,6 +7,12 @@ import { TitleScreen } from "./Components/TitleScreen";
 import { TITLE_SCREEN_CONFIG } from "./Components/TitleScreen/config";
 import { getSaveRepository, hydrateGameSave, setBaseline } from "./Data/Save";
 import { saveNow } from "./Data/Save/autosave";
+import { ConflictDialog } from "./Features/CloudSave/ConflictDialog";
+import {
+  resolveConflict,
+  startupReconcile,
+  type StartupOutcome,
+} from "./Features/CloudSave/syncController";
 import { getProfileStore } from "./Game/Profile/profileStore";
 import { setAvatar } from "./Game/State/avatar";
 import { on } from "./Game/EventBus";
@@ -36,13 +42,19 @@ function App() {
   /** 上次捏好的形象（本地 profile），捏脸页拿它当底稿 */
   const [profileAvatar, setProfileAvatar] = useState<AvatarConfig | null>(null);
   /**
-   * 联机换世界的重挂载计数。Net/session 把别人的世界灌进运行时后发
+   * 联机换世界的重挂载计数。Multiplayer/session 把别人的世界灌进运行时后发
    * net_world_swapped，这里 +1 → GameView 的 key 变 → 整个场景对着
    * 新世界重建。挂载一次要几百毫秒，但保证零残留——旧世界的门、
    * 家具视图、控制器全部干净退场。
    */
   const [worldEpoch, setWorldEpoch] = useState(0);
   const [progress, setProgress] = useState(0);
+  /** 云存档冲突（登录对账或运行中 409 后）：非 null 时盖二选一弹窗 */
+  const [cloudConflict, setCloudConflict] = useState<Extract<
+    StartupOutcome,
+    { kind: "conflict" }
+  > | null>(null);
+  const [conflictBusy, setConflictBusy] = useState(false);
 
   /**
    * 进世界前把这个世界的声音解码好。
@@ -115,6 +127,50 @@ function App() {
       cancelled = true;
     };
   }, []);
+
+  /**
+   * 登录（含启动时 token 校验通过）→ 跑云档对账。除冲突外的分支
+   * 都在 syncController 里就地处理完（上传绑定 / 快进下载 / 照常本地），
+   * 这里只管两件事：冲突弹框，以及对账后主档可能换了 → 刷新"继续游戏"。
+   */
+  useEffect(
+    () =>
+      on("auth_changed", ({ userId }) => {
+        if (!userId) return;
+        void startupReconcile(userId).then(async (outcome) => {
+          if (outcome.kind === "conflict") {
+            setCloudConflict(outcome);
+            return;
+          }
+          setCanContinue(await getSaveRepository().hasSave());
+        });
+      }),
+    [],
+  );
+
+  const chooseConflictSide = useCallback(
+    async (choice: "use_cloud" | "use_local") => {
+      setConflictBusy(true);
+      const result = await resolveConflict(choice);
+      setConflictBusy(false);
+
+      if (!result.ok) {
+        setNotice("处理没成功——可能是网络问题，稍后可以在标题页重新登录再试。");
+        setCloudConflict(null);
+        return;
+      }
+
+      if (choice === "use_cloud" && result.cloudSave && stage === "playing") {
+        // 游戏中途换档：和联机换世界同一招——灌运行时 + 重挂 GameView
+        hydrateGameSave(result.cloudSave);
+        setBaseline(result.cloudSave);
+        setWorldEpoch((epoch) => epoch + 1);
+      }
+      setCloudConflict(null);
+      setCanContinue(await getSaveRepository().hasSave());
+    },
+    [stage],
+  );
 
   /**
    * 开新档先过捏脸页。外观在确认那一刻写进运行时（avatar 状态），
@@ -204,6 +260,16 @@ function App() {
         只在游戏里拦，标题页又会给出"竖屏也能用"的错误暗示。
       */}
       <RotatePrompt />
+
+      {cloudConflict ? (
+        <ConflictDialog
+          cloudHead={cloudConflict.cloudHead}
+          localUpdatedAtUtc={cloudConflict.localUpdatedAtUtc}
+          reason={cloudConflict.reason}
+          busy={conflictBusy}
+          onChoose={(choice) => void chooseConflictSide(choice)}
+        />
+      ) : null}
 
       {notice ? (
         <div

@@ -39,6 +39,13 @@ type StartChoice =
       icon: string;
       action: "show_notice";
       noticeCopyKey: keyof Pick<TitleScreenCopy, "loginUnavailable">;
+    }
+  | {
+      id: string;
+      copyKey: StartChoiceCopyKey;
+      icon: string;
+      /** 打开登录/注册表单（Features/Auth/LoginDialog） */
+      action: "open_login";
     };
 
 export type TitleScreenConfig = {
@@ -117,8 +124,7 @@ export const TITLE_SCREEN_CONFIG = {
       id: "login",
       copyKey: "login",
       icon: loginSessionIcon,
-      action: "show_notice",
-      noticeCopyKey: "loginUnavailable",
+      action: "open_login",
     },
   ],
   audio: {

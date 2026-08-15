@@ -126,10 +126,65 @@ export function createLocalSaveRepository(): SaveRepository {
   };
 }
 
+/**
+ * 云同步的挂点。**运行时永远只读写本地**（load/hasSave/clear 纯委托），
+ * 云端的唯一入口是 save 成功后的 onSaved 通知——同步引擎
+ * （Features/CloudSave/syncController）拿它标 dirty、节流推送。
+ * 引擎自己决定推不推、什么时候推；这里连"云"字都不认识。
+ */
+export function createCloudBoundRepository(
+  local: SaveRepository,
+  onSaved: (save: GameSave) => void,
+): SaveRepository {
+  return {
+    mode: "cloud_sync",
+    load: () => local.load(),
+    hasSave: () => local.hasSave(),
+    clear: () => local.clear(),
+    async save(save: GameSave): Promise<SaveOutcome> {
+      const outcome = await local.save(save);
+      if (outcome.ok) onSaved(save);
+      return outcome;
+    },
+  };
+}
+
+/**
+ * 冲突后悔药：把当前主档整体转存到 conflict 键（V0.8 预留的那个）。
+ * 玩家在冲突框选"用云端"之前调用——覆盖后发现选错了，
+ * 还能人工从 `world.conflict` 捞回来。
+ */
+export async function stashMainToConflict(): Promise<void> {
+  const existing = await store.get(SAVE_KEYS.main);
+  if (existing.ok && "data" in existing) {
+    await store.upsert(SAVE_KEYS.conflict, existing.data.value);
+  }
+}
+
 let repository: SaveRepository | null = null;
 
-/** 全局存档仓库。接云端时在这里按登录状态换实现，调用方不用改 */
+/**
+ * 登录态下要包一层云挂点时，由 Features/Auth/authBridge 注册这个工厂。
+ * Data 层不 import Redux 也不 import Features——依赖方向只进不出。
+ */
+let cloudFactory: ((local: SaveRepository) => SaveRepository) | null = null;
+
+export function setCloudRepositoryFactory(
+  factory: ((local: SaveRepository) => SaveRepository) | null,
+): void {
+  cloudFactory = factory;
+}
+
+/** 全局存档仓库。按登录状态换实现，调用方不用改 */
 export function getSaveRepository(): SaveRepository {
-  if (!repository) repository = createLocalSaveRepository();
+  if (!repository) {
+    const local = createLocalSaveRepository();
+    repository = cloudFactory ? cloudFactory(local) : local;
+  }
   return repository;
+}
+
+/** 登录态翻转时由 authBridge 调用：丢掉单例，下次取重建成对的实现 */
+export function resetSaveRepository(): void {
+  repository = null;
 }

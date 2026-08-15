@@ -1,10 +1,9 @@
 import type { GameSave } from "core";
 
 /**
- * 存档模式（对齐 V0.8 - 存档云端同步.md）。
- *
- * 现在只实现 local_only，但**接口按模式设计**而不是写死成"直接读写 IndexedDB"，
- * 接云端时只是多一个实现，不用把调用方重写一遍。
+ * 存档模式。local_only 是纯本地；cloud_sync 是登录态下的云挂点包装
+ * （Features/CloudSave，协议见 contracts/account_protocol.md）——
+ * 运行时仍然只读写本地，云端是受控副本。multiplayer_session 预留。
  */
 export type SaveMode = "local_only" | "cloud_sync" | "multiplayer_session";
 
@@ -25,7 +24,7 @@ export const SAVE_SCHEMA_VERSION = 25;
 export const SAVE_KEYS = {
   main: "world",
   backup: "world.backup",
-  /** 云端冲突时保留的本地副本（V0.8 要求，接云端时启用） */
+  /** 云端冲突时保留的本地副本（冲突框选"用云端"前由 stashMainToConflict 写入） */
   conflict: "world.conflict",
 } as const;
 

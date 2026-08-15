@@ -1,5 +1,5 @@
 import { findPlaceableItem, surfaceChildrenOf } from "core";
-import { guardWorldMutation } from "../Net/worldLock";
+import { guardWorldMutation } from "../Multiplayer/worldLock";
 import { addItem, getCount, removeItem } from "../State/inventory";
 import {
   getWorld,

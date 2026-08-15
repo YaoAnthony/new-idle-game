@@ -1,7 +1,12 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { Provider } from 'react-redux'
+import { PersistGate } from 'redux-persist/integration/react'
 import './index.css'
 import App from './App.tsx'
+import { initAuth } from './Features/Auth/authBridge.ts'
+import { initCloudSync } from './Features/CloudSave/syncController.ts'
+import { persistor, store } from './Redux/store.ts'
 import { auditAvatarContent, auditDoorContent, auditStoryContent } from 'core'
 import { auditItemVisuals } from './Game3D/Visual/VisualRegistry.ts'
 import { hasLocalizationKey } from './i18n/t.ts'
@@ -42,8 +47,19 @@ if (import.meta.env.DEV) {
   }
 }
 
+// 顺序有讲究：云同步先装好存档仓库的工厂，authBridge 校验 token 触发的
+// auth_changed 才能拿到已经会"云挂点"的仓库
+initCloudSync()
+// persist 恢复完（PersistGate 放行前）就开始校验 token——
+// 校验是静默的，不阻塞标题页渲染
+initAuth()
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <Provider store={store}>
+      <PersistGate loading={null} persistor={persistor}>
+        <App />
+      </PersistGate>
+    </Provider>
   </StrictMode>,
 )

@@ -1,24 +1,33 @@
 import {
   ChatMessageKind,
-  NET_EVENTS,
-  NET_PROTOCOL_VERSION,
-  type AppearanceEvent,
-  type ChatMessageEvent,
   type GameSave,
-  type GestureEvent,
   type NetError,
-  type ParticipantJoinedEvent,
-  type ParticipantLeftEvent,
-  type SessionCreateOk,
-  type SessionEndedEvent,
-  type SessionJoinOk,
-  type TransformEvent,
-  type WorldOp,
-  type WorldOpEvent,
   type WorldRefreshEvent,
   type WorldSave,
 } from "core";
-import type { Socket } from "socket.io-client";
+/**
+ * **和 server 说话一律走这里**，本文件不碰 socket、不认识事件名。
+ * 边界的理由见 `Api/game/websocket/index.ts` 的文件头；`tests/netBoundary.test.ts`
+ * 会盯着它不许破。
+ */
+import {
+  createSession,
+  disconnect,
+  joinSession as apiJoinSession,
+  leaveSession as apiLeaveSession,
+  onAppearance,
+  onChat,
+  onDisconnect,
+  onGesture,
+  onParticipantJoined,
+  onParticipantLeft,
+  onSessionEnded,
+  onTransform,
+  onWorldOp,
+  onWorldRefresh,
+  sendWorldRefresh,
+  sendWorldOp,
+} from "../../Api/game/websocket";
 import {
   getBaseline,
   hydrateGameSave,
@@ -54,7 +63,6 @@ import {
   upsertRemote,
 } from "./roster";
 import { applyWorldOp } from "./opApply";
-import { disconnectSocket, ensureConnected } from "./socket";
 import { startSyncPump, stopSyncPump } from "./sync";
 
 /**
@@ -132,19 +140,18 @@ export function isRemoteWorldActive(): boolean {
 export async function hostSession(): Promise<string> {
   if (state.kind !== "idle") throw new Error("已经在一个房间里了，先 /leave");
 
-  const socket = await ensureConnected();
-  bindInbound(socket);
+  bindInbound();
 
   // 世界直接从运行时序列化——房主继续在自己家过日子，无需换世界
   const save = serializeGameSave(getBaseline() ?? undefined);
-  const reply = (await socket.emitWithAck(NET_EVENTS.c2s.sessionCreate, {
-    protocolVersion: NET_PROTOCOL_VERSION,
-    saveSchemaVersion: SAVE_SCHEMA_VERSION,
-    profile: { name: save.player.name, avatar: snapshotAvatar() },
-    world: save.ownWorld,
-    transform: { ...getLocalParticipant().transform },
-  })) as SessionCreateOk | NetError;
-  const created = unwrapReply(reply);
+  const created = unwrapReply(
+    await createSession({
+      saveSchemaVersion: SAVE_SCHEMA_VERSION,
+      profile: { name: save.player.name, avatar: snapshotAvatar() },
+      world: save.ownWorld,
+      transform: { ...getLocalParticipant().transform },
+    }),
+  );
 
   state = {
     kind: "hosting",
@@ -156,8 +163,8 @@ export async function hostSession(): Promise<string> {
   setIdIssuer(created.playerId);
   // 满格奖励"在场每人各一份"：房里几个人就吐几份（自己 + 名册）
   setDailyRewardShareCounter(() => listRemote().length + 1);
-  startSyncPump(socket);
-  startHostRefreshWatch(socket);
+  startSyncPump();
+  startHostRefreshWatch();
   emit("net_session_changed", { state: "hosting" });
   return created.joinCode;
 }
@@ -167,19 +174,18 @@ export async function hostSession(): Promise<string> {
 export async function joinSession(joinCode: string): Promise<void> {
   if (state.kind !== "idle") throw new Error("已经在一个房间里了，先 /leave");
 
-  const socket = await ensureConnected();
-  bindInbound(socket);
+  bindInbound();
 
   // 出发前把家里的样子完整拍下来。这份快照是"回家"的唯一凭据
   const ownSnapshot = serializeGameSave(getBaseline() ?? undefined);
 
-  const reply = (await socket.emitWithAck(NET_EVENTS.c2s.sessionJoin, {
-    protocolVersion: NET_PROTOCOL_VERSION,
-    saveSchemaVersion: SAVE_SCHEMA_VERSION,
-    joinCode,
-    profile: { name: ownSnapshot.player.name, avatar: snapshotAvatar() },
-  })) as SessionJoinOk | NetError;
-  const joined = unwrapReply(reply);
+  const joined = unwrapReply(
+    await apiJoinSession({
+      saveSchemaVersion: SAVE_SCHEMA_VERSION,
+      joinCode,
+      profile: { name: ownSnapshot.player.name, avatar: snapshotAvatar() },
+    }),
+  );
 
   state = {
     kind: "guest",
@@ -196,7 +202,7 @@ export async function joinSession(joinCode: string): Promise<void> {
   for (const participant of joined.participants) upsertRemote(participant);
 
   enterRemoteWorld(ownSnapshot, joined.world);
-  startSyncPump(socket);
+  startSyncPump();
   emit("net_session_changed", { state: "guest" });
 }
 
@@ -283,21 +289,17 @@ export async function leaveSession(): Promise<void> {
   stopHostRefreshWatch();
   clearRoster();
 
-  try {
-    const socket = await ensureConnected(1500);
-    await socket.emitWithAck(NET_EVENTS.c2s.sessionLeave, {});
-  } catch {
-    // 服务器都联系不上了，本地照样要把状态收干净
-  }
+  // 连不上也照样往下走——服务器联系不上时，本地状态更要收干净
+  await apiLeaveSession();
 
   state = { kind: "idle" };
   if (leaving.kind === "guest") {
     exitRemoteWorld(leaving.ownSnapshot);
   } else {
     setIdIssuer(LOCAL_PLAYER_ID);
-  resetDailyRewardShares();
+    resetDailyRewardShares();
   }
-  disconnectSocket();
+  disconnect();
   emit("net_session_changed", { state: "idle" });
 }
 
@@ -324,36 +326,36 @@ function endedRemotely(reason: string): void {
 
 // ---- 入站 ----
 
-function bindInbound(socket: Socket): void {
+function bindInbound(): void {
   if (listenersBound) return;
   listenersBound = true;
 
-  socket.on(NET_EVENTS.s2c.participantJoined, (event: ParticipantJoinedEvent) => {
+  onParticipantJoined((event) => {
     if (state.kind === "idle") return;
     const player = upsertRemote(event.participant);
     pushSystemMessage(`${player.name} 来了`);
     emit("net_participant_joined", { playerId: player.playerId, name: player.name });
   });
 
-  socket.on(NET_EVENTS.s2c.participantLeft, (event: ParticipantLeftEvent) => {
+  onParticipantLeft((event) => {
     if (state.kind === "idle") return;
     removeRemote(event.playerId);
     emit("net_participant_left", { playerId: event.playerId });
   });
 
-  socket.on(NET_EVENTS.s2c.transform, (event: TransformEvent) => {
+  onTransform((event) => {
     pushSample(event.playerId, event.transform);
   });
 
-  socket.on(NET_EVENTS.s2c.appearance, (event: AppearanceEvent) => {
+  onAppearance((event) => {
     setRemoteAppearance(event.playerId, event.appearance);
   });
 
-  socket.on(NET_EVENTS.s2c.gesture, (event: GestureEvent) => {
+  onGesture((event) => {
     setRemoteGesture(event.playerId, event.gesture);
   });
 
-  socket.on(NET_EVENTS.s2c.chat, (event: ChatMessageEvent) => {
+  onChat((event) => {
     // 直接入消息记录。**不发 player_said**——那个事件的语义是"本地玩家
     // 说了话"（SpeechBubble 会把气泡画在自己头上）。远端气泡是 M2 的活
     pushChatMessage({
@@ -363,7 +365,7 @@ function bindInbound(socket: Socket): void {
     });
   });
 
-  socket.on(NET_EVENTS.s2c.worldOp, (event: WorldOpEvent) => {
+  onWorldOp((event) => {
     if (state.kind === "idle") return;
     // 房里其他人的动作，本地立刻重放（扔东西连抛物线一起）。
     // 房主重放后自己的刷新监听会把新世界推给服务端——op 管即时，
@@ -371,16 +373,16 @@ function bindInbound(socket: Socket): void {
     applyWorldOp(event.op);
   });
 
-  socket.on(NET_EVENTS.s2c.worldRefresh, (event: WorldRefreshEvent) => {
+  onWorldRefresh((event) => {
     if (state.kind !== "guest") return;
     applyWorldRefresh(event);
   });
 
-  socket.on(NET_EVENTS.s2c.sessionEnded, (event: SessionEndedEvent) => {
+  onSessionEnded((event) => {
     endedRemotely(event.reason === "host_left" ? "房主离开了" : "房主结束了联机");
   });
 
-  socket.on("disconnect", () => {
+  onDisconnect(() => {
     // 自己断线和房主跑了对本地是一回事：世界的来源没了
     if (state.kind !== "idle") endedRemotely("连接断开");
   });
@@ -415,14 +417,16 @@ function applyWorldRefresh(event: WorldRefreshEvent): void {
 const REFRESH_COALESCE_MS = 250;
 let lastRefreshAt = 0;
 
-function startHostRefreshWatch(socket: Socket): void {
+function startHostRefreshWatch(): void {
   const send = (): void => {
     if (state.kind !== "hosting") return;
     lastRefreshAt = Date.now();
-    // 五片全发。变更本来就低频（合并过），挑着发省的那点字节
+    // 六片全发。变更本来就低频（合并过），挑着发省的那点字节
     // 抵不上"漏发一片"的排查成本
-    socket.emit(NET_EVENTS.c2s.worldRefresh, {
-      placedFurniture: getWorld().placedFurniture,
+    sendWorldRefresh({
+      // 摊成可变数组：运行时那份是 readonly，而切片类型要可变的。
+      // 原来走无类型的 socket.emit 时这个错位是看不见的
+      placedFurniture: [...getWorld().placedFurniture],
       droppedItems: snapshotDroppedItems(),
       inventories: snapshotStorages(),
       weather: snapshotWeather(),
@@ -488,7 +492,7 @@ function resetDailyRewardShares(): void {
  */
 on("daily_board_ticked_locally", ({ progress }) => {
   if (state.kind === "idle") return;
-  sendOp({
+  sendWorldOp({
     kind: "daily_board_ticked",
     worldDayId: getClock().worldDayId,
     progress,
@@ -497,7 +501,7 @@ on("daily_board_ticked_locally", ({ progress }) => {
 
 on("daily_board_claimed_locally", () => {
   if (state.kind === "idle") return;
-  sendOp({ kind: "daily_board_claimed", worldDayId: getClock().worldDayId });
+  sendWorldOp({ kind: "daily_board_claimed", worldDayId: getClock().worldDayId });
 });
 
 // ---- 出站 op：本地世界突变 → 发给全房 ----
@@ -507,15 +511,9 @@ on("daily_board_claimed_locally", () => {
 // 所以收到别人的 op 不会被再广播回去（无回环）。
 on("world_op", ({ op }) => {
   if (state.kind === "idle") return;
-  sendOp(op);
+  // 连接断了就丢——disconnect 处理会把整场收掉（丢弃在 Api 那一层做）
+  sendWorldOp(op);
 });
-
-/** 发一条 op。连接断了就丢——disconnect 处理会把整场收掉 */
-function sendOp(op: WorldOp): void {
-  void ensureConnected(1500)
-    .then((socket) => socket.emit(NET_EVENTS.c2s.worldOp, op))
-    .catch(() => {});
-}
 
 // ---- 回标题 ----
 
@@ -547,6 +545,6 @@ on("ui_return_to_title", () => {
     hydrateGameSave(final);
     setBaseline(final);
   }
-  disconnectSocket();
+  disconnect();
   emit("net_session_changed", { state: "idle" });
 });

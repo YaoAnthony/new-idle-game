@@ -1,5 +1,9 @@
-import { NET_EVENTS } from "core";
-import type { Socket } from "socket.io-client";
+import {
+  sendAppearance,
+  sendChat,
+  sendGesture,
+  sendTransform,
+} from "../../Api/game/websocket";
 import { on } from "../EventBus";
 import {
   LOCAL_PLAYER_ID,
@@ -32,7 +36,7 @@ let pump: ReturnType<typeof setInterval> | null = null;
 let offGesture: (() => void) | null = null;
 let offChat: (() => void) | null = null;
 
-export function startSyncPump(socket: Socket): void {
+export function startSyncPump(): void {
   stopSyncPump();
 
   let lastSent: {
@@ -63,7 +67,7 @@ export function startSyncPump(socket: Socket): void {
         locomotion: transform.locomotion,
         liftHeight: transform.liftHeight,
       };
-      socket.emit(NET_EVENTS.c2s.transform, { ...transform });
+      sendTransform(transform);
     }
 
     // appearance 变化极低频，序列化对比的开销（一个小对象 @12.5Hz）
@@ -71,19 +75,19 @@ export function startSyncPump(socket: Socket): void {
     const appearanceKey = JSON.stringify(appearance);
     if (appearanceKey !== lastAppearanceKey) {
       lastAppearanceKey = appearanceKey;
-      socket.emit(NET_EVENTS.c2s.appearance, appearance);
+      sendAppearance(appearance);
     }
   }, PUMP_INTERVAL_MS);
 
   offGesture = onParticipantGesture((playerId, gesture) => {
     if (playerId !== LOCAL_PLAYER_ID) return;
-    socket.emit(NET_EVENTS.c2s.gesture, gesture);
+    sendGesture(gesture);
   });
 
   // ChatPanel 发话时已经乐观入了本地记录，这里只负责递出去。
   // 命令（/开头）不进这条：player_said 本来就只对"说的话"发
   offChat = on("player_said", ({ text }) => {
-    socket.emit(NET_EVENTS.c2s.chat, { text });
+    sendChat(text);
   });
 }
 

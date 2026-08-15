@@ -37,7 +37,6 @@
     "google-auth-library": "^10.9.0",
     "i18next": "^26.3.6",
     "idb": "^8.0.3",
-    "jsonwebtoken": "^9.0.3",
     "motion": "^11.18.2",
     "phaser": "^3.90.0",
     "phaser-raycaster": "^0.10.11",

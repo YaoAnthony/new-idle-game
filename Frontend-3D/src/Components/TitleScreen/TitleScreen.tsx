@@ -2,8 +2,12 @@ import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
 import { XMarkIcon } from "@heroicons/react/24/solid";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
+import { useSelector } from "react-redux";
+import { logout } from "../../Features/Auth/authBridge";
+import { LoginDialog } from "../../Features/Auth/LoginDialog";
 import { unlockAudio } from "../../Game3D/Engine/AudioEngine";
 import { applyAudioSettings } from "../../Game3D/Engine/audioSettings";
+import type { RootState } from "../../Redux/store";
 import { GameBtn } from "../GameBtn";
 import {
   type AudioChannel,
@@ -60,6 +64,9 @@ export function TitleScreen({
     readStoredLocale(config),
   );
   const [activeDialog, setActiveDialog] = useState<ActiveDialog>(null);
+  /** 开始弹窗里的两个页面：选择格子 / 登录表单 */
+  const [startView, setStartView] = useState<"choices" | "login">("choices");
+  const account = useSelector((state: RootState) => state.user);
   const [audioSettings, setAudioSettings] = useState<AudioSettings>(() =>
     readStoredSettings(config),
   );
@@ -107,6 +114,7 @@ export function TitleScreen({
   const closeDialog = () => {
     setActiveDialog(null);
     setNotice(null);
+    setStartView("choices");
   };
 
   const selectLocale = (nextLocale: TitleLocale) => {
@@ -134,6 +142,17 @@ export function TitleScreen({
   ) => {
     if (choice.action === "start_session") {
       startSession();
+      return;
+    }
+
+    if (choice.action === "open_login") {
+      // 已登录就不再进表单——这个格子此时的职责是"以账户身份开始"
+      if (account.isLoggedIn) {
+        startSession();
+        return;
+      }
+      setNotice(null);
+      setStartView("login");
       return;
     }
 
@@ -282,6 +301,21 @@ export function TitleScreen({
                         <XMarkIcon className="size-6" aria-hidden="true" />
                       </button>
 
+                      {startView === "login" ? (
+                        <div className="flex w-full max-w-[380px] flex-col items-center gap-3 pt-7">
+                          <h2 className="m-0 text-[clamp(18px,3vw,24px)] font-black text-[#352219]">
+                            {copy.loginDialogTitle}
+                          </h2>
+                          <LoginDialog onDone={() => setStartView("choices")} />
+                          <button
+                            type="button"
+                            className="cursor-pointer border-0 bg-transparent text-xs font-bold text-[#6b4c33] underline"
+                            onClick={() => setStartView("choices")}
+                          >
+                            {copy.back}
+                          </button>
+                        </div>
+                      ) : (
                       <div className="title-screen-start-options grid w-full grid-cols-2 gap-[clamp(10px,2.4vw,22px)] pt-7">
                         {config.startChoices.map((choice) => (
                           <motion.button
@@ -304,11 +338,27 @@ export function TitleScreen({
                               draggable={false}
                             />
                             <span className="relative z-[1] text-[clamp(15px,2.2vw,20px)] font-black leading-none">
-                              {copy[choice.copyKey]}
+                              {choice.action === "open_login" && account.isLoggedIn
+                                ? account.user?.email
+                                : copy[choice.copyKey]}
                             </span>
                           </motion.button>
                         ))}
                       </div>
+                      )}
+
+                      {startView === "choices" && account.isLoggedIn ? (
+                        <p className="m-0 mt-3 text-xs font-bold text-[#6b4c33]">
+                          {copy.loggedInAs}：{account.user?.email}
+                          <button
+                            type="button"
+                            className="ml-2 cursor-pointer border-0 bg-transparent text-xs font-bold text-[#8d5d34] underline"
+                            onClick={() => logout()}
+                          >
+                            {copy.logout}
+                          </button>
+                        </p>
+                      ) : null}
 
                       <AnimatePresence initial={false}>
                         {notice ? (

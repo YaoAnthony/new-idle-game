@@ -6,7 +6,7 @@ import {
   type ItemCounts,
 } from "core";
 import { emit } from "../EventBus";
-import { guardWorldMutation } from "../Net/worldLock";
+import { guardWorldMutation } from "../Multiplayer/worldLock";
 
 /**
  * 储物家具的内容。

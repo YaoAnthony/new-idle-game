@@ -212,11 +212,27 @@ export type GameEvents = {
   net_world_swapped: Record<string, never>;
   /**
    * 本地刚刚发生了一次**世界突变**（扔/捡东西、摆/收家具、厨房槽位、
-   * 储物箱）。由 State 层的公开写入口发出，Net/session 在联机时转发
+   * 储物箱）。由 State 层的公开写入口发出，Multiplayer/session 在联机时转发
    * 给全房。**重放入口（replay*）不发这条**——收到别人的 op 再广播
    * 回去就成回环了。单机时没人订阅，白发一条，无害。
    */
   world_op: { op: import("core").WorldOp };
+
+  // ---- 账户（Features/Auth）----
+
+  /**
+   * 登录态翻转（登录成功 / 登出 / token 失效）。由 authBridge 发出——
+   * Redux 是 UI 的事，游戏层（存档仓库、云同步引擎）听这条。
+   * userId 为 null 表示回到游客。
+   */
+  auth_changed: { userId: string | null };
+  /**
+   * 云同步状态（Features/CloudSave/syncController 发，App 的角标和
+   * 冲突提示听）。conflict 表示自动推送已停，等玩家处理。
+   */
+  cloud_sync_status: {
+    status: "disabled" | "synced" | "syncing" | "offline" | "conflict" | "sync_off_old_client";
+  };
 };
 
 type Listener<T> = (payload: T) => void;

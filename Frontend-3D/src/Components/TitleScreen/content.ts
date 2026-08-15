@@ -13,6 +13,9 @@ export type TitleScreenCopy = {
   guest: string;
   back: string;
   loginUnavailable: string;
+  loggedInAs: string;
+  logout: string;
+  loginDialogTitle: string;
   settingsTitle: string;
   soundTitle: string;
   controlsTitle: string;
@@ -40,6 +43,9 @@ export const TITLE_SCREEN_COPY: Record<TitleLocale, TitleScreenCopy> = {
     guest: "游客游玩",
     back: "关闭",
     loginUnavailable: "即将开放",
+    loggedInAs: "已登录",
+    logout: "退出登录",
+    loginDialogTitle: "登录账户",
     settingsTitle: "设置",
     soundTitle: "声音",
     controlsTitle: "键位",
@@ -65,6 +71,9 @@ export const TITLE_SCREEN_COPY: Record<TitleLocale, TitleScreenCopy> = {
     guest: "ゲストで始める",
     back: "閉じる",
     loginUnavailable: "準備中",
+    loggedInAs: "ログイン中",
+    logout: "ログアウト",
+    loginDialogTitle: "ログイン",
     settingsTitle: "設定",
     soundTitle: "サウンド",
     controlsTitle: "キー設定",

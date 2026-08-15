@@ -88,12 +88,12 @@ import { destinations } from "../Game/Systems/travelPlan";
 import { mapDefinitions } from "../Maps/index";
 import { TravelOverlay } from "../Components/MapTravel/TravelOverlay";
 import { getCurrentMapId } from "../Game/State/worldRuntime";
-import { registerNetCommands } from "../Game/Net/commands";
+import { registerNetCommands } from "../Game/Multiplayer/commands";
 import {
   registerDailyCommands,
   startDailyRollover,
 } from "../Game/Systems/dailyCommands";
-import { isRemoteWorldActive } from "../Game/Net/session";
+import { isRemoteWorldActive } from "../Game/Multiplayer/session";
 import { describeSoundscape, startSoundscape } from "./Engine/Soundscape";
 import { startMusicDirector } from "./Engine/MusicDirector";
 import { RoomScene } from "./World/RoomScene";
@@ -259,7 +259,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
     const fail = (message: string): CommandResult => ({ ok: false, message });
 
     const unregister = [
-      // 联机：/host /join /leave /who（M1 的入口形态，见 Net/commands）
+      // 联机：/host /join /leave /who（M1 的入口形态，见 Multiplayer/commands）
       ...registerNetCommands(),
       // 每日任务：正式交互在机器面板上，命令行是验收工具兼调试入口
       ...registerDailyCommands(),

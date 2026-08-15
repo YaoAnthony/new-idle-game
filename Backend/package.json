@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "dev:nodemon": "nodemon",
-    "test": "tsx --test tests/*.test.ts",
+    "test": "cross-env NODE_ENV=test tsx --test tests/*.test.ts",
     "typecheck": "tsc -p tsconfig.json",
     "typecheck:tests": "tsc -p tsconfig.test.json",
     "prebuild": "npm --prefix ../Core run build",

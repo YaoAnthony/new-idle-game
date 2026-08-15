@@ -18,7 +18,7 @@ import {
   type HeldStack,
 } from "core";
 import { emit } from "../EventBus";
-import { guardWorldMutation } from "../Net/worldLock";
+import { guardWorldMutation } from "../Multiplayer/worldLock";
 import {
   consumeHeld,
   getHeld,

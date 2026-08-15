@@ -4,6 +4,9 @@ import express, { type ErrorRequestHandler, type RequestHandler } from 'express'
 import createError from 'http-errors'
 import morgan from 'morgan'
 
+import { createAuthRouter } from './auth/routes.js'
+import { createSavesRouter } from './saves/routes.js'
+
 const parseCorsOrigin = () => {
   const origin = process.env.CORS_ORIGIN
 
@@ -55,6 +58,9 @@ export const createApp = () => {
   app.use(cookieParser())
 
   app.get('/health', healthRoute)
+  // 协议见 contracts/account_protocol.md，形状在 Core/types/account
+  app.use('/api/auth', createAuthRouter())
+  app.use('/api/saves', createSavesRouter())
   app.use(notFoundRoute)
   app.use(errorHandler)
 

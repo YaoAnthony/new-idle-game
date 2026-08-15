@@ -1,4 +1,11 @@
-export { getSaveRepository, createLocalSaveRepository } from "./SaveRepository";
+export {
+  getSaveRepository,
+  createLocalSaveRepository,
+  createCloudBoundRepository,
+  setCloudRepositoryFactory,
+  resetSaveRepository,
+  stashMainToConflict,
+} from "./SaveRepository";
 export { serializeGameSave, hydrateGameSave } from "./serialize";
 export {
   startAutosave,

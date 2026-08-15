@@ -48,6 +48,7 @@ export function getHead(userId: string): SaveHead | null {
     saveSchemaVersion: row.save_schema_version,
     byteSize: row.byte_size,
     deviceId: row.device_id,
+    lastWriteId: row.last_write_id,
   }
 }
 

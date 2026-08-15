@@ -9,7 +9,11 @@
   v1 **不做** refresh / 撤销：过期重新登录；登出只是前端忘掉 token。
 - 响应统一 `XxxOk | AccountError`（判别式 `ok` 字段），错误码见
   `AccountErrorCode`，HTTP 状态码与错误码一一对应（400/401/409/413/422/429/503）。
-- 限流：register/login/google 按 IP 10 次/分钟；PUT saves 按用户 6 次/分钟。
+- 限流：register/login/google 按 IP 10 次/分钟；PUT saves 按用户 12 次/分钟，
+  GET saves 按用户 20 次/分钟。PUT 的额度对着客户端的节流定：正常游玩
+  120 秒一次，剧情节点那条捷径也压着 15 秒下限（`EXPEDITED_PUSH_MS`），
+  一分钟顶多 4 次，剩下的留给重试和多标签页——闸门挡的是失控客户端，不是玩家。
+  按 IP 分桶的那两条在反向代理后面需要设 `TRUST_PROXY`，否则全服共用一个桶。
 - 服务端不 log token、不 log 存档内容。
 
 ## 权威模型
@@ -73,6 +77,24 @@
 借此区分 fast-forward（云端领先且本地没动过 → 静默下载）与真分叉（两边都动过
 → 弹冲突框）。
 
+### 认领"自己那一版"（响应丢了的写）
+
+推送**成功了但响应没回来**——关标签页、pagehide 的 keepalive、网络抖动——
+是常态而不是意外：云端 revision 涨了，本地基准还停在旧值。光比 revision 的话，
+下次启动会把自己那一版当成"另一台设备改的"，给单机玩家弹一个本机跟本机
+二选一的荒唐弹框。
+
+所以 `SaveHead` 带 `lastWriteId`，客户端也持久化 `pendingWriteId`
+（**发送前**落盘——落在发送之后就等于没落，收不到响应的那些情况根本
+走不到那行代码）。启动时两条认领依据，从强到弱：
+
+1. `head.lastWriteId === syncState.pendingWriteId` → 确凿就是那一次推送；
+2. `head.deviceId === syncState.deviceId` → writeId 已轮换（推完又玩了一会儿），
+   但写云端的还是这台机器。同机没有"别人的进度"要保。
+
+认领后**把基准挪到 `head.revision`**（不挪的话下一次推送必然拿着过期基准撞
+409），本地照玩，dirty 就补推一次。deviceId 也不同的才是真分叉，照旧弹框。
+
 ## 启动对账决策表（客户端 `decideEntry`）
 
 | 条件 | 动作 |
@@ -81,6 +103,7 @@
 | 云空 + 本地有 | upload_then_local（首登绑定上云） |
 | 云 saveSchemaVersion > 客户端 | local_readonly_sync_off（旧客户端照玩本地，本会话禁推 + 提示更新） |
 | 云 revision == lastSynced | local（本地等于/领先；dirty 则入场立即推） |
+| 云 revision > lastSynced 且 writeId/deviceId 认得出是本机写的 | local + adoptRevision（认领自己那一版，见上节） |
 | 云 revision > lastSynced 且 !dirty | fast_forward（静默下载写本地主档；旧主档被本地双份轮写保底） |
 | 云 revision > lastSynced 且 dirty | conflict（弹框二选一） |
 | syncState.userId ≠ 当前 userId | conflict（换账号一律弹框） |

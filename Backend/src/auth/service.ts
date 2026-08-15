@@ -44,6 +44,17 @@ function findByEmail(email: string): UserRow | undefined {
   return getDb().prepare('SELECT * FROM users WHERE email = ?').get(email) as UserRow | undefined
 }
 
+/**
+ * UNIQUE 撞车。**查重和插入之间隔着一个 `await bcrypt.hash`**——哈希跑在
+ * 线程池里，事件循环这期间会去处理别的请求，于是同一个邮箱的两个并发
+ * 注册可以双双通过查重。数据库的 UNIQUE 约束是最后一道闸（它没错），
+ * 但抛出去就成了 500，玩家看到的是"服务器炸了"而不是"这邮箱注册过了"。
+ */
+function isUniqueViolation(error: unknown): boolean {
+  const code = (error as { code?: unknown }).code
+  return typeof code === 'string' && code.startsWith('SQLITE_CONSTRAINT')
+}
+
 export async function register(
   email: string,
   password: string,
@@ -62,11 +73,20 @@ export async function register(
     google_sub: null,
     created_at_utc: new Date().toISOString(),
   }
-  getDb()
-    .prepare(
-      'INSERT INTO users (id, email, password_hash, google_sub, created_at_utc) VALUES (?, ?, ?, ?, ?)',
-    )
-    .run(row.id, row.email, row.password_hash, row.google_sub, row.created_at_utc)
+  try {
+    getDb()
+      .prepare(
+        'INSERT INTO users (id, email, password_hash, google_sub, created_at_utc) VALUES (?, ?, ?, ?, ?)',
+      )
+      .run(row.id, row.email, row.password_hash, row.google_sub, row.created_at_utc)
+  } catch (error) {
+    // 并发注册撞上了：另一条请求先落库。按"已注册"回，别抛成 500
+    if (!isUniqueViolation(error)) throw error
+    const winner = findByEmail(email)
+    return winner && winner.password_hash === null
+      ? accountError('email_uses_google', '这个邮箱是用 Google 注册的，请用 Google 登录')
+      : accountError('email_taken', '这个邮箱已经注册过了')
+  }
 
   return toAccountUser(row)
 }

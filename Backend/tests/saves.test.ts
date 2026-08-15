@@ -117,6 +117,12 @@ test('saves_first_put_with_base_zero_creates_revision_one', async () => {
   ).json()) as SaveHeadOk
   assert.equal(head.head?.revision, 1)
   assert.equal(head.head?.deviceId, 'device-a')
+  /*
+   * head 必须带上 lastWriteId：客户端靠它认出"云端这一版是我自己推的，
+   * 只是响应没收到"。少了它，关一次标签页就够让单机玩家吃一个
+   * "另一台设备改过存档"的假冲突框（见 Features/CloudSave/reconcile）。
+   */
+  assert.equal(head.head?.lastWriteId, 'w1')
 })
 
 test('saves_put_with_matching_base_advances_revision', async () => {

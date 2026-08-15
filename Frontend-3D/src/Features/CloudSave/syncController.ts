@@ -34,6 +34,16 @@ import {
 const PUSH_THROTTLE_MS = 120_000;
 const BACKOFF_MS = [30_000, 60_000, 120_000];
 
+/**
+ * "别等满 120 秒"的那几条捷径（剧情节点、联机结束补推）共用的下限。
+ *
+ * 不能真给 0：剧情节点在一段密集对话里能连着推进好几次，每次都当场发一个
+ * 几百 KB 的 PUT，既浪费也会撞上服务端的每分钟闸门——被 429 挡回来反而
+ * 退避得更久，"重要进度立刻上云"的初衷就反着实现了。15 秒足够把一串
+ * 连续节点合并成一次推送，对"关了游戏进度还在"来说也完全够快。
+ */
+const EXPEDITED_PUSH_MS = 15_000;
+
 type ControllerState = {
   userId: string | null;
   sync: CloudSyncState | null;
@@ -118,6 +128,14 @@ async function pushNow(): Promise<void> {
   state.lastPushAt = Date.now();
   status("syncing");
 
+  /*
+   * **发之前**先把 writeId 落盘。落在发送之后就等于没落——响应收不到的
+   * 那些情况（关标签页、断网）根本走不到那行代码，而恰恰是那些情况需要
+   * 下次启动认出"云端那一版是我推的"（见 decideEntry 的 ourOwnWrite）。
+   */
+  state.sync.pendingWriteId = state.writeId;
+  await saveSyncState(state.sync);
+
   const input: PushInput = {
     baseRevision: state.sync.lastSyncedRevision,
     writeId: state.writeId,
@@ -141,9 +159,24 @@ async function pushNow(): Promise<void> {
       return;
     }
     case "conflict": {
-      // 另一台设备写了云端：停自动推送，交给玩家（横幅 → 冲突框）
+      // 另一台设备写了云端：停自动推送，**并且当场把冲突框叫出来**。
+      // 只改状态是不够的——推送已经停了，玩家却还在继续玩，这一段进度
+      // 一直没上云而他毫不知情，直到下次启动才被告知。
       state.pushEnabled = false;
       status("conflict");
+      emit("cloud_conflict_detected", {
+        // 409 的载荷自带云端现状，够弹框用（byteSize/lastWriteId 它不看），
+        // 不用再多跑一次 head 请求
+        cloudHead: {
+          revision: outcome.conflict.currentRevision,
+          updatedAtUtc: outcome.conflict.currentUpdatedAtUtc,
+          saveSchemaVersion: outcome.conflict.currentSaveSchemaVersion,
+          byteSize: 0,
+          deviceId: outcome.conflict.currentDeviceId,
+          lastWriteId: "",
+        },
+        localUpdatedAtUtc: state.lastSave?.meta.updatedAtUtc ?? null,
+      });
       return;
     }
     case "unauthorized": {
@@ -244,8 +277,16 @@ async function applyDecision(
     }
 
     case "local": {
-      state.sync = (await loadSyncState())!;
+      state.sync = (await loadSyncState()) ?? (await freshSyncState(userId));
       state.pushEnabled = true;
+
+      // 认领本机那次"推上去了但没收到响应"的写：基准挪到云端当前值，
+      // 否则下一次推送必然拿着过期基准撞 409
+      if (decision.adoptRevision !== undefined) {
+        state.sync.lastSyncedRevision = decision.adoptRevision;
+        await saveSyncState(state.sync);
+      }
+
       if (decision.pushNow) {
         const loaded = await getSaveRepository().load();
         if (loaded.kind === "loaded") {
@@ -281,6 +322,8 @@ async function applyDecision(
         lastSyncedAtUtc: new Date().toISOString(),
         dirtySinceSync: false,
         deviceId: (await loadSyncState())?.deviceId ?? crypto.randomUUID(),
+        // 云档刚落地，没有在途的推送
+        pendingWriteId: null,
       };
       await saveSyncState(state.sync);
       state.pushEnabled = true;
@@ -330,6 +373,8 @@ export async function resolveConflict(
       lastSyncedAtUtc: new Date().toISOString(),
       dirtySinceSync: false,
       deviceId: (await loadSyncState())?.deviceId ?? crypto.randomUUID(),
+      // 云档刚落地，没有在途的推送
+      pendingWriteId: null,
     };
     await saveSyncState(state.sync);
     state.pushEnabled = true;
@@ -413,14 +458,14 @@ export function initCloudSync(): void {
     if (state.suspendedByMultiplayer) {
       clearTimer();
     } else if (state.sync?.dirtySinceSync) {
-      schedulePush(0);
+      schedulePush(EXPEDITED_PUSH_MS);
     }
   });
 
   // 剧情节点是"最不能丢"的进度：本地立即写完（autosave 的规则），
   // 云端也别等 120 秒
   on("event_progress_changed", () => {
-    if (state.pushEnabled) schedulePush(0);
+    if (state.pushEnabled) schedulePush(EXPEDITED_PUSH_MS);
   });
 
   // 退出冲刷：hidden 时页面还活着，普通推送通常能跑完（主力）；

@@ -233,6 +233,18 @@ export type GameEvents = {
   cloud_sync_status: {
     status: "disabled" | "synced" | "syncing" | "offline" | "conflict" | "sync_off_old_client";
   };
+
+  /**
+   * 游戏进行中撞上云端 409（另一台设备在这期间写了云端）。
+   *
+   * 和启动对账那次冲突走的是同一个弹框，但触发点在半途，所以单独发一条
+   * 事件而不是只改状态：**光有状态没人接就等于没发生**——自动推送已经
+   * 停了，玩家却还在继续玩，全程不知道这一段进度没上云。
+   */
+  cloud_conflict_detected: {
+    cloudHead: import("core").SaveHead;
+    localUpdatedAtUtc: string | null;
+  };
 };
 
 type Listener<T> = (payload: T) => void;

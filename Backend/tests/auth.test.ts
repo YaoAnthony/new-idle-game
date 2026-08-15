@@ -179,3 +179,65 @@ test('auth_register_rate_limited_after_burst', async () => {
   // Assert
   assert.ok(statuses.includes(429), `expected a 429 in ${statuses.join(',')}`)
 })
+
+/*
+ * 回归：查重和插入之间隔着一个 `await bcrypt.hash`，哈希跑在线程池里、
+ * 事件循环这期间会去处理别的请求——同一个邮箱的两个并发注册可以双双
+ * 通过查重。数据库的 UNIQUE 约束会拦住第二条（它没错），但抛出去就是
+ * 500，玩家看到"服务器炸了"而不是"这邮箱注册过了"。
+ */
+test('auth_concurrent_register_same_email_returns_conflict_not_500', async () => {
+  // Arrange & Act：两发同时出门，谁先落库不确定
+  const [first, second] = await Promise.all([
+    post('/api/auth/register', { email: 'racer@example.com', password: 'hunter22' }),
+    post('/api/auth/register', { email: 'racer@example.com', password: 'hunter22' }),
+  ])
+  const statuses = [first.status, second.status].sort()
+
+  // Assert：一个 201 一个 409，绝不能出现 500
+  assert.deepEqual(statuses, [201, 409], `got ${statuses.join(',')}`)
+
+  const loser = first.status === 409 ? first : second
+  const body = (await loser.json()) as { code?: string }
+  assert.equal(body.code, 'email_taken')
+})
+
+/*
+ * 回归：JWT 密钥的兜底范围。
+ *
+ * 原来的判据是 `NODE_ENV !== 'production'` 就发开发默认密钥——而
+ * `npm start` 根本不设 NODE_ENV。部署时忘了设，服务器就用一个写死在
+ * 源码里的密钥签发 token，任何人都能给**任意 userId** 伪造凭证，
+ * 别人的云存档随便读随便覆盖。绑定地址骗不了人，改用它当判据。
+ */
+test('auth_dev_jwt_secret_refused_when_listening_beyond_loopback', async () => {
+  // Arrange：借用真实模块，逐个还原被改动的环境变量
+  const { getJwtSecret } = await import('../src/shared/config.js')
+  const saved = {
+    NODE_ENV: process.env.NODE_ENV,
+    HOST: process.env.HOST,
+    AUTH_JWT_SECRET: process.env.AUTH_JWT_SECRET,
+  }
+  delete process.env.NODE_ENV
+  delete process.env.AUTH_JWT_SECRET
+
+  try {
+    // Act & Assert：回环上照旧发开发默认值，本机开发不该被卡住
+    process.env.HOST = '127.0.0.1'
+    assert.equal(typeof getJwtSecret(), 'string')
+
+    // 一旦对外监听，缺密钥必须炸——沉默地用弱密钥才是最坏的结果
+    process.env.HOST = '0.0.0.0'
+    assert.throws(() => getJwtSecret(), /AUTH_JWT_SECRET/)
+
+    // 生产环境的短密钥同样拒绝：扛不住离线爆破
+    process.env.NODE_ENV = 'production'
+    process.env.AUTH_JWT_SECRET = 'short'
+    assert.throws(() => getJwtSecret(), /太短/)
+  } finally {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+    }
+  }
+})

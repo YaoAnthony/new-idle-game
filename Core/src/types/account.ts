@@ -106,6 +106,13 @@ export type SaveHead = {
   byteSize: number;
   /** 最后写入的设备（冲突 UI 显示"另一台设备"用） */
   deviceId: string;
+  /**
+   * 最后一次写入的 writeId。客户端据此认出**"这一版就是我自己推上来的"**——
+   * 推送成功但响应没收到（关标签页、网络抖动）时，本地基准停在旧 revision，
+   * 光比 revision 会把自己的写当成别人的改动，给单机玩家弹一个假冲突框。
+   * 客户端持久化 pendingWriteId，启动时一比就知道那一版的来历。
+   */
+  lastWriteId: string;
 };
 
 export type SaveHeadOk = {

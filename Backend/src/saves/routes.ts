@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import { Router, type Request } from 'express'
 import type { SaveGetOk, SaveHeadOk, SavePutRequest } from 'core'
 
 import { authedUserId, requireAuth } from '../auth/middleware.js'
@@ -18,19 +18,27 @@ export function createSavesRouter(): Router {
   const router = Router()
   router.use(requireAuth)
 
-  const putLimiter = createRateLimiter({
-    windowMs: 60_000,
-    max: 6,
-    // requireAuth 在前，locals 里一定有 userId
-    keyOf: (req) => (req.res?.locals.userId as string | undefined) ?? (req.ip ?? 'unknown'),
-  })
+  // requireAuth 在前，locals 里一定有 userId
+  const byUser = (req: Request): string =>
+    (req.res?.locals.userId as string | undefined) ?? req.ip ?? 'unknown'
+
+  /**
+   * 客户端的节流是 120 秒一次，剧情节点那条捷径也压到 15 秒下限
+   * （见 Features/CloudSave/syncController 的 EXPEDITED_PUSH_MS），
+   * 正常玩家一分钟顶多 4 次。12 留给重试、多标签页和时钟抖动——
+   * 闸门要挡的是失控客户端的重试风暴，不是正常游玩。
+   */
+  const putLimiter = createRateLimiter({ windowMs: 60_000, max: 12, keyOf: byUser })
+
+  /** 整档下载最大 4MB，别让一个坏客户端拿它当带宽水龙头 */
+  const getLimiter = createRateLimiter({ windowMs: 60_000, max: 20, keyOf: byUser })
 
   router.get('/me/head', (_req, res) => {
     const body: SaveHeadOk = { ok: true, head: getHead(authedUserId(res)) }
     res.json(body)
   })
 
-  router.get('/me', (_req, res) => {
+  router.get('/me', getLimiter, (_req, res) => {
     const found = getFull(authedUserId(res))
     if (!found) {
       return void res.status(404).json(accountError('no_save', '云端没有存档'))

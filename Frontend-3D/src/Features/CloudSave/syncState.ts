@@ -21,6 +21,15 @@ export type CloudSyncState = {
   dirtySinceSync: boolean;
   /** 本机 id，首启生成（冲突 UI 区分"另一台设备"用） */
   deviceId: string;
+  /**
+   * 最近一次**发出去的**推送的 writeId（发送前落盘，不等响应）。
+   *
+   * 推上去了但响应没收到（关标签页、网络抖动）时，本地基准还停在旧
+   * revision——只比 revision 的话，下次启动会把自己那一版当成"另一台
+   * 设备改的"，给单机玩家弹一个假冲突框。落盘这个 id，启动时和
+   * `SaveHead.lastWriteId` 一比就知道云端那一版是不是自己推的。
+   */
+  pendingWriteId: string | null;
 };
 
 const KEY = "cloud-sync-state";
@@ -34,7 +43,11 @@ export async function loadSyncState(): Promise<CloudSyncState | null> {
   const record = await store.get(KEY);
   if (!record.ok || !("data" in record)) return null;
   const value = record.data.value;
-  return value && typeof value.userId === "string" ? value : null;
+  if (!value || typeof value.userId !== "string") return null;
+  // pendingWriteId 是后加的字段，早一版写下的记录里没有——补成 null，
+  // 别让 undefined 混进比对（undefined === undefined 会把"两边都没有"
+  // 误判成"这一版是我推的"）
+  return { ...value, pendingWriteId: value.pendingWriteId ?? null };
 }
 
 export async function saveSyncState(state: CloudSyncState): Promise<void> {
@@ -50,6 +63,7 @@ export async function freshSyncState(userId: string): Promise<CloudSyncState> {
     lastSyncedAtUtc: null,
     dirtySinceSync: false,
     deviceId: previous?.deviceId ?? newDeviceId(),
+    pendingWriteId: null,
   };
   await saveSyncState(state);
   return state;

@@ -1,5 +1,5 @@
 import { AnimatePresence } from "motion/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CharacterCreator } from "./Components/CharacterCreator/CharacterCreator";
 import { LoadingScreen } from "./Components/Loading/LoadingScreen";
 import { RotatePrompt } from "./Components/Mobile/RotatePrompt";
@@ -55,6 +55,13 @@ function App() {
     { kind: "conflict" }
   > | null>(null);
   const [conflictBusy, setConflictBusy] = useState(false);
+  /**
+   * 在途的启动对账。**"继续游戏"必须等它**——快进分支会把云端存档写进
+   * 本地主档，这中间读档的话，玩家进的是旧世界，之后一次自动存盘就把
+   * 刚下载回来的进度盖没了（跨设备玩的人丢的是另一台机器上的进度，
+   * 而且丢得无声无息）。等一下最多几秒，丢进度是永久的。
+   */
+  const reconciling = useRef<Promise<unknown> | null>(null);
 
   /**
    * 进世界前把这个世界的声音解码好。
@@ -136,14 +143,53 @@ function App() {
   useEffect(
     () =>
       on("auth_changed", ({ userId }) => {
-        if (!userId) return;
-        void startupReconcile(userId).then(async (outcome) => {
+        if (!userId) {
+          reconciling.current = null;
+          return;
+        }
+        const running = startupReconcile(userId).then(async (outcome) => {
           if (outcome.kind === "conflict") {
             setCloudConflict(outcome);
             return;
           }
           setCanContinue(await getSaveRepository().hasSave());
         });
+        // 记下来给 continueGame 等；自己跑完就摘掉
+        reconciling.current = running;
+        void running.finally(() => {
+          if (reconciling.current === running) reconciling.current = null;
+        });
+      }),
+    [],
+  );
+
+  /**
+   * 游戏中途撞上 409（另一台设备写了云端）→ 同一个二选一弹框。
+   * 已经有弹框在场就不打断（启动那次还没处理完）。
+   */
+  useEffect(
+    () =>
+      on("cloud_conflict_detected", ({ cloudHead, localUpdatedAtUtc }) => {
+        setCloudConflict((current) =>
+          current ?? { kind: "conflict", reason: "diverged", cloudHead, localUpdatedAtUtc },
+        );
+      }),
+    [],
+  );
+
+  /**
+   * 云同步被动停掉时说一声。**沉默是最坏的选择**——玩家以为存档在云端，
+   * 实际早就不推了，等发现时已经隔了好几个小时的游玩。
+   * 只提示需要玩家知情的两种；offline/syncing 这类会自愈的不打扰。
+   */
+  useEffect(
+    () =>
+      on("cloud_sync_status", ({ status }) => {
+        if (status === "sync_off_old_client") {
+          setNotice(
+            "云端存档来自更新版本的游戏，这台设备只按本地存档继续，本次不会上传。更新游戏后即可恢复同步。",
+          );
+        }
       }),
     [],
   );
@@ -192,6 +238,9 @@ function App() {
   }, []);
 
   const continueGame = useCallback(async () => {
+    // 对账可能正在把云端存档写进主档：等它落定再读，别读到半路的旧档
+    if (reconciling.current) await reconciling.current;
+
     const outcome = await getSaveRepository().load();
 
     if (outcome.kind === "loaded") {

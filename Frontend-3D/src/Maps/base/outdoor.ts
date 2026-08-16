@@ -22,6 +22,10 @@ import {
   type OutdoorTerrain,
   type TerrainContext,
 } from "../../Game3D/World/outdoorTerrain.js";
+// 走 examples/jsm 的具体路径而不是 three/addons：后者是 package exports 的
+// 子路径别名，headless 打包用的 --alias:three=./node_modules/three 会把它
+// 拼成一个不存在的文件路径。项目里别处也没用过 addons，这是唯一一处。
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { baseMapDefinition } from "./index.js";
 import {
   BRIDGES,
@@ -202,12 +206,15 @@ function buildLand(root: Object3D): void {
   const apron = (outline: Array<readonly [number, number]>, y: number): void => {
     root.add(landPatch(outline, y, GROUND_GREEN));
   };
-  apron([[-240, -240], [-70, -240], [-70, 29], [-240, 29]], -0.02); // 西·河口以北
-  apron([[-240, 44], [-70, 44], [-70, 240], [-240, 240]], -0.03);  // 西·河口以南
-  apron([[-70, -240], [24, -240], [24, -60], [-70, -60]], -0.04);  // 北·河口以西
-  apron([[44, -240], [240, -240], [240, -60], [44, -60]], -0.05);  // 北·河口以东
-  apron([[55, -60], [240, -60], [240, 240], [55, 240]], -0.06);    // 东 + 东南角
-  apron([[-70, 55], [55, 55], [55, 240], [-70, 240]], -0.07);      // 南
+  // 场的西/北边现在在 -170/-160（装山），围裙从那儿往外接
+  apron([[-240, -240], [-170, -240], [-170, 29], [-240, 29]], -0.02); // 西·河口以北
+  apron([[-240, 44], [-70, 44], [-70, 240], [-240, 240]], -0.03);     // 西南（河口以南）
+  apron([[-170, -240], [24, -240], [24, -160], [-170, -160]], -0.04); // 北·河口以西
+  apron([[44, -240], [240, -240], [240, -60], [44, -60]], -0.05);     // 北·河口以东
+  apron([[55, -60], [240, -60], [240, 240], [55, 240]], -0.06);       // 东 + 东南角
+  apron([[-70, 55], [55, 55], [55, 240], [-70, 240]], -0.07);         // 南
+  // 西面 30..44 是河口（水），44..55 之间那一小条接回场
+  apron([[-170, 30], [-70, 30], [-70, 44], [-170, 44]], -0.08);
 
   // 岬角上的几块深色草斑。零厚度贴地圆片：扁盒子在掠射角会露侧面
   for (let i = 0; i < 7; i += 1) {
@@ -227,64 +234,75 @@ function buildLand(root: Object3D): void {
 
 /**
  * 森林。**这张图的底色是林子，据点是从林子里清出来的一块空地**——
- * 不是"草地上点缀几棵树"。用户连说四遍"森林"才把这条敲进来：
- * 上一版全图 124 棵，150×120 米，那是草坪。
+ * 不是"草地上点缀几棵树"。
  *
- * 做法：
- *  1. **地毯式泊松撒点**，不是几条手写的林带。整个可见范围按 3.2 米
- *     间距抖动铺满，再从里面**剔除**不能长树的地方（院墙内、水、桥、
- *     林间小径、门口的视线走廊）。剔除比添加对：森林是默认，空地才要
- *     理由。
- *  2. **树站在地形上**：脚下高度从烤好的高度场采样，缓丘上的树自己
- *     长在丘顶，滩台上的站在滩台上。全平放会让缓丘穿帮（树根悬空）。
- *  3. **三种树、六档尺寸**：一样的树按 1500 棵铺开就是壁纸。阔叶两种
- *     色、一种针叶（尖顶）；越远越高越暗，近处矮而亮——雾里收成墙。
- *  4. **InstancedMesh**：1500 棵按 4 个 draw call 画（每种树两个部件），
- *     不是 1500×3 个 Object3D。这一条不做，帧率当场掉一半。
+ * 第二版（2026-08-16）改**尺度**：上一版的树全高 3~4 米、树干 1.1 米、
+ * 顶一个直径 1.7 的球，一万棵铺开是草坪上的绿豆。用户拿希施金的林间
+ * 小径来对——树干高、树冠在很上面、人走在树底下。1 格 = 1 米，成年
+ * 乔木就是 15~25 米，树干占六七成。所以：
  *
- * 密度账：3.2 米间距 ≈ 每 100 m² 十棵。范围 (-240..240)² 去掉水和空地
- * 约 20 万 m²，只在雾内的 ±130 铺满、以外抽稀到 1/4，落在 1400~1600 棵。
+ *  - 阔叶 12~20 米、针叶 15~26 米，树干下粗上细占全高 60~70%
+ *  - 阔叶树冠是 3~4 个错开的球堆成伞形，针叶是 3 层锥叠成塔——
+ *    单球单锥放大八倍就是气球和路锥
+ *  - **间距 3.2 → 6.5**。树高了必须疏：树冠直径六七米还按 3 米摆，
+ *    全绞成一坨绿墙；放开之后树干之间能走人、看得见远处，才是"林子"
+ *    而不是"灌木丛"。数量随之从一万降到三千左右，帧率反而宽裕
+ *  - **院墙外留几棵近景大树**。上一版墙外 3 米全剔了，结果人在院里
+ *    抬头看不见一片树冠。现在墙外一圈专门种几棵最高的，冠比屋顶高
+ *
+ * 其余照旧：地毯式撒点再剔除（森林是默认，空地才要理由）、树站在
+ * 地形上、InstancedMesh（每种树的多部件树冠**合并成一份几何**再实例化，
+ * 三千棵仍是 4 个 draw call）。
  */
 function buildForest(root: Object3D): void {
   type Kind = 0 | 1 | 2; // 0 阔叶亮 1 阔叶暗 2 针叶
-  const trees: Array<{ x: number; z: number; y: number; scale: number; kind: Kind }> = [];
+  type Tree = { x: number; z: number; y: number; height: number; kind: Kind };
+  const trees: Tree[] = [];
 
-  const SPACING = 3.2;
+  const SPACING = 6.5;
   const FAR = 240;
   const NEAR_FULL = 130;
 
+  const inField = (x: number, z: number): boolean =>
+    x >= baseHeightfield.originX &&
+    x <= baseHeightfield.originX + (baseHeightfield.columns - 1) * baseHeightfield.spacing &&
+    z >= baseHeightfield.originZ &&
+    z <= baseHeightfield.originZ + (baseHeightfield.rows - 1) * baseHeightfield.spacing;
+  const groundAt = (x: number, z: number): number =>
+    (inField(x, z) ? sampleHeightfield(baseHeightfield, x, z) : YARD_Y) - YARD_Y;
+  /** 这一点的坡度（中心差分）。和地形网格判"岩壁"用同一个量纲 */
+  const slopeAt = (x: number, z: number): number => {
+    const h = 0.5;
+    const dx = sampleHeightfield(baseHeightfield, x + h, z) - sampleHeightfield(baseHeightfield, x - h, z);
+    const dz = sampleHeightfield(baseHeightfield, x, z + h) - sampleHeightfield(baseHeightfield, x, z - h);
+    return Math.hypot(dx, dz) / (2 * h);
+  };
+
   /** 树不能长的地方。返回 true = 跳过 */
   const excluded = (x: number, z: number): boolean => {
-    // 院墙内 + 墙外一圈（墙脚要看得见）
+    // 院墙内 + 墙外 1.5 米（墙脚要看得见）。近景大树另外单独种
     if (
-      x > WALL_RECT.minX - 3 && x < WALL_RECT.maxX + 3 &&
-      z > WALL_RECT.minZ - 3 && z < WALL_RECT.maxZ + 3
+      x > WALL_RECT.minX - 1.5 && x < WALL_RECT.maxX + 1.5 &&
+      z > WALL_RECT.minZ - 1.5 && z < WALL_RECT.maxZ + 1.5
     ) return true;
-    // 水：高度场说这里在水面之下就是河（场外用围裙面的常量，只有陆地）
-    const inField =
-      x >= baseHeightfield.originX &&
-      x <= baseHeightfield.originX + (baseHeightfield.columns - 1) * baseHeightfield.spacing &&
-      z >= baseHeightfield.originZ &&
-      z <= baseHeightfield.originZ + (baseHeightfield.rows - 1) * baseHeightfield.spacing;
-    const ground = inField ? sampleHeightfield(baseHeightfield, x, z) : YARD_Y;
-    // 水里不长树；岸坡上也不长——树根一半悬在崖上比站在水里还假。
-    // 台地以下 0.5 米就算坡（台地→滩台→水全是陡坎，坡上没有平地）
-    if (ground < YARD_Y - 0.5) return true;
-    // 缓丘顶上是 +1.1，比它还高的地方没有（保险）
-    if (ground > YARD_Y + 1.6) return true;
-    // 河口两道缺口（围裙留的口子，场外也不能长树在"水"上）
-    if (!inField && z < -60 && x > 24 && x < 44) return true;
-    if (!inField && x < -70 && z > 29 && z < 44) return true;
-    // 两座桥 + 桥头
+    const ground = groundAt(x, z);
+    // 水里不长树；岸坡上也不长——树根一半悬在崖上比站在水里还假
+    if (ground < -0.5) return true;
+    // 山：树顺着山脚往上长到 +9 左右，再高就是裸岩（雪线以下的林线）。
+    // 山体中段太陡的地方 slopeAt 拦（树不该斜着钉在 60° 的坡上）
+    if (ground > 9) return true;
+    if (inField(x, z) && slopeAt(x, z) > 0.75) return true;
+    if (!inField(x, z) && z < -60 && x > 24 && x < 44) return true;
+    if (!inField(x, z) && x < -70 && z > 29 && z < 44) return true;
     for (const b of BRIDGES) {
       const near = b.axis === "x"
-        ? Math.abs(z - b.at) < 3 && x > b.from - 2 && x < b.to + 4
-        : Math.abs(x - b.at) < 3 && z > b.from - 2 && z < b.to + 4;
+        ? Math.abs(z - b.at) < 4 && x > b.from - 2 && x < b.to + 6
+        : Math.abs(x - b.at) < 4 && z > b.from - 2 && z < b.to + 6;
       if (near) return true;
     }
-    // 西门外的林间小径（z≈-8，往西到 -52）：留一条 3 米宽的缝
+    // 西门外的林间小径：留一条 3 米宽的缝
     if (x < WALL_RECT.minX && x > -54 && Math.abs(z + 8) < 1.8) return true;
-    // 落地窗正外的视线走廊（樱花树那一片）：北墙外 6 米内留空
+    // 落地窗正外的视线走廊
     if (z < WALL_RECT.minZ && z > WALL_RECT.minZ - 7 && x > -2 && x < 16) return true;
     return false;
   };
@@ -294,40 +312,76 @@ function buildForest(root: Object3D): void {
     for (let gx = -FAR; gx <= FAR; gx += SPACING) {
       seed += 1;
       const dist = Math.max(Math.abs(gx), Math.abs(gz));
-      // 雾外抽稀：那儿只要一堵墙的剪影，不要每棵树
       if (dist > NEAR_FULL && hash01(seed * 1.3) > 0.28) continue;
-      const x = gx + (hash01(seed * 3.7) - 0.5) * SPACING * 0.9;
-      const z = gz + (hash01(seed * 5.1) - 0.5) * SPACING * 0.9;
+      const x = gx + (hash01(seed * 3.7) - 0.5) * SPACING * 0.85;
+      const z = gz + (hash01(seed * 5.1) - 0.5) * SPACING * 0.85;
       if (excluded(x, z)) continue;
 
-      const inField =
-        x >= baseHeightfield.originX &&
-        x <= baseHeightfield.originX + (baseHeightfield.columns - 1) * baseHeightfield.spacing &&
-        z >= baseHeightfield.originZ &&
-        z <= baseHeightfield.originZ + (baseHeightfield.rows - 1) * baseHeightfield.spacing;
-      const y = (inField ? sampleHeightfield(baseHeightfield, x, z) : YARD_Y) - YARD_Y;
-
-      // 越远越高：近处 0.85~1.3，雾边 1.4~2.2，把地平线顶起来
-      const farness = Math.min(1, dist / FAR);
-      const scale = 0.85 + hash01(seed * 7.7) * 0.45 + farness * 0.9;
       const r = hash01(seed * 9.9);
       const kind: Kind = r < 0.42 ? 0 : r < 0.78 ? 1 : 2;
-      trees.push({ x, z, y, scale, kind });
+      // 真实尺度：阔叶 12~20，针叶 15~26；越远越高一截，雾里收成墙
+      const farness = Math.min(1, dist / FAR);
+      const base = kind === 2 ? 15 + hash01(seed * 7.7) * 11 : 12 + hash01(seed * 7.7) * 8;
+      const height = base * (1 + farness * 0.35);
+      trees.push({ x, z, y: groundAt(x, z), height, kind });
     }
   }
 
-  // ---- 三种树、每种两个部件，全部实例化 ----
-  const dummy = new Object3D();
-  const trunkGeometry = new CylinderGeometry(0.12, 0.18, 1, 5);
-  trunkGeometry.translate(0, 0.5, 0); // 底在原点，好按 scale 拉高
-  const broadGeometry = new IcosahedronGeometry(0.9, 0);
-  const coneGeometry = new ConeGeometry(0.75, 2.2, 6);
-  coneGeometry.translate(0, 1.1, 0);
+  /*
+   * 院墙外一圈的近景大树：全图最高的一批（22~28），冠比屋脊（≈7.8）
+   * 高出一大截——人在院子里抬头就是树冠，从屋里窗户看出去也是。
+   * 只种西、北两面和角上，东南两面临水留给河景。
+   */
+  const sentinels: Array<[number, number, Kind]> = [
+    [WALL_RECT.minX - 5, WALL_RECT.minZ - 5, 1],
+    [WALL_RECT.minX - 6, WALL_RECT.maxZ + 4, 0],
+    [WALL_RECT.maxX + 4, WALL_RECT.minZ - 6, 2],
+    [-18, WALL_RECT.minZ - 5, 0],
+    [-8, WALL_RECT.minZ - 9, 2],
+    [18, WALL_RECT.minZ - 5, 1],
+    [WALL_RECT.minX - 5, 4, 0],
+    [WALL_RECT.minX - 4, -14, 2],
+  ];
+  sentinels.forEach(([x, z, kind], i) => {
+    trees.push({ x, z, y: groundAt(x, z), height: 22 + hash01(i * 3.3) * 6, kind });
+  });
 
-  const species: Array<{ kind: Kind; crown: BufferGeometry; color: string; crownLift: number }> = [
-    { kind: 0, crown: broadGeometry, color: TREE_GREEN_LIGHT, crownLift: 0.55 },
-    { kind: 1, crown: broadGeometry, color: TREE_GREEN, crownLift: 0.55 },
-    { kind: 2, crown: coneGeometry, color: "#4b6a44", crownLift: -0.15 },
+  // ---- 几何：树干一份；每种树的树冠合并成一份，再各自实例化 ----
+  const dummy = new Object3D();
+
+  // 树干：单位高、底在原点。下粗上细——按 scale.y 拉到全高时比例保持
+  const trunkGeometry = new CylinderGeometry(0.22, 0.42, 1, 6);
+  trunkGeometry.translate(0, 0.5, 0);
+
+  /** 阔叶伞冠：4 个球错开（单位尺寸，按树高缩放） */
+  const broadCrown = mergeGeometries([
+    new IcosahedronGeometry(0.42, 0).translate(0, 0.42, 0),
+    new IcosahedronGeometry(0.34, 0).translate(0.3, 0.2, 0.12),
+    new IcosahedronGeometry(0.3, 0).translate(-0.28, 0.24, -0.16),
+    new IcosahedronGeometry(0.28, 0).translate(0.02, 0.62, -0.02),
+  ]);
+  /** 针叶塔冠：3 层锥叠起来，下大上小 */
+  const coneCrown = mergeGeometries([
+    new ConeGeometry(0.42, 0.55, 7).translate(0, 0.27, 0),
+    new ConeGeometry(0.33, 0.5, 7).translate(0, 0.6, 0),
+    new ConeGeometry(0.22, 0.45, 7).translate(0, 0.92, 0),
+  ]);
+
+  const species: Array<{
+    kind: Kind;
+    crown: BufferGeometry;
+    color: string;
+    /** 树干占全高的比例 */
+    trunkShare: number;
+    /** 树冠宽 = 全高 × 这个数 */
+    crownWidth: number;
+    /** 树冠高 = 全高 × 这个数 */
+    crownHeight: number;
+  }> = [
+    { kind: 0, crown: broadCrown, color: TREE_GREEN_LIGHT, trunkShare: 0.62, crownWidth: 0.42, crownHeight: 0.42 },
+    { kind: 1, crown: broadCrown, color: TREE_GREEN, trunkShare: 0.62, crownWidth: 0.42, crownHeight: 0.42 },
+    // 针叶：干短冠长，塔从三分之一高就开始
+    { kind: 2, crown: coneCrown, color: "#4b6a44", trunkShare: 0.36, crownWidth: 0.34, crownHeight: 0.66 },
   ];
 
   const trunkMaterial = new MeshStandardMaterial({ color: TRUNK_BROWN, roughness: 1 });
@@ -335,16 +389,18 @@ function buildForest(root: Object3D): void {
   trunkMesh.name = "forest-trunks";
   trunkMesh.castShadow = false;
   trunkMesh.receiveShadow = false;
-  let ti = 0;
-  for (const tree of trees) {
-    const trunkHeight = 1.1 * tree.scale + hash01(ti * 2.9) * 0.6;
+  trees.forEach((tree, i) => {
+    const spec = species[tree.kind];
+    // 树干伸进树冠一截，不然冠底和干顶之间会露一线天
+    const trunkHeight = tree.height * (spec.trunkShare + 0.08);
+    // 粗细随高度：20 米的树干比 12 米的粗
+    const girth = 0.7 + (tree.height / 20) * 0.6;
     dummy.position.set(tree.x, tree.y, tree.z);
     dummy.rotation.set(0, 0, 0);
-    dummy.scale.set(tree.scale, trunkHeight, tree.scale);
+    dummy.scale.set(girth, trunkHeight, girth);
     dummy.updateMatrix();
-    trunkMesh.setMatrixAt(ti, dummy.matrix);
-    ti += 1;
-  }
+    trunkMesh.setMatrixAt(i, dummy.matrix);
+  });
   root.add(trunkMesh);
 
   for (const spec of species) {
@@ -353,34 +409,33 @@ function buildForest(root: Object3D): void {
     const material = new MeshStandardMaterial({ color: spec.color, roughness: 1, flatShading: true });
     const mesh = new InstancedMesh(spec.crown, material, mine.length);
     mesh.name = `forest-crowns-${spec.kind}`;
-    // 近处几百棵投影够了；全投的话阴影贴图会被远处糊满
     mesh.castShadow = false;
     mesh.receiveShadow = false;
     const shade = new Color();
-    for (let i = 0; i < mine.length; i += 1) {
-      const tree = mine[i];
-      const trunkHeight = 1.1 * tree.scale + hash01(i * 2.9) * 0.6;
-      dummy.position.set(tree.x, tree.y + trunkHeight + spec.crownLift * tree.scale, tree.z);
+    mine.forEach((tree, i) => {
+      dummy.position.set(tree.x, tree.y + tree.height * spec.trunkShare, tree.z);
       dummy.rotation.set(0, hash01(i * 23.1) * Math.PI * 2, 0);
-      dummy.scale.setScalar(tree.scale);
+      dummy.scale.set(
+        tree.height * spec.crownWidth,
+        tree.height * spec.crownHeight,
+        tree.height * spec.crownWidth,
+      );
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
-      // 每棵微调明度：同色一大片就是壁纸
-      shade.set(spec.color).offsetHSL(0, 0, (hash01(i * 4.4) - 0.5) * 0.08);
+      shade.set(spec.color).offsetHSL(0, 0, (hash01(i * 4.4) - 0.5) * 0.1);
       mesh.setColorAt(i, shade);
-    }
+    });
     root.add(mesh);
   }
 
   /*
-   * 远丘退到雾边之外：林子铺满之后它们只在树梢上露一个头，
-   * 把地平线再抬一截。挪出所有河口和主场景。
+   * 远丘退到雾边之外：林子铺满之后它们只在树梢上露一个头。
+   * （真正的山在下一步进高度场；这些是雾里的最后一层剪影）
    */
+  // 北/西的假丘退役——真山已经在高度场里了，两套叠着会穿帮。
+  // 只留东、南三处雾边剪影（那两面没起山，还需要东西接地平线）
   const hills: Array<[number, number, number, number]> = [
-    [-120, -150, 40, 16],
     [90, -150, 44, 18],
-    [-160, -30, 38, 15],
-    [-150, 90, 36, 14],
     [60, 160, 42, 16],
     [170, 40, 40, 15],
   ];
@@ -869,6 +924,48 @@ function buildOuterWorld(root: Object3D, bounds: DeckRect): void {
     house.position.set(hx, 0, hz);
     house.rotation.y = rot;
     root.add(house);
+  }
+
+  /*
+   * 两座桥的对岸桥头补景。地面视角从桥上望过去，对岸桥头前那一小块
+   * 是森林剔除留出的空地（BRIDGES 附近 6 米内不长树），一片平草——
+   * 用户点出来的三处之一。桥头该像个"到岸了"的地方：
+   *  - 一小丛岸石（河岸岩石那格）压住岸沿
+   *  - 两三棵灌木把空地填成"林间的口子"，而不是林子里的秃斑
+   *  - 一根桥头界桩，和小镇那边的路接上
+   * 大树仍不种：桥头 6 米内是给"过了桥能看见前面"留的视线。
+   */
+  for (const bridge of BRIDGES) {
+    const [ax, az] = bridge.axis === "x" ? [bridge.to + 1.5, bridge.at] : [bridge.at, bridge.to + 1.5];
+    const side = (k: number): [number, number] =>
+      bridge.axis === "x" ? [ax + k * 0.6, az + (k % 2 ? 2.4 : -2.4)] : [ax + (k % 2 ? 2.4 : -2.4), az + k * 0.6];
+    for (let k = 0; k < 4; k += 1) {
+      const [sx, sz] = side(k);
+      const rock = blob(0.38 + hash01(k * 5.7 + ax) * 0.3, 0, {
+        color: k % 2 ? PALETTE.baseStoneMoss : PALETTE.baseStone,
+        position: [sx, 0.05, sz],
+        castShadow: false,
+      });
+      rock.scale.y = 0.6;
+      root.add(rock);
+      const shrub = blob(0.7 + hash01(k * 3.1 + az) * 0.4, 0, {
+        color: k % 2 ? TREE_GREEN_LIGHT : TREE_GREEN,
+        position: [sx + 1.4, 0.55, sz + (k % 2 ? 1.2 : -1.2)],
+        castShadow: false,
+      });
+      shrub.scale.y = 0.75;
+      root.add(shrub);
+    }
+    // 界桩：矮石礅 + 铁环，和据点门柱同族
+    const post = new Object3D();
+    post.add(box([0.36, 0.9, 0.36], { color: PALETTE.baseStone, position: [0, 0.45, 0] }));
+    post.add(box([0.44, 0.1, 0.44], { color: PALETTE.pavingLight, position: [0, 0.95, 0] }));
+    post.position.set(
+      bridge.axis === "x" ? ax + 1.2 : ax - 1.6,
+      0,
+      bridge.axis === "x" ? az - 1.6 : az + 1.2,
+    );
+    root.add(post);
   }
 }
 

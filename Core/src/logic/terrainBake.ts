@@ -1,5 +1,6 @@
 import type {
   GroundHeightfield,
+  TerrainPeak,
   TerrainRecipe,
   TerrainShape,
 } from "../types/ground.js";
@@ -90,6 +91,64 @@ function influenceAt(shape: TerrainShape, x: number, z: number): number {
   return t * t * (3 - 2 * t);
 }
 
+/**
+ * 确定性低频噪声（0~1）：按格点哈希，双线性插值成连续场。
+ * 用来碎山肩——纯 smoothstep 的山是个光滑馒头。周期 13 米，
+ * 比树间距大、比山半径小，正好在"山有肩"这个尺度上。
+ */
+function ridgeNoise(x: number, z: number): number {
+  const period = 13;
+  const gx = x / period;
+  const gz = z / period;
+  const x0 = Math.floor(gx);
+  const z0 = Math.floor(gz);
+  const tx = gx - x0;
+  const tz = gz - z0;
+  const h = (ix: number, iz: number): number => {
+    const s = Math.sin(ix * 127.1 + iz * 311.7) * 43758.5453;
+    return s - Math.floor(s);
+  };
+  const a = h(x0, z0);
+  const b = h(x0 + 1, z0);
+  const c = h(x0, z0 + 1);
+  const d = h(x0 + 1, z0 + 1);
+  const sx = tx * tx * (3 - 2 * tx);
+  const sz = tz * tz * (3 - 2 * tz);
+  return a + (b - a) * sx + (c - a) * sz + (a - b - c + d) * sx * sz;
+}
+
+/**
+ * 这一点上所有山叠出来的抬升量（相对地面）。
+ * 单峰：smoothstep 从峰心 height 落到半径处 0；多峰取 max（见类型注释）。
+ * 噪声只在山体内起作用（乘以山的权重），山脚外不会凭空鼓包。
+ */
+function peakLiftAt(peaks: readonly TerrainPeak[], x: number, z: number): number {
+  let lift = 0;
+  for (const peak of peaks) {
+    const d = Math.hypot(x - peak.x, z - peak.z);
+    if (d >= peak.radius) continue;
+    const t = 1 - d / peak.radius;
+    /*
+     * 剖面：smootherstep 再取 1.6 次方。**指数是为了坡度**——
+     * 纯 smootherstep 的最大坡度只有 1.875·height/radius，一座 24 米高、
+     * 40 米半径的山中段才 1.1，卡在"站得住"45° 的边上，噪声一软就
+     * 漏出一条能走上去的路（headless 泛洪抓到人爬到 +24）。
+     * 取幂之后山脚更缓、山腰更陡（最大坡度约 2.6·h/r），山顶收得更尖
+     * ——既像山，又保证中段一定站不住。
+     */
+    const s = t * t * t * (t * (t * 6 - 15) + 10);
+    const w = Math.pow(s, 1.6);
+    let h = peak.height * w;
+    const rugged = peak.ruggedness ?? 0;
+    if (rugged > 0) {
+      // 噪声幅度随山高走，山脚（w→0）自动归零
+      h += (ridgeNoise(x, z) - 0.5) * peak.height * rugged * w;
+    }
+    if (h > lift) lift = h;
+  }
+  return lift;
+}
+
 export function bakeHeightfield(recipe: TerrainRecipe): GroundHeightfield {
   const { columns, rows, spacing, originX, originZ } = recipe;
   const heights = new Array<number>(columns * rows);
@@ -112,6 +171,10 @@ export function bakeHeightfield(recipe: TerrainRecipe): GroundHeightfield {
          */
         if (weight >= 1) height = shape.elevation;
         else if (weight > 0) height += (shape.elevation - height) * weight;
+      }
+      // 山最后叠：长在已经烤好的地上
+      if (recipe.peaks && recipe.peaks.length > 0) {
+        height += peakLiftAt(recipe.peaks, x, z);
       }
       heights[row * columns + column] = height;
     }

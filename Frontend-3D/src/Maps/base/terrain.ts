@@ -91,8 +91,10 @@ export const RIVER_OUTER_SHORE: Array<readonly [number, number]> = [
  * 岬角+脖子+大陆三块拼的（岛的残留），现在据点就长在大陆上。
  */
 export const WEST_LAND: Array<readonly [number, number]> = [
-  [-70, -60],
+  [-170, -160],
+  [26, -160],
   ...RIVER_INNER_SHORE,
+  [-170, 30],
 ];
 
 /**
@@ -113,7 +115,39 @@ export const OUTER_BANK: Array<readonly [number, number]> = [
  * 顶出水面（烤的时候按距离衰减，不认"这里是河"）。
  */
 const NORTH_RISE: Array<readonly [number, number]> = [
-  [-48, -60], [12, -60], [10, -42], [0, -34], [-14, -32], [-34, -34], [-50, -40],
+  [-60, -70], [12, -70], [10, -42], [0, -34], [-14, -32], [-34, -34], [-52, -40],
+];
+
+// ---- 山 -----------------------------------------------------------------
+
+/**
+ * 据点背后的山脉（用户定的：家这一套后面应该是各种大山，不是平的）。
+ *
+ * **起在北面和西北面**：屋子背后那一片，从缓丘 +1.1 起、隔一段林子
+ * 抬到 +25~30。东面不起——那边要看得见小镇的天际线；南面低——
+ * 河从那儿出去。三座主峰错开成一道弧，两座矮的填山鞍，再两座远峰在
+ * 雾边把天际线接住。
+ *
+ * 山脚离院墙最近约 30 米（−28,−16 到 −60,−70），中间那段林子是刻意
+ * 留的：山贴着墙就起是"背靠山崖"的压迫感，隔一段是"林深处有山"，
+ * 这张图要的是后者。要改成前者只用把 z 往 -40 挪。
+ *
+ * 站不上去是自动的：25 米落差摊在 45 米半径上，中段坡度远超 45°，
+ * isStandable 会拦。山脚那圈缓坡能走上去几步——那正是"能进林子"的
+ * 感觉，不用画禁行线。
+ */
+const PEAKS = [
+  // 主峰往后退了一截（第一版 z=-78 时山脚 z=-55 就 +15 了，林子被吃光）：
+  // 现在山脚落在 z≈-62，从北墙 -16 到山脚有 45 米林子
+  { peakId: "north-main", x: -30, z: -100, radius: 40, height: 26, ruggedness: 0.28 },
+  { peakId: "northwest-main", x: -96, z: -70, radius: 42, height: 28, ruggedness: 0.3 },
+  { peakId: "west-main", x: -126, z: -12, radius: 40, height: 24, ruggedness: 0.26 },
+  // 山鞍：把三座主峰连成一道，别是三个孤立的馒头
+  { peakId: "saddle-nw", x: -66, z: -88, radius: 34, height: 17, ruggedness: 0.22 },
+  { peakId: "saddle-w", x: -116, z: -42, radius: 32, height: 16, ruggedness: 0.22 },
+  // 远峰：雾边的天际线
+  { peakId: "far-north", x: 10, z: -130, radius: 50, height: 30, ruggedness: 0.32 },
+  { peakId: "far-west", x: -150, z: 28, radius: 46, height: 26, ruggedness: 0.3 },
 ];
 
 /** 东墙外的下层滩台（桥从头顶跨过去），略探进河里当石岸 */
@@ -217,7 +251,11 @@ export const BRIDGE_SURFACES: GroundSurface[] = BRIDGES.map((bridge) => {
  * 约 1.5 万格 × 5 个形状，启动烤一次，几十毫秒。
  */
 export const baseHeightfield = bakeHeightfield({
-  ...terrainGrid({ minX: -70, maxX: 55, minZ: -60, maxZ: 55 }, 1),
+  // 范围往北往西推到 -170/-160，把山脉整个装进来。**格距只能是 1.0**：
+  // 试过 1.5（地形网格能少一半），岸壁 1.2 米宽在 1.5 格上采样就软了，
+  // headless "往河里走会被岸壁拦住" 当场红。三角形的账另外算：
+  // 网格化器跳过全在水下的格（见 heightfieldMesh），那部分谁也看不见
+  ...terrainGrid({ minX: -170, maxX: 55, minZ: -160, maxZ: 55 }, 1),
   base: RIVER_BED_Y,
   shapes: [
     { shapeId: "west-land", outline: WEST_LAND as [number, number][], elevation: YARD_Y, falloff: BANK_FALLOFF },
@@ -226,4 +264,5 @@ export const baseHeightfield = bakeHeightfield({
     { shapeId: "east-shelf", outline: EAST_SHELF as [number, number][], elevation: SHELF_Y, falloff: 1 },
     { shapeId: "south-shelf", outline: SOUTH_SHELF as [number, number][], elevation: SHELF_Y, falloff: 1 },
   ],
+  peaks: PEAKS,
 });

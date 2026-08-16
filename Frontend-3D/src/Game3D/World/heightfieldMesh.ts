@@ -61,6 +61,9 @@ export function buildHeightfieldMesh(
       const z1 = z0 + spacing;
 
       const average = (h00 + h10 + h01 + h11) / 4;
+      // 整格都在水面之下 0.6 米以外：河床。水面是不透明的板，谁也看不见
+      // 它，一格三角形都不用发——据点这张图河道 + 场边缘约占三成格子
+      if (Math.max(h00, h10, h01, h11) < style.waterY - 0.6) continue;
       // 这格有多陡：四条边里最陡的那条。和通行的坡度规则同一个量纲
       const slope =
         Math.max(
@@ -77,11 +80,19 @@ export function buildHeightfieldMesh(
       } else if (average < style.waterY + 0.55 && slope < 1.4) {
         // 水线：贴着水面的一圈窄沙。宽度由岸坡自己决定，不用画
         paint(style.sand, seed, 0.05);
+      } else if (average > style.baseY + 18) {
+        // 山顶：裸岩带一点灰白（不下雪，这地方是温带；但高处植被退了）
+        paint(style.rockDark, seed, 0.06);
+        scratch.offsetHSL(0, -0.05, 0.12);
       } else if (slope > 2.2) {
         paint(style.rockDark, seed, 0.05);
       } else if (slope > 0.9) {
         // 站不住的坡就是岩壁——和 MAX_WALKABLE_SLOPE 同一个判断
         paint(style.rock, seed, 0.06);
+      } else if (average > style.baseY + 9) {
+        // 林线以上、岩带以下：草甸，比谷底的草黄一点
+        paint(style.grassLight, seed, 0.05);
+        scratch.offsetHSL(0.02, -0.08, 0.04);
       } else {
         // 草地三档：暗斑打散大面积、高处微微发亮（远丘要比河谷亮）
         const uplift = Math.min(0.5, Math.max(0, (average - style.baseY) * 0.35));

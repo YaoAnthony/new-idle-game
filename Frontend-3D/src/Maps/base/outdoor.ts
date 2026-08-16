@@ -1,11 +1,16 @@
-import { yardBoundsOf, type DeckRect } from "core";
+import { sampleHeightfield, yardBoundsOf, type DeckRect } from "core";
 import {
   BufferAttribute,
   BufferGeometry,
   CircleGeometry,
   Color,
+  ConeGeometry,
+  CylinderGeometry,
+  IcosahedronGeometry,
+  InstancedMesh,
   Mesh,
   MeshLambertMaterial,
+  MeshStandardMaterial,
   Object3D,
   Points,
   PointsMaterial,
@@ -20,20 +25,22 @@ import {
 import { baseMapDefinition } from "./index.js";
 import {
   BRIDGES,
-  PENINSULA,
   BRIDGE_WIDTH,
+  ESTATE_SHORE,
+  FLOOR_LEVEL,
   GATE_EAST_Z,
   GATE_HALF,
   GATE_SOUTH_X,
   GATE_WEST_Z,
-  LAND_PATCHES,
   RIVER_BED_Y,
   WALL_HEIGHT,
   WALL_RECT,
   WALL_THICKNESS,
   WATER_LEVEL_Y,
   YARD_Y,
+  baseHeightfield,
 } from "./terrain.js";
+import { buildHeightfieldMesh } from "../../Game3D/World/heightfieldMesh.js";
 
 /**
  * base（玩家据点）的地形。
@@ -162,19 +169,45 @@ function landPatch(
 }
 
 /**
- * 陆地：岬角 + 脖子 + 西面大陆 + 对岸。
- * 水是底，陆是浮在水上的几块——不是"草地上挖一条河"。
+ * 陆地（2026-08-16 第二版）：主场景直接**三角化烤好的高度场**——
+ * 通行判定采样哪张场，这里就画哪张场，看得见的地就是走得到的地。
+ * 上一版还是"轮廓一份、各自成形"（平多边形+裙边 vs 高度场），
+ * 缓丘和滩台一来，平多边形就表达不了了。
  *
- * **轮廓一份，两处消费**（2026-08-12）：这里建看得见的地，terrain.ts
- * 拿同一批轮廓烤高度场供通行判定。上一版视觉和物理各有一份数据，
- * 结果是"岸壁是贴图、真正拦人的是隐形矩形"。
- *
- * 每块压低一丝（i * 0.01）纯粹是防同面 z-fighting，重叠处同色看不出来。
+ * 场外的远景用平板围裙接到雾里，**北边和西边各留一道河口缺口**：
+ * 河是穿过去的，不是这张图里的一个池子——它从北边的雾里来，
+ * 往西边的雾里去。
  */
 function buildLand(root: Object3D): void {
-  for (const [i, patch] of LAND_PATCHES.entries()) {
-    root.add(landPatch(patch.outline, -0.02 - i * 0.01, GROUND_GREEN));
-  }
+  root.add(
+    buildHeightfieldMesh(baseHeightfield, {
+      yOffset: FLOOR_LEVEL,
+      waterY: WATER_LEVEL_Y,
+      baseY: YARD_Y,
+      grass: GROUND_GREEN,
+      grassDark: GROUND_GREEN_DARK,
+      grassLight: "#8bab6e",
+      rock: BANK_STONE,
+      rockDark: "#584f44",
+      sand: "#c2b28a",
+      bed: "#5f5e4c",
+    }),
+  );
+
+  /*
+   * 围裙尺寸的上限是**天穹**：半球半径 85、全景里放大到 272，
+   * 铺过这个数就会看见陆地伸出天球外面贴着底色。240 停在球里，
+   * 日常雾 190 又足够把边缘藏掉。
+   */
+  const apron = (outline: Array<readonly [number, number]>, y: number): void => {
+    root.add(landPatch(outline, y, GROUND_GREEN));
+  };
+  apron([[-240, -240], [-70, -240], [-70, 29], [-240, 29]], -0.02); // 西·河口以北
+  apron([[-240, 44], [-70, 44], [-70, 240], [-240, 240]], -0.03);  // 西·河口以南
+  apron([[-70, -240], [24, -240], [24, -60], [-70, -60]], -0.04);  // 北·河口以西
+  apron([[44, -240], [240, -240], [240, -60], [44, -60]], -0.05);  // 北·河口以东
+  apron([[55, -60], [240, -60], [240, 240], [55, 240]], -0.06);    // 东 + 东南角
+  apron([[-70, 55], [55, 55], [55, 240], [-70, 240]], -0.07);      // 南
 
   // 岬角上的几块深色草斑。零厚度贴地圆片：扁盒子在掠射角会露侧面
   for (let i = 0; i < 7; i += 1) {
@@ -193,103 +226,169 @@ function buildLand(root: Object3D): void {
 }
 
 /**
- * 野森林。**关键不是数量是高度**：默认镜头是俯视的，视线穿过窗洞
- * 一路向下，外面必须有竖起来的东西接住视线，否则满窗都是草地。
- * 所以河对岸是一道又高又密的林墙，河这边散几棵近树给窗景当前景。
- * 庭院预留区（落地窗正外）留空给樱花树。
+ * 森林。**这张图的底色是林子，据点是从林子里清出来的一块空地**——
+ * 不是"草地上点缀几棵树"。用户连说四遍"森林"才把这条敲进来：
+ * 上一版全图 124 棵，150×120 米，那是草坪。
+ *
+ * 做法：
+ *  1. **地毯式泊松撒点**，不是几条手写的林带。整个可见范围按 3.2 米
+ *     间距抖动铺满，再从里面**剔除**不能长树的地方（院墙内、水、桥、
+ *     林间小径、门口的视线走廊）。剔除比添加对：森林是默认，空地才要
+ *     理由。
+ *  2. **树站在地形上**：脚下高度从烤好的高度场采样，缓丘上的树自己
+ *     长在丘顶，滩台上的站在滩台上。全平放会让缓丘穿帮（树根悬空）。
+ *  3. **三种树、六档尺寸**：一样的树按 1500 棵铺开就是壁纸。阔叶两种
+ *     色、一种针叶（尖顶）；越远越高越暗，近处矮而亮——雾里收成墙。
+ *  4. **InstancedMesh**：1500 棵按 4 个 draw call 画（每种树两个部件），
+ *     不是 1500×3 个 Object3D。这一条不做，帧率当场掉一半。
+ *
+ * 密度账：3.2 米间距 ≈ 每 100 m² 十棵。范围 (-240..240)² 去掉水和空地
+ * 约 20 万 m²，只在雾内的 ±130 铺满、以外抽稀到 1/4，落在 1400~1600 棵。
  */
 function buildForest(root: Object3D): void {
-  const trees: Array<[number, number, number]> = [];
+  type Kind = 0 | 1 | 2; // 0 阔叶亮 1 阔叶暗 2 针叶
+  const trees: Array<{ x: number; z: number; y: number; scale: number; kind: Kind }> = [];
+
+  const SPACING = 3.2;
+  const FAR = 240;
+  const NEAR_FULL = 130;
+
+  /** 树不能长的地方。返回 true = 跳过 */
+  const excluded = (x: number, z: number): boolean => {
+    // 院墙内 + 墙外一圈（墙脚要看得见）
+    if (
+      x > WALL_RECT.minX - 3 && x < WALL_RECT.maxX + 3 &&
+      z > WALL_RECT.minZ - 3 && z < WALL_RECT.maxZ + 3
+    ) return true;
+    // 水：高度场说这里在水面之下就是河（场外用围裙面的常量，只有陆地）
+    const inField =
+      x >= baseHeightfield.originX &&
+      x <= baseHeightfield.originX + (baseHeightfield.columns - 1) * baseHeightfield.spacing &&
+      z >= baseHeightfield.originZ &&
+      z <= baseHeightfield.originZ + (baseHeightfield.rows - 1) * baseHeightfield.spacing;
+    const ground = inField ? sampleHeightfield(baseHeightfield, x, z) : YARD_Y;
+    // 水里不长树；岸坡上也不长——树根一半悬在崖上比站在水里还假。
+    // 台地以下 0.5 米就算坡（台地→滩台→水全是陡坎，坡上没有平地）
+    if (ground < YARD_Y - 0.5) return true;
+    // 缓丘顶上是 +1.1，比它还高的地方没有（保险）
+    if (ground > YARD_Y + 1.6) return true;
+    // 河口两道缺口（围裙留的口子，场外也不能长树在"水"上）
+    if (!inField && z < -60 && x > 24 && x < 44) return true;
+    if (!inField && x < -70 && z > 29 && z < 44) return true;
+    // 两座桥 + 桥头
+    for (const b of BRIDGES) {
+      const near = b.axis === "x"
+        ? Math.abs(z - b.at) < 3 && x > b.from - 2 && x < b.to + 4
+        : Math.abs(x - b.at) < 3 && z > b.from - 2 && z < b.to + 4;
+      if (near) return true;
+    }
+    // 西门外的林间小径（z≈-8，往西到 -52）：留一条 3 米宽的缝
+    if (x < WALL_RECT.minX && x > -54 && Math.abs(z + 8) < 1.8) return true;
+    // 落地窗正外的视线走廊（樱花树那一片）：北墙外 6 米内留空
+    if (z < WALL_RECT.minZ && z > WALL_RECT.minZ - 7 && x > -2 && x < 16) return true;
+    return false;
+  };
+
+  let seed = 1000;
+  for (let gz = -FAR; gz <= FAR; gz += SPACING) {
+    for (let gx = -FAR; gx <= FAR; gx += SPACING) {
+      seed += 1;
+      const dist = Math.max(Math.abs(gx), Math.abs(gz));
+      // 雾外抽稀：那儿只要一堵墙的剪影，不要每棵树
+      if (dist > NEAR_FULL && hash01(seed * 1.3) > 0.28) continue;
+      const x = gx + (hash01(seed * 3.7) - 0.5) * SPACING * 0.9;
+      const z = gz + (hash01(seed * 5.1) - 0.5) * SPACING * 0.9;
+      if (excluded(x, z)) continue;
+
+      const inField =
+        x >= baseHeightfield.originX &&
+        x <= baseHeightfield.originX + (baseHeightfield.columns - 1) * baseHeightfield.spacing &&
+        z >= baseHeightfield.originZ &&
+        z <= baseHeightfield.originZ + (baseHeightfield.rows - 1) * baseHeightfield.spacing;
+      const y = (inField ? sampleHeightfield(baseHeightfield, x, z) : YARD_Y) - YARD_Y;
+
+      // 越远越高：近处 0.85~1.3，雾边 1.4~2.2，把地平线顶起来
+      const farness = Math.min(1, dist / FAR);
+      const scale = 0.85 + hash01(seed * 7.7) * 0.45 + farness * 0.9;
+      const r = hash01(seed * 9.9);
+      const kind: Kind = r < 0.42 ? 0 : r < 0.78 ? 1 : 2;
+      trees.push({ x, z, y, scale, kind });
+    }
+  }
+
+  // ---- 三种树、每种两个部件，全部实例化 ----
+  const dummy = new Object3D();
+  const trunkGeometry = new CylinderGeometry(0.12, 0.18, 1, 5);
+  trunkGeometry.translate(0, 0.5, 0); // 底在原点，好按 scale 拉高
+  const broadGeometry = new IcosahedronGeometry(0.9, 0);
+  const coneGeometry = new ConeGeometry(0.75, 2.2, 6);
+  coneGeometry.translate(0, 1.1, 0);
+
+  const species: Array<{ kind: Kind; crown: BufferGeometry; color: string; crownLift: number }> = [
+    { kind: 0, crown: broadGeometry, color: TREE_GREEN_LIGHT, crownLift: 0.55 },
+    { kind: 1, crown: broadGeometry, color: TREE_GREEN, crownLift: 0.55 },
+    { kind: 2, crown: coneGeometry, color: "#4b6a44", crownLift: -0.15 },
+  ];
+
+  const trunkMaterial = new MeshStandardMaterial({ color: TRUNK_BROWN, roughness: 1 });
+  const trunkMesh = new InstancedMesh(trunkGeometry, trunkMaterial, trees.length);
+  trunkMesh.name = "forest-trunks";
+  trunkMesh.castShadow = false;
+  trunkMesh.receiveShadow = false;
+  let ti = 0;
+  for (const tree of trees) {
+    const trunkHeight = 1.1 * tree.scale + hash01(ti * 2.9) * 0.6;
+    dummy.position.set(tree.x, tree.y, tree.z);
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(tree.scale, trunkHeight, tree.scale);
+    dummy.updateMatrix();
+    trunkMesh.setMatrixAt(ti, dummy.matrix);
+    ti += 1;
+  }
+  root.add(trunkMesh);
+
+  for (const spec of species) {
+    const mine = trees.filter((tree) => tree.kind === spec.kind);
+    if (mine.length === 0) continue;
+    const material = new MeshStandardMaterial({ color: spec.color, roughness: 1, flatShading: true });
+    const mesh = new InstancedMesh(spec.crown, material, mine.length);
+    mesh.name = `forest-crowns-${spec.kind}`;
+    // 近处几百棵投影够了；全投的话阴影贴图会被远处糊满
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    const shade = new Color();
+    for (let i = 0; i < mine.length; i += 1) {
+      const tree = mine[i];
+      const trunkHeight = 1.1 * tree.scale + hash01(i * 2.9) * 0.6;
+      dummy.position.set(tree.x, tree.y + trunkHeight + spec.crownLift * tree.scale, tree.z);
+      dummy.rotation.set(0, hash01(i * 23.1) * Math.PI * 2, 0);
+      dummy.scale.setScalar(tree.scale);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+      // 每棵微调明度：同色一大片就是壁纸
+      shade.set(spec.color).offsetHSL(0, 0, (hash01(i * 4.4) - 0.5) * 0.08);
+      mesh.setColorAt(i, shade);
+    }
+    root.add(mesh);
+  }
 
   /*
-   * **树只长在陆地上**。三面是水之后这条不再是构图偏好，是物理约束：
-   * 岬角的墙外全是河，往那儿撒树就是树站在水面上。所以只有三处能种：
-   * 西面的大陆森林、脖子两侧的滩地、对岸的林线。
+   * 远丘退到雾边之外：林子铺满之后它们只在树梢上露一个头，
+   * 把地平线再抬一截。挪出所有河口和主场景。
    */
-
-  // 西面大陆：一整片森林，越往西越密越高（雾里收成一道墙）
-  for (let i = 0; i < 46; i += 1) {
-    const x = -60 - hash01(i * 3.3) * 62;
-    const z = (hash01(i * 7.1) - 0.5) * 150;
-    trees.push([x, z, 1.2 + hash01(i * 17.7) * 1.2]);
-  }
-  // 脖子口的疏林：从大门望出去，路两侧几棵近树当画框
-  for (let i = 50; i < 64; i += 1) {
-    const x = -38 - hash01(i * 5.1) * 20;
-    const z = -14 + hash01(i * 6.7) * 16;
-    // 让开大门那条路（z -11..-5），路要透出去
-    if (z > -11.5 && z < -4.5) continue;
-    trees.push([x, z, 0.9 + hash01(i * 9.1) * 0.6]);
-  }
-  // 对岸（东，小镇那侧）的林线：只在近岸一条带上，后面留给屋影
-  for (let i = 70; i < 92; i += 1) {
-    const x = 46 + hash01(i * 4.7) * 12;
-    const z = (hash01(i * 8.9) - 0.5) * 120;
-    trees.push([x, z, 1.1 + hash01(i * 13.9) * 0.9]);
-  }
-  // 南北两道远岸的林线
-  for (let i = 100; i < 126; i += 1) {
-    const north = hash01(i * 2.3) < 0.5;
-    const x = -50 + hash01(i * 5.9) * 100;
-    const z = north ? -48 - hash01(i * 7.7) * 16 : 50 + hash01(i * 7.7) * 16;
-    trees.push([x, z, 1.2 + hash01(i * 11.1) * 1.0]);
-  }
-
-  // 远丘：压扁的绿色圆顶垫在林线后面，把地平线抬起来，
-  // 雾一罩就是参考画风里那种远处发白的层次
   const hills: Array<[number, number, number, number]> = [
-    [-30, -72, 26, 10],
-    [40, -70, 30, 12],
-    [-96, -20, 28, 12],
-    [-90, 34, 24, 10],
-    [30, 76, 28, 11],
-    [86, 22, 26, 10],
+    [-120, -150, 40, 16],
+    [90, -150, 44, 18],
+    [-160, -30, 38, 15],
+    [-150, 90, 36, 14],
+    [60, 160, 42, 16],
+    [170, 40, 40, 15],
   ];
   for (const [hx, hz, hr, hh] of hills) {
-    // blob 第二参数是细分级别不是随机种子——传坐标进去要么几百万面要么直接空掉
-    const hill = blob(hr, 1, {
-      color: "#54724a",
-      position: [hx, 0, hz],
-      castShadow: false,
-    });
+    const hill = blob(hr, 1, { color: "#54724a", position: [hx, 0, hz], castShadow: false });
     hill.scale.y = hh / hr;
     hill.receiveShadow = false;
     root.add(hill);
-  }
-
-  for (let i = 0; i < trees.length; i += 1) {
-    const [x, z, scale] = trees[i];
-    const tree = new Object3D();
-
-    const trunkHeight = 1.1 * scale + hash01(i * 2.9) * 0.6;
-    const trunk = cylinder(0.12 * scale, 0.17 * scale, trunkHeight, 5, {
-      color: TRUNK_BROWN,
-      position: [0, trunkHeight / 2, 0],
-      castShadow: false,
-    });
-    tree.add(trunk);
-
-    const crownColor = hash01(i * 11.3) < 0.4 ? TREE_GREEN_LIGHT : TREE_GREEN;
-    // 细分固定 0：低多边形树冠要的就是那股棱角。形态差异靠 scale 和旋转
-    const crown = blob(0.85 * scale, 0, {
-      color: crownColor,
-      position: [0, trunkHeight + 0.55 * scale, 0],
-      castShadow: false,
-    });
-    tree.add(crown);
-
-    if (hash01(i * 6.3) > 0.55) {
-      const side = blob(0.5 * scale, 0, {
-        color: crownColor,
-        position: [0.55 * scale, trunkHeight + 0.25 * scale, 0.1],
-        castShadow: false,
-      });
-      tree.add(side);
-    }
-
-    tree.position.set(x, 0, z);
-    tree.rotation.y = hash01(i * 23.1) * Math.PI * 2;
-    root.add(tree);
   }
 }
 
@@ -298,7 +397,7 @@ function buildForest(root: Object3D): void {
  * 顺手撒岸沫、睡莲、岸石——概念图河岸那三样。返回流光条（update 用）。
  */
 function buildWater(root: Object3D): Mesh[] {
-  const water = box([320, 0.4, 320], {
+  const water = box([560, 0.4, 560], {
     color: RIVER_BLUE,
     position: [0, WATER_Y - 0.2, 0],
     castShadow: false,
@@ -313,9 +412,10 @@ function buildWater(root: Object3D): Mesh[] {
    * 里最便宜也最有效的一笔。
    */
   const foam: number[] = [];
-  for (let i = 0; i < PENINSULA.length; i += 1) {
-    const [x0, z0] = PENINSULA[i];
-    const [x1, z1] = PENINSULA[(i + 1) % PENINSULA.length];
+  // 开放折线不是闭环——岸线现在是大陆的边，不再绕岛一圈
+  for (let i = 0; i < ESTATE_SHORE.length - 1; i += 1) {
+    const [x0, z0] = ESTATE_SHORE[i];
+    const [x1, z1] = ESTATE_SHORE[i + 1];
     const push = (x: number, z: number, k: number): [number, number] => {
       const len = Math.hypot(x, z) || 1;
       return [x + (x / len) * k, z + (z / len) * k];
@@ -335,10 +435,10 @@ function buildWater(root: Object3D): Mesh[] {
 
   // 睡莲：概念图河面上那些圆叶子，成簇贴在近岸的静水里
   for (let i = 0; i < 22; i += 1) {
-    const angle = (i / 22) * Math.PI * 2 + hash01(i * 3.7) * 0.5;
-    const radius = 30 + hash01(i * 5.3) * 8;
-    const cx = Math.cos(angle) * radius;
-    const cz = Math.sin(angle) * radius * 1.15;
+    // 一半撒东侧主河道，一半撒南段河湾——河在哪莲就在哪
+    const east = i % 2 === 0;
+    const cx = east ? 30 + hash01(i * 5.3) * 8 : -52 + hash01(i * 5.3) * 62;
+    const cz = east ? -48 + hash01(i * 3.7) * 58 : 32 + hash01(i * 3.7) * 5;
     for (let k = 0; k < 3; k += 1) {
       const pad = new Mesh(
         new CircleGeometry(0.34 + hash01(i * 9.1 + k) * 0.22, 7),
@@ -356,8 +456,8 @@ function buildWater(root: Object3D): Mesh[] {
 
   // 岸石与蕨草簇（照河桥概念图"河岸岩石与植被"那格）：贴着岸线蹲着
   for (let i = 0; i < 14; i += 1) {
-    const [x0, z0] = PENINSULA[i % PENINSULA.length];
-    const [x1, z1] = PENINSULA[(i + 1) % PENINSULA.length];
+    const [x0, z0] = ESTATE_SHORE[i % (ESTATE_SHORE.length - 1)];
+    const [x1, z1] = ESTATE_SHORE[(i % (ESTATE_SHORE.length - 1)) + 1];
     const t = hash01(i * 6.1);
     const bx = x0 + (x1 - x0) * t;
     const bz = z0 + (z1 - z0) * t;
@@ -388,7 +488,7 @@ function buildWater(root: Object3D): Mesh[] {
   for (let i = 0; i < 8; i += 1) {
     const streak = box([0.09, 0.015, 1.1], {
       color: RIVER_FOAM,
-      position: [32 + hash01(i * 6.7) * 8, WATER_Y + 0.05, -60 + hash01(i * 4.1) * 120],
+      position: [29 + hash01(i * 6.7) * 8, WATER_Y + 0.05, -55 + hash01(i * 4.1) * 68],
       castShadow: false,
     });
     streaks.push(streak);
@@ -692,43 +792,11 @@ function buildFlowerbeds(root: Object3D): void {
  * （盒身+坡顶+烟囱，雾一罩就是"镇子在那边"的说明，不是能去的建筑）。
  */
 function buildOuterWorld(root: Object3D, bounds: DeckRect): void {
-  const outerTree = (x: number, z: number, scale: number, seed: number): void => {
-    const tree = new Object3D();
-    const trunkHeight = 1.1 * scale + hash01(seed * 2.9) * 0.6;
-    tree.add(
-      cylinder(0.12 * scale, 0.17 * scale, trunkHeight, 5, {
-        color: TRUNK_BROWN,
-        position: [0, trunkHeight / 2, 0],
-        castShadow: false,
-      }),
-    );
-    tree.add(
-      blob(0.85 * scale, 0, {
-        color: hash01(seed * 11.3) < 0.4 ? TREE_GREEN_LIGHT : TREE_GREEN,
-        position: [0, trunkHeight + 0.55 * scale, 0],
-        castShadow: false,
-      }),
-    );
-    tree.position.set(x, 0, z);
-    tree.rotation.y = hash01(seed * 23.1) * Math.PI * 2;
-    root.add(tree);
-  };
-
   /*
-   * **西面只有一处能种树，就是脖子**——北东南三面出了墙就是水。
-   * 沿脖子两侧压两排，把出门那条路夹成一条林间小道；越往西越密，
-   * 接上大陆的整片森林（那批树在 buildForest 里）。
+   * 树全部归 buildForest 了（地毯式铺满、实例化）。这里原来还有一段
+   * "沿脖子两侧压两排"的手摆树——两套森林叠在一起，一套 30 棵一套
+   * 1500 棵，前者纯属噪音，删。
    */
-  let seed = 500;
-  for (let x = bounds.minX - 2; x > -58; x -= 3.2) {
-    const jitter = (hash01(seed * 3.1) - 0.5) * 1.6;
-    // 路在 z=-8，两侧各让开 3 格
-    outerTree(x + jitter, -12.5 - hash01(seed * 5.3) * 2.5, 0.95 + hash01(seed * 7.7) * 0.5, seed);
-    seed += 1;
-    outerTree(x + jitter * 1.4, -3.5 + hash01(seed * 4.9) * 3, 1.0 + hash01(seed * 9.1) * 0.6, seed);
-    seed += 1;
-  }
-
   /*
    * 西门外的**林间小径**。这条路不通小镇——去镇上要过桥，西面是林子，
    * 留给以后的森林区域。
@@ -1174,7 +1242,8 @@ export function buildBaseTerrain(context: TerrainContext): OutdoorTerrain {
       for (let i = 0; i < streaks.length; i += 1) {
         const streak = streaks[i];
         streak.position.z += (0.9 + hash01(i * 7.7) * 0.5) * deltaSeconds;
-        if (streak.position.z > 60) streak.position.z = -60;
+        // 河道在 z≈18 往西拐，流光漂到弯口就回北头（别漂上南岸的草地）
+        if (streak.position.z > 16) streak.position.z = -55;
       }
 
       // 花瓣：下落 + 正弦横摆，落地回到树冠。风天飘得更斜更快

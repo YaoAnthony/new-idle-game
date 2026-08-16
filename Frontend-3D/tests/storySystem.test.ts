@@ -20,6 +20,8 @@ import {
   unlockFeature,
 } from "../src/Game/Systems/events";
 import { getCount, restoreInventory } from "../src/Game/State/inventory";
+import { conditionsMet } from "../src/Game/Systems/dialogue";
+import { getWeather } from "../src/Game/State/weather";
 import { emit, on } from "../src/Game/EventBus";
 
 /**
@@ -286,5 +288,68 @@ describe("启停", () => {
     restoreSignalCounts({});
     stop = startStorySystem(true);
     expect(getSignalCounts().game_started).toBe(1);
+  });
+});
+
+/**
+ * 对话条件求值。
+ *
+ * 这三条曾经**静默坏掉**：`event_completed` 判的其实是"触发过"，
+ * `feature_unlocked` 和 `weather_is` 直接 `return false`。挂它们的选项
+ * 永远不显示，而且不报错、审计查不出来、i18n 测试也是绿的——
+ * 剧情作者只会看到"这个选项怎么就是不出来"。补上用例锁住。
+ */
+describe("对话条件", () => {
+  test("dialogue_condition_event_completed_distinguishes_active_from_completed", () => {
+    // Arrange：推进到某一阶段但没完成
+    setEventStage("trial_of_ash", "chapter_1", "active");
+
+    // Act & Assert：进行中不算完成（旧实现在这里就返回 true 了）
+    expect(conditionsMet([{ kind: "event_completed", eventId: "trial_of_ash" }])).toBe(false);
+
+    // Act：真的完成
+    setEventStage("trial_of_ash", "chapter_1", "completed");
+
+    // Assert
+    expect(conditionsMet([{ kind: "event_completed", eventId: "trial_of_ash" }])).toBe(true);
+  });
+
+  test("dialogue_condition_event_completed_false_for_untouched_event", () => {
+    // Arrange：没碰过的事件
+    // Act & Assert
+    expect(conditionsMet([{ kind: "event_completed", eventId: "never_started" }])).toBe(false);
+  });
+
+  test("dialogue_condition_feature_unlocked_follows_unlock_state", () => {
+    // Arrange & Act & Assert：锁着
+    expect(conditionsMet([{ kind: "feature_unlocked", featureId: "cooking" }])).toBe(false);
+
+    // Act：解锁
+    unlockFeature("cooking");
+
+    // Assert（旧实现恒 false，这一步永远过不了）
+    expect(conditionsMet([{ kind: "feature_unlocked", featureId: "cooking" }])).toBe(true);
+  });
+
+  test("dialogue_condition_weather_is_matches_current_weather", () => {
+    // Arrange：强制天气，拿到当前的 id
+    const current = getWeather().id;
+
+    // Act & Assert：对上的为真，对不上的为假
+    expect(conditionsMet([{ kind: "weather_is", weatherId: current }])).toBe(true);
+    expect(conditionsMet([{ kind: "weather_is", weatherId: "__no_such_weather__" }])).toBe(false);
+  });
+
+  test("dialogue_conditions_are_conjunctive", () => {
+    // Arrange：一真一假
+    unlockFeature("cooking");
+
+    // Act & Assert：条件之间是「与」，有一条不成立整体就不成立
+    expect(
+      conditionsMet([
+        { kind: "feature_unlocked", featureId: "cooking" },
+        { kind: "event_completed", eventId: "never_started" },
+      ]),
+    ).toBe(false);
   });
 });

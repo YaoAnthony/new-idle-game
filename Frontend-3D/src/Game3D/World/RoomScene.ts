@@ -81,7 +81,6 @@ import { emit, on, type StationCapability } from "../../Game/EventBus";
 import {
   getPet,
   getPets,
-  seedInitialPets,
   tickPets,
 } from "../../Game/State/petsRuntime";
 import {
@@ -267,8 +266,16 @@ export class RoomScene {
     // 读档时屋里的东西来自存档，不能再铺一次房东留下的旧家具和纸箱
     if (options.seedFurniture !== false) {
       seedInitialFurniture();
-      // 家具先摆好，舒舒挑角落时才能避开纸箱占的格子
-      seedInitialPets();
+      /*
+       * 这里原来还有一句 seedInitialPets()：新档开局让舒舒睡在屋角。
+       * 那是**旧剧情的舞台调度**——"搬家那天它就已经在角落里呼呼大睡，
+       * 开头是叫不叫得醒"，属于出租屋那条已经推倒的线。剧情注册表清空后
+       * 它成了没有来由的演出：一只谁也没介绍过的巨猫凭空躺在新家里。
+       *
+       * 宠物物种**仍在 Core 的注册表里**（Data/pets），随时可用——
+       * 删掉的只是"开局自动登场"这个动作。新剧情想让谁出场，用
+       * storyRules 的 spawn_pet 效果声明，别再写死在场景构造里。
+       */
     }
 
     const { room } = getWorld();

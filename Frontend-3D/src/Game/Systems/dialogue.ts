@@ -7,7 +7,8 @@ import {
 import { emit } from "../EventBus";
 import { getCount, type SlotRef } from "../State/inventory";
 import { getPet } from "../State/petsRuntime";
-import { getEventStage } from "./events";
+import { getWeather } from "../State/weather";
+import { getEventStage, isEventCompleted, isFeatureUnlocked } from "./events";
 import { offerGift, type GiftResult } from "./gifting";
 import { signal } from "./story";
 
@@ -46,15 +47,23 @@ function conditionMet(condition: DialogueCondition): boolean {
       );
     }
     case "event_completed":
-      return getEventStage(condition.eventId) !== null;
+      /*
+       * 判的是**完成**，不是"触发过"。
+       *
+       * 这里原来写的是 `getEventStage(...) !== null`——那个只要事件被推进过
+       * 一次就为真，哪怕它还停在第一阶段。作者写"等这条线走完了再说这句话"，
+       * 拿到的却是"这条线一开头就说"，而且不报错、审计也查不出来。
+       * 想判"到了某一阶段"有 event_stage，两者别混。
+       */
+      return isEventCompleted(condition.eventId);
     case "event_stage":
       return getEventStage(condition.eventId) === condition.stageId;
     case "feature_unlocked":
-      return false; // 功能解锁系统接入后补
+      return isFeatureUnlocked(condition.featureId);
     case "has_item":
       return getCount(condition.itemId) >= condition.quantity;
     case "weather_is":
-      return false; // 天气接入对话条件时补
+      return getWeather().id === condition.weatherId;
     default:
       return false;
   }

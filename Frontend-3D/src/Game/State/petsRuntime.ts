@@ -90,26 +90,25 @@ export function debugPlacePet(petId: string, x: number, z: number): void {
 }
 
 /**
- * 新游戏开局：舒舒已经在屋里睡着了。
+ * 让一只宠物**已经在屋里睡着**地出现（不走"从门口走进来"的登场过场）。
  *
- * 和 `spawnPet` 是两条不同的路——那条是"从门口走进来"的登场过场（苔苔的
- * 首次登场用），舒舒不是这样认识的：搬家那天它就已经在角落里呼呼大睡，
- * 剧情的开头是"叫不叫得醒"，不是"看它走进来"。所以这里直接放置 + 立刻
- * 睡下，不走 beginEntering()，也不发 pet_spawned/pet_entered（那两个信号
- * 语义就是"刚从门口进来"，舒舒从来没经历过这件事）。
+ * 和 `spawnPet` 是两条不同的路：那条是登场演出（推门进来、发
+ * pet_spawned/pet_entered）；这条是"它本来就在这儿"，直接落位 + 立刻睡下，
+ * 不发那两个信号——它们的语义就是"刚从门口进来"，用在这里是撒谎。
  *
- * 调用时机和 `seedInitialFurniture()` 一样：只在真正的新游戏跑，
- * 读档走 restorePets 那条路。
+ * **不再有开局自动调用。** 原来 RoomScene 的构造函数里写死了一句
+ * `seedInitialPets()` 让舒舒睡在新家角落，那是旧剧情（出租屋那条线）的
+ * 舞台调度；剧情推倒之后它成了没有来由的演出。现在这是一个**能力**，
+ * 由剧情决定用不用：新剧情想安排谁"一开场就在屋里"，从 storyRules 调它。
+ *
+ * 找不到落脚点（房间太小、格子全占了）时安静返回 null，不硬塞进墙里。
  */
-export function seedInitialPets(): void {
-  if (pets.size > 0) return;
-
-  const definitionId = "shushu";
+export function placeSleepingPet(definitionId: string): PetAgent | null {
   const radius = findPetDefinition(definitionId)?.collisionRadius ?? 0;
   const { room, occupancy } = getWorld();
 
   // 偏南偏东的一角：远离玄关那两个箱子（西墙门口）和北墙的落地窗，
-  // 大家伙缩在角落睡觉，不挡新手教程的必经之路
+  // 大家伙缩在角落睡觉，不挡必经之路
   const preferred: GridPosition[] = [
     { x: 19, y: 15 },
     { x: 18, y: 16 },
@@ -135,8 +134,7 @@ export function seedInitialPets(): void {
     }
   }
 
-  // 房间小到连一格都放不下它的极端情况：安静跳过，总比硬塞进墙里好
-  if (!cell) return;
+  if (!cell) return null;
 
   const pet = new PetAgent(`pet-${definitionId}`, definitionId, {
     x: cell.x - room.floorGrid.width / 2 + 0.5,
@@ -147,6 +145,7 @@ export function seedInitialPets(): void {
 
   pets.set(pet.petId, pet);
   emit("pet_changed", { petId: pet.petId, reason: "seeded" });
+  return pet;
 }
 
 /**

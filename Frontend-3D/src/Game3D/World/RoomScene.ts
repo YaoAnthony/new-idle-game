@@ -11,6 +11,10 @@ import {
 } from "core";
 import type { InteractHint } from "core";
 import { Raycaster, Scene, Vector2, Vector3 } from "three";
+import {
+  matchesAction,
+  type InputAction,
+} from "../../Game/Input/bindings";
 
 /**
  * 遮挡检测的采样点：沿身体取四个高度，再在肩线左右各加一条。
@@ -43,6 +47,14 @@ const OCCLUSION_SAMPLES: Array<{ height: number; lateral: number }> = [
  * 不会因为半径太大而"扔向左边那口锅，米进了中间那口"。
  */
 const KITCHEN_ABSORB_RADIUS = 0.75;
+
+/** "玩家在往哪走"只关心这四个动作（起身、接管自动跑腿都看它） */
+const MOVE_ACTIONS: InputAction[] = [
+  "moveUp",
+  "moveDown",
+  "moveLeft",
+  "moveRight",
+];
 
 /** 提示气泡的附着目标：家具实例 + 提示数据 + 世界锚点 */
 type HintTarget = {
@@ -562,16 +574,19 @@ export class RoomScene {
       const target = event.target as HTMLElement | null;
       if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA") return;
 
-      const key = event.key.toLowerCase();
+      // 键位全部走映射层（Game/Input/bindings），这里不再比对具体按键
+      const isMoveKey = MOVE_ACTIONS.some((action) =>
+        matchesAction(event, action),
+      );
 
-      // 想走就自动起身，不用先按 F。坐着躺着时移动输入被控制器忽略，
+      // 想走就自动起身，不用先按交互键。坐着躺着时移动输入被控制器忽略，
       // 所以这里必须先把姿态改回站立，否则玩家会以为卡住了
-      if ("wasd".includes(key) && isResting()) standUp("moved");
+      if (isMoveKey && isResting()) standUp("moved");
       // 玩家一动就接管自动跑腿。自动走永远不该跟玩家抢操作权
-      if ("wasd".includes(key) && isAutoWalking()) cancelAutoWalk("player");
+      if (isMoveKey && isAutoWalking()) cancelAutoWalk("player");
 
       // Q/E 转向已退役：镜头改成鼠标左键拖拽（标准第三人称）
-      if (key === "r") this.placement.rotate();
+      if (matchesAction(event, "rotatePlacement")) this.placement.rotate();
 
       // 布置模式：方向键逐格微调（鼠标在低俯角下够不到远处的格子）
       if (this.placement.active) {
@@ -588,9 +603,9 @@ export class RoomScene {
        * 半秒寿命的状态。不想摆就换一格快捷栏，虚影本身不点击也不会落地。
        */
       // 配错了的出口：倒掉锅里的东西，锅还在（还没有垃圾桶这件家具）
-      if (key === "g") this.dumpKitchen();
-      if (key === "f") this.interact();
-      if (key === "q") this.throwHeld();
+      if (matchesAction(event, "dumpContainer")) this.dumpKitchen();
+      if (matchesAction(event, "interact")) this.interact();
+      if (matchesAction(event, "throwItem")) this.throwHeld();
     };
 
     /**

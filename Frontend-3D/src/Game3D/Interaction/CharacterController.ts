@@ -5,6 +5,11 @@ import {
   type PoseId,
 } from "core";
 import { MathUtils } from "three";
+import {
+  isActionDown,
+  matchesAction,
+  pressedCodeOf,
+} from "../../Game/Input/bindings";
 import { getHeld } from "../../Game/State/heldItem";
 import {
   LOCAL_PLAYER_ID,
@@ -177,23 +182,24 @@ export class CharacterController {
   private readonly onKeyDown = (event: KeyboardEvent) => {
     const target = event.target as HTMLElement | null;
     if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA") return;
-    const key = event.key.toLowerCase();
-    this.keys.add(key);
+    // 记 code 不记 key：键位可重绑定，而 key 读的是字符（换个键盘布局就漂）。
+    // 走 pressedCodeOf 而不是直接读 event.code——空 code 的环境要兜住
+    this.keys.add(pressedCodeOf(event));
 
     /*
      * `event.repeat` 是浏览器原生的"这是不是按住不放触发的自动重复"标记——
      * 用它做边沿检测比自己记一个"上一帧按没按"更准，不会因为渲染帧和
-     * 按键事件不同步而漏判或多判。按住空格不会连续起跳，跳一次要落地
+     * 按键事件不同步而漏判或多判。按住跳跃键不会连续起跳，跳一次要落地
      * 再按一次；空格默认还会翻页/点中当前聚焦的按钮，一并按掉。
      */
-    if (key === " " && !event.repeat) {
+    if (matchesAction(event, "jump") && !event.repeat) {
       event.preventDefault();
       this.jumpRequested = true;
     }
   };
 
   private readonly onKeyUp = (event: KeyboardEvent) => {
-    this.keys.delete(event.key.toLowerCase());
+    this.keys.delete(pressedCodeOf(event));
   };
 
   /**
@@ -275,10 +281,10 @@ export class CharacterController {
     let inputX = 0;
     let inputZ = 0;
     if (this.enabled && !seated) {
-      if (this.keys.has("w")) inputZ -= 1;
-      if (this.keys.has("s")) inputZ += 1;
-      if (this.keys.has("a")) inputX -= 1;
-      if (this.keys.has("d")) inputX += 1;
+      if (isActionDown(this.keys, "moveUp")) inputZ -= 1;
+      if (isActionDown(this.keys, "moveDown")) inputZ += 1;
+      if (isActionDown(this.keys, "moveLeft")) inputX -= 1;
+      if (isActionDown(this.keys, "moveRight")) inputX += 1;
 
       // 摇杆和键盘取绝对值大的那个（见 externalX 的注释）
       if (Math.abs(this.externalX) > Math.abs(inputX)) inputX = this.externalX;
@@ -291,7 +297,7 @@ export class CharacterController {
      * 一套 pose，现在共用走路那套，加快步频已经读得出"在跑"。
      * 坐着躺着时 moving 恒假，所以不用单独拦。
      */
-    const running = moving && this.keys.has("shift");
+    const running = moving && isActionDown(this.keys, "run");
 
     if (moving) {
       const azimuth = MathUtils.degToRad(cameraAzimuthDegrees);

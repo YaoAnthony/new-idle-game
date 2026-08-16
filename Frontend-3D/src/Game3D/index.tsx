@@ -25,7 +25,7 @@ import { RewardPanel } from "../Components/RewardPanel/RewardPanel";
 import { DialoguePanel } from "../Components/Dialogue/DialoguePanel";
 import { Hotbar } from "../Components/Hotbar/Hotbar";
 import { InteractBubble } from "../Components/InteractBubble/InteractBubble";
-import { SettingsDrawer } from "../Components/SettingsDrawer/SettingsDrawer";
+import { GameSettingsModal } from "../Components/GameSettings/GameSettingsModal";
 import { SleepOverlay } from "../Components/SleepOverlay/SleepOverlay";
 import { HudColumn } from "../Components/Hud/HudColumn";
 import { HudTopCenter } from "../Components/Hud/HudTopCenter";
@@ -818,7 +818,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
         三样东西挤一角谁都不舒服，而左上角腾出来了。
       */}
       <HudColumn touchMode={touchMode} />
-      <SettingsDrawer />
+      <GameSettingsModal />
       <SleepOverlay />
       <RewardPanel />
       <HudTopCenter />

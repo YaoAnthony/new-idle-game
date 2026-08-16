@@ -426,6 +426,70 @@ const ZH: Record<string, string> = {
   "ui.settings.key_rotate": "旋转家具",
   "ui.settings.close": "关闭",
 
+  // 设置面板的五个标签页（照抄 Oldfrontend 的分区）
+  "ui.settings.tab_world": "世界",
+  "ui.settings.tab_audio": "声音",
+  "ui.settings.tab_interface": "界面",
+  "ui.settings.tab_controls": "控制",
+  "ui.settings.tab_debug": "调试",
+
+  // 世界
+  "ui.settings.time": "时间",
+  "ui.settings.phase_dawn": "清晨",
+  "ui.settings.phase_day": "白天",
+  "ui.settings.phase_dusk": "黄昏",
+  "ui.settings.phase_night": "夜晚",
+  "ui.settings.weather": "天气",
+  "ui.settings.weather_auto": "跟随世界",
+  "ui.settings.weather_auto_desc": "撤掉手动指定，交还给天气系统",
+  "ui.settings.weather_sunny_desc": "风和日丽，光线通透",
+  "ui.settings.weather_cloudy_desc": "云层压低，光被滤软",
+  "ui.settings.weather_rain_desc": "静谧中雨，水汽弥漫",
+  "ui.settings.weather_wind_desc": "风穿过屋子，草木都在动",
+  "ui.settings.weather_storm_desc": "雷电交加，狂风大作",
+
+  // 声音
+  "ui.settings.music_now": "当前音乐",
+  "ui.settings.music_none": "还没有在放",
+  "ui.settings.music_mode": "播放模式",
+  "ui.settings.music_sequential": "顺序",
+  "ui.settings.music_shuffle": "乱序",
+  "ui.settings.music_repeat_one": "单曲",
+
+  // 界面
+  "ui.settings.language": "语言",
+  "ui.settings.lang_zh": "中文（简体）",
+  "ui.settings.lang_zh_desc": "界面优先显示中文",
+  "ui.settings.lang_ja": "日本語",
+  "ui.settings.lang_ja_desc": "界面优先显示日文",
+  "ui.settings.language_restart": "语言会在下次进入游戏时生效。",
+
+  // 控制（键位重绑定）
+  "ui.settings.rebind_hint": "点一下右边的键位，再按你想用的键。",
+  "ui.settings.press_a_key": "按一个键…",
+  "ui.settings.key_not_allowed": "这个键不能用来绑定，换一个试试。",
+  "ui.settings.reset_keys": "恢复默认键位",
+  "ui.settings.group_move": "移动与视角",
+  "ui.settings.group_items": "交互与物品",
+  "ui.settings.group_menu": "面板与输入",
+  "ui.settings.action_moveUp": "向前走",
+  "ui.settings.action_moveDown": "向后走",
+  "ui.settings.action_moveLeft": "向左走",
+  "ui.settings.action_moveRight": "向右走",
+  "ui.settings.action_run": "奔跑",
+  "ui.settings.action_jump": "跳",
+  "ui.settings.action_interact": "交互",
+  "ui.settings.action_throwItem": "扔出手上的东西",
+  "ui.settings.action_dumpContainer": "倒掉锅里的",
+  "ui.settings.action_rotatePlacement": "旋转家具",
+  "ui.settings.action_backpack": "打开背包",
+  "ui.settings.action_chat": "说话",
+  "ui.settings.action_command": "输入指令",
+
+  // 调试
+  "ui.settings.commands": "可用指令",
+  "ui.settings.commands_hint": "在游戏里按「输入指令」的键（默认 /）打开命令行。",
+
   // ---- 世界时钟与天气 ----
   "clock.phase.dawn": "清晨",
   "clock.phase.day": "白天",

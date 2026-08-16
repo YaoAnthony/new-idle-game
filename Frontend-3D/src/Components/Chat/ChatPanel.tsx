@@ -7,6 +7,7 @@ import {
   type Completion,
 } from "../../Game/CommandLine/suggest";
 import { emit, on } from "../../Game/EventBus";
+import { matchesAction } from "../../Game/Input/bindings";
 import "../Mobile/Mobile.css";
 import {
   listChatMessages,
@@ -99,11 +100,11 @@ export function ChatPanel() {
         target?.tagName === "INPUT" || target?.tagName === "TEXTAREA";
       if (typing || open) return;
 
-      if (event.key === "Enter") {
+      if (matchesAction(event, "chat")) {
         event.preventDefault();
         setDraft("");
         setOpen(true);
-      } else if (event.key === "/") {
+      } else if (matchesAction(event, "command")) {
         event.preventDefault();
         setDraft("/");
         setOpen(true);

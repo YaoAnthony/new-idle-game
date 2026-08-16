@@ -1,6 +1,7 @@
 import { ItemCategory, findItemDefinition, itemCategoryOrder } from "core";
 import { useEffect, useMemo, useState } from "react";
 import { emit, on } from "../../Game/EventBus";
+import { matchesAction } from "../../Game/Input/bindings";
 import {
   HOTBAR_SIZE,
   INVENTORY_SIZE,
@@ -100,7 +101,7 @@ export function Backpack() {
 
       const target = event.target as HTMLElement | null;
       if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA") return;
-      if (event.key.toLowerCase() === "b") setOpen((current) => !current);
+      if (matchesAction(event, "backpack")) setOpen((current) => !current);
     };
 
     window.addEventListener("keydown", onKeyDown);

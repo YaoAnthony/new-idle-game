@@ -22,7 +22,13 @@ type ActiveDialog = "start" | "settings" | null;
 
 type TitleScreenProps = {
   config: TitleScreenConfig;
+  /** 游客格子：开新档（有档时组件内先过一道覆盖确认） */
   onSessionSelected?: (selection: TitleSessionSelection) => void;
+  /**
+   * 已登录时点账户格子：**以账户身份进入小家**。有档继续、没档新开，
+   * 判断在 App 那头（要等云对账落定才知道"有没有档"）——这里只负责转告。
+   */
+  onAccountEnter?: () => void;
   /** 本地存在可继续的存档时才显示"继续游戏"（V0.1 的可选小号入口） */
   canContinue?: boolean;
   onContinue?: () => void;
@@ -56,6 +62,7 @@ function readStoredLocale(config: TitleScreenConfig): TitleLocale {
 export function TitleScreen({
   config,
   onSessionSelected,
+  onAccountEnter,
   canContinue = false,
   onContinue,
 }: TitleScreenProps) {
@@ -71,6 +78,8 @@ export function TitleScreen({
     readStoredSettings(config),
   );
   const [notice, setNotice] = useState<string | null>(null);
+  /** "开新档会覆盖进度"的二次确认：第一次点是警告，第二次才真开 */
+  const [confirmingNewGame, setConfirmingNewGame] = useState(false);
   const copy = TITLE_SCREEN_COPY[locale];
 
   const activeLocale = useMemo(
@@ -115,6 +124,8 @@ export function TitleScreen({
     setActiveDialog(null);
     setNotice(null);
     setStartView("choices");
+    // 确认态不跨弹窗保留：关了再开，第一次点依然要先看到警告
+    setConfirmingNewGame(false);
   };
 
   const selectLocale = (nextLocale: TitleLocale) => {
@@ -141,14 +152,30 @@ export function TitleScreen({
     choice: TitleScreenConfig["startChoices"][number],
   ) => {
     if (choice.action === "start_session") {
+      /*
+       * 这条路的终点是捏脸 + 新档。本地已有进度时**必须拦一手**：
+       * 一次误点就是"世界被空档顶掉"，登录态下 120 秒内还会同步出去
+       * 把云端也顶掉——实测真的有人这么丢过一分钟的家具。
+       * 二次确认沿用 notice 条，不新开弹窗。
+       */
+      if (canContinue && !confirmingNewGame) {
+        setConfirmingNewGame(true);
+        setNotice(copy.newGameOverwrite);
+        return;
+      }
       startSession();
       return;
     }
 
     if (choice.action === "open_login") {
-      // 已登录就不再进表单——这个格子此时的职责是"以账户身份开始"
-      if (account.isLoggedIn) {
-        startSession();
+      /*
+       * 已登录时这个格子的职责是**"以账户身份进入小家"**，不是开新档——
+       * 接错到 startSession 的后果见上面那段注释（实测踩过：进了捏脸页，
+       * 存档被顶）。有没有档、该继续还是该新开，由 App 那头对账后判断。
+       */
+      if (account.status === "authed") {
+        onAccountEnter?.();
+        closeDialog();
         return;
       }
       setNotice(null);
@@ -338,7 +365,7 @@ export function TitleScreen({
                               draggable={false}
                             />
                             <span className="relative z-[1] text-[clamp(15px,2.2vw,20px)] font-black leading-none">
-                              {choice.action === "open_login" && account.isLoggedIn
+                              {choice.action === "open_login" && account.status === "authed"
                                 ? account.user?.email
                                 : copy[choice.copyKey]}
                             </span>
@@ -347,7 +374,7 @@ export function TitleScreen({
                       </div>
                       )}
 
-                      {startView === "choices" && account.isLoggedIn ? (
+                      {startView === "choices" && account.status === "authed" ? (
                         <p className="m-0 mt-3 text-xs font-bold text-[#6b4c33]">
                           {copy.loggedInAs}：{account.user?.email}
                           <button

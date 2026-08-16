@@ -16,6 +16,8 @@ export type TitleScreenCopy = {
   loggedInAs: string;
   logout: string;
   loginDialogTitle: string;
+  /** 有档时点"游客游玩"的覆盖警告（二次确认，见 TitleScreen） */
+  newGameOverwrite: string;
   settingsTitle: string;
   soundTitle: string;
   controlsTitle: string;
@@ -46,6 +48,7 @@ export const TITLE_SCREEN_COPY: Record<TitleLocale, TitleScreenCopy> = {
     loggedInAs: "已登录",
     logout: "退出登录",
     loginDialogTitle: "登录账户",
+    newGameOverwrite: "开新档会覆盖你现在的小家（登录时云端也会一起换）。确定要重新开始就再点一次。",
     settingsTitle: "设置",
     soundTitle: "声音",
     controlsTitle: "键位",
@@ -74,6 +77,7 @@ export const TITLE_SCREEN_COPY: Record<TitleLocale, TitleScreenCopy> = {
     loggedInAs: "ログイン中",
     logout: "ログアウト",
     loginDialogTitle: "ログイン",
+    newGameOverwrite: "はじめからにすると、いまのお家が上書きされます（ログイン中はクラウドも）。よろしければもう一度押してください。",
     settingsTitle: "設定",
     soundTitle: "サウンド",
     controlsTitle: "キー設定",

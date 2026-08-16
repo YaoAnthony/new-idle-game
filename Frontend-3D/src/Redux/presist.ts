@@ -12,7 +12,12 @@ import type { PersistConfig } from "redux-persist";
  * 这边没有历史包袱，不需要 migrate 链。）
  */
 
-const saveSubsetFilters = [createFilter("user", ["user", "isLoggedIn"])];
+/**
+ * 只存 user 概要，**绝不存 status/isLoggedIn 这类"权限"字段**——
+ * REHYDRATE 异步落地，会盖掉 initAuth 已经判定好的 guest 态；
+ * 恢复出来的只能是"显示用的上次样子"，不能是"可行动的登录态"。
+ */
+const saveSubsetFilters = [createFilter("user", ["user"])];
 
 export const makePersistConfig = <S>(): PersistConfig<S> => ({
   key: "root",

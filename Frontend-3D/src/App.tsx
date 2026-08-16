@@ -265,6 +265,22 @@ function App() {
     setCanContinue(false);
   }, []);
 
+  /**
+   * 已登录时点账户格子：**进入自己的小家**，不是开新档。
+   * 有没有档要等云对账落定才知道——快进分支可能正把云端存档写进本地主档，
+   * 抢跑就会误判"没档"→ 捏脸 → 一个空档顶掉刚同步下来的世界（实测踩过：
+   * 玩家登录、摆了家具、回标题再点自己账户，直接被送进捏脸页重开）。
+   */
+  const enterAsAccount = useCallback(async () => {
+    if (reconciling.current) await reconciling.current;
+
+    if (await getSaveRepository().hasSave()) {
+      await continueGame();
+      return;
+    }
+    startNewGame();
+  }, [continueGame, startNewGame]);
+
   return (
     <main className="relative h-[100dvh] min-h-0 overflow-hidden bg-[#232b3d]">
       {stage === "title" ? (
@@ -273,6 +289,7 @@ function App() {
           canContinue={canContinue}
           onContinue={() => void continueGame()}
           onSessionSelected={startNewGame}
+          onAccountEnter={() => void enterAsAccount()}
         />
       ) : stage === "creator" ? (
         <CharacterCreator

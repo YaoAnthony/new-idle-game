@@ -253,6 +253,9 @@ export const BRIDGE_SURFACES: GroundSurface[] = BRIDGES.map((bridge) => {
     rect,
     // 和两岸齐平：桥面比岸高一截的话，走上桥要"迈"，那不叫桥
     elevation: YARD_Y,
+    // 桥的外观由 buildBridge 画（桥板/护栏/桥墩），这里只声明通行。
+    // 不标 none 的话默认视觉会在桥板上再铺一块零厚度的石台，共面闪烁
+    visual: "none",
   };
 });
 

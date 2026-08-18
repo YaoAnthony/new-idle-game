@@ -94,6 +94,8 @@ export function buildGroundFixtures(map: MapDefinition): Object3D {
 
   for (const fixture of map.groundFixtures ?? []) {
     if (!fixture.rect) continue;
+    // 自带外观的面（桥板）不在这儿再画一遍——共面就是闪烁
+    if (fixture.visual === "none") continue;
     if (fixture.kind === GroundKind.Ramp && fixture.slope) {
       root.add(buildStairs(fixture, yardLevel));
     } else {

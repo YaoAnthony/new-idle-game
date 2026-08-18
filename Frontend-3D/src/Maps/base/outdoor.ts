@@ -281,10 +281,17 @@ function buildForest(root: Object3D): void {
     const ground = groundAt(x, z);
     // 水里不长树；岸坡上也不长——树根一半悬在崖上比站在水里还假
     if (ground < -0.5) return true;
-    // 山：树顺着山脚往上长到 +9 左右，再高就是裸岩（雪线以下的林线）。
-    // 山体中段太陡的地方 slopeAt 拦（树不该斜着钉在 60° 的坡上）
-    if (ground > 9) return true;
-    if (inField(x, z) && slopeAt(x, z) > 0.75) return true;
+    /*
+     * 山：树一直长到 +20（林线），再高才是裸岩。第一版林线定在 +9、
+     * 坡度 >0.75 就不长——结果山从脚到顶光秃秃一个棕馒头，树到山脚
+     * 齐刷刷断掉（用户从桥上一眼看到）。真实的山是**针叶林一路爬到
+     * 接近山顶**，坡上的树比平地矮、比平地稀，最后几十米才是岩石。
+     * 坡度上限放到 1.3（约 52°）：针叶树本来就长在陡坡上。
+     */
+    if (ground > 20) return true;
+    if (inField(x, z) && slopeAt(x, z) > 1.3) return true;
+    // 山上抽稀：+6 以上按高度越来越疏，+20 处只剩三成——林线是"渐渐没了"
+    if (ground > 6 && hash01(x * 3.1 + z * 7.3) < (ground - 6) / 20) return true;
     if (!inField(x, z) && z < -60 && x > 24 && x < 44) return true;
     if (!inField(x, z) && x < -70 && z > 29 && z < 44) return true;
     for (const b of BRIDGES) {
@@ -308,13 +315,18 @@ function buildForest(root: Object3D): void {
       const z = gz + (hash01(seed * 5.1) - 0.5) * SPACING * 0.85;
       if (excluded(x, z)) continue;
 
+      const y = groundAt(x, z);
       const r = hash01(seed * 9.9);
-      const kind: Kind = r < 0.42 ? 0 : r < 0.78 ? 1 : 2;
-      // 真实尺度：阔叶 12~20，针叶 15~26；越远越高一截，雾里收成墙
+      // 山上针叶占比越来越高：+12 以上八成是针叶（高山针叶林）
+      const coniferShare = y > 4 ? Math.min(0.8, 0.22 + (y - 4) * 0.045) : 0.22;
+      const kind: Kind = r > 1 - coniferShare ? 2 : r < 0.5 * (1 - coniferShare) ? 0 : 1;
+      // 真实尺度：阔叶 12~20，针叶 15~26；越远越高一截，雾里收成墙；
+      // 山上越高越矮（+20 处只有平地的一半）——高处风大土薄
       const farness = Math.min(1, dist / FAR);
       const base = kind === 2 ? 15 + hash01(seed * 7.7) * 11 : 12 + hash01(seed * 7.7) * 8;
-      const height = base * (1 + farness * 0.35);
-      trees.push({ x, z, y: groundAt(x, z), height, kind });
+      const alpine = y > 4 ? 1 - Math.min(0.5, (y - 4) * 0.03) : 1;
+      const height = base * (1 + farness * 0.35) * alpine;
+      trees.push({ x, z, y, height, kind });
     }
   }
 

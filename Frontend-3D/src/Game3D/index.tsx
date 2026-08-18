@@ -1,5 +1,5 @@
 import { matchesAction } from "../Game/Input/bindings";
-import { toggleDebugMode } from "../Game/State/debugMode";
+import { readDebugProbe, toggleDebugMode } from "../Game/State/debugMode";
 import {
   DayPhaseId,
   findItemDefinition,
@@ -387,9 +387,11 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
             suggest: () =>
               asSuggestions(Object.keys(OVERVIEW_YAW)),
           },
+          { name: "here", suggest: () => asSuggestions(["here"]) },
+          { name: "半径" },
         ],
-        usage: "overview [秒数] [俯角] [方位]",
-        description: "升空俯瞰整张箱庭，看几秒自动落回（截图/检查构图用）",
+        usage: "overview [秒数] [俯角] [方位] [here [半径]]",
+        description: "升空俯瞰整张箱庭，看几秒自动落回。加 here 只看脚下这一片（默认半径 18）",
         handler: (args) => {
           const scene = sceneRef.current;
           if (!scene) return fail("场景还没就绪");
@@ -410,7 +412,16 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
             yaw = OVERVIEW_YAW[key];
           }
 
-          const shot = scene.enterOverview(seconds, { pitch, yaw });
+          // here：绕着玩家脚下这一片看，不框整张图（整张图现在含山，半径 159 米什么都看不清）
+          let around: { x: number; z: number; radius: number } | undefined;
+          if (args[3] === "here") {
+            const r = args[4] ? Number(args[4]) : 18;
+            if (!Number.isFinite(r) || r <= 0) return fail("半径要是个正数");
+            const me = readDebugProbe();
+            if (!me) return fail("场景还没就绪");
+            around = { x: me.x, z: me.z, radius: r };
+          }
+          const shot = scene.enterOverview(seconds, { pitch, yaw, around });
           return ok(
             `升空 ${seconds} 秒：中心 (${shot.center.x.toFixed(0)}, ${shot.center.z.toFixed(0)})，` +
               `框住半径 ${shot.radius.toFixed(0)}。到点自动落回`,

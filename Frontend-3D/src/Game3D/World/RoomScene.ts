@@ -2019,7 +2019,10 @@ export class RoomScene {
    * 定时自动退出而不是切成一个常驻模式：这是给"看一眼确认没问题"用
    * 的，忘了退出会卡在天上不知道发生了什么。要多看几秒就传大点的数。
    */
-  enterOverview(seconds: number, options: { pitch?: number; yaw?: number } = {}): {
+  enterOverview(
+    seconds: number,
+    options: { pitch?: number; yaw?: number; around?: { x: number; z: number; radius: number } } = {},
+  ): {
     center: { x: number; z: number };
     radius: number;
   } {
@@ -2027,14 +2030,17 @@ export class RoomScene {
     const { width, depth } = this.built.size;
     const bounds = yardBoundsOf(map, { width, height: depth });
 
-    const centerX = (bounds.minX + bounds.maxX) / 2;
-    const centerZ = (bounds.minZ + bounds.maxZ) / 2;
-    // 外接圆再放宽 30%：围墙、河、林线都在可走范围之外，只框住院子
-    // 会把箱庭的边界正好切在画面边上，看不出"外面还有东西"
-    const radius =
-      0.5 *
-      Math.hypot(bounds.maxX - bounds.minX, bounds.maxZ - bounds.minZ) *
-      1.3;
+    /*
+     * 取景：默认框整张图（可走范围外接圆放宽 30%）；给了 around 就框
+     * 那一点周围。后者是山和林子进了可走范围之后加的——可走范围现在
+     * 一直伸到山脚，"整张图"的半径 159 米，镜头退到雾外面什么细节都
+     * 看不清。想看桥、看院子的一角，得能说"就看这儿"。
+     */
+    const centerX = options.around ? options.around.x : (bounds.minX + bounds.maxX) / 2;
+    const centerZ = options.around ? options.around.z : (bounds.minZ + bounds.maxZ) / 2;
+    const radius = options.around
+      ? options.around.radius
+      : 0.5 * Math.hypot(bounds.maxX - bounds.minX, bounds.maxZ - bounds.minZ) * 1.3;
 
     this.outdoor.setOverviewAtmosphere(true);
     /*

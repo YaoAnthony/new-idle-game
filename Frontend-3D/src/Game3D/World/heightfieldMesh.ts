@@ -80,17 +80,21 @@ export function buildHeightfieldMesh(
       } else if (average < style.waterY + 0.55 && slope < 1.4) {
         // 水线：贴着水面的一圈窄沙。宽度由岸坡自己决定，不用画
         paint(style.sand, seed, 0.05);
-      } else if (average > style.baseY + 18) {
-        // 山顶：裸岩带一点灰白（不下雪，这地方是温带；但高处植被退了）
+      } else if (average > style.baseY + 26) {
+        // 峰顶：灰白裸岩（不下雪，温带；但最高那几米什么都不长）
         paint(style.rockDark, seed, 0.06);
-        scratch.offsetHSL(0, -0.05, 0.12);
+        scratch.offsetHSL(0, -0.08, 0.2);
+      } else if (average > style.baseY + 20) {
+        // 林线以上：碎石坡，比崖壁暖一点
+        paint(style.rock, seed, 0.07);
+        scratch.offsetHSL(0.01, -0.04, 0.06);
       } else if (slope > 2.2) {
         paint(style.rockDark, seed, 0.05);
       } else if (slope > 0.9) {
         // 站不住的坡就是岩壁——和 MAX_WALKABLE_SLOPE 同一个判断
         paint(style.rock, seed, 0.06);
-      } else if (average > style.baseY + 9) {
-        // 林线以上、岩带以下：草甸，比谷底的草黄一点
+      } else if (average > style.baseY + 12) {
+        // 高处草甸：树在这一段已经稀了，地面比谷底黄、干一些
         paint(style.grassLight, seed, 0.05);
         scratch.offsetHSL(0.02, -0.08, 0.04);
       } else {

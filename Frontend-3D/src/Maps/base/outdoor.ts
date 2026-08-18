@@ -1,4 +1,4 @@
-import { sampleHeightfield, yardBoundsOf, type DeckRect } from "core";
+import { sampleHeightfield, type DeckRect } from "core";
 import {
   BufferAttribute,
   BufferGeometry,
@@ -26,7 +26,6 @@ import {
 // 子路径别名，headless 打包用的 --alias:three=./node_modules/three 会把它
 // 拼成一个不存在的文件路径。项目里别处也没用过 addons，这是唯一一处。
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { baseMapDefinition } from "./index.js";
 import {
   BRIDGES,
   BRIDGE_WIDTH,
@@ -1262,22 +1261,26 @@ export function buildBaseTerrain(context: TerrainContext): OutdoorTerrain {
   const root = new Object3D();
   root.name = "terrain-base";
 
-  // roomSize 是 {width, depth}，yardBoundsOf 吃的是户型网格 {width, height}
-  const bounds = yardBoundsOf(baseMapDefinition, {
-    width: context.roomSize.width,
-    height: context.roomSize.depth,
-  });
+  /*
+   * 这里不再算 yardBounds 了：外景没有一样东西是照"可走范围"画的——
+   * 围墙照 WALL_RECT、桥照 BRIDGES、地形照高度场。可走范围现在放开到
+   * 山脚，拿它当布景的边界只会把东西画到雾里去。
+   */
   // 水在底、陆地浮在上面
   const streaks = buildWater(root);
   buildLand(root);
   buildForest(root);
   buildSakura(root, northZ);
   buildWalls(root);
-  buildPaving(root, [
-    // 前庭广场（玄关门廊外，门 z≈-8 居中）+ 入门通道（对齐西门轴线）
-    { minX: -19.5, maxX: -12.3, minZ: -12, maxZ: -4 },
-    { minX: bounds.minX, maxX: -19.5, minZ: -9.35, maxZ: -6.65 },
-  ]);
+  /*
+   * 前庭广场：玄关门廊外一块石板地，门 z≈-8 居中。
+   *
+   * 原来还有一条**从广场一直铺到西栅栏的入门通道**——那是西门还在时的
+   * 轴线动线。西门封了它没跟着删，结果从空中看仍是一条路笔直伸向栅栏，
+   * 尽头顶着一排木桩（用户："你这地面还是有一条路延展出去了"）。
+   * 没有门就没有通道；广场本身留着，那是"门廊前的一块地"，四面都是草。
+   */
+  buildPaving(root, [{ minX: -19.5, maxX: -12.3, minZ: -12, maxZ: -4 }]);
   // 种植区在广场南侧：进门右手边一路是田，整齐行列迎着来人
   buildField(root, { minX: -26.9, maxX: -12.9, minZ: -2.6, maxZ: 4.4 });
   buildFlowerbeds(root);

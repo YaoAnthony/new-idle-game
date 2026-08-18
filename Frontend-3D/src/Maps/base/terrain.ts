@@ -152,7 +152,7 @@ const PEAKS = [
 
 /** 东墙外的下层滩台（桥从头顶跨过去），略探进河里当石岸 */
 const EAST_SHELF: Array<readonly [number, number]> = [
-  [22, -14], [25.5, -13], [26, -4], [26.5, 6], [25, 15], [22, 16],
+  [22, -20], [25, -19], [26, -4], [26.5, 6], [25, 15], [22, 16],
 ];
 
 /** 南墙外、南桥两侧的滩台 */
@@ -167,7 +167,14 @@ const SOUTH_SHELF: Array<readonly [number, number]> = [
  * 它同时进 outdoorBlockers 真的挡人。墙内 48×34 = 1632 m²，
  * 去掉房子 1152 m²，可自由建设约 866 m²（2026-08-16 量的账）。
  */
-export const WALL_RECT = { minX: -28, maxX: 20, minZ: -16, maxZ: 18 } as const;
+/**
+ * 北墙从 −16 推到 −22（2026-08-18，用户："森林这一边的庭院区域往外扩
+ * 一点，樱花树就可以远一点点"）。原来北院只有 6 米（房子北墙 −10 到
+ * 栅栏 −16），樱花树、后庭花坛、晾衣绳全挤在这一条里，樱花树离落地窗
+ * 只有 4.2 米——树冠贴着玻璃。12 米之后樱花退到 7 米，冠在窗框里
+ * 是"院子里有棵树"，不是"树压在窗上"。墙内 48×40 = 1920 m²。
+ */
+export const WALL_RECT = { minX: -28, maxX: 20, minZ: -22, maxZ: 18 } as const;
 
 export const WALL_THICKNESS = 0.45;
 export const WALL_HEIGHT = 0.9;

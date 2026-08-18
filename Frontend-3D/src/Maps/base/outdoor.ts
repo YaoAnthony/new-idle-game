@@ -95,12 +95,12 @@ const BANK_STONE = PALETTE.baseStoneDark;
 /** 樱花树：落地窗正外的庭院地标（常开的奇观，不接季节） */
 const SAKURA_X = 7.5;
 /**
- * 离北墙多远。6.5 时树梢被窗框上沿切掉——**近一点反而看得全**：
- * 窗口是个固定大小的画框，物体越近仰角越大、越容易顶出框外，
- * 但树冠也越大越有存在感。4.2 是"树冠占满窗子上半、树梢刚好在框内"
- * 的甜点，压低视角时整棵树都在画里。
+ * 离北墙多远。北院扩到 12 米之后从 4.2 退到 7（2026-08-18）：4.2 是
+ * 树冠贴着玻璃、"占满窗子"的甜点，但那是北院只有 6 米时不得已的近；
+ * 现在有地方了，7 米是"院子里立着一棵树"的距离——从缘侧看它整棵在
+ * 画里，树下还站得住人。
  */
-const SAKURA_DISTANCE = 4.2;
+const SAKURA_DISTANCE = 7;
 
 const PETAL_COUNT = 90;
 
@@ -744,7 +744,7 @@ function buildBackyard(root: Object3D): void {
   line.add(box([4.4, 0.03, 0.03], { color: PALETTE.paperShade, position: [0, 1.58, 0] }));
   line.add(box([0.8, 0.9, 0.04], { color: PALETTE.fabricCream, position: [-0.9, 1.1, 0] }));
   line.add(box([0.7, 0.75, 0.04], { color: PALETTE.fabricRose, position: [0.6, 1.18, 0] }));
-  line.position.set(-6, 0, -13.2);
+  line.position.set(-6, 0, -18.5);
   root.add(line);
 
   // 香草花圃 ×3：矮木框 + 土 + 低绿簇（比种植区小一号——是"生活"不是"生产"）
@@ -768,7 +768,7 @@ function buildBackyard(root: Object3D): void {
         }),
       );
     }
-    bed.position.set(4 + i * 2.3, 0, -13);
+    bed.position.set(4 + i * 2.6, 0, -18);
     root.add(bed);
   }
 
@@ -786,7 +786,7 @@ function buildBackyard(root: Object3D): void {
   corner.add(
     box([0.7, 0.4, 0.5], { color: PALETTE.caneNode, position: [1.9, 0.2, 0.1] }),
   );
-  corner.position.set(-12, 0, -15);
+  corner.position.set(-12, 0, -20);
   root.add(corner);
 }
 

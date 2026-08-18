@@ -1,3 +1,4 @@
+import { DebugHud } from "../DebugHud/DebugHud";
 import { NeedsHud } from "../NeedsHud/NeedsHud";
 import { NoiseMixer } from "../NoiseMixer/NoiseMixer";
 import { WorldClock } from "../WorldClock/WorldClock";
@@ -30,6 +31,8 @@ export function HudColumn({ touchMode }: { touchMode: boolean }) {
       <WorldClock />
       <NeedsHud />
       <NoiseMixer />
+      {/* F3 调试面板：关着就 null，不占位（2026-08-18） */}
+      <DebugHud />
     </div>
   );
 }

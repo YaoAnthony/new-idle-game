@@ -485,6 +485,7 @@ const ZH: Record<string, string> = {
   "ui.settings.action_backpack": "打开背包",
   "ui.settings.action_chat": "说话",
   "ui.settings.action_command": "输入指令",
+  "ui.settings.action_debugMode": "调试面板",
 
   // 调试
   "ui.settings.commands": "可用指令",

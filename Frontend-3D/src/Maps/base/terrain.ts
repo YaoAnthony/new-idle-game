@@ -172,8 +172,15 @@ export const WALL_RECT = { minX: -28, maxX: 20, minZ: -16, maxZ: 18 } as const;
 export const WALL_THICKNESS = 0.45;
 export const WALL_HEIGHT = 0.9;
 
-/** 三个口子的位置。墙、门柱、桥、出入口全从这三行推 */
-export const GATE_WEST_Z = -8;
+/**
+ * 两个口子的位置。墙、门柱、桥、出入口全从这两行推。
+ *
+ * **西门没有了**（2026-08-18，用户定："靠近菜园的这个向外的出口删了"）。
+ * 它本来是正门（对齐玄关轴线），但西面是森林不通任何地方，留着就是
+ * 一个"看着能走、走出去什么也没有"的口子。据点的出口就是两座桥。
+ * 玄关外的石板通道照旧铺到栅栏为止——那是"门廊前的一段路"，
+ * 不是"通向外面的路"。
+ */
 export const GATE_EAST_Z = -4;
 export const GATE_SOUTH_X = -14;
 /** 门洞净半宽。柱子立在 ±GATE_HALF，墙从 ±(GATE_HALF+0.35) 起 */
@@ -204,9 +211,8 @@ export const WALL_BLOCKERS: Array<{
     // 南墙：桥头门洞分两段
     { minX, maxX: near(GATE_SOUTH_X), minZ: maxZ, maxZ: maxZ + t, height: h },
     { minX: far(GATE_SOUTH_X), maxX, minZ: maxZ, maxZ: maxZ + t, height: h },
-    // 西面木栅栏：正门门洞分两段
-    { minX: minX - t, maxX: minX, minZ, maxZ: near(GATE_WEST_Z), height: h },
-    { minX: minX - t, maxX: minX, minZ: far(GATE_WEST_Z), maxZ, height: h },
+    // 西面木栅栏：整条，没有口子（西门 2026-08-18 退役）
+    { minX: minX - t, maxX: minX, minZ, maxZ, height: h },
   ];
 })();
 

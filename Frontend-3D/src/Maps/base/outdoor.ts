@@ -35,7 +35,6 @@ import {
   GATE_EAST_Z,
   GATE_HALF,
   GATE_SOUTH_X,
-  GATE_WEST_Z,
   RIVER_BED_Y,
   WALL_HEIGHT,
   WALL_RECT,
@@ -76,11 +75,6 @@ const RIVER_FOAM = "#dcedf4";
  * 那正是"看着像第三条通往小镇的路"的由来——去镇上只有两座桥，
  * 岛上不该有第三条官道。
  */
-/**
- * 林间小径。**刻意和 PATH_DIRT 不同族**：土路是"通向某处的官道"，
- * 小径是"被踩秃的草"。西门外那条不通小镇，它就不能长得像那两条桥路。
- */
-const FOREST_TRAIL = "#8f9668";
 
 /*
  * 水面和岸壁**从地形数据推**，不再各写一个数（2026-08-12）。
@@ -300,8 +294,6 @@ function buildForest(root: Object3D): void {
         : Math.abs(x - b.at) < 4 && z > b.from - 2 && z < b.to + 6;
       if (near) return true;
     }
-    // 西门外的林间小径：留一条 3 米宽的缝
-    if (x < WALL_RECT.minX && x > -54 && Math.abs(z + 8) < 1.8) return true;
     // 落地窗正外的视线走廊
     if (z < WALL_RECT.minZ && z > WALL_RECT.minZ - 7 && x > -2 && x < 16) return true;
     return false;
@@ -843,50 +835,19 @@ function buildFlowerbeds(root: Object3D): void {
  * 墙外的世界（用户点破："外面不应该一望无际"）。概念图里据点是被
  * 密林抱着的，据点又坐在莉奥拉小镇的西南角——墙外要有三层粗略布景：
  * **密林圈**贴着墙外把视线接住（北面原有林墙照旧，补南、西两面），
- * **西门外的土路**顺着出门方向伸向小镇，路尽头给几栋**粗建模屋影**
- * （盒身+坡顶+烟囱，雾一罩就是"镇子在那边"的说明，不是能去的建筑）。
+ * 河对岸给几栋**粗建模屋影**（盒身+坡顶+烟囱，雾一罩就是"镇子在那边"
+ * 的说明，不是能去的建筑）。
  */
-function buildOuterWorld(root: Object3D, bounds: DeckRect): void {
+function buildOuterWorld(root: Object3D): void {
   /*
    * 树全部归 buildForest 了（地毯式铺满、实例化）。这里原来还有一段
    * "沿脖子两侧压两排"的手摆树——两套森林叠在一起，一套 30 棵一套
    * 1500 棵，前者纯属噪音，删。
    */
   /*
-   * 西门外的**林间小径**。这条路不通小镇——去镇上要过桥，西面是林子，
-   * 留给以后的森林区域。
-   *
-   * 上一版它是一条 26 米长、2.4 米宽的 PATH_DIRT 直条，**和通往小镇的
-   * 那两条路一模一样**。结果从空中数出口是三个，玩家凭什么知道其中
-   * 一条不通？用户一眼就点出来了："我给你的地图是只有两条路去小镇，
-   * 你怎么变出3条了"。
-   *
-   * 所以现在它必须**长得不像一条路**：
-   *  - 换色：土路是"人走出来的官道"，小径用踩秃的草色，不是一个族
-   *  - 越往西越窄、越淡，最后被林子吞掉——尽头是"看不清了"而不是
-   *    "断在这儿"。断头路和岔路口一样会招人去走
-   *  - 分段画而不是一根长条，才有收窄的余地
+   * 西门外原来有一条林间小径，随西门一起退役了（2026-08-18）。
+   * 没有门就不该有路——一条从栅栏里长出来的小径比断头路还怪。
    */
-  const TRAIL_FROM = bounds.minX - 1.5;
-  const TRAIL_TO = -52;
-  const TRAIL_STEPS = 7;
-  for (let i = 0; i < TRAIL_STEPS; i += 1) {
-    const t0 = i / TRAIL_STEPS;
-    const t1 = (i + 1) / TRAIL_STEPS;
-    const x0 = TRAIL_FROM + (TRAIL_TO - TRAIL_FROM) * t0;
-    const x1 = TRAIL_FROM + (TRAIL_TO - TRAIL_FROM) * t1;
-    // 宽度 1.9 → 0.5，末段基本只剩一道印子
-    const width = 1.9 - 1.4 * t0;
-    const segment = box([Math.abs(x1 - x0) + 0.2, 0.05, width], {
-      color: jitterShade(FOREST_TRAIL, i * 3.7, 0.05),
-      // 小径顺着地形轻微摆，直线一看就是画上去的
-      position: [(x0 + x1) / 2, -0.04, -8 + Math.sin(i * 1.1) * 0.7],
-      castShadow: false,
-    });
-    segment.receiveShadow = true;
-    root.add(segment);
-  }
-
   // 对岸（东）的小镇屋影：盒身+坡顶+烟囱，雾里当剪影，不是能去的建筑
   const ROOFS = ["#5c6b80", "#7d5a52", "#5f7361"];
   for (const [i, [hx, hz, s, rot]] of (
@@ -1177,8 +1138,7 @@ function buildWalls(root: Object3D): void {
   const WALL_H = WALL_HEIGHT;
   const WALL_T = WALL_THICKNESS;
   const POST_STEP = 6;
-  /** 三个门洞的位置和净宽全在 terrain.ts——墙、柱、桥、出入口读同一份 */
-  const GATE_CENTER_Z = GATE_WEST_Z;
+  /** 两个门洞的位置和净宽全在 terrain.ts——墙、柱、桥、出入口读同一份 */
   const BRIDGE_E_Z = GATE_EAST_Z;
   const BRIDGE_S_X = GATE_SOUTH_X;
 
@@ -1274,15 +1234,16 @@ function buildWalls(root: Object3D): void {
 
   /*
    * 临水三面（北、东、南）= 石护岸墙；西面陆地侧 = 木栅栏。
-   * 三个口子：西门（正对玄关的主门）、东桥头、南桥头。
+   * 两个口子：东桥头、南桥头。（西门 2026-08-18 退役——森林那面不通
+   * 任何地方，留一个口子就是留一个"走出去什么也没有"的坑）
    */
   run("x", bounds.minX, bounds.maxX, bounds.minZ, -1);
   run("z", bounds.minZ, BRIDGE_E_Z - GATE_HALF - 0.35, bounds.maxX, 1);
   run("z", BRIDGE_E_Z + GATE_HALF + 0.35, bounds.maxZ, bounds.maxX, 1);
   run("x", bounds.minX, BRIDGE_S_X - GATE_HALF - 0.35, bounds.maxZ, 1);
   run("x", BRIDGE_S_X + GATE_HALF + 0.35, bounds.maxX, bounds.maxZ, 1);
-  fenceRun(bounds.minZ, GATE_CENTER_Z - GATE_HALF - 0.35, bounds.minX);
-  fenceRun(GATE_CENTER_Z + GATE_HALF + 0.35, bounds.maxZ, bounds.minX);
+  // 西面栅栏一整条：西门退役了（2026-08-18）
+  fenceRun(bounds.minZ, bounds.maxZ, bounds.minX);
 
   // 四角柱 + 三处加粗门柱（柱顶灯箱，照概念图的门柱灯与桥头灯）
   const wallOff = WALL_T / 2;
@@ -1290,8 +1251,6 @@ function buildWalls(root: Object3D): void {
   post(bounds.maxX + wallOff, bounds.minZ - wallOff, false);
   post(bounds.minX - wallOff, bounds.maxZ + wallOff, false);
   post(bounds.maxX + wallOff, bounds.maxZ + wallOff, false);
-  post(bounds.minX - wallOff, GATE_CENTER_Z - GATE_HALF, true);
-  post(bounds.minX - wallOff, GATE_CENTER_Z + GATE_HALF, true);
   post(bounds.maxX + wallOff, BRIDGE_E_Z - GATE_HALF, true);
   post(bounds.maxX + wallOff, BRIDGE_E_Z + GATE_HALF, true);
   post(BRIDGE_S_X - GATE_HALF, bounds.maxZ + wallOff, true);
@@ -1328,7 +1287,7 @@ export function buildBaseTerrain(context: TerrainContext): OutdoorTerrain {
   for (const bridge of BRIDGES) {
     buildBridge(root, bridge.axis, bridge.at, bridge.from, bridge.to);
   }
-  buildOuterWorld(root, bounds);
+  buildOuterWorld(root);
   const petals = buildPetals(northZ);
   root.add(petals.points);
 

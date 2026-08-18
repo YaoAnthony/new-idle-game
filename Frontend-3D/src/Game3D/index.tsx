@@ -1,3 +1,5 @@
+import { matchesAction } from "../Game/Input/bindings";
+import { toggleDebugMode } from "../Game/State/debugMode";
 import {
   DayPhaseId,
   WeatherKind,
@@ -192,6 +194,22 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       stop();
       off();
     };
+  }, []);
+
+  /**
+   * F3 调试模式（2026-08-18）。挂在 window 上而不是场景里：调试面板是
+   * HUD 的事，场景换图重建时它不该跟着断一下；也不排除输入框——F3
+   * 不是能打进去的字，浏览器默认是"页内查找"，抢过来正合适。
+   * 走 bindings 注册表：可改键、设置里能看见。
+   */
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!matchesAction(event, "debugMode")) return;
+      event.preventDefault();
+      toggleDebugMode();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
   useEffect(() => {

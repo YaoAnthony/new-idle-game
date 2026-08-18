@@ -113,6 +113,7 @@ import {
   isAutoWalking,
   setAutoWalker,
 } from "../../Game/Systems/autoWalk";
+import { setDebugProbe } from "../../Game/State/debugMode";
 import { getActiveDialogue, startDialogue } from "../../Game/Systems/dialogue";
 import { getEventStage } from "../../Game/Systems/events";
 import {
@@ -555,6 +556,15 @@ export class RoomScene {
       cancel: () => this.controller.cancelScriptedWalk(),
       position: () => ({ x: this.controller.x, z: this.controller.z }),
     });
+
+    // F3 调试面板的探针（同一个模式：场景把能力挂进去，UI 不持有场景）
+    setDebugProbe(() => ({
+      x: this.controller.x,
+      y: this.controller.renderedY,
+      z: this.controller.z,
+      groundY: this.controller.supportY,
+      mapId: getCurrentMap().mapId,
+    }));
 
     // 补一次初始同步。**必须在 placement 建好之后**——读档进来时手上可能
     // 已经拿着家具了，而 held_changed 早在场景构造之前就发完了
@@ -2131,6 +2141,7 @@ export class RoomScene {
 
   dispose(): void {
     this.detachInput();
+    setDebugProbe(null);
     for (const off of this.offEventListeners) off();
     this.placement.cancel();
     this.remotePlayers.dispose();

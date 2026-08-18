@@ -32,7 +32,8 @@ export type InputAction =
   | "rotatePlacement"
   | "backpack"
   | "chat"
-  | "command";
+  | "command"
+  | "debugMode";
 
 export type InputBinding = {
   /** KeyboardEvent.code 列表，一个动作可以绑多个键（WASD + 方向键） */
@@ -58,7 +59,7 @@ export const INPUT_ACTION_GROUPS: ReadonlyArray<{
   },
   {
     titleKey: "ui.settings.group_menu",
-    actions: ["backpack", "chat", "command"],
+    actions: ["backpack", "chat", "command", "debugMode"],
   },
 ];
 
@@ -76,6 +77,7 @@ export const DEFAULT_INPUT_BINDINGS: InputBindingsState = {
   backpack: { codes: ["KeyB"], labels: ["B"] },
   chat: { codes: ["Enter"], labels: ["Enter"] },
   command: { codes: ["Slash"], labels: ["/"] },
+  debugMode: { codes: ["F3"], labels: ["F3"] },
 };
 
 export const INPUT_ACTIONS = Object.keys(

@@ -124,6 +124,8 @@ export type GameEvents = {
   blocking_panel_changed: { open: boolean };
   /** 该不该显示触摸操作（设备变化或手动覆盖） */
   touch_mode_changed: { touch: boolean };
+  /** F3 调试模式开关。HUD 据此显示/收起调试面板（坐标等） */
+  debug_mode_changed: { enabled: boolean };
   /**
    * 请求执行一个玩法动作。**键盘和触摸按钮走同一条路**——
    * 手机上的按钮不去伪造 KeyboardEvent，那种合成事件 `isTrusted` 是 false，

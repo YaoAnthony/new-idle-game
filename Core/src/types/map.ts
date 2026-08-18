@@ -313,6 +313,13 @@ export type MapDefinition = {
   terrainHeightfield?: GroundHeightfield;
 
   /**
+   * "有房子挡着"的那一片（世界坐标矩形）。低能见度天气里这一片的
+   * 雾薄一档——院墙内、屋檐下。不填 = 这张图没有庇护，全图一样浓。
+   * 据点填围墙内那块；小镇以后填广场一圈。
+   */
+  shelter?: { minX: number; maxX: number; minZ: number; maxZ: number };
+
+  /**
    * 这张图上立着哪些楼（实例）。型号住在 Frontend 的 Buildings 注册表。
    *
    * **碰撞、店门、门口的出入口、门前铺装全部从它推导**，不再各写一份：

@@ -1,6 +1,12 @@
 import { BodyPosture, DayPhaseId, Facing, FurnitureCapability, WeatherKind, findItemDefinition, findPath, findPetDefinition, type WeatherDefinition, yardBoundsOf } from "core";
 import type { InteractHint } from "core";
-import { Raycaster, Scene, Vector2, Vector3 } from "three";
+import {
+  PointLight,
+  Raycaster,
+  Scene,
+  Vector2,
+  Vector3,
+} from "three";
 import {
   matchesAction,
   type InputAction,
@@ -104,6 +110,8 @@ import {
   setAutoWalker,
 } from "../../Game/Systems/autoWalk";
 import { setDebugProbe } from "../../Game/State/debugMode";
+import { FogField } from "./FogField.js";
+import { weatherVisualProfileOf } from "../Visual/weatherProfiles.js";
 import { getActiveDialogue, startDialogue } from "../../Game/Systems/dialogue";
 import { getEventStage } from "../../Game/Systems/events";
 import {
@@ -197,6 +205,7 @@ export class RoomScene {
   private readonly built: BuiltHouse;
   private readonly windowViews: WindowView[] = [];
   private readonly outdoor: OutdoorScene;
+  private readonly fogField: FogField;
   /** 联机时房间里其他人的形象。单机时名册是空的，它每帧空转一圈 */
   private readonly remotePlayers: RemotePlayersView;
   /** 每日任务机满格时的那一下弹跳。没机器时什么都不做 */
@@ -327,6 +336,35 @@ export class RoomScene {
     // 声明的可走固定件（石阶、平台）。挂 scene 不挂 outdoor.root：
     // 声明里的标高是世界 Y，outdoor.root 整体压了 -floorLevel
     this.scene.add(buildGroundFixtures(getCurrentMap()));
+
+    /*
+     * 清晰度场（大雾天灯和房子驱雾用的 tile 网格 + 雾毯）。
+     * 范围 = 可走范围；庇护 = 地图声明的 shelter（没声明就用一个
+     * 零面积矩形，全图一样浓）。平时关着不花一分钱，profile 说开才开。
+     */
+    {
+      const map = getCurrentMap();
+      const walkable = yardBoundsOf(map, { width: this.built.size.width, height: this.built.size.depth });
+      /*
+       * 毯子要铺得比可走范围**大一圈**（每边 +60）。第一版就铺到可走边界，
+       * 从空中看是一块白矩形硬切在绿林子里——雾毯在边上突然没了，
+       * 而外面本该更白。铺出去之后边缘由 shader 淡到 0，和全局雾接上。
+       */
+      const PAD = 60;
+      const bounds = {
+        minX: walkable.minX - PAD, maxX: walkable.maxX + PAD,
+        minZ: walkable.minZ - PAD, maxZ: walkable.maxZ + PAD,
+      };
+      const shelter = map.shelter ?? { minX: 0, maxX: 0, minZ: 0, maxZ: 0 };
+      this.fogField = new FogField({
+        bounds,
+        shelter,
+        // 贴地 0.06：毯子是"远处地面泛白"，靠 shader 里的距离淡入才不糊脚下。
+        // 第一版抬到 0.35，人站在毯子里，满屏灰
+        planeY: -map.floorLevel + 0.06,
+      });
+      this.scene.add(this.fogField.root);
+    }
     this.remotePlayers = new RemotePlayersView(this.scene);
     // 现查不缓存：机器可能被收走或摆第二台
     this.dailyBoardAnimator = new DailyBoardAnimator(() =>
@@ -1860,6 +1898,17 @@ export class RoomScene {
 
     for (const view of this.windowViews) view.update(deltaSeconds);
     this.outdoor.update(deltaSeconds);
+    // 清晰度场：每帧插值，100 ms 重算一次。灯就是配方里那些 lamp-light
+    // 点光——Lighting 已经在按昼夜/雾天点亮它们，这里只认"此刻亮着的"
+    this.fogField.update(deltaSeconds, () => {
+      const lit: PointLight[] = [];
+      this.scene.traverse((node) => {
+        if (node.name === "lamp-light" && node instanceof PointLight && node.intensity > 0) {
+          lit.push(node);
+        }
+      });
+      return lit;
+    });
 
     /*
      * 门板全部照 Door 实体画。原来这里硬编码"宠物距门 1.2 格就开"——
@@ -1878,6 +1927,8 @@ export class RoomScene {
     this.outdoor.apply(this.phase, this.weather);
     for (const view of this.windowViews) view.apply(this.phase, this.weather);
     this.applyCelestial();
+    // 清晰度场：只有 low_visibility 类天气的 profile 说开才开
+    this.fogField.setEnabled(weatherVisualProfileOf(this.weather).visibilityField);
   }
 
   /**
@@ -2140,6 +2191,7 @@ export class RoomScene {
     this.dailyBoardAnimator.dispose();
     this.furnitureView.dispose();
     this.outdoor.dispose();
+    this.fogField.dispose();
     this.cookwareView.dispose();
     this.heldItemView.dispose();
     this.droppedItemView.dispose();

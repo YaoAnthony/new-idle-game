@@ -5,6 +5,7 @@ import {
   BRIDGE_SURFACES,
   FLOOR_LEVEL,
   WALL_BLOCKERS,
+  WALL_RECT,
   baseHeightfield,
 } from "./terrain.js";
 
@@ -58,6 +59,9 @@ export const baseMapDefinition: MapDefinition = {
    * 顺手挡的，那圈石头其实是假的。带 height：0.9 的矮墙不挡镜头。
    */
   outdoorBlockers: WALL_BLOCKERS,
+
+  /** 大雾天院墙内雾薄一档（清晰度场的庇护区），见 Game3D/World/FogField */
+  shelter: WALL_RECT,
 
   /**
    * 两座桥的桥面。**声明即可走**——承托面系统在楼梯上兑现过一次，

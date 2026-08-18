@@ -333,8 +333,10 @@ export class OutdoorScene {
     }
     colors.needsUpdate = true;
 
-    // 雾色贴地平线，远树被推向天色。雾天雾色偏白（不再是天色的暗一档）
-    this.fog.color.set(SKY_BOTTOM[phase]).multiplyScalar(look.visibilityField ? 1.02 : 0.96);
+    // 雾色贴地平线，远树被推向天色。**大雾天不用天色**——用近白：真雾是
+    // 亮的（漫射满天），第一版沿用天色×0.96 出来是一片水泥灰
+    if (look.visibilityField) this.fog.color.set("#e6e9eb").lerp(new Color(SKY_BOTTOM[phase]), 0.25);
+    else this.fog.color.set(SKY_BOTTOM[phase]).multiplyScalar(0.96);
     // 全局雾距按天气档缩放（大雾把 48/190 压到 3/22）；全景期间另有一套，
     // setOverviewAtmosphere 会盖过去
     this.weatherFogScale = look.fogScale;

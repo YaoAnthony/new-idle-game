@@ -112,8 +112,12 @@ export const weatherVisualProfiles: Record<string, WeatherVisualProfile> = {
     starsVisible: false,
     celestialDimming: 0.15,
     dustVisible: false,
-    // near 48→3、far 190→22：三米外开始白，二十米外全白
-    fogScale: { near: 0.06, far: 0.115 },
+    /*
+     * near 48→7、far 190→24：七米外开始白，二十几米外全白。
+     * 第一版 near 压到 3——三人称弹簧臂本身就在人背后 5 米，near 3 等于
+     * 把**玩家自己**也罩进雾里，满屏一片灰。near 必须比臂长远。
+     */
+    fogScale: { near: 0.15, far: 0.125 },
     visibilityField: true,
   },
 };

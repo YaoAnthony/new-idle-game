@@ -28,3 +28,9 @@ pnpm-debug.log*
 !.vscode/extensions.json
 
 production/session-logs/
+
+# 曲库注册表：由 predev/prebuild 从本机 public/music 里的 mp3 现扫现生成
+# （scripts/generate-music-registry.mjs）。每台机器音频文件不一样，生成
+# 结果就不一样——跟踪它等于每个人 dev 一次就多一坨 diff，还互相覆盖。
+# 新 clone 跑 npm run dev 就会长出来。
+Frontend-3D/src/Data/music/generated.ts

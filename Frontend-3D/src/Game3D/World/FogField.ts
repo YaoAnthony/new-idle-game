@@ -88,6 +88,7 @@ export class FogField {
   private sinceRecalc = 1; // 首帧就算
   private enabled = false;
 
+
   constructor(options: FogFieldOptions) {
     this.options = {
       cell: 1,

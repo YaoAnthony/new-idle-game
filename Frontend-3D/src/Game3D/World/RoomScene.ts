@@ -364,6 +364,8 @@ export class RoomScene {
         planeY: -map.floorLevel + 0.06,
       });
       this.scene.add(this.fogField.root);
+      // 出生在玄关，第一帧还没走 syncCameraBounds：先按"在屋里"起
+      this.outdoor.setIndoors(true);
     }
     this.remotePlayers = new RemotePlayersView(this.scene);
     // 现查不缓存：机器可能被收走或摆第二台
@@ -2107,6 +2109,13 @@ export class RoomScene {
     const next = this.cameraOutdoors ? outside > -0.25 : outside > 0.25;
     if (next === this.cameraOutdoors) return;
     this.cameraOutdoors = next;
+    /*
+     * 天气不进屋：进屋全局雾距回默认（three.Fog 全场景生效，不收回来
+     * 24 米的客厅另一头就是白墙）。雾毯**不藏**——它铺在院子地面上，
+     * 房子地板在它上面盖着，屋里本来就看不见；而从窗户看出去院子该
+     * 还是白的，藏了就成了"一进屋外面雾就散了"。
+     */
+    this.outdoor.setIndoors(!next);
 
     if (next) {
       const map = getCurrentMap();

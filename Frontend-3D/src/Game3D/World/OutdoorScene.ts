@@ -126,6 +126,13 @@ export class OutdoorScene {
   /** 当前天气的雾距缩放（全景退出时要按它复原，不是复原到 1） */
   private weatherFogScale = { near: 1, far: 1 };
   private overviewActive = false;
+  /**
+   * 人在屋里。**天气不进屋**（用户第一次提大雾时就说了，第一版没守住）：
+   * three.Fog 是按到相机的距离全场景生效的，大雾天 near 7 / far 24，
+   * 站在 24 米长的客厅里看另一头就是一堵白墙。屋里雾距永远用默认——
+   * 48/190 在任何房间里都够不到墙。
+   */
+  private indoors = false;
 
   /** 这张图的地形（Maps/<id>/outdoor.ts 建的） */
   private readonly terrain: OutdoorTerrain;
@@ -340,10 +347,7 @@ export class OutdoorScene {
     // 全局雾距按天气档缩放（大雾把 48/190 压到 3/22）；全景期间另有一套，
     // setOverviewAtmosphere 会盖过去
     this.weatherFogScale = look.fogScale;
-    if (!this.overviewActive) {
-      this.fog.near = FOG_NEAR * look.fogScale.near;
-      this.fog.far = FOG_FAR * look.fogScale.far;
-    }
+    this.applyFogDistance();
 
     this.cloudMaterial.color.set(CLOUD_COLORS[phase]);
     if (look.clouds.overcast) this.cloudMaterial.color.multiplyScalar(0.72);
@@ -434,10 +438,32 @@ export class OutdoorScene {
   setOverviewAtmosphere(active: boolean): void {
     this.overviewActive = active;
     this.sky.scale.setScalar(active ? OVERVIEW_SKY_SCALE : 1);
-    // 退出复原到**当前天气**的雾距，不是复原到晴天——雾天升空再落回，
-    // 雾得还是雾
-    this.fog.near = active ? OVERVIEW_FOG_NEAR : FOG_NEAR * this.weatherFogScale.near;
-    this.fog.far = active ? OVERVIEW_FOG_FAR : FOG_FAR * this.weatherFogScale.far;
+    this.applyFogDistance();
+  }
+
+  /** 人进屋/出屋（RoomScene 的 syncCameraBounds 有滞回，跟它走） */
+  setIndoors(indoors: boolean): void {
+    if (indoors === this.indoors) return;
+    this.indoors = indoors;
+    this.applyFogDistance();
+  }
+
+  /**
+   * 雾距三选一，优先级从高到低：全景（推到天穹外）> 屋里（默认，天气
+   * 不进屋）> 当前天气档。三处各自改 fog.near/far 的写法删了——三个
+   * 来源互相覆盖，谁最后写谁赢，退出全景会把屋里也带成雾天。
+   */
+  private applyFogDistance(): void {
+    if (this.overviewActive) {
+      this.fog.near = OVERVIEW_FOG_NEAR;
+      this.fog.far = OVERVIEW_FOG_FAR;
+    } else if (this.indoors) {
+      this.fog.near = FOG_NEAR;
+      this.fog.far = FOG_FAR;
+    } else {
+      this.fog.near = FOG_NEAR * this.weatherFogScale.near;
+      this.fog.far = FOG_FAR * this.weatherFogScale.far;
+    }
   }
 
   dispose(): void {

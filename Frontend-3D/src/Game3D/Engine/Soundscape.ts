@@ -1,19 +1,4 @@
-import {
-  AudioBusId,
-  AudioTriggerKind,
-  DayPhaseId,
-  PlacementSurface,
-  WeatherKind,
-  defaultZoneAudioProfile,
-  findActionDefinition,
-  findAudioProfileDefinition,
-  resolveRegionAmbienceProfileId,
-  zoneAt,
-  zoneAudioProfiles,
-  zoneFootstepProfileIds,
-  type PlaceableItem,
-  type PlacedFurniture,
-} from "core";
+import { AudioBusId, AudioTriggerKind, DayPhaseId, PlacementSurface, defaultZoneAudioProfile, findActionDefinition, findAudioProfileDefinition, resolveRegionAmbienceProfileId, zoneAt, zoneAudioProfiles, zoneFootstepProfileIds, type PlaceableItem, type PlacedFurniture } from "core";
 import { on } from "../../Game/EventBus";
 import { getClock } from "../../Game/State/clock";
 import { findDoorAgent } from "../../Game/State/doorsRuntime";
@@ -405,7 +390,8 @@ function stepFootsteps(moved: number): void {
  * 固定间隔听起来像节拍器，连着炸又很吵。
  */
 function syncThunder(): void {
-  const isStorm = getWeather().kind === WeatherKind.Storm;
+  // 暴雨的雷声：按 Core 的 tags 判（heavy + wet），不问 kind——加一种"雷阵雨"不用回来改这里
+  const isStorm = getWeather().intensity === "heavy" && getWeather().tags.includes("wet");
 
   if (!isStorm) {
     if (thunderTimer) clearTimeout(thunderTimer);
@@ -423,7 +409,7 @@ function syncThunder(): void {
       thunderTimer = null;
 
       // 期间天气可能已经变了
-      if (getWeather().kind !== WeatherKind.Storm) return;
+      if (!(getWeather().intensity === "heavy" && getWeather().tags.includes("wet"))) return;
 
       playOneShot("sfx_thunder", 0.7);
       scheduleNext();

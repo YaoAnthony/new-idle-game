@@ -64,6 +64,22 @@ export const weatherDefinitions = [
     // 暴雨同理，只会更彻底
     ambienceDuck: 1,
   },
+  {
+    id: "fog",
+    localizationKey: "weather.fog",
+    kind: WeatherKind.Fog,
+    intensity: "heavy",
+    /*
+     * low_visibility 是这种天气对外的接口：表现层据此起清晰度场、
+     * 把灯全天点亮；以后宠物派遣/事件也能问"今天雾大不大"。
+     * 没有 dark——雾天不黑，是白；也没有 windy——有风就没雾了。
+     */
+    tags: ["wet", "dim", "low_visibility"],
+    visualProfileId: "weather_visual_fog",
+    audioProfileId: "weather_audio_none",
+    // 雾里鸟叫闷一半：不像雨那样彻底停，是"隔着一层"
+    ambienceDuck: 0.5,
+  },
 ] satisfies WeatherDefinition[];
 
 export const DEFAULT_WEATHER_ID = "sunny";
@@ -86,4 +102,6 @@ export const weatherWeights: Array<{ weatherId: string; weight: number }> = [
   { weatherId: "rain", weight: 18 },
   { weatherId: "wind", weight: 8 },
   { weatherId: "storm", weight: 2 },
+  // 雾和暴雨一档稀有：它是"特别的一天"，天天雾就是滤镜了
+  { weatherId: "fog", weight: 3 },
 ];

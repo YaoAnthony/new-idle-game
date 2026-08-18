@@ -2,11 +2,11 @@ import { matchesAction } from "../Game/Input/bindings";
 import { toggleDebugMode } from "../Game/State/debugMode";
 import {
   DayPhaseId,
-  WeatherKind,
   findItemDefinition,
-  petDefinitions,
   itemDefinitions,
+  petDefinitions,
   type StorySignalKind,
+  weatherDefinitions,
 } from "core";
 import { useEffect, useRef, useState } from "react";
 import { ActionHub } from "../Components/ActionHub/ActionHub";
@@ -139,13 +139,12 @@ const PHASES = [
   DayPhaseId.Night,
 ] as const;
 
-const WEATHERS = [
-  WeatherKind.Sunny,
-  WeatherKind.Cloudy,
-  WeatherKind.Rain,
-  WeatherKind.Wind,
-  WeatherKind.Storm,
-] as const;
+/**
+ * /weather 的候选**从 Core 注册表现算**，不写字面量——加一种天气这里
+ * 自动有，删一种也不会留在提示里。原来是一张手抄的 WeatherKind 清单，
+ * 加 fog 那天差点第六次漏掉它。
+ */
+const WEATHER_IDS = weatherDefinitions.map((w) => w.id);
 
 /**
  * /overview 的方位选项：**镜头站在哪一边**（不是"朝哪边看"）。
@@ -319,10 +318,10 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       }),
       registerCommand({
         name: "weather",
-        usage: "weather <sunny|cloudy|rain|wind|storm|auto>",
+        usage: "weather <天气id|auto>",
         description: "按住某种天气（auto 恢复自然天气）",
         arguments: [
-          { name: "天气", suggest: () => asSuggestions([...WEATHERS, "auto"]) },
+          { name: "天气", suggest: () => asSuggestions([...WEATHER_IDS, "auto"]) },
         ],
         handler: (args) => {
           if (args[0] === "auto") {
@@ -330,7 +329,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
             return ok(`已恢复自然天气：${getWeather().id}`);
           }
 
-          const weather = parseEnum(args[0], WEATHERS, "天气");
+          const weather = parseEnum(args[0], WEATHER_IDS, "天气");
           // 写一条 debug 覆盖，而不是直接改结果
           debugForceWeather(weather);
           return ok(`天气已按住为 ${weather}`);

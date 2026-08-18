@@ -1,14 +1,4 @@
-import {
-  BodyPosture,
-  DayPhaseId,
-  Facing,
-  FurnitureCapability,
-  WeatherKind,
-  findItemDefinition,
-  findPath,
-  findPetDefinition,
-  yardBoundsOf,
-} from "core";
+import { BodyPosture, DayPhaseId, Facing, FurnitureCapability, WeatherKind, findItemDefinition, findPath, findPetDefinition, type WeatherDefinition, yardBoundsOf } from "core";
 import type { InteractHint } from "core";
 import { Raycaster, Scene, Vector2, Vector3 } from "three";
 import {
@@ -191,6 +181,7 @@ import { OutdoorScene } from "./OutdoorScene.js";
 export type SceneDebugState = {
   phase: DayPhaseId;
   weather: WeatherKind;
+  weatherId: string;
   outline: boolean;
   styleId: string;
   character: { x: number; z: number; y: number };
@@ -227,7 +218,7 @@ export class RoomScene {
   private readonly placement: PlacementController;
 
   private phase: DayPhaseId = DayPhaseId.Day;
-  private weather: WeatherKind = WeatherKind.Sunny;
+  private weather: WeatherDefinition = getWeather();
   private outlineEnabled = true;
 
   private readonly petView = new PetView();
@@ -504,15 +495,15 @@ export class RoomScene {
       }),
     );
     this.offEventListeners.push(
-      on("weather_changed", ({ kind }) => {
-        this.weather = kind;
+      on("weather_changed", () => {
+        this.weather = getWeather();
         this.applyEnvironment();
       }),
     );
 
     // 首帧直接读当前值：事件只在"变化时"发，进场景时得主动同步一次
     this.phase = getClock().phase;
-    this.weather = getWeather().kind;
+    this.weather = getWeather();
 
     const aspect = container.clientWidth / Math.max(container.clientHeight, 1);
     this.rig = new CameraRig(aspect);
@@ -2119,7 +2110,8 @@ export class RoomScene {
   getDebugState(): SceneDebugState {
     return {
       phase: this.phase,
-      weather: this.weather,
+      weather: this.weather.kind,
+      weatherId: this.weather.id,
       outline: this.outlineEnabled,
       styleId: getRoomStyle().id,
       character: {

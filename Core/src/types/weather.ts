@@ -10,6 +10,8 @@ export enum WeatherKind {
   Rain = "rain",
   Wind = "wind",
   Storm = "storm",
+  /** 大雾：能见度极低。灯和房子能驱散一点，见 Frontend 的 FogField */
+  Fog = "fog",
 }
 
 export type WeatherIntensity = "light" | "normal" | "heavy";

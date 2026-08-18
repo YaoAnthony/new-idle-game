@@ -1,4 +1,4 @@
-import { DayPhaseId, WeatherKind } from "core";
+import { DayPhaseId, type WeatherDefinition } from "core";
 import {
   AdditiveBlending,
   BackSide,
@@ -15,6 +15,7 @@ import {
   Scene,
   SphereGeometry,
 } from "three";
+import { weatherVisualProfileOf } from "../Visual/weatherProfiles.js";
 import { getCurrentMap } from "../../Game/State/worldRuntime";
 import {
   hash01,
@@ -94,8 +95,8 @@ const OVERVIEW_SKY_SCALE = 3.2;
 const OVERVIEW_FOG_NEAR = 220;
 const OVERVIEW_FOG_FAR = 560;
 
+/** 雨滴粒子池的上限（各天气档的 rain.count 不得超过它） */
 const RAIN_MAX = 420;
-const RAIN_COUNT_LIGHT = 190;
 
 export class OutdoorScene {
   readonly root = new Object3D();
@@ -122,6 +123,9 @@ export class OutdoorScene {
   private readonly rainVelocities: Float32Array;
   private stormWind = false;
   private windy = false;
+  /** 当前天气的雾距缩放（全景退出时要按它复原，不是复原到 1） */
+  private weatherFogScale = { near: 1, far: 1 };
+  private overviewActive = false;
 
   /** 这张图的地形（Maps/<id>/outdoor.ts 建的） */
   private readonly terrain: OutdoorTerrain;
@@ -314,7 +318,8 @@ export class OutdoorScene {
 
   // ---- 状态应用与逐帧更新 --------------------------------------------------
 
-  apply(phase: DayPhaseId, weather: WeatherKind): void {
+  apply(phase: DayPhaseId, weather: WeatherDefinition): void {
+    const look = weatherVisualProfileOf(weather);
     // 天穹渐变：按顶点高度插值。地平线附近吃 SKY_BOTTOM，天顶吃 SKY_TOP
     const top = new Color(SKY_TOP[phase]);
     const bottom = new Color(SKY_BOTTOM[phase]);
@@ -328,31 +333,32 @@ export class OutdoorScene {
     }
     colors.needsUpdate = true;
 
-    // 雾色贴地平线，远树被推向天色
-    this.fog.color.set(SKY_BOTTOM[phase]).multiplyScalar(0.96);
-
-    const raining = weather === WeatherKind.Rain || weather === WeatherKind.Storm;
-    const overcast = raining || weather === WeatherKind.Cloudy;
+    // 雾色贴地平线，远树被推向天色。雾天雾色偏白（不再是天色的暗一档）
+    this.fog.color.set(SKY_BOTTOM[phase]).multiplyScalar(look.visibilityField ? 1.02 : 0.96);
+    // 全局雾距按天气档缩放（大雾把 48/190 压到 3/22）；全景期间另有一套，
+    // setOverviewAtmosphere 会盖过去
+    this.weatherFogScale = look.fogScale;
+    if (!this.overviewActive) {
+      this.fog.near = FOG_NEAR * look.fogScale.near;
+      this.fog.far = FOG_FAR * look.fogScale.far;
+    }
 
     this.cloudMaterial.color.set(CLOUD_COLORS[phase]);
-    if (overcast) this.cloudMaterial.color.multiplyScalar(0.72);
-    this.cloudMaterial.opacity = overcast ? 0.96 : 0.88;
+    if (look.clouds.overcast) this.cloudMaterial.color.multiplyScalar(0.72);
+    this.cloudMaterial.opacity = look.clouds.opacity;
 
-    this.starBaseOpacity = overcast ? 0 : STAR_OPACITY[phase];
+    this.starBaseOpacity = look.starsVisible ? STAR_OPACITY[phase] : 0;
     this.starMaterial.opacity = this.starBaseOpacity;
 
     // 密度分级不能丢：小雨和暴雨的差别主要靠粒子数，只调透明度会让小雨也像暴雨
-    this.rain.visible = raining;
-    this.rain.geometry.setDrawRange(
-      0,
-      weather === WeatherKind.Storm ? RAIN_MAX : RAIN_COUNT_LIGHT,
-    );
-    this.stormWind = weather === WeatherKind.Storm;
-    this.windy = weather === WeatherKind.Wind || weather === WeatherKind.Storm;
-    (this.rain.material as PointsMaterial).opacity =
-      weather === WeatherKind.Storm ? 0.85 : 0.6;
+    this.rain.visible = look.rain.count > 0;
+    this.rain.geometry.setDrawRange(0, Math.min(RAIN_MAX, look.rain.count));
+    (this.rain.material as PointsMaterial).opacity = look.rain.opacity;
+    // 风：连续量。>0.9 才算暴风（雨丝横着飞），>0.3 算有风（树梢/云动）
+    this.stormWind = look.windSlant > 0.9;
+    this.windy = look.windSlant > 0.3;
 
-    this.celestialDimming = raining ? 0.22 : overcast ? 0.5 : 1;
+    this.celestialDimming = look.celestialDimming;
   }
 
   /**
@@ -424,9 +430,12 @@ export class OutdoorScene {
    * 化一遍不值当；真正会毁掉截图的只有"没有天"和"全是雾"这两件。
    */
   setOverviewAtmosphere(active: boolean): void {
+    this.overviewActive = active;
     this.sky.scale.setScalar(active ? OVERVIEW_SKY_SCALE : 1);
-    this.fog.near = active ? OVERVIEW_FOG_NEAR : FOG_NEAR;
-    this.fog.far = active ? OVERVIEW_FOG_FAR : FOG_FAR;
+    // 退出复原到**当前天气**的雾距，不是复原到晴天——雾天升空再落回，
+    // 雾得还是雾
+    this.fog.near = active ? OVERVIEW_FOG_NEAR : FOG_NEAR * this.weatherFogScale.near;
+    this.fog.far = active ? OVERVIEW_FOG_FAR : FOG_FAR * this.weatherFogScale.far;
   }
 
   dispose(): void {

@@ -1,4 +1,4 @@
-import { DayPhaseId, WeatherKind } from "core";
+import { DayPhaseId, type WeatherDefinition } from "core";
 import {
   AmbientLight,
   Color,
@@ -10,6 +10,7 @@ import {
   Scene,
   Vector3,
 } from "three";
+import { weatherVisualProfileOf } from "../Visual/weatherProfiles.js";
 
 /**
  * 真室内光（2026-07-29 定稿：镜头锁定屋内、房间有真实屋顶）。
@@ -133,17 +134,12 @@ const LAMP_INTENSITY: Record<DayPhaseId, number> = {
   [DayPhaseId.Night]: 18,
 };
 
-/** 天气对光照的修正系数。desat 把所有光色往灰拉，雨天低饱和的来源 */
-const WEATHER_MODIFIERS: Record<
-  WeatherKind,
-  { sun: number; hemi: number; ambient: number; cool: number; desat: number }
-> = {
-  [WeatherKind.Sunny]: { sun: 1, hemi: 1, ambient: 1, cool: 0, desat: 0 },
-  [WeatherKind.Cloudy]: { sun: 0.55, hemi: 0.9, ambient: 1, cool: 0.25, desat: 0.25 },
-  [WeatherKind.Rain]: { sun: 0.35, hemi: 0.8, ambient: 0.95, cool: 0.45, desat: 0.45 },
-  [WeatherKind.Wind]: { sun: 0.85, hemi: 0.95, ambient: 1, cool: 0.12, desat: 0.1 },
-  [WeatherKind.Storm]: { sun: 0.22, hemi: 0.65, ambient: 0.85, cool: 0.6, desat: 0.55 },
-};
+/*
+ * 天气对光照的修正系数**搬进了 Visual/weatherProfiles 注册表**（2026-08-18）。
+ * 原来这里一张 Record<WeatherKind, …>：加一种天气就编译红，而另外四个
+ * 文件里的 `=== WeatherKind.Rain` 对新枚举值只是恒假、不报——两种坏法
+ * 都不该有。现在表现层只读 profile，不问 kind。
+ */
 
 const COOL_TINT = new Color("#7f9bd4");
 
@@ -229,9 +225,9 @@ export class Lighting {
     return this.windowFills;
   }
 
-  apply(phase: DayPhaseId, weather: WeatherKind): void {
+  apply(phase: DayPhaseId, weather: WeatherDefinition): void {
     const profile = DAY_PROFILES[phase];
-    const modifier = WEATHER_MODIFIERS[weather];
+    const modifier = weatherVisualProfileOf(weather).light;
 
     const sunColor = desaturate(
       new Color(profile.sunColor).lerp(COOL_TINT, modifier.cool * 0.5),
@@ -292,7 +288,14 @@ export class Lighting {
 
     // 灯具：配方里内嵌的 lamp-light 点光。每次 apply 重新扫一遍场景，
     // 这样新摆下的灯下一次环境变化就会被点亮（RoomScene 在 world_changed 时也会 apply）
-    const lampIntensity = LAMP_INTENSITY[phase];
+    /*
+     * 灯：黄昏半亮、入夜全亮；**大雾天全天亮**（用户定的）。现实里雾天
+     * 白天车也开灯；玩法上"放一盏灯驱雾"要是白天体验不到就等于没有。
+     * 判的是 Core 的 tag 不是 kind——以后再来一种低能见度天气自动适用。
+     */
+    const lampIntensity = weather.tags.includes("low_visibility")
+      ? Math.max(LAMP_INTENSITY[phase], LAMP_INTENSITY[DayPhaseId.Night])
+      : LAMP_INTENSITY[phase];
     this.scene.traverse((node) => {
       if (node.name === "lamp-light" && node instanceof PointLight) {
         node.intensity = lampIntensity;

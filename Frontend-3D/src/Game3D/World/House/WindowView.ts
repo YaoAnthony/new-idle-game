@@ -1,4 +1,4 @@
-import { DayPhaseId, WeatherKind } from "core";
+import { DayPhaseId, type WeatherDefinition } from "core";
 import {
   AdditiveBlending,
   BufferAttribute,
@@ -10,6 +10,7 @@ import {
   Points,
   PointsMaterial,
 } from "three";
+import { weatherVisualProfileOf } from "../../Visual/weatherProfiles.js";
 import { PALETTE } from "../../Visual/palette.js";
 import { box } from "../../Visual/primitives.js";
 import type { WindowAnchor } from "./HouseBuilder.js";
@@ -236,16 +237,13 @@ export class WindowView {
     return { points, velocities };
   }
 
-  apply(phase: DayPhaseId, weather: WeatherKind): void {
-    const raining = weather === WeatherKind.Rain || weather === WeatherKind.Storm;
+  apply(phase: DayPhaseId, weather: WeatherDefinition): void {
+    const look = weatherVisualProfileOf(weather);
 
-    this.glassGlow.visible = raining;
-    this.stormWind = weather === WeatherKind.Storm;
+    this.glassGlow.visible = look.glassGlow;
+    this.stormWind = look.windSlant > 0.9;
 
-    this.dustBaseOpacity =
-      weather === WeatherKind.Sunny || weather === WeatherKind.Wind
-        ? DUST_OPACITY[phase]
-        : 0;
+    this.dustBaseOpacity = look.dustVisible ? DUST_OPACITY[phase] : 0;
     this.dust.visible = this.dustBaseOpacity > 0;
     (this.dust.material as PointsMaterial).opacity = this.dustBaseOpacity;
   }

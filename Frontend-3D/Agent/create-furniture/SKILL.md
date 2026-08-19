@@ -126,10 +126,10 @@ Crafting / Cooking / Storage / Sleep / Sitting / Ambience / WaterSource / Unpack
 
 ## 4. 验收（缺一不可）
 - `cd Frontend-3D && npx tsc -p tsconfig.app.json --noEmit`（**必须带 -p**，裸 --noEmit 永远绿）；Core：`cd Core && npx tsc --noEmit -p .`
-- headless（Frontend-3D 没测试框架）：scratchpad 写 `check-*.ts`，
-  `npx esbuild <file> --bundle --platform=node --format=cjs --alias:game=./src --alias:core=../Core/src --alias:three=./node_modules/three "--define:import.meta.env={}" --outfile=<out>.cjs && node <out>.cjs`
-  至少守：`findPlaceableItem(id)` 存在；`checkPlacement` 在测试房能落；Sitting/Sleep 有 anchors；surfaceGrid 必配 surfaceHeight；
-  `hasLocalizationKey` 覆盖 item/desc/hint；`resolveVisual(visual.id)` 非空。
+- headless（Frontend-3D 没测试框架）：**现成守门脚本** `Frontend-3D/Agent/create-furniture/check-furniture.ts`（定义存在 / 文案 item·desc·hint /
+  外观已注册 / 坐睡必有锚点 / surfaceGrid 必配 surfaceHeight / 模型不出占地且贴地 / 客厅空地能落）。在 Frontend-3D 目录下：
+  `npx esbuild Agent/create-furniture/check-furniture.ts --bundle --platform=node --format=cjs --alias:game=./src --alias:core=../Core/src --alias:three=./node_modules/three "--define:import.meta.env={}" --outfile=<scratchpad>/check-furniture.cjs && node <scratchpad>/check-furniture.cjs furniture_a furniture_b`
+  （参数是要查的物品 id，可多个）。有新规则往这个脚本里加，别另起炉灶。
 - 实机：DEV 控制台无 `auditItemVisuals` 警告；`/testroom` 里 `placed` 含新件且 `walkableRegions === 1`；
   面板不显示时按 `offscreen-render-when-pane-hidden` 记忆离屏截图（`window.__scene` 手动 update+render → JPEG POST 本地 5199）。
   截图看：比例/朝向(+Z 正面)/贴地/描边/夜里发光/坐上去人不悬空。

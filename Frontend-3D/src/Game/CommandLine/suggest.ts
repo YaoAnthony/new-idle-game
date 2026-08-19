@@ -76,9 +76,17 @@ function score(value: string, description: string, query: string): number {
   return matched === query.length ? fuzzy + matched * 4 : 0;
 }
 
-/** 一次最多列几条。再多列表就比游戏画面还高了 */
-const MAX_COMPLETIONS = 8;
-
+/**
+ * 候选**不截断**：匹配上的全吐出来。
+ *
+ * 原来这里是 `.slice(0, MAX_COMPLETIONS)`，理由写的是"再多列表就比游戏画面
+ * 还高了"——高度确实是问题，但那是渲染的问题。截在数据这一层的后果是第 9 条
+ * 以后根本不存在：`/give` 有 63 件物品，按字母排到 c 就断了，后面的怎么按
+ * 键盘都翻不出来，只能靠猜前缀。
+ *
+ * 高度归高度：可视行数 + 滚动视口放在组件里（见 ChatPanel 的
+ * VISIBLE_COMPLETION_ROWS）。这一层不替 UI 决定它能显示多少。
+ */
 export function completionsFor(input: string): Completion[] {
   const parsed = parse(input);
   if (!parsed) return [];
@@ -95,7 +103,6 @@ export function completionsFor(input: string): Completion[] {
         (a, b) =>
           b.weight - a.weight || a.command.name.localeCompare(b.command.name),
       )
-      .slice(0, MAX_COMPLETIONS)
       .map(({ command }) => ({
         replacement: `/${command.name} `,
         label: `/${command.name}`,
@@ -125,7 +132,6 @@ export function completionsFor(input: string): Completion[] {
         b.weight - a.weight ||
         a.suggestion.value.localeCompare(b.suggestion.value),
     )
-    .slice(0, MAX_COMPLETIONS)
     .map(({ suggestion }) => ({
       replacement: [head, ...before, suggestion.value].join(" ") + " ",
       label: suggestion.value,

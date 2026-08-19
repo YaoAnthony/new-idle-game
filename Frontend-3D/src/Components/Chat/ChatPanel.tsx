@@ -36,6 +36,20 @@ const IDLE_VISIBLE = 5;
 /** 关着的消息多久淡掉（毫秒）。和 MC 的 10 秒一个量级 */
 const IDLE_FADE_MS = 9000;
 
+/**
+ * 补全列表一次露几行、每行多高（px）。
+ *
+ * 这个 8 是从 suggest.ts 的 `MAX_COMPLETIONS` 搬过来的。它在那边同时是
+ * "列几条"和"有几条"，于是列表既滚不动也翻不完；搬到这里之后它只剩一个
+ * 意思——视口高度 = 行数 × 行高，候选有多少条是数据那边的事。
+ *
+ * 行高写死，而不是让 `py-1` 加继承来的行高自己凑：视口高度要拿它相乘，
+ * 凑出来的隐式值一改字号就和视口对不齐，最后一行会露半截——那半截最容易
+ * 被读成"到底了"。
+ */
+const COMPLETION_ROW_PX = 24;
+const VISIBLE_COMPLETION_ROWS = 8;
+
 const KIND_CLASS: Record<ChatMessageKind, string> = {
   [ChatMessageKind.Player]: "text-white",
   [ChatMessageKind.System]: "text-[#9fe08f]",
@@ -54,6 +68,9 @@ export function ChatPanel() {
 
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const completionListRef = useRef<HTMLDivElement>(null);
+  /** 鼠标上一次真正待过的位置，用来分辨"鼠标动了"和"列表从鼠标底下滚过去" */
+  const pointerAt = useRef({ x: -1, y: -1 });
   /** 翻历史时先把正在打的那半句存起来，翻回来还给玩家 */
   const draftBeforeHistory = useRef("");
   const [historyIndex, setHistoryIndex] = useState<number | null>(null);
@@ -133,6 +150,18 @@ export function ChatPanel() {
   }, [open]);
 
   useEffect(() => setSelected(0), [draft]);
+
+  /*
+   * 键盘挪到哪儿，视口跟到哪儿。
+   *
+   * `block: "nearest"` 是关键：已经在视野里的就不动，只有走出上下边才滚
+   * 最小的一点——用 "center" 的话每按一下整个列表都要重新居中，读起来像
+   * 列表在抖，而不是光标在走。
+   */
+  useEffect(() => {
+    const row = completionListRef.current?.children[selected];
+    if (row instanceof HTMLElement) row.scrollIntoView({ block: "nearest" });
+  }, [selected, draft]);
 
   // 打字时游戏要停手：不锁的话按 W 会一边打字一边往前走
   useEffect(() => {
@@ -295,17 +324,50 @@ export function ChatPanel() {
       {open && (
         <>
           {completions.length > 0 && (
-            <div className="mb-1 overflow-hidden rounded border border-white/15 bg-black/85">
+            <div
+              ref={completionListRef}
+              /*
+               * overflow-x 要一起显式关掉：只开 overflow-y 的话 x 轴会跟着
+               * 变成 auto，描述文字本来就 truncate，横向滚动条纯属白占一行高。
+               * chat-completions：矮屏上把可视行数压到 4 行，见 index.css。
+               */
+              className="chat-completions mb-1 overflow-x-hidden overflow-y-auto rounded border border-white/15 bg-black/85"
+              style={{
+                // content-box：不这么写的话上下两条 1px 边框要从 192 里扣，
+                // 第 8 行只剩 22px 露在外面——正好是"看着像到底了"的那种半行
+                boxSizing: "content-box",
+                maxHeight: VISIBLE_COMPLETION_ROWS * COMPLETION_ROW_PX,
+              }}
+            >
               {completions.map((completion, index) => (
                 <button
                   key={completion.replacement}
                   type="button"
-                  onMouseEnter={() => setSelected(index)}
+                  onMouseMove={(event) => {
+                    /*
+                     * 用 mousemove 而不是 mouseenter，还要比一次坐标。
+                     *
+                     * 列表滚起来之后，新的一行会从静止的鼠标底下经过——浏览器
+                     * 照样派鼠标事件，于是"键盘选中的"立刻被"鼠标底下的"顶掉：
+                     * 按住↓看着像走两步退一步。坐标没变就说明是滚动带出来的，
+                     * 不是玩家在动鼠标，不认。
+                     */
+                    if (
+                      event.clientX === pointerAt.current.x &&
+                      event.clientY === pointerAt.current.y
+                    ) {
+                      return;
+                    }
+                    pointerAt.current = { x: event.clientX, y: event.clientY };
+                    setSelected(index);
+                  }}
                   onMouseDown={(event) => {
                     event.preventDefault();
                     applyCompletion(completion);
                   }}
-                  className={`flex w-full items-center gap-3 px-2 py-1 text-left text-[12px] ${
+                  // 行高走定值：视口高度是它乘出来的，见 COMPLETION_ROW_PX
+                  style={{ height: COMPLETION_ROW_PX }}
+                  className={`flex w-full items-center gap-3 px-2 text-left text-[12px] ${
                     index === selected ? "bg-white/15" : ""
                   }`}
                 >

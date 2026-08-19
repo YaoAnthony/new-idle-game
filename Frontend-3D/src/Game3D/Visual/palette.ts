@@ -123,6 +123,11 @@ export const PALETTE = {
   soil: "#4f3a28",
   leafGreen: "#7d9c5b",
   leafGreenDark: "#66854b",
+  /** 富贵竹的竿：比叶子黄一点、亮一点的嫩绿；节是一圈偏黄的浅色 */
+  bambooStalk: "#8fb063",
+  bambooNode: "#c9c58a",
+  /** 盆口铺的小石子 */
+  pebble: "#b9b2a6",
 
   // ---- 每日任务机（V0.11）：全屋唯一一件"机器感"家具 ----
   //

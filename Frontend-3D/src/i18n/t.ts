@@ -220,6 +220,8 @@ const ZH: Record<string, string> = {
   "item.furniture_fireplace.desc": "石砌的壁炉。柴火噼啪响，冬天就不怕了。",
   "item.furniture_floor_lamp.desc": "布罩落地灯，夜里留一盏，屋子就暖了。",
   "item.furniture_potted_plant.desc": "一盆好养活的绿植。记得偶尔浇水。",
+  "item.furniture_lucky_bamboo": "富贵竹",
+  "item.furniture_lucky_bamboo.desc": "白瓷盆里插着几根带节的富贵竹，长到半人高。据说能旺家。",
   "item.furniture_picture_frame.desc": "画着远山和落日的小相框，挂在墙上。",
   "item.furniture_wall_clock.desc": "滴答作响的木壳挂钟，日子有了声音。",
   "item.furniture_curtain.desc": "厚厚的窗帘，拉上就能睡个懒觉。",

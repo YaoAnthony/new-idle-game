@@ -19,6 +19,7 @@ import {
 import { buildShuShu } from "./recipes/shushu.js";
 import {
   buildCurtain,
+  buildLuckyBamboo,
   buildPictureFrame,
   buildPottedPlant,
   buildRoundStool,
@@ -144,6 +145,7 @@ const REGISTRY: Record<string, VisualEntry> = {
   garden_bench: { kind: "procedural", build: buildGardenBench },
   street_lamp: { kind: "procedural", build: buildStreetLamp },
   potted_plant: { kind: "procedural", build: buildPottedPlant },
+  lucky_bamboo: { kind: "procedural", build: buildLuckyBamboo },
 
   // 铺地扩充：地毯撑覆盖率，大件家具撑体量
   long_rug: { kind: "procedural", build: buildLongRug },

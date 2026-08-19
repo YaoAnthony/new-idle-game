@@ -619,6 +619,26 @@ export const itemDefinitions = [
   },
   // ---- 铺地扩充 ----
   {
+    /*
+     * 富贵竹落地盆栽（2026-08-19，用户定）：1×1、半人高（约 0.9 米）、白陶盆。
+     * 纯装饰、挡路、没有可用台面（顶上是叶子，surfaceHeight 不填）；
+     * 太高也不上桌（不声明 surfaceFootprint）。先不配方，/give 验。
+     */
+    id: "furniture_lucky_bamboo",
+    localizationKey: "item.furniture_lucky_bamboo",
+    category: ItemCategory.Furniture,
+    stackLimit: 9,
+    rarity: Rarity.Common,
+    visual: { id: "lucky_bamboo" },
+    placement: {
+      surface: PlacementSurface.Floor,
+      footprint: { width: 1, height: 1 },
+      capabilities: [],
+      floorLayer: FloorLayer.Object,
+      blocksMovement: true,
+    },
+  },
+  {
     id: "furniture_long_rug",
     localizationKey: "item.furniture_long_rug",
     category: ItemCategory.Furniture,

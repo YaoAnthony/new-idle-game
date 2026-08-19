@@ -126,13 +126,12 @@ export class OutdoorScene {
   /** 当前天气的雾距缩放（全景退出时要按它复原，不是复原到 1） */
   private weatherFogScale = { near: 1, far: 1 };
   private overviewActive = false;
-  /**
-   * 人在屋里。**天气不进屋**（用户第一次提大雾时就说了，第一版没守住）：
-   * three.Fog 是按到相机的距离全场景生效的，大雾天 near 7 / far 24，
-   * 站在 24 米长的客厅里看另一头就是一堵白墙。屋里雾距永远用默认——
-   * 48/190 在任何房间里都够不到墙。
+  /*
+   * 曾经这里有个 indoors 开关："人在屋里就把雾距推回默认"。那是错的
+   * 修法：一进屋整张图的雾都散了，从窗户看出去树是清的。**天气不进屋**
+   * 现在由 Engine/fogShelter 在着色器里按射线穿过房子 AABB 的长度算，
+   * 雾距全天候按天气档走，屋里屋外各得其所。
    */
-  private indoors = false;
 
   /** 这张图的地形（Maps/<id>/outdoor.ts 建的） */
   private readonly terrain: OutdoorTerrain;
@@ -441,25 +440,15 @@ export class OutdoorScene {
     this.applyFogDistance();
   }
 
-  /** 人进屋/出屋（RoomScene 的 syncCameraBounds 有滞回，跟它走） */
-  setIndoors(indoors: boolean): void {
-    if (indoors === this.indoors) return;
-    this.indoors = indoors;
-    this.applyFogDistance();
-  }
-
   /**
-   * 雾距三选一，优先级从高到低：全景（推到天穹外）> 屋里（默认，天气
-   * 不进屋）> 当前天气档。三处各自改 fog.near/far 的写法删了——三个
-   * 来源互相覆盖，谁最后写谁赢，退出全景会把屋里也带成雾天。
+   * 雾距二选一：全景（推到天穹外）> 当前天气档。两处各自改 fog.near/far
+   * 的写法删了——互相覆盖，谁最后写谁赢，退出全景会把天气档冲掉。
+   * 屋里不在这里管（见类头注释）。
    */
   private applyFogDistance(): void {
     if (this.overviewActive) {
       this.fog.near = OVERVIEW_FOG_NEAR;
       this.fog.far = OVERVIEW_FOG_FAR;
-    } else if (this.indoors) {
-      this.fog.near = FOG_NEAR;
-      this.fog.far = FOG_FAR;
     } else {
       this.fog.near = FOG_NEAR * this.weatherFogScale.near;
       this.fog.far = FOG_FAR * this.weatherFogScale.far;

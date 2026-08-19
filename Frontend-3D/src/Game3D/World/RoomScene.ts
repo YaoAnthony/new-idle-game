@@ -156,6 +156,7 @@ import {
 } from "./CharacterView.js";
 import { PetView } from "./PetView.js";
 import { CameraRig } from "../Engine/CameraRig.js";
+import { installFogShelter, setFogShelter } from "../Engine/fogShelter.js";
 import { Lighting } from "../Engine/Lighting.js";
 import { stepFade } from "../Engine/Fade.js";
 import { setOutlineVisible } from "../Engine/Outline.js";
@@ -291,6 +292,9 @@ export class RoomScene {
        */
     }
 
+    // 全局雾的庇护盒着色器补丁：ShaderChunk 是材质**编译时**读的，装在第一帧之前
+    installFogShelter();
+
     const { room } = getWorld();
     /*
      * 门实例在这儿建：要读房间几何（门洞在哪），几何刚在上面就位。
@@ -364,8 +368,25 @@ export class RoomScene {
         planeY: -map.floorLevel + 0.06,
       });
       this.scene.add(this.fogField.root);
-      // 出生在玄关，第一帧还没走 syncCameraBounds：先按"在屋里"起
-      this.outdoor.setIndoors(true);
+
+      /*
+       * 天气不进屋：房子的 AABB 是全局雾的**庇护盒**（Engine/fogShelter），
+       * 着色器按每条视线穿过盒子的长度扣雾——屋里看屋里 0 雾，屋里看
+       * 窗外只算窗外那段，屋外看窗里也是清的。露天图（openAir）没有屋。
+       * 盒子和镜头禁入盒同一份几何（syncCameraBounds），别各写一套。
+       */
+      if (map.openAir) {
+        setFogShelter(null);
+      } else {
+        setFogShelter({
+          minX: -this.built.size.width / 2,
+          maxX: this.built.size.width / 2,
+          minY: -map.floorLevel,
+          maxY: this.built.ridgeHeight,
+          minZ: -this.built.size.depth / 2,
+          maxZ: this.built.size.depth / 2,
+        });
+      }
     }
     this.remotePlayers = new RemotePlayersView(this.scene);
     // 现查不缓存：机器可能被收走或摆第二台
@@ -2109,13 +2130,7 @@ export class RoomScene {
     const next = this.cameraOutdoors ? outside > -0.25 : outside > 0.25;
     if (next === this.cameraOutdoors) return;
     this.cameraOutdoors = next;
-    /*
-     * 天气不进屋：进屋全局雾距回默认（three.Fog 全场景生效，不收回来
-     * 24 米的客厅另一头就是白墙）。雾毯**不藏**——它铺在院子地面上，
-     * 房子地板在它上面盖着，屋里本来就看不见；而从窗户看出去院子该
-     * 还是白的，藏了就成了"一进屋外面雾就散了"。
-     */
-    this.outdoor.setIndoors(!next);
+    // 雾不在这里切：屋里屋外由 fogShelter 在着色器里按射线算，进出屋不用通知谁
 
     if (next) {
       const map = getCurrentMap();

@@ -39,10 +39,12 @@ export function buildOfuro(): Object3D {
       position: [0, PLINTH_HEIGHT / 2, stepCenterZ],
     }),
   );
+  // 踏步面板：**顶面比踏步高 1cm**，不能和踏步顶共面——共面的两张脸
+  // 会互相争深度，远看是一条条锯齿（用户截图里踏步边缘那些横纹就是它）
   parts.push(
-    box([W + 0.02, 0.05, stepDepth + 0.02], {
+    box([W + 0.02, 0.04, stepDepth + 0.02], {
       color: PALETTE.woodLight,
-      position: [0, PLINTH_HEIGHT - 0.025, stepCenterZ],
+      position: [0, PLINTH_HEIGHT - 0.01, stepCenterZ],
       castShadow: false,
     }),
   );
@@ -84,20 +86,23 @@ export function buildOfuro(): Object3D {
       position: [0, BASIN_FLOOR / 2, basinCenterZ],
     }),
   );
+  // 池内衬板：往池心缩 1cm、顶比缸沿低 3cm——不和壁的内面/缸沿共面
+  const liningH = RIM_HEIGHT - 0.03 - BASIN_FLOOR;
+  const liningY = BASIN_FLOOR + liningH / 2;
   for (const side of [-1, 1]) {
     parts.push(
-      box([0.03, RIM_HEIGHT - BASIN_FLOOR, basinD], {
+      box([0.03, liningH, basinD - 0.02], {
         color: PALETTE.woodDark,
-        position: [side * (basinW / 2 - 0.015), BASIN_FLOOR + (RIM_HEIGHT - BASIN_FLOOR) / 2, basinCenterZ],
+        position: [side * (basinW / 2 - 0.025), liningY, basinCenterZ],
         castShadow: false,
       }),
     );
   }
   for (const side of [-1, 1]) {
     parts.push(
-      box([basinW, RIM_HEIGHT - BASIN_FLOOR, 0.03], {
+      box([basinW - 0.02, liningH, 0.03], {
         color: PALETTE.woodDark,
-        position: [0, BASIN_FLOOR + (RIM_HEIGHT - BASIN_FLOOR) / 2, basinCenterZ + side * (basinD / 2 - 0.015)],
+        position: [0, liningY, basinCenterZ + side * (basinD / 2 - 0.025)],
         castShadow: false,
       }),
     );
@@ -111,19 +116,21 @@ export function buildOfuro(): Object3D {
     }),
   );
 
-  // 缸沿压条：四条窄边（不能整块盖——会把池口盖住）
+  // 缸沿压条：四条窄边（不能整块盖——会把池口盖住），顶面比壁顶高 1cm
+  // 盖住壁顶，同样是为了不共面
+  const capY = RIM_HEIGHT - 0.01;
   for (const side of [-1, 1]) {
     parts.push(
-      box([wallX + 0.02, 0.05, tubDepth + 0.02], {
+      box([wallX + 0.02, 0.04, tubDepth + 0.02], {
         color: PALETTE.woodMid,
-        position: [side * (W / 2 - wallX / 2), RIM_HEIGHT - 0.025, tubCenterZ],
+        position: [side * (W / 2 - wallX / 2), capY, tubCenterZ],
         castShadow: false,
       }),
     );
     parts.push(
-      box([basinW, 0.05, wallZ + 0.02], {
+      box([basinW - 0.02, 0.04, wallZ + 0.02], {
         color: PALETTE.woodMid,
-        position: [0, RIM_HEIGHT - 0.025, side < 0 ? tubFrontZ + wallZ / 2 : tubBackZ - wallZ / 2],
+        position: [0, capY, side < 0 ? tubFrontZ + wallZ / 2 : tubBackZ - wallZ / 2],
         castShadow: false,
       }),
     );

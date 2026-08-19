@@ -196,8 +196,27 @@ export function generateHouse(params: {
     },
   ];
 
+  /*
+   * LDK 的隔断（2026-08-19，用户定）：北带里加一道**竖墙**把 x=10 那一列
+   * 从北墙一直砌到 z=12 那道横墙，把玄关+厨房（西，10 格）和客厅
+   * （东，14 格）隔开。中段 y7..8 留一个 2 格空门洞不装门——它是
+   * 一体空间里的隔断，不是房间门。
+   *
+   * 用户给的是世界坐标（x −2，z −9→−3、−1→0.49）：x −2 正是第 10 列
+   * 的西面；两头按格子收口到北墙和横墙（不留一米宽的缝），门洞落在
+   * z −3..−1（y7..8）。
+   */
+  const LDK_PARTITION_COL = 10;
+  interiorDoorways.push({
+    doorwayId: "doorway-ldk-partition",
+    cell: { x: LDK_PARTITION_COL, y: 7 },
+    axis: "y",
+    span: 2,
+  });
+
   const interiorWalls: InteriorWall[] = [
-    ...wallRowSegments(WALL_ROW, size.width, interiorDoorways),
+    ...wallLineSegments("x", WALL_ROW, 0, size.width, interiorDoorways),
+    ...wallLineSegments("y", LDK_PARTITION_COL, 0, WALL_ROW, interiorDoorways),
     // 南带两道竖墙：主卧|洗手间、洗手间|次卧（整段无门洞）
     { from: { x: 10, y: 13 }, axis: "y", length: 7 },
     { from: { x: 15, y: 13 }, axis: "y", length: 7 },
@@ -224,30 +243,40 @@ export function generateHouse(params: {
 }
 
 /**
- * 从整行减去门洞，得到横墙的墙段。墙段和门洞由**同一份数据**推导——
- * 原来四段墙是手写的，和注释里的门洞位置各管各；挪一个门洞要同时改
- * 两处，错半格就是"门装在墙里"或"墙上多一条没门的缝"。
+ * 从一整条线（横墙的一行 / 竖墙的一列）减去门洞，得到墙段。墙段和门洞
+ * 由**同一份数据**推导——原来四段墙是手写的，和注释里的门洞位置各管各；
+ * 挪一个门洞要同时改两处，错半格就是"门装在墙里"或"墙上多一条没门的缝"。
+ *
+ * axis "x"：line 是行号 y，from/to 是 x 范围；axis "y"：line 是列号 x，
+ * from/to 是 y 范围。to 不含。
  */
-function wallRowSegments(
-  row: number,
-  width: number,
+function wallLineSegments(
+  axis: "x" | "y",
+  line: number,
+  from: number,
+  to: number,
   doorways: InteriorDoorway[],
 ): InteriorWall[] {
+  const along = (cell: { x: number; y: number }): number => (axis === "x" ? cell.x : cell.y);
+  const across = (cell: { x: number; y: number }): number => (axis === "x" ? cell.y : cell.x);
+  const at = (t: number): { x: number; y: number } =>
+    axis === "x" ? { x: t, y: line } : { x: line, y: t };
+
   const gaps = doorways
-    .filter((doorway) => doorway.axis === "x" && doorway.cell.y === row)
-    .map((doorway) => [doorway.cell.x, doorway.cell.x + doorway.span - 1] as const)
+    .filter((doorway) => doorway.axis === axis && across(doorway.cell) === line)
+    .map((doorway) => [along(doorway.cell), along(doorway.cell) + doorway.span - 1] as const)
     .sort((a, b) => a[0] - b[0]);
 
   const segments: InteriorWall[] = [];
-  let cursor = 0;
+  let cursor = from;
   for (const [start, end] of gaps) {
     if (start > cursor) {
-      segments.push({ from: { x: cursor, y: row }, axis: "x", length: start - cursor });
+      segments.push({ from: at(cursor), axis, length: start - cursor });
     }
     cursor = end + 1;
   }
-  if (cursor < width) {
-    segments.push({ from: { x: cursor, y: row }, axis: "x", length: width - cursor });
+  if (cursor < to) {
+    segments.push({ from: at(cursor), axis, length: to - cursor });
   }
   return segments;
 }

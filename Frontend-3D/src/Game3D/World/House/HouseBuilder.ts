@@ -505,14 +505,16 @@ function buildInteriorWalls(room: RoomSave, wallHeight: number): Object3D {
   const halfD = room.floorGrid.height / 2;
   const DOOR_HEIGHT = 2;
 
-  // 同一行的横墙合成一面隔断；竖墙各自成组
-  const rowGroups = new Map<number, Object3D>();
-  const groupForRow = (row: number): Object3D => {
-    const existing = rowGroups.get(row);
+  // 同一条线上的墙段合成一面隔断（横墙按行、竖墙按列）：门楣、门框
+  // 和两侧墙段是一整面，淡出要一起淡
+  const lineGroups = new Map<string, Object3D>();
+  const groupForLine = (axis: "x" | "y", line: number): Object3D => {
+    const key = `${axis}:${line}`;
+    const existing = lineGroups.get(key);
     if (existing) return existing;
     const group = new Object3D();
-    group.name = `partition-row-${row}`;
-    rowGroups.set(row, group);
+    group.name = axis === "x" ? `partition-row-${line}` : `partition-col-${line}`;
+    lineGroups.set(key, group);
     container.add(group);
     return group;
   };
@@ -555,63 +557,72 @@ function buildInteriorWalls(room: RoomSave, wallHeight: number): Object3D {
       }
     }
 
-    if (wall.axis === "x") {
-      const group = groupForRow(wall.from.y);
-      group.add(body);
-      group.add(trims);
-    } else {
-      const group = new Object3D();
-      group.name = `partition-col-${wall.from.x}`;
-      group.add(body);
-      group.add(trims);
-      container.add(group);
-    }
+    const group = groupForLine(wall.axis, wall.axis === "x" ? wall.from.y : wall.from.x);
+    group.add(body);
+    group.add(trims);
   }
 
-  // 同一行里相邻墙段之间的空隙就是门洞，补门楣（2 格以内的缝才算门）
-  const rows = new Map<number, InteriorWall[]>();
-  for (const wall of (room.interiorWalls ?? []).filter((w) => w.axis === "x")) {
-    const list = rows.get(wall.from.y) ?? [];
+  /*
+   * 同一条线上相邻墙段之间的空隙就是门洞，补门楣（3 格以内的缝才算门）。
+   * 横竖统一处理：along 是沿墙方向的世界坐标轴，across 是墙厚方向。
+   * 原来只给横墙补门楣——LDK 竖隔断（2026-08-19）的门洞要是没门楣，
+   * 就是一条通到天花板的槽。
+   */
+  const lines = new Map<string, InteriorWall[]>();
+  for (const wall of room.interiorWalls ?? []) {
+    const key = `${wall.axis}:${wall.axis === "x" ? wall.from.y : wall.from.x}`;
+    const list = lines.get(key) ?? [];
     list.push(wall);
-    rows.set(wall.from.y, list);
+    lines.set(key, list);
   }
 
-  for (const [row, segments] of rows) {
-    const group = groupForRow(row);
-    const sorted = [...segments].sort((a, b) => a.from.x - b.from.x);
+  // 沿墙 a、垂直墙 c 的"墙面坐标" → 世界 [x, z]；尺寸同理
+  const place = (axis: "x" | "y", a: number, c: number): [number, number] =>
+    axis === "x" ? [a - halfW, c - halfD] : [c - halfW, a - halfD];
+  const extent = (axis: "x" | "y", a: number, c: number): [number, number] =>
+    axis === "x" ? [a, c] : [c, a];
+
+  for (const [key, segments] of lines) {
+    const axis = key.startsWith("x") ? "x" : "y";
+    const line = Number(key.slice(2));
+    const along = (wall: InteriorWall): number => (axis === "x" ? wall.from.x : wall.from.y);
+    const group = groupForLine(axis, line);
+    const sorted = [...segments].sort((a, b) => along(a) - along(b));
     for (let i = 0; i < sorted.length - 1; i += 1) {
-      const gapStart = sorted[i].from.x + sorted[i].length;
-      const gapEnd = sorted[i + 1].from.x;
+      const gapStart = along(sorted[i]) + sorted[i].length;
+      const gapEnd = along(sorted[i + 1]);
       const gap = gapEnd - gapStart;
       if (gap <= 0 || gap > 3) continue;
 
-      const lintel = box(
-        [gap - 0.02, wallHeight - DOOR_HEIGHT, 0.98],
-        {
-          color: PALETTE.wall,
-          position: [
-            gapStart + gap / 2 - halfW,
-            DOOR_HEIGHT + (wallHeight - DOOR_HEIGHT) / 2,
-            row + 0.5 - halfD,
-          ],
-        },
-      );
+      const mid = gapStart + gap / 2;
+      const center = line + 0.5;
+
+      const [lw, ld] = extent(axis, gap - 0.02, 0.98);
+      const [lx, lz] = place(axis, mid, center);
+      const lintel = box([lw, wallHeight - DOOR_HEIGHT, ld], {
+        color: PALETTE.wall,
+        position: [lx, DOOR_HEIGHT + (wallHeight - DOOR_HEIGHT) / 2, lz],
+      });
       lintel.receiveShadow = true;
       group.add(lintel);
 
       // 门洞两侧包一圈深木边框（日式内门的框）
       for (const side of [gapStart, gapEnd]) {
+        const [jw, jd] = extent(axis, 0.12, 1.04);
+        const [jx, jz] = place(axis, side + (side === gapStart ? -0.05 : 0.05), center);
         group.add(
-          box([0.12, DOOR_HEIGHT + 0.1, 1.04], {
+          box([jw, DOOR_HEIGHT + 0.1, jd], {
             color: PALETTE.wallTrim,
-            position: [side - halfW + (side === gapStart ? -0.05 : 0.05), (DOOR_HEIGHT + 0.1) / 2, row + 0.5 - halfD],
+            position: [jx, (DOOR_HEIGHT + 0.1) / 2, jz],
           }),
         );
       }
+      const [hw, hd] = extent(axis, gap + 0.1, 1.04);
+      const [hx, hz] = place(axis, mid, center);
       group.add(
-        box([gap + 0.1, 0.12, 1.04], {
+        box([hw, 0.12, hd], {
           color: PALETTE.wallTrim,
-          position: [gapStart + gap / 2 - halfW, DOOR_HEIGHT + 0.05, row + 0.5 - halfD],
+          position: [hx, DOOR_HEIGHT + 0.05, hz],
         }),
       );
     }

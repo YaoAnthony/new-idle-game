@@ -5,9 +5,13 @@ import {
   facingToHeading,
   findItemDefinition,
   findPlaceableItem,
+  revalidatePlacements,
   roomStyleDefinitions,
   type GameSave,
+  type InteriorWall,
   type InventoryStack,
+  type PlacedFurniture,
+  type RoomSave,
 } from "core";
 // 老存档的 v7/v8 用当年的户型重新生成房间几何。户型跟着地图走了
 // （Maps/base/layout，据点改造前叫 Maps/home），迁移就从那儿取——迁移读的是**历史**，
@@ -891,6 +895,121 @@ export const migrations: Migration[] = [
           state: {},
         } as never);
       }
+      return save;
+    },
+  },
+
+  /*
+   * v26（2026-08-19 LDK 隔断）：客厅（living）北带里加一道竖内墙——
+   * x=10 那一列从北墙砌到 z=12 的横墙，y7..8 留 2 格空门洞。几何写在
+   * Maps/base/layout，这里**冻结一份字面量**（迁移的行为定格在写它的那一刻）。
+   *
+   * 不像 v7/v8 那样整栋重生成：那两次是户型大改，家具全部打包回背包；
+   * 这次只多一列墙，只有**压进那列墙里的**家具才退回背包（连同箱内与
+   * 槽位内容），别的原位不动。判定交给 Core 的 revalidatePlacements——
+   * 占地/朝向/台面件的规则它一处说了算，迁移不另抄一份。
+   *
+   * 认档条件：房间里已经有 z=12 横墙（2LDK 之后的档）且还没有这道门洞。
+   * 老于 2LDK 的档 v7/v8 会先重生成，走到这里时已经带着门洞，自然跳过。
+   */
+  {
+    to: 26,
+    migrate: (save) => {
+      const PARTITION_DOORWAY = "doorway-ldk-partition";
+      const partition: InteriorWall[] = [
+        { from: { x: 10, y: 0 }, axis: "y", length: 7 },
+        { from: { x: 10, y: 9 }, axis: "y", length: 3 },
+      ];
+
+      const collected = new Map<string, number>();
+      const collect = (itemId: string, quantity: number): void => {
+        collected.set(itemId, (collected.get(itemId) ?? 0) + quantity);
+      };
+
+      for (const map of Object.values(save.ownWorld?.maps ?? {})) {
+        const room = map.rooms?.["living"] as RoomSave | undefined;
+        if (!room?.interiorWalls?.length) continue;
+        if (room.interiorDoorways?.some((d) => d.doorwayId === PARTITION_DOORWAY)) continue;
+        // 只认 2LDK 的那栋（24×20、z=12 有横墙）；别的户型不硬塞
+        const hasRow12 = room.interiorWalls.some((w) => w.axis === "x" && w.from.y === 12);
+        if (!hasRow12 || room.floorGrid.width !== 24) continue;
+
+        room.interiorWalls.push(...partition);
+        room.interiorDoorways ??= [];
+        room.interiorDoorways.push({
+          doorwayId: PARTITION_DOORWAY,
+          cell: { x: 10, y: 7 },
+          axis: "y",
+          span: 2,
+        });
+
+        const placed = (save.ownWorld.placedFurniture ?? []) as PlacedFurniture[];
+        const { kept, displaced } = revalidatePlacements(room, placed, (id) =>
+          findPlaceableItem(id),
+        );
+        if (displaced.length === 0) continue;
+
+        for (const item of displaced) {
+          collect(item.furnitureId, 1);
+          for (const stack of Object.values(item.state?.slotContents ?? {})) {
+            if (!stack) continue;
+            collect(stack.itemId, stack.quantity);
+            for (const inner of stack.state?.container?.items ?? []) {
+              collect(inner.itemId, inner.quantity);
+            }
+          }
+          const storageId = item.state?.storageInventoryId;
+          if (storageId && save.ownWorld.inventories?.[storageId]) {
+            for (const stack of save.ownWorld.inventories[storageId].stacks) {
+              collect(stack.itemId, stack.quantity);
+            }
+            delete save.ownWorld.inventories[storageId];
+          }
+        }
+        save.ownWorld.placedFurniture = kept;
+      }
+
+      // 退回背包（v21 之后的槽位编码 slot:N，共 INVENTORY_SIZE 格）；
+      // 背包塞满就丢——一道墙压到的最多一两件，真满了也只是极端情况
+      const inventory = save.player.character.inventory;
+      const freeSlot = (): string | null => {
+        const used = new Set(inventory.map((stack) => String(stack.stackId)));
+        for (let i = 0; i < INVENTORY_SIZE; i += 1) {
+          if (!used.has(`slot:${i}`)) return `slot:${i}`;
+        }
+        return null;
+      };
+      for (const [itemId, total] of collected) {
+        const limit = findItemDefinition(itemId)?.stackLimit ?? 1;
+        let remaining = total;
+        while (remaining > 0) {
+          const slot = freeSlot();
+          if (!slot) break;
+          const take = Math.min(limit, remaining);
+          inventory.push({ stackId: slot, itemId, quantity: take });
+          remaining -= take;
+        }
+      }
+
+      /*
+       * 人和宠物要是正好站在新墙那一列里（世界 x −2..−1，z −10..2），
+       * 挪到门洞东侧的客厅地板上。WorldPosition 的 y 就是世界 z。
+       */
+      const inWall = (p: { mapId?: string; x?: number; y?: number } | undefined): boolean =>
+        !!p &&
+        (p.mapId === "base" || p.mapId === undefined) &&
+        typeof p.x === "number" &&
+        typeof p.y === "number" &&
+        p.x >= -2.5 &&
+        p.x <= -0.5 &&
+        p.y >= -10 &&
+        p.y <= 2.5;
+      for (const pet of Object.values(save.ownWorld?.pets ?? {})) {
+        if (inWall(pet.position)) pet.position = { ...pet.position, x: 1, y: -2 };
+      }
+      const me = save.player?.character?.position;
+      if (inWall(me)) save.player.character.position = { ...me, x: 1, y: -2 };
+
       return save;
     },
   },

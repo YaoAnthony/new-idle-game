@@ -1823,6 +1823,17 @@ export class RoomScene {
     const rightZ = flatX / flatLength;
 
     const next = new Set<string>();
+    /*
+     * 人正坐着/躺着/用着的那件家具**不算遮挡**：坐进浴缸、躺上床，射线从
+     * 相机到角色必然穿过它的壁和沿，按"挡住了角色"判就把人正在用的东西
+     * 淡成半透明——用户报的"一互动反而虚化了"就是它。被人使用的家具
+     * 本来就是镜头该看的主体，不是挡路的。
+     */
+    const inUse = new Set<string>();
+    const restingOn = getResting()?.instanceId;
+    if (restingOn) inUse.add(restingOn);
+    const actionOn = getActiveAction()?.furnitureInstanceId;
+    if (actionOn) inUse.add(actionOn);
 
     for (const sample of OCCLUSION_SAMPLES) {
       this.occlusionOrigin.copy(camera);
@@ -1848,7 +1859,7 @@ export class RoomScene {
       )) {
         let node: typeof hit.object | null = hit.object;
         while (node && !node.userData.instanceId) node = node.parent;
-        if (node?.userData.instanceId) {
+        if (node?.userData.instanceId && !inUse.has(node.userData.instanceId as string)) {
           next.add(node.userData.instanceId as string);
         }
       }

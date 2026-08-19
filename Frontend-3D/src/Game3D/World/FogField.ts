@@ -1,4 +1,5 @@
 import {
+  Color,
   DataTexture,
   DoubleSide,
   LinearFilter,
@@ -89,6 +90,19 @@ export class FogField {
   private enabled = false;
 
 
+  private readonly material: ShaderMaterial;
+
+  /**
+   * 雾毯颜色。跟全局雾色走（OutdoorScene.fogColor）——夜里全局雾是暗蓝灰，
+   * 毯子还是 #eef0f2 的话地上就浮着一层发光的白纸。
+   */
+  setColor(color: Color): void {
+    const c = this.material.uniforms.uColor.value as number[];
+    c[0] = color.r;
+    c[1] = color.g;
+    c[2] = color.b;
+  }
+
   constructor(options: FogFieldOptions) {
     this.options = {
       cell: 1,
@@ -160,11 +174,8 @@ export class FogField {
       // 不吃场景雾——它自己就是雾
       fog: false,
     });
-    const c = material.uniforms.uColor.value as number[];
-    const hex = parseInt(this.options.color.slice(1), 16);
-    c[0] = ((hex >> 16) & 255) / 255;
-    c[1] = ((hex >> 8) & 255) / 255;
-    c[2] = (hex & 255) / 255;
+    this.material = material;
+    this.setColor(new Color(this.options.color));
 
     this.plane = new Mesh(new PlaneGeometry(width, depth), material);
     this.plane.rotation.x = -Math.PI / 2;

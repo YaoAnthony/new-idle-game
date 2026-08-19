@@ -1952,6 +1952,8 @@ export class RoomScene {
     this.applyCelestial();
     // 清晰度场：只有 low_visibility 类天气的 profile 说开才开
     this.fogField.setEnabled(weatherVisualProfileOf(this.weather).visibilityField);
+    // 毯子和空气里的雾一个色：时段变了（夜雾暗蓝灰）两层一起变
+    this.fogField.setColor(this.outdoor.fogColor);
   }
 
   /**

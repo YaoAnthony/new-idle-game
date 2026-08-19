@@ -51,6 +51,26 @@ const SKY_BOTTOM: Record<DayPhaseId, string> = {
   [DayPhaseId.Night]: "#2a3654",
 };
 
+/**
+ * 大雾天的雾色 = 天光被雾漫射后的颜色：**有多少光就多亮**。
+ *
+ * 第一版写死近白 #e6e9eb（只掺 25% 天色），白天对，夜里就错了——
+ * 00:50 的院子雾还是白晃晃的，像有人在天上开了盏灯。真实的夜雾是
+ * 暗蓝灰：只有月光/灯光可散射，比晴夜的地平线亮一点（雾比清空气散射
+ * 得多），但离白很远。这里按时段给"从天色往白抬多少"：白天抬满、
+ * 晨昏抬一半（暖色被雾洗淡）、夜里只抬一点。灯下的局部亮由清晰度场
+ * （FogField）负责，不在全局雾色里做。
+ */
+const FOG_WHITE = "#e6e9eb";
+const FOG_LIFT: Record<DayPhaseId, number> = {
+  [DayPhaseId.Dawn]: 0.5,
+  [DayPhaseId.Day]: 0.75,
+  [DayPhaseId.Dusk]: 0.5,
+  [DayPhaseId.Night]: 0.1,
+};
+// 注意 lerp 发生在线性空间（ColorManagement 开着），感知上比数字亮：
+// 夜里 0.1 出来是 sRGB 约 #5c6473 的蓝灰，0.2 就已经偏亮了
+
 const CLOUD_COLORS: Record<DayPhaseId, string> = {
   [DayPhaseId.Dawn]: "#ffd9c4",
   [DayPhaseId.Day]: "#ffffff",
@@ -339,9 +359,10 @@ export class OutdoorScene {
     }
     colors.needsUpdate = true;
 
-    // 雾色贴地平线，远树被推向天色。**大雾天不用天色**——用近白：真雾是
-    // 亮的（漫射满天），第一版沿用天色×0.96 出来是一片水泥灰
-    if (look.visibilityField) this.fog.color.set("#e6e9eb").lerp(new Color(SKY_BOTTOM[phase]), 0.25);
+    // 雾色贴地平线，远树被推向天色。大雾天从天色往白抬（抬多少看时段，
+    // 见 FOG_LIFT）：白天沿用天色×0.96 出来是一片水泥灰，夜里写死近白又
+    // 成了天上开灯——两头都错过一次
+    if (look.visibilityField) this.fog.color.set(SKY_BOTTOM[phase]).lerp(new Color(FOG_WHITE), FOG_LIFT[phase]);
     else this.fog.color.set(SKY_BOTTOM[phase]).multiplyScalar(0.96);
     // 全局雾距按天气档缩放（大雾把 48/190 压到 3/22）；全景期间另有一套，
     // setOverviewAtmosphere 会盖过去
@@ -425,6 +446,11 @@ export class OutdoorScene {
       if (array[index] < 0) array[index] = 20;
     }
     attribute.needsUpdate = true;
+  }
+
+  /** 当前全局雾色（雾毯要和它一个色，不然地上一层白、空气里一层灰） */
+  get fogColor(): Color {
+    return this.fog.color;
   }
 
   /**

@@ -167,5 +167,7 @@ Crafting / Cooking / Storage / Sleep / Sitting / Ambience / WaterSource / Unpack
 - 储物容量全局 24（`storage.ts`），要分大小先把常量变成 placement 字段。
 - `hint.*` key 不是从 id 推的（`furniture_storage_chest` → `hint.chest`），命名短一点、别撞。
 - 墙饰 facing 固定 North、不可旋转；朝向由放置面决定。
+- **共面 = 锯齿**：叠在另一块体表面上的薄片（压条、面板、衬板）要么凸出 ≥1cm 盖住，要么缩进 ≥1cm，
+  别和底下那张面贴平——两张脸争深度，远看是一条条横纹（浴缸第一版的教训）。
 - 台面件不能叠台面件（桌上的箱子上不能再放东西）。
 - 记忆规矩：改动前给规格表确认；commit 写取舍不写清单；1 格 = 1 米。

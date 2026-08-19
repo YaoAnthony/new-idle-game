@@ -284,7 +284,7 @@ function desiredLoops(): Map<string, DesiredLoop> {
   //
   // 分区档案**不缩放**家具音：它表达的是"隔着墙听外面"，
   // 而壁炉本来就和玩家在同一个屋里，卧室里的壁炉不该因为你在卧室就变小声
-  const cookingInstances = activeCookingInstances();
+  const cookingInstances = activeFurnitureInstances();
   const { floorGrid } = getWorld().room;
   const size = { width: floorGrid.width, depth: floorGrid.height };
 
@@ -315,10 +315,19 @@ function desiredLoops(): Map<string, DesiredLoop> {
 }
 
 /** 正在加热的灶眼属于哪几件家具。灶台空着的时候不该滋滋响 */
-function activeCookingInstances(): Set<string> {
+/**
+ * 此刻"正在工作"的家具实例——Active 类声音只给它们响。
+ * 灶台：有灶眼在加热；浴缸：水在涨或在放（state.water.flow 不是 still）。
+ * 新的"会工作"的家具在这里多加一条判定就行，声音档案那边不用动。
+ */
+function activeFurnitureInstances(): Set<string> {
   const instances = new Set<string>();
   for (const ref of listKitchenSlots()) {
     if (isSlotCooking(ref)) instances.add(ref.instanceId);
+  }
+  for (const placed of getWorld().placedFurniture) {
+    const flow = placed.state.water?.flow;
+    if (flow === "in" || flow === "out") instances.add(placed.instanceId);
   }
   return instances;
 }
@@ -444,6 +453,8 @@ export function startSoundscape(): () => void {
     on("audio_unlocked", () => sync()),
     // 锅上灶、起锅都会改变"灶眼在不在加热"
     on("kitchen_changed", () => sync()),
+    // 浴缸注水/放水的起止（转折点才发事件，正好是水声的起落）
+    on("bath_changed", () => sync()),
     // 行动开始 / 结束 → 写字声跟着起落
     on("action_changed", () => sync()),
     on("food_eaten", () => playOneShot("sfx_eat", 0.85)),

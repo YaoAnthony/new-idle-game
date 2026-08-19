@@ -155,6 +155,21 @@ export const audioProfileDefinitions = [
     trigger: AudioTriggerKind.Active,
   },
   {
+    /**
+     * 浴缸注水/放水中的水声。`Active`：只在水位在动（flow in/out）时响，
+     * 满缸泡着、空缸摆着都不响——"在不在动"由 Soundscape 读实例的
+     * state.water 判，浴缸那边只填一个 audioProfileId（和灶台同一个办法）。
+     * 素材是 30 秒的立体声环境流水，循环播。
+     */
+    id: "furniture_bath_water",
+    busId: AudioBusId.Ambience,
+    resourcePath: "/audio/furniture/fillingwater.wav",
+    localizationKey: "audio.bath_water",
+    loop: true,
+    audibleRadius: 6,
+    trigger: AudioTriggerKind.Active,
+  },
+  {
     // 滴答声很轻，半径给得比壁炉小得多：要凑到钟底下才听得见
     id: "furniture_clock",
     busId: AudioBusId.Ambience,

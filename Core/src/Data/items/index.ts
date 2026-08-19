@@ -655,6 +655,7 @@ export const itemDefinitions = [
     stackLimit: 1,
     rarity: Rarity.Uncommon,
     visual: { id: "ofuro" },
+    audio: { active: "furniture_bath_water" },
     placement: {
       surface: PlacementSurface.Floor,
       footprint: { width: 4, height: 3 },

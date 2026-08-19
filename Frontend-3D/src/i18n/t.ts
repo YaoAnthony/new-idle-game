@@ -526,6 +526,7 @@ const ZH: Record<string, string> = {
   // 缺一条就露出 audio.fireplace 这种 id 给玩家看
   "audio.fireplace": "壁炉",
   "audio.cooking": "灶上",
+  "audio.bath_water": "浴缸水声",
   "audio.wall_clock": "挂钟",
   "audio.action_writing": "笔尖",
   "audio.storage_open": "开箱",

@@ -1003,6 +1003,32 @@ export class RoomScene {
    * 坐下之后再叠加 desk 活动层，于是「坐着学习」= sit + desk 两层。
    */
   private enterFocusPose(furnitureX: number, furnitureZ: number): void {
+    /*
+     * 浴缸上的行动（休息）：不是"旁边找把椅子坐"，是**坐进缸里泡**。
+     * 空缸先注水，满了再坐（pendingSoak 在 update 里等水满）；满缸直接坐。
+     * 不挂 desk 活动层——泡澡就是坐在水里，没有"干活的手势"。
+     */
+    const action = getActiveAction();
+    const placed = getWorld().placedFurniture.find(
+      (item) => item.instanceId === action?.furnitureInstanceId,
+    );
+    const isBath = Boolean(
+      placed &&
+        getDefinition(placed.furnitureId)?.placement.capabilities.includes(
+          FurnitureCapability.Bath,
+        ),
+    );
+    if (placed && isBath) {
+      this.controller.faceToward(furnitureX, furnitureZ);
+      this.rig.enterFocus();
+      if (bathPhaseOf(placed.instanceId) === "full") this.soakIn(placed.instanceId);
+      else {
+        requestFill(placed.instanceId);
+        this.pendingSoak = placed.instanceId;
+      }
+      return;
+    }
+
     const seated = restAtNearest(
       BodyPosture.Sit,
       { x: this.controller.x, z: this.controller.z },
@@ -1018,7 +1044,19 @@ export class RoomScene {
     this.rig.enterFocus();
   }
 
+  /** 行动等着水满再坐进去的那只缸；null = 没在等 */
+  private pendingSoak: string | null = null;
+
+  private soakIn(instanceId: string): void {
+    restAtNearest(
+      BodyPosture.Sit,
+      { x: this.controller.x, z: this.controller.z },
+      { instanceId },
+    );
+  }
+
   private endFocusSequence(): void {
+    this.pendingSoak = null;
     this.controller.cancelScriptedWalk();
     this.controller.activity = null;
     // 干完活站起来。standUp 会把人退回坐下之前站的位置
@@ -1903,6 +1941,12 @@ export class RoomScene {
     // 浴缸先推水位再画水面：同一帧里状态和画面一致
     tickBath(deltaSeconds);
     this.bathAnimator.update();
+    // 行动在等水满：满了坐进去
+    if (this.pendingSoak && bathPhaseOf(this.pendingSoak) === "full") {
+      const tub = this.pendingSoak;
+      this.pendingSoak = null;
+      this.soakIn(tub);
+    }
 
     // 火候：只有架在灶眼上、且内容匹配到配方的锅才会走进度
     tickKitchen(deltaSeconds);

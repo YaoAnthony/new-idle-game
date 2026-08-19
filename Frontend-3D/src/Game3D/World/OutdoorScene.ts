@@ -66,10 +66,11 @@ const FOG_LIFT: Record<DayPhaseId, number> = {
   [DayPhaseId.Dawn]: 0.5,
   [DayPhaseId.Day]: 0.75,
   [DayPhaseId.Dusk]: 0.5,
-  [DayPhaseId.Night]: 0.1,
+  [DayPhaseId.Night]: 0.03,
 };
 // 注意 lerp 发生在线性空间（ColorManagement 开着），感知上比数字亮：
-// 夜里 0.1 出来是 sRGB 约 #5c6473 的蓝灰，0.2 就已经偏亮了
+// 夜里 0.1 出来是 sRGB 约 #595f70，用户对照真夜雾照片还嫌亮（夜雾几乎
+// 就是天色本身，只比晴夜地平线亮一线），压到 0.03 ≈ #3a4560
 
 const CLOUD_COLORS: Record<DayPhaseId, string> = {
   [DayPhaseId.Dawn]: "#ffd9c4",

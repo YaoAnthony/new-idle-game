@@ -40,6 +40,7 @@ import {
   WALL_THICKNESS,
   WATER_LEVEL_Y,
   YARD_Y,
+  SOUTH_RUIN,
   baseHeightfield,
 } from "./terrain.js";
 import { buildHeightfieldMesh } from "../../Game3D/World/heightfieldMesh.js";
@@ -1223,6 +1224,94 @@ function buildWalls(root: Object3D): void {
   };
 
   /**
+   * 塌掉的一段南墙（只做沿 x 的）。三样东西：
+   * - 基础石：从滩台地面一直砌到墙脚，墙不再悬在沟上；
+   * - 残墙：按 1.2～2.2 米一截，高度在 0.3～0.9 之间起伏，隔几截空一截
+   *   （塌没了）；压顶条只盖在还剩整高的那几截上；
+   * - 碎石：塌下去的石块滚在滩台上、墙脚外 0.6～2.4 米，落在真实地面
+   *   高度上（读高度场，别浮着）。
+   * 全部确定性抖动（hash01 按位置），刷新不会换样子。
+   */
+  const ruinRun = (start: number, end: number, at: number, outward: 1 | -1): void => {
+    const length = end - start;
+    if (length <= 0) return;
+    const center = at + outward * (WALL_T / 2);
+    const groundAt = (x: number, z: number): number =>
+      sampleHeightfield(baseHeightfield, x, z) - YARD_Y;
+
+    // 基础石：按 1 米一块往下探到地面（地面沿 x 变化，整条一块会露缝）
+    for (let x = start; x < end - 0.01; x += 1) {
+      const w = Math.min(1, end - x);
+      const cx = x + w / 2;
+      const g = Math.min(groundAt(cx, center + outward * 0.6), groundAt(cx, center));
+      const top = 0.02;
+      const h = top - g + 0.3;
+      root.add(
+        box([w + 0.02, h, WALL_T + 0.1], {
+          color: PALETTE.baseStoneDark,
+          position: [cx, top - h / 2, center],
+        }),
+      );
+    }
+
+    // 残墙
+    let x = start;
+    let i = 0;
+    while (x < end - 0.2) {
+      const seg = Math.min(1.2 + hash01(x * 2.3 + at) * 1.0, end - x);
+      const r = hash01(x * 7.1 + 13);
+      // 每四截左右空一截；其余高度在 0.3～0.9 起伏
+      const missing = r > 0.72 && i > 0;
+      if (missing) {
+        // 塌没的那截：原地堆一堆碎石（不然看着像能走过去——挡人的盒子还在）
+        for (let k = 0; k < 3; k += 1) {
+          const size = 0.3 + hash01(x * 3.3 + k) * 0.25;
+          root.add(
+            box([size, size * 0.6, size], {
+              color: k === 1 ? PALETTE.baseStoneDark : PALETTE.baseStone,
+              position: [x + 0.3 + k * (seg - 0.6) / 2, size * 0.25, center + (hash01(k * 7 + x) - 0.5) * 0.3],
+              rotation: [0, hash01(x + k * 2.1) * Math.PI, 0],
+            }),
+          );
+        }
+      } else {
+        const h = r < 0.25 ? WALL_H : 0.3 + r * 0.65;
+        const body = box([seg - 0.04, h, WALL_T], {
+          color: PALETTE.baseStone,
+          position: [x + seg / 2, h / 2, center],
+        });
+        body.receiveShadow = true;
+        root.add(body);
+        if (h >= WALL_H - 0.01) {
+          root.add(
+            box([seg - 0.04, 0.12, WALL_T + 0.14], {
+              color: PALETTE.baseStoneDark,
+              position: [x + seg / 2, WALL_H + 0.06, center],
+            }),
+          );
+        }
+      }
+      x += seg;
+      i += 1;
+    }
+
+    // 碎石：滚到滩台上
+    const count = Math.round(length * 1.4);
+    for (let k = 0; k < count; k += 1) {
+      const sx = start + hash01(k * 3.7 + start) * length;
+      const sz = center + outward * (0.6 + hash01(k * 5.3 + at) * 1.8);
+      const size = 0.22 + hash01(k * 9.1) * 0.32;
+      const g = groundAt(sx, sz);
+      const stone = box([size, size * 0.7, size * 0.85], {
+        color: k % 3 === 0 ? PALETTE.baseStone : PALETTE.baseStoneDark,
+        position: [sx, g + size * 0.3, sz],
+        rotation: [0, hash01(k * 1.3) * Math.PI, hash01(k * 2.9) * 0.4 - 0.2],
+      });
+      root.add(stone);
+    }
+  };
+
+  /**
    * 木栅栏段：矮石礅 + 双横杆。**只用在西面陆地侧**——概念图里石墙
    * 和木栅栏的分布不是随机的，跟着地形走：临水一圈是护岸的石墙，
    * 接陆地那面才是围院子的木栅栏。
@@ -1251,8 +1340,17 @@ function buildWalls(root: Object3D): void {
   run("x", bounds.minX, bounds.maxX, bounds.minZ, -1);
   run("z", bounds.minZ, BRIDGE_E_Z - GATE_HALF - 0.35, bounds.maxX, 1);
   run("z", BRIDGE_E_Z + GATE_HALF + 0.35, bounds.maxZ, bounds.maxX, 1);
-  run("x", bounds.minX, BRIDGE_S_X - GATE_HALF - 0.35, bounds.maxZ, 1);
-  run("x", BRIDGE_S_X + GATE_HALF + 0.35, bounds.maxX, bounds.maxZ, 1);
+  /*
+   * 南墙过滩台那一段（SOUTH_RUIN.minX..maxX）是**塌掉的**：墙脚下的岸
+   * 滑进了滩台（地形上 z=18 一线从 −0.5 掉到 −1.4/−2.4），原来的墙在
+   * 那上面悬着——用户拍板不填地形，就让它坏在那儿："未来可能能修，
+   * 现在肯定修不了"。墙体换成残段 + 落到滩台的基础石 + 塌下去的碎石，
+   * 门洞两侧各一截。挡人的 outdoorBlockers 不变：塌了也还是一道墙。
+   */
+  run("x", bounds.minX, SOUTH_RUIN.minX, bounds.maxZ, 1);
+  ruinRun(SOUTH_RUIN.minX, BRIDGE_S_X - GATE_HALF - 0.35, bounds.maxZ, 1);
+  ruinRun(BRIDGE_S_X + GATE_HALF + 0.35, SOUTH_RUIN.maxX, bounds.maxZ, 1);
+  run("x", SOUTH_RUIN.maxX, bounds.maxX, bounds.maxZ, 1);
   // 西面栅栏一整条：西门退役了（2026-08-18）
   fenceRun(bounds.minZ, bounds.maxZ, bounds.minX);
 
@@ -1266,6 +1364,18 @@ function buildWalls(root: Object3D): void {
   post(bounds.maxX + wallOff, BRIDGE_E_Z + GATE_HALF, true);
   post(BRIDGE_S_X - GATE_HALF, bounds.maxZ + wallOff, true);
   post(BRIDGE_S_X + GATE_HALF, bounds.maxZ + wallOff, true);
+  // 南门柱站在塌段中间，也要有基础石探到滩台地面，不然两根柱子悬在桥头
+  for (const px of [BRIDGE_S_X - GATE_HALF, BRIDGE_S_X + GATE_HALF]) {
+    const pz = bounds.maxZ + wallOff;
+    const g = sampleHeightfield(baseHeightfield, px, pz + 0.5) - YARD_Y;
+    const h = 0.02 - g + 0.3;
+    root.add(
+      box([0.8, h, 0.8], {
+        color: PALETTE.baseStoneDark,
+        position: [px, 0.02 - h / 2, pz],
+      }),
+    );
+  }
 }
 
 export function buildBaseTerrain(context: TerrainContext): OutdoorTerrain {

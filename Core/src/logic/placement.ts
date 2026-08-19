@@ -5,7 +5,7 @@ import {
   type PlacedFurniture,
 } from "../types/furniture.js";
 import type { PlaceableItem } from "../types/items.js";
-import type { RoomSave, WallOpening } from "../types/map.js";
+import type { RoomSave } from "../types/map.js";
 import { areAllCellsWithinGrid, cellKey, footprintCells } from "./grid.js";
 import {
   buildRoomOccupancy,
@@ -14,6 +14,7 @@ import {
   type FurnitureLookup,
   type RoomOccupancy,
 } from "./occupancy.js";
+import { faceOpeningCells, floorFace, wallFaceOf } from "./placementFaces.js";
 import { revalidateSurfaceChildren } from "./surfaces.js";
 
 export type PlacementRejection =
@@ -43,23 +44,6 @@ export type WallPlacementRequest = {
 
 export type PlacementRequest = FloorPlacementRequest | WallPlacementRequest;
 
-function openingCells(opening: WallOpening): Set<string> {
-  const cells = new Set<string>();
-
-  for (let dy = 0; dy < opening.size.height; dy += 1) {
-    for (let dx = 0; dx < opening.size.width; dx += 1) {
-      cells.add(
-        cellKey({
-          x: opening.gridPosition.x + dx,
-          y: opening.gridPosition.y + dy,
-        }),
-      );
-    }
-  }
-
-  return cells;
-}
-
 /**
  * 放置合法性校验。Frontend 预览虚影和 Backend 校验联机指令跑的是同一份代码，
  * 不允许两边各写一套规则。
@@ -87,7 +71,9 @@ export function checkPlacement(
   );
 
   if (request.kind === PlacementSurface.Floor) {
-    if (!areAllCellsWithinGrid(cells, room.floorGrid)) {
+    // 地面也是一张放置面（faceId = roomId）。院子/广场/二楼要能放，
+    // 就是多一张 surface: "floor" 的面——校验不用再长分支
+    if (!areAllCellsWithinGrid(cells, floorFace(room).grid)) {
       return { ok: false, reason: "out_of_bounds" };
     }
 
@@ -99,7 +85,9 @@ export function checkPlacement(
     return { ok: true };
   }
 
-  const wall = room.walls[request.wallId];
+  // 墙面按放置面走：外墙四面和内墙的两面在这里是同一种东西
+  // （logic/placementFaces），不再只认 room.walls 里那几条
+  const wall = wallFaceOf(room, request.wallId);
   if (!wall) return { ok: false, reason: "wall_not_found" };
 
   if (!areAllCellsWithinGrid(cells, wall.grid)) {
@@ -107,12 +95,10 @@ export function checkPlacement(
   }
 
   // 窗帘这类"本来就该挂在窗上"的墙饰放行；相框挂钟仍要避开门窗
+  // （内墙面的门洞也是开口，同一条规则）
   if (!definition.coversOpenings) {
-    const blockedByOpening = wall.openings.some((opening) => {
-      const taken = openingCells(opening);
-      return cells.some((cell) => taken.has(cellKey(cell)));
-    });
-
+    const taken = faceOpeningCells(wall);
+    const blockedByOpening = cells.some((cell) => taken.has(cellKey(cell)));
     if (blockedByOpening) return { ok: false, reason: "blocks_opening" };
   }
 

@@ -1,4 +1,11 @@
-import { Facing, PlacementSurface, type PlacedFurniture } from "core";
+import {
+  Facing,
+  PlacementSurface,
+  faceCellToWorld,
+  faceYaw,
+  wallFaceOf,
+  type PlacedFurniture,
+} from "core";
 import { FACING_ROTATION as FACING_ROTATION_LOCAL } from "./furnitureMath.js";
 import { hostGeometryOf, surfaceChildPose } from "./SurfacePlacement.js";
 import { Object3D } from "three";
@@ -7,12 +14,7 @@ import { getDefinition, getWorld, groundHeightAt } from "../../Game/State/worldR
 import { clearFade, stepFade } from "../Engine/Fade.js";
 import { addOutline, setOutlineVisible } from "../Engine/Outline.js";
 import { buildItemVisual } from "../Visual/VisualRegistry.js";
-import {
-  WALL_ROTATION,
-  gridToWorld,
-  wallCellToWorld,
-  wallInwardNormal,
-} from "./House/index.js";
+import { gridToWorld } from "./House/index.js";
 
 /** 墙饰离开墙面一点点，避免背面与墙面共面闪烁 */
 export const WALL_MOUNT_OFFSET = 0.012;
@@ -31,27 +33,33 @@ const RELEASE_TICKS = 3;
  * 否则预览位置和落地位置会悄悄偏开。
  *
  * footprint 直接按墙平面读（不经过 facing 旋转），原点是左上角，
- * 模型挂在占地中心。
+ * 模型挂在占地中心。**按放置面算**（Core 的 placementFaces）：外墙、内墙
+ * 的两面都是一张 face，位置和朝向全从 face.frame 来，没有按 wallId 的分支。
+ * 面不存在（坏档里的 wallId）就藏起来，不摆到原点去当个鬼。
  */
 export function placeOnWall(
   visual: Object3D,
   wallId: string,
   gridPosition: { x: number; y: number },
   footprint: { width: number; height: number },
-  size: { width: number; depth: number },
 ): void {
+  const face = wallFaceOf(getWorld().room, wallId);
+  if (!face) {
+    visual.visible = false;
+    return;
+  }
   const centerWx = gridPosition.x + (footprint.width - 1) / 2;
   const centerWy = gridPosition.y + (footprint.height - 1) / 2;
 
-  const [x, y, z] = wallCellToWorld(wallId, centerWx, centerWy, size);
-  const [nx, , nz] = wallInwardNormal(wallId);
+  const p = faceCellToWorld(face, centerWx, centerWy);
+  const n = face.frame.normal;
 
   visual.position.set(
-    x + nx * WALL_MOUNT_OFFSET,
-    y,
-    z + nz * WALL_MOUNT_OFFSET,
+    p.x + n.x * WALL_MOUNT_OFFSET,
+    p.y + n.y * WALL_MOUNT_OFFSET,
+    p.z + n.z * WALL_MOUNT_OFFSET,
   );
-  visual.rotation.y = WALL_ROTATION[wallId] ?? 0;
+  visual.rotation.y = faceYaw(face);
 }
 
 /**
@@ -101,13 +109,13 @@ export function furnitureWorldCenter(
 
   if (placed.placement.kind === PlacementSurface.Wall) {
     const { wallId, gridPosition } = placed.placement;
-    const [x, y, z] = wallCellToWorld(
-      wallId,
+    const face = wallFaceOf(getWorld().room, wallId);
+    if (!face) return { x: 0, y: 0, z: 0 };
+    return faceCellToWorld(
+      face,
       gridPosition.x + (footprint.width - 1) / 2,
       gridPosition.y + (footprint.height - 1) / 2,
-      size,
     );
-    return { x, y, z };
   }
 
   const { gridPosition, facing } = placed.placement;
@@ -147,6 +155,13 @@ export class FurnitureView {
   private readonly occluders = new Set<string>();
   /** 滞回计数：还要连续几次没命中才允许淡回去 */
   private readonly releaseTicks = new Map<string, number>();
+  /**
+   * 挂在内墙面上的家具 → 那面墙的淡出组名（PlacementFace.hostGroup）。
+   * 墙让镜头时挂饰要一起让：不然墙淡成半透明、画还实心地浮在半空。
+   */
+  private readonly hostGroupByInstance = new Map<string, string>();
+  /** 此刻正在让开的墙体组名（RoomScene 每帧同步） */
+  private hiddenHostGroups: ReadonlySet<string> = new Set();
 
   constructor(private readonly size: { width: number; depth: number }) {
     this.root.name = "furniture";
@@ -221,7 +236,13 @@ export class FurnitureView {
       this.views.delete(instanceId);
       this.occluders.delete(instanceId);
       this.releaseTicks.delete(instanceId);
+      this.hostGroupByInstance.delete(instanceId);
     }
+  }
+
+  /** RoomScene 告诉我们哪些墙体组正在让镜头，挂在上面的东西跟着淡 */
+  setHiddenWallGroups(groups: ReadonlySet<string>): void {
+    this.hiddenHostGroups = groups;
   }
 
   // ---- 遮挡淡出 ----
@@ -260,7 +281,10 @@ export class FurnitureView {
   /** 推进淡出/淡回。淡出比淡回快：挡视线那一下要立刻让开，显形则要慢一点才不闪 */
   tickFade(deltaSeconds: number): void {
     for (const [instanceId, view] of this.views) {
-      const hidden = this.occluders.has(instanceId);
+      const host = this.hostGroupByInstance.get(instanceId);
+      const hidden =
+        this.occluders.has(instanceId) ||
+        (host !== undefined && this.hiddenHostGroups.has(host));
       stepFade(view, hidden ? OCCLUDED_OPACITY : 1, deltaSeconds, hidden ? 6 : 3);
     }
   }
@@ -300,8 +324,10 @@ export class FurnitureView {
         wallId,
         placed.placement.gridPosition,
         definition.placement.footprint,
-        this.size,
       );
+      const host = wallFaceOf(getWorld().room, wallId)?.hostGroup;
+      if (host) this.hostGroupByInstance.set(placed.instanceId, host);
+      else this.hostGroupByInstance.delete(placed.instanceId);
     } else {
       const { gridPosition, facing } = placed.placement;
       const rotated = facing === Facing.East || facing === Facing.West;

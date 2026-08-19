@@ -1,14 +1,19 @@
 import {
   HouseZoneKind,
   WallOpeningKind,
+  exteriorWallFace,
+  faceCellCorner,
+  faceCellToWorld,
+  interiorWallFaces,
   zoneAt,
   type InteriorWall,
   type OutdoorDeck,
+  type PlacementFace,
   type RoomSave,
   type WallOpening,
   type WallSave,
 } from "core";
-import { Object3D } from "three";
+import { Mesh, MeshBasicMaterial, Object3D, PlaneGeometry } from "three";
 import { PALETTE, jitterShade } from "../../Visual/palette.js";
 import { box } from "../../Visual/primitives.js";
 import { hash01 } from "../outdoorTerrain.js";
@@ -36,6 +41,11 @@ export type BuiltHouse = {
   root: Object3D;
   floor: Object3D;
   ceiling: Object3D;
+  /**
+   * 放置面 id → 射线拾取用的网格体。四面外墙是墙体本身；内墙的每张面
+   * 是一片贴在墙皮上的**不可见拾取平面**（一块内墙体有两张面，靠平面
+   * 分辨指的是哪一面）。PlacementController 拿它算虚影落点。
+   */
   walls: Map<string, Object3D>;
   /** 每扇窗在世界坐标中的位置与朝向，供景深盒和环境音使用 */
   windows: WindowAnchor[];
@@ -92,60 +102,36 @@ function openingCellSet(openings: WallOpening[]): Set<string> {
   return cells;
 }
 
-function wallLayout(
-  wallId: string,
-  width: number,
-  depth: number,
-): WallLayout {
-  const halfW = width / 2;
-  const halfD = depth / 2;
-
-  switch (wallId) {
-    case "north":
-      return {
-        normal: [0, 0, 1],
-        corners: (wx, wy) => [
-          [wx - halfW, wy, -halfD],
-          [wx - halfW + 1, wy, -halfD],
-          [wx - halfW + 1, wy + 1, -halfD],
-          [wx - halfW, wy + 1, -halfD],
-        ],
-        center: (wx, wy) => [wx - halfW + 0.5, wy + 0.5, -halfD],
-      };
-    case "south":
-      return {
-        normal: [0, 0, -1],
-        corners: (wx, wy) => [
-          [wx - halfW + 1, wy, halfD],
-          [wx - halfW, wy, halfD],
-          [wx - halfW, wy + 1, halfD],
-          [wx - halfW + 1, wy + 1, halfD],
-        ],
-        center: (wx, wy) => [wx - halfW + 0.5, wy + 0.5, halfD],
-      };
-    case "west":
-      return {
-        normal: [1, 0, 0],
-        corners: (wx, wy) => [
-          [-halfW, wy, wx - halfD + 1],
-          [-halfW, wy, wx - halfD],
-          [-halfW, wy + 1, wx - halfD],
-          [-halfW, wy + 1, wx - halfD + 1],
-        ],
-        center: (wx, wy) => [-halfW, wy + 0.5, wx - halfD + 0.5],
-      };
-    default:
-      return {
-        normal: [-1, 0, 0],
-        corners: (wx, wy) => [
-          [halfW, wy, wx - halfD],
-          [halfW, wy, wx - halfD + 1],
-          [halfW, wy + 1, wx - halfD + 1],
-          [halfW, wy + 1, wx - halfD],
-        ],
-        center: (wx, wy) => [halfW, wy + 0.5, wx - halfD + 0.5],
-      };
-  }
+/**
+ * 一张放置面的建模布局：四角、法线、格中心，全部从 face.frame 推。
+ * 原来这里按 wallId 一个 switch 写四套坐标——那是把"矩形屋的四面墙"
+ * 当成了放置系统的全部；现在放置面是数据（Core logic/placementFaces），
+ * 这里只负责把数据画出来。四角的绕向按 u×v 和 normal 的关系定：
+ * 反了就翻过来，保证从 normal 那侧看是逆时针（正面朝房间）。
+ */
+function wallLayout(face: PlacementFace): WallLayout {
+  const { u, v, normal } = face.frame;
+  const cross = {
+    x: u.y * v.z - u.z * v.y,
+    y: u.z * v.x - u.x * v.z,
+    z: u.x * v.y - u.y * v.x,
+  };
+  const flip = cross.x * normal.x + cross.y * normal.y + cross.z * normal.z < 0;
+  const at = (wx: number, wy: number): [number, number, number] => {
+    const p = faceCellCorner(face, wx, wy);
+    return [p.x, p.y, p.z];
+  };
+  return {
+    normal: [normal.x, normal.y, normal.z],
+    corners: (wx, wy) => {
+      const ring = [at(wx, wy), at(wx + 1, wy), at(wx + 1, wy + 1), at(wx, wy + 1)];
+      return flip ? [ring[1], ring[0], ring[3], ring[2]] : ring;
+    },
+    center: (wx, wy) => {
+      const p = faceCellToWorld(face, wx, wy);
+      return [p.x, p.y, p.z];
+    },
+  };
 }
 
 /**
@@ -325,11 +311,10 @@ function buildCeiling(width: number, depth: number, height: number): Object3D {
 }
 
 function buildWall(
+  room: RoomSave,
   wall: WallSave,
-  width: number,
-  depth: number,
 ): { mesh: Object3D; anchors: WindowAnchor[] } {
-  const layout = wallLayout(wall.wallId, width, depth);
+  const layout = wallLayout(exteriorWallFace(room, wall));
   const blocked = openingCellSet(wall.openings);
   const quads: Quad[] = [];
 
@@ -631,6 +616,41 @@ function buildInteriorWalls(room: RoomSave, wallHeight: number): Object3D {
   return container;
 }
 
+/**
+ * 内墙放置面的拾取平面：每张面一片 PlaneGeometry，贴在墙皮外 1cm，
+ * 大小 = 面的网格，法线朝 face.normal。不可见（visible=false 的网格
+ * three 的 Raycaster 照样能打中——它只看 layers 不看 visible）。
+ */
+function buildInteriorFacePickers(room: RoomSave): {
+  root: Object3D;
+  byFace: Map<string, Object3D>;
+} {
+  const root = new Object3D();
+  root.name = "interior-face-pickers";
+  const byFace = new Map<string, Object3D>();
+  const material = new MeshBasicMaterial({ visible: false });
+  for (const face of interiorWallFaces(room)) {
+    const { grid, frame } = face;
+    const plane = new Mesh(new PlaneGeometry(grid.width, grid.height), material);
+    plane.name = `face-picker-${face.faceId}`;
+    plane.visible = false;
+    // 面的中心：格 (w/2, h/2) 的角，再沿法线挑出 1cm 免得和墙皮共面
+    const c = faceCellCorner(face, grid.width / 2, grid.height / 2);
+    plane.position.set(
+      c.x + frame.normal.x * 0.01,
+      c.y + frame.normal.y * 0.01,
+      c.z + frame.normal.z * 0.01,
+    );
+    // PlaneGeometry 默认朝 +Z、宽沿 +X：绕 Y 转到法线方向。u 轴与转后的
+    // 本地 +X 同向或反向都无所谓——拾取只要命中点，坐标由 worldToFaceCell 算
+    plane.rotation.y = Math.atan2(frame.normal.x, frame.normal.z);
+    plane.updateMatrixWorld();
+    root.add(plane);
+    byFace.set(face.faceId, plane);
+  }
+  return { root, byFace };
+}
+
 export function buildHouse(
   room: RoomSave,
   /** 贴着外墙的缘侧（来自地图定义）。不给就只有光房子 */
@@ -681,6 +701,13 @@ export function buildHouse(
 
   const interiorWalls = buildInteriorWalls(room, wallHeight);
   root.add(interiorWalls);
+  /*
+   * 内墙每张放置面一片不可见拾取平面（放置系统按面拾取，不按墙体）。
+   * 挂在 root 下、不进 interiorWalls 组：那个组的直接子节点是淡出单位，
+   * 拾取平面既不该淡也不该被遮挡射线打中。
+   */
+  const facePickers = buildInteriorFacePickers(room);
+  root.add(facePickers.root);
 
   /*
    * 外皮和屋顶（V0.13）：从外面看它是房子，从屋里看全是背面（剔除），
@@ -722,8 +749,9 @@ export function buildHouse(
   const windows: WindowAnchor[] = [];
   const doors: WindowAnchor[] = [];
 
+  for (const [faceId, picker] of facePickers.byFace) walls.set(faceId, picker);
   for (const wall of Object.values(room.walls)) {
-    const { mesh, anchors } = buildWall(wall, width, depth);
+    const { mesh, anchors } = buildWall(room, wall);
     walls.set(wall.wallId, mesh);
     root.add(mesh);
 
@@ -774,61 +802,10 @@ export function gridToWorld(
 
 // ---- 墙面坐标系 ----
 //
-// 墙面网格是一套**独立于地面的 2D 坐标**：wx 沿墙横向，wy 从地板往上。
-// 墙饰配方（decor.ts）的局部坐标约定是"原点贴墙面、XY 落在墙平面里、+Z 指向屋内"，
-// 所以把配方原点摆到墙格中心、绕 Y 转到该墙的朝向，就正好贴在墙上。
+// 已经搬到 Core（logic/placementFaces）：faceCellToWorld / worldToFaceCell /
+// faceYaw，按放置面的 frame 算，不再按 wallId 查表。这里原来那四个
+// 函数（WALL_ROTATION / wallInwardNormal / wallCellToWorld / worldToWallCell）
+// 是"矩形屋四面墙"的写死版本，删了——留着就还会有人拿 wallId 去 switch。
 //
-// 约定：墙面家具存档里的 facing 固定为 Facing.North。wallId 已经决定了朝向，
-// 让 facing 参与旋转反而会触发 Core 的 footprint 宽高互换——而墙面 footprint
-// 本来就写在墙平面里，不该被再转一次。
-
-/** 墙饰绕 Y 的旋转：让配方的 +Z 指向屋内 */
-export const WALL_ROTATION: Record<string, number> = {
-  north: 0,
-  east: -Math.PI / 2,
-  south: Math.PI,
-  west: Math.PI / 2,
-};
-
-/** 墙的内法线（指向房间内部） */
-export function wallInwardNormal(wallId: string): [number, number, number] {
-  switch (wallId) {
-    case "north":
-      return [0, 0, 1];
-    case "south":
-      return [0, 0, -1];
-    case "west":
-      return [1, 0, 0];
-    default:
-      return [-1, 0, 0];
-  }
-}
-
-/** 墙格坐标 → 世界坐标（墙面上的点）。允许小数，用于多格家具的中心 */
-export function wallCellToWorld(
-  wallId: string,
-  wx: number,
-  wy: number,
-  size: { width: number; depth: number },
-): [number, number, number] {
-  return wallLayout(wallId, size.width, size.depth).center(wx, wy);
-}
-
-/** 世界坐标 → 墙格坐标（wallCellToWorld 的逆）。返回小数，由调用方取整 */
-export function worldToWallCell(
-  wallId: string,
-  point: { x: number; y: number; z: number },
-  size: { width: number; depth: number },
-): { wx: number; wy: number } {
-  const halfW = size.width / 2;
-  const halfD = size.depth / 2;
-  const wy = point.y - 0.5;
-
-  // 北墙 / 南墙沿世界 x 展开，东墙 / 西墙沿世界 z 展开
-  const wx =
-    wallId === "north" || wallId === "south"
-      ? point.x + halfW - 0.5
-      : point.z + halfD - 0.5;
-
-  return { wx, wy };
-}
+// 约定不变：墙面家具存档里的 facing 固定为 Facing.North。面已经决定了朝向，
+// 让 facing 参与旋转反而会触发 Core 的 footprint 宽高互换。

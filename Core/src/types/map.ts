@@ -35,9 +35,61 @@ export type WallOpening = {
   visualId: VisualId;
 };
 
+/** 三维向量（纯数据。Core 不依赖 three，表现层自己转 Vector3） */
+export type Vec3 = { x: number; y: number; z: number };
+
+/**
+ * 放置面的坐标框架：把面上的 2D 网格坐标映射到世界。
+ *
+ *   世界点 = origin + u·(格x) + v·(格y)
+ *
+ * origin 是格 (0,0) 的角（不是中心）；u、v 是单位向量，分别是网格 x、y
+ * 的世界方向；normal 是这张面"朝向哪边"——墙面是它面对的房间那侧，
+ * 地面是朝上。墙饰配方的 +Z 就对着 normal 挂。
+ */
+export type FaceFrame = {
+  origin: Vec3;
+  u: Vec3;
+  v: Vec3;
+  normal: Vec3;
+};
+
+/**
+ * 放置面：**一块能放东西的面就是一条数据**。
+ *
+ * 地面和墙面在放置系统眼里是同一种东西——一张网格 + 一个把网格贴到
+ * 世界里的框架 + 网格上哪些格不能放（门窗）。校验、占用、虚影落点、
+ * 家具世界坐标、射线拾取全按 frame 算，**没有任何一处按 faceId 分支**。
+ * 想让一块新地面/一面新墙能放东西，只要多一条这样的记录（或者像内墙
+ * 那样由几何自动推出来），放置系统一行不改。
+ *
+ * 老存档的键就是 faceId：地面 = roomId、墙面 = wallId，格式不动。
+ */
+export type PlacementFace = {
+  faceId: string;
+  /** "floor" | "wall"（值同 furniture.ts 的 PlacementSurface，这里不引它避免类型环） */
+  surface: "floor" | "wall";
+  roomId: RoomId;
+  frame: FaceFrame;
+  grid: GridFootprint;
+  /** 面上的洞（门窗）：挂饰避开，除非配方声明 coversOpenings */
+  openings: WallOpening[];
+  /**
+   * 这张面长在哪个墙体组上（Frontend 的淡出单位名）。墙让镜头时，
+   * 挂在它上面的东西要一起让——不然墙淡了画还实心地浮在半空。
+   */
+  hostGroup?: string;
+};
+
 export type WallSave = {
   wallId: WallId;
   facing: Facing;
+  /**
+   * 这面墙的放置框架。**不填就按 facing 当作矩形屋的四面之一推**
+   * （北墙沿 +x 铺、南墙也沿 +x、东西墙沿 +z——这是老存档定下的墙格
+   * 约定，改了老档里挂钟就换位置）。异形屋/非矩形墙填它。
+   */
+  frame?: FaceFrame;
   grid: GridFootprint;
   origin: GridPosition;
   openings: WallOpening[];

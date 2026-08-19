@@ -25,7 +25,7 @@ import {
 import { placeFromItem } from "../../Game/Systems/placement";
 import { buildItemVisual } from "../Visual/VisualRegistry.js";
 import { FACING_ROTATION, placeOnWall } from "../World/FurnitureView.js";
-import { worldToWallCell } from "../World/House/index.js";
+import { wallFaceOf, worldToFaceCell } from "core";
 
 /**
  * 布置模式：从背包选家具物品后出现虚影，跟随鼠标吸附网格，
@@ -296,17 +296,20 @@ export class PlacementController {
       return;
     }
 
-    const { room } = getWorld();
-    const size = {
-      width: room.floorGrid.width,
-      depth: room.floorGrid.height,
-    };
-    const { wx, wy } = worldToWallCell(wallId, first.point, size);
+    // 命中的网格体对应哪张放置面 → 命中点换算成那张面的格坐标
+    const face = wallFaceOf(getWorld().room, wallId);
+    if (!face) {
+      this.wallId = null;
+      this.valid = false;
+      if (this.ghost) this.ghost.visible = false;
+      return;
+    }
+    const { u, v } = worldToFaceCell(face, first.point);
 
     // footprint 直接按墙平面读，不经过 facing 旋转
     this.wallId = wallId;
-    this.gridX = Math.round(wx - (footprint.width - 1) / 2);
-    this.gridY = Math.round(wy - (footprint.height - 1) / 2);
+    this.gridX = Math.round(u - (footprint.width - 1) / 2);
+    this.gridY = Math.round(v - (footprint.height - 1) / 2);
     this.refresh();
   }
 
@@ -465,7 +468,6 @@ export class PlacementController {
         target.wallId,
         target.gridPosition,
         definition.placement.footprint,
-        size,
       );
     } else {
       const rotated = this.facing === Facing.East || this.facing === Facing.West;

@@ -6,18 +6,15 @@
  * 整栋换成精模，替换的边界就是这个目录，外面一行不用动。
  *
  * 分工：
- * - HouseBuilder：把 Core 的 RoomSave（纯数据）变成网格体，
- *   附带网格坐标 ↔ 世界坐标的换算工具（家具放置也用它）
+ * - HouseBuilder：把 Core 的 RoomSave（纯数据）变成网格体。
+ *   墙格 ↔ 世界坐标的换算在 Core 的 logic/placementFaces（放置面），
+ *   建模和放置共用同一份 frame
  * - WindowView：窗户本体（木框、玻璃、雨天水光、窗边尘埃）
  * - DoorView：门板与开合动画（宠物派遣的仪式感）
  */
 export {
-  WALL_ROTATION,
   buildHouse,
   gridToWorld,
-  wallCellToWorld,
-  wallInwardNormal,
-  worldToWallCell,
   type BuiltHouse,
   type WindowAnchor,
 } from "./HouseBuilder.js";

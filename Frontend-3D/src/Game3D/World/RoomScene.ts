@@ -1899,13 +1899,17 @@ export class RoomScene {
     // 墙体（内墙/外墙/屋顶）的淡出淡回每帧推进，检测在 refreshOccluders 里限流。
     // 外墙和屋顶淡得更透（0.12 vs 0.25）：内墙让开时半透着还能提示
     // "这里有堵墙"，外墙让开是为了看清整个屋内布局，留太多就白让了
+    const hiddenWallGroups = new Set<string>();
     for (const group of this.occluderGroups()) {
       const hiddenOpacity = group === this.built.interiorWalls ? 0.25 : 0.12;
       for (const segment of group.children) {
         const hidden = this.wallReleaseTicks.has(segment.uuid);
         stepFade(segment, hidden ? hiddenOpacity : 1, deltaSeconds, hidden ? 6 : 3);
+        if (hidden) hiddenWallGroups.add(segment.name);
       }
     }
+    // 挂在让开的内墙上的画/钟跟着淡（放置面的 hostGroup 就是这里的 segment.name）
+    this.furnitureView.setHiddenWallGroups(hiddenWallGroups);
 
     this.interactCheckTimer += deltaSeconds;
     if (this.interactCheckTimer > 0.15) {

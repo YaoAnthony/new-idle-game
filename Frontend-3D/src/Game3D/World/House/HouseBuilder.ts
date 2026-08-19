@@ -4,7 +4,7 @@ import {
   exteriorWallFace,
   faceCellCorner,
   faceCellToWorld,
-  interiorWallFaces,
+  placementFacesOf,
   zoneAt,
   type InteriorWall,
   type OutdoorDeck,
@@ -42,9 +42,9 @@ export type BuiltHouse = {
   floor: Object3D;
   ceiling: Object3D;
   /**
-   * 放置面 id → 射线拾取用的网格体。四面外墙是墙体本身；内墙的每张面
-   * 是一片贴在墙皮上的**不可见拾取平面**（一块内墙体有两张面，靠平面
-   * 分辨指的是哪一面）。PlacementController 拿它算虚影落点。
+   * 放置面 id → 射线拾取用的网格体：每张墙面（外墙四面、内墙每面）一片
+   * 贴在墙皮上的**不可见拾取平面**。PlacementController 拿它算虚影落点。
+   * 不用墙体本身：墙体在门窗处是挖空的，指着窗户会打空。
    */
   walls: Map<string, Object3D>;
   /** 每扇窗在世界坐标中的位置与朝向，供景深盒和环境音使用 */
@@ -617,19 +617,25 @@ function buildInteriorWalls(room: RoomSave, wallHeight: number): Object3D {
 }
 
 /**
- * 内墙放置面的拾取平面：每张面一片 PlaneGeometry，贴在墙皮外 1cm，
- * 大小 = 面的网格，法线朝 face.normal。不可见（visible=false 的网格
- * three 的 Raycaster 照样能打中——它只看 layers 不看 visible）。
+ * 放置面的拾取平面：**每张墙面**（外墙四面 + 内墙每面）一片 PlaneGeometry，
+ * 贴在墙皮外 1cm，大小 = 面的网格，法线朝 face.normal。不可见
+ * （visible=false 的网格 three 的 Raycaster 照样能打中——它只看 layers 不看 visible）。
+ *
+ * 外墙原来拿墙体网格本身当拾取目标，而墙体在门窗处是**挖空**的（逐格
+ * 生成四边形、跳过开口）——指着窗户射线就穿过去打不到墙，窗帘这种本该
+ * 罩在窗上的东西反而只能挂到窗户上方那一格（用户报的正是它）。拾取平面
+ * 是完整的面，开口不开口交给 checkPlacement 的 coversOpenings 判。
  */
-function buildInteriorFacePickers(room: RoomSave): {
+function buildFacePickers(room: RoomSave): {
   root: Object3D;
   byFace: Map<string, Object3D>;
 } {
   const root = new Object3D();
-  root.name = "interior-face-pickers";
+  root.name = "face-pickers";
   const byFace = new Map<string, Object3D>();
   const material = new MeshBasicMaterial({ visible: false });
-  for (const face of interiorWallFaces(room)) {
+  const faces = placementFacesOf(room).filter((face) => face.surface === "wall");
+  for (const face of faces) {
     const { grid, frame } = face;
     const plane = new Mesh(new PlaneGeometry(grid.width, grid.height), material);
     plane.name = `face-picker-${face.faceId}`;
@@ -702,11 +708,11 @@ export function buildHouse(
   const interiorWalls = buildInteriorWalls(room, wallHeight);
   root.add(interiorWalls);
   /*
-   * 内墙每张放置面一片不可见拾取平面（放置系统按面拾取，不按墙体）。
+   * 每张墙面一片不可见拾取平面（放置系统按面拾取，不按墙体）。
    * 挂在 root 下、不进 interiorWalls 组：那个组的直接子节点是淡出单位，
    * 拾取平面既不该淡也不该被遮挡射线打中。
    */
-  const facePickers = buildInteriorFacePickers(room);
+  const facePickers = buildFacePickers(room);
   root.add(facePickers.root);
 
   /*
@@ -749,10 +755,10 @@ export function buildHouse(
   const windows: WindowAnchor[] = [];
   const doors: WindowAnchor[] = [];
 
+  // 拾取表只登记拾取平面；外墙墙体不再进去（有开口的墙体接不住指着窗户的射线）
   for (const [faceId, picker] of facePickers.byFace) walls.set(faceId, picker);
   for (const wall of Object.values(room.walls)) {
     const { mesh, anchors } = buildWall(room, wall);
-    walls.set(wall.wallId, mesh);
     root.add(mesh);
 
     for (const anchor of anchors) {

@@ -858,7 +858,13 @@ export const itemDefinitions = [
     visual: { id: "curtain" },
     placement: {
       surface: PlacementSurface.Wall,
-      footprint: { width: 2, height: 2 },
+      /*
+       * 2 宽 × 3 高：屋里的 2×2 窗开在墙格 y1..2（离地 1 米到 3 米），
+       * 窗帘要**罩住窗**就得从窗台（y1）一直到墙顶（y3）——杆子挂在窗
+       * 上方那一格，帘子垂下来盖满玻璃。原来 2×2 只够盖窗或只够挂杆，
+       * 二选一，用户实测"放最上面根本用不了"（2026-08-19）。
+       */
+      footprint: { width: 2, height: 3 },
       capabilities: [],
       blocksMovement: false,
       coversOpenings: true,

@@ -231,7 +231,16 @@ export function buildWallClock(): Object3D {
 
 /** 窗帘（墙面 2×2）：铜杆 + 两颗端头 + 帘头 + 两片微微外撇的帘子和折痕 */
 export function buildCurtain(): Object3D {
-  const topY = 0.92;
+  /*
+   * 占墙格 2 宽 × 3 高，原点在占地中心：模型纵向从 −1.5 到 +1.5。
+   * 用户定的分工（2026-08-19）：**最上面那一格是杆子，下面 2×2 吊着帘子**。
+   * 挂在 2×2 窗（墙格 y1..2）上时占 y1..3：杆子在窗框上方一点
+   * （+0.72，离地约 3.2，像真窗帘杆装在窗框上沿之上），帘子从杆下垂到
+   * 窗台（−1.45），正好盖满那 2×2 的玻璃。原来按 2×2 做，杆和帘二选一。
+   */
+  const topY = 0.72;
+  const panelHeight = 2.05;
+  const panelCenterY = topY - 0.12 - panelHeight / 2;
 
   const rod = cylinder(0.035, 0.035, 2.1, 8, {
     color: PALETTE.brass,
@@ -254,9 +263,9 @@ export function buildCurtain(): Object3D {
 
   // 两片帘子往两边撇开，中间留出窗
   const panels = [-1, 1].map((side) =>
-    box([0.58, 1.62, 0.1], {
+    box([0.58, panelHeight, 0.1], {
       color: PALETTE.fabricRose,
-      position: [side * 0.62, topY - 1.06, 0.07],
+      position: [side * 0.62, panelCenterY, 0.07],
       rotation: [0, 0, side * -0.03],
       castShadow: false,
     }),
@@ -265,19 +274,19 @@ export function buildCurtain(): Object3D {
   // 每片上两道浅色折痕，低多边形靠色块表现布褶
   const folds = [-1, 1].flatMap((side) =>
     [-0.16, 0.14].map((offset) =>
-      box([0.09, 1.5, 0.02], {
+      box([0.09, panelHeight - 0.12, 0.02], {
         color: PALETTE.fabricCream,
-        position: [side * 0.62 + offset, topY - 1.06, 0.13],
+        position: [side * 0.62 + offset, panelCenterY, 0.13],
         castShadow: false,
       }),
     ),
   );
 
-  // 束带
+  // 束带（帘子中段偏下，人手够得着的高度）
   const ties = [-1, 1].map((side) =>
     box([0.64, 0.1, 0.13], {
       color: PALETTE.fabricSage,
-      position: [side * 0.62, topY - 1.18, 0.08],
+      position: [side * 0.62, panelCenterY - 0.25, 0.08],
       castShadow: false,
     }),
   );

@@ -662,15 +662,18 @@ export const itemDefinitions = [
       capabilities: [FurnitureCapability.Bath, FurnitureCapability.Rest],
       floorLayer: FloorLayer.Object,
       blocksMovement: true,
-      anchors: [
-        {
-          anchorId: "soak",
-          posture: BodyPosture.Sit,
-          // 坐台在池内靠墙那侧（本地 +Z ≈ 1.0），面朝房间（−Z = North）
-          offset: [0, 0.35, 1.0],
-          facing: Facing.North,
-        },
-      ],
+      /*
+       * 三个坐位并排在池内坐台上（坐台 3.34 宽，间距 1.1）：最多三个人一起泡。
+       * 谁坐哪个由坐卧系统按"离我最近的空位"分（本地 + 房里其他人一起算占用），
+       * 和沙发三个座位同一套规则，这里只声明位置。
+       */
+      anchors: [-1.1, 0, 1.1].map((x, i) => ({
+        anchorId: `soak_${i}`,
+        posture: BodyPosture.Sit,
+        // 坐台在池内靠墙那侧（本地 +Z ≈ 1.0），面朝房间（−Z = North）
+        offset: [x, 0.35, 1.0] as [number, number, number],
+        facing: Facing.North,
+      })),
       interactHint: {
         localizationKey: "hint.ofuro_empty",
         action: "interact",

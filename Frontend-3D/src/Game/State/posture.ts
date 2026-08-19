@@ -1,5 +1,6 @@
 import type { AnchorId, PlacedFurnitureInstanceId } from "core";
 import { emit } from "../EventBus";
+import { LOCAL_PLAYER_ID, listParticipants } from "./participants";
 
 /**
  * 角色现在坐/躺在哪。
@@ -31,12 +32,24 @@ export function isResting(): boolean {
   return resting !== null;
 }
 
-/** 这个锚点是不是已经被占了（沙发三个座位各自独立） */
+/**
+ * 这个锚点是不是已经被占了（沙发三个座位、浴缸三个坐位各自独立）。
+ *
+ * **本地 + 房里其他人一起算**：远端玩家坐在哪记在 participants 的
+ * appearance.restingOn（联机广播过来的投影）。原来只看本地那一份，
+ * 两个人进同一只浴缸会叠在同一个坐位上。
+ */
 export function isAnchorTaken(
   instanceId: PlacedFurnitureInstanceId,
   anchorId: AnchorId,
 ): boolean {
-  return resting?.instanceId === instanceId && resting?.anchorId === anchorId;
+  if (resting?.instanceId === instanceId && resting?.anchorId === anchorId) return true;
+  for (const participant of listParticipants()) {
+    if (participant.playerId === LOCAL_PLAYER_ID) continue;
+    const on = participant.appearance.restingOn;
+    if (on && on.instanceId === instanceId && on.anchorId === anchorId) return true;
+  }
+  return false;
 }
 
 /**

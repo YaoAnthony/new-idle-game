@@ -11,6 +11,7 @@ import {
 import { replayGramophoneRecord } from "../State/gramophones";
 import { replayStorageBox } from "../State/storage";
 import {
+  replayBathWater,
   replayPlaceFurniture,
   replayRemoveFurniture,
   replaySlotContent,
@@ -64,6 +65,10 @@ export function applyWorldOp(op: WorldOp): void {
       // 只置位不吐东西：奖励本体是发起方的若干次 throwItem，
       // 那些走 item_thrown 自己会到（联机那一轮已经打通）
       applyRemoteClaimed(op.worldDayId);
+      return;
+    case "bath_water_set":
+      // 只记转折点：本地的 tickBath 从这个水位按同一速率接着涨/放
+      replayBathWater(op.instanceId, op.level, op.flow);
       return;
   }
 }

@@ -67,13 +67,25 @@ allowed-tools: Read, Glob, Grep, Write, Edit, Bash, AskUserQuestion
 ```
 
 **能力清单**（`FurnitureCapability`，复用零代码；发明新能力要改 `RoomScene` 交互链 + 面板）：
-Crafting / Cooking / Storage / Sleep / Sitting / Ambience / WaterSource / Unpack / DailyBoard / MusicPlayer；
+Crafting / Cooking / Storage / Sleep / Sitting / Ambience / WaterSource / Unpack / DailyBoard / MusicPlayer /
+**Bath**（浴缸：空→F 注水 6s→满→F 坐进去泡→起身自动放水 4s；水位是实例状态 `state.water`，`Systems/bath.ts` 推进，
+`BathAnimator` 按名 `bath-water` 缩放水面；联机只同步转折点 op `bath_water_set`）；
 行动支撑 Study / Exercise / Creation / Rest（决定家里能做哪类行动，见 `Core/src/Data/actions`）。
+
+**实例状态**（`PlacedFurnitureState`，按实例不按定义）：`fixed`（房子自带拿不走，右键提示 `placement.fixed`）、
+`water`（浴缸水位）、`slotContents`、`storageInventoryId`、`lootTableId`。开局自带的固定装置写在 `seedInitialFurniture`
++ 给老档补一条迁移（v26 隔断 / v27 浴缸是样板：放数组最前让 `revalidatePlacements` 把压住的家具退回背包）。
+
+**发明新能力的完整清单**（浴缸那次走过一遍）：Core `FurnitureCapability` + 需要的实例状态字段 → 需要联机同步的状态加
+`WorldOp` + `NET_PROTOCOL_VERSION`+1 + `Backend/src/multiplayer/validate.ts` 白名单 + `contracts/multiplayer_protocol.md` +
+`Game/Multiplayer/opApply.ts` → `EventBus.StationCapability` → `RoomScene` 交互链/分派/气泡覆盖 → 需要的话 `Game/Systems/<x>.ts`
+（`index.tsx` 里 start/stop）+ `World/<X>Animator.ts` → i18n。
 
 **已有件参考尺寸**（对齐用）：椅 1×1 座高 0.49；凳 1×1 0.565；坐垫 1×1 0.24 不挡路；沙发 3×1 座 0.42（3 锚点 x=−0.92/0/0.92）；
 园林长椅 2×1 座 0.45；床 2×3 床面 0.64；地铺 1×2 0.12 不挡路；桌 2×1 台面 0.83 台面网格 4×2；书桌 2×1 0.805；
 矮几 2×1 0.45；工作台 2×1 0.91；橱柜 6×4 L 形 0.98；箱 1×1 0.76；书架/衣柜 2×1 无台面；
-壁炉 2×1；落地灯 1×1；盆栽 1×1（上桌 2×2 半格）；地毯 3×2/4×3/3×3/2×1 Covering；相框/挂钟 1×1 墙；窗帘 2×3 墙 coversOpenings（上一格杆子、下 2×2 帘子罩窗）。
+壁炉 2×1；落地灯 1×1；盆栽 1×1（上桌 2×2 半格）；富贵竹 1×1 高 0.95；地毯 3×2/4×3/3×3/2×1 Covering；相框/挂钟 1×1 墙；窗帘 2×3 墙 coversOpenings（上一格杆子、下 2×2 帘子罩窗）；
+日式浴缸 4×3（踏步 0.42、缸沿 0.8、坐台 0.35 = Sit 锚点 y，浴室南端 (11,17) 朝北 fixed）。
 
 ### 2.2 外观配方 —— `Frontend-3D/src/Game3D/Visual/recipes/<主题>.ts`
 

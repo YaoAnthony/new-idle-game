@@ -39,7 +39,7 @@ export type PickupResult =
   | { ok: true; itemId: string }
   | {
       ok: false;
-      reason: "not_found" | "not_portable" | "busy" | "not_empty";
+      reason: "not_found" | "not_portable" | "busy" | "not_empty" | "fixed";
     };
 
 /**
@@ -59,6 +59,9 @@ export function pickupFurniture(instanceId: string): PickupResult {
 
   const item = findPlaceableItem(placed.furnitureId);
   if (!item) return { ok: false, reason: "not_portable" };
+
+  // 房子自带的固定装置（浴室的浴缸）：拿不走。按实例判，不按定义判
+  if (placed.state.fixed) return { ok: false, reason: "fixed" };
 
   const slotContents = placed.state.slotContents ?? {};
   if (Object.keys(slotContents).length > 0) {

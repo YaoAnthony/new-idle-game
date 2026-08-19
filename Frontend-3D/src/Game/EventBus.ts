@@ -17,7 +17,8 @@ export type StationCapability =
   | "storage"
   | "unpack"
   | "daily_board"
-  | "music_player";
+  | "music_player"
+  | "bath";
 
 export type GameEvents = {
   /** 世界数据变化（家具增删等），渲染层据此同步场景图 */
@@ -99,6 +100,8 @@ export type GameEvents = {
    * ——Game/ 不能碰 three，所以这条事件就是那道分界线。
    */
   posture_changed: Record<string, never>;
+  /** 浴缸水位到了转折点（开始注水/满/开始放水/空）。逐帧涨落不发 */
+  bath_changed: { instanceId: string };
   /**
    * 家具槽位内容变化（锅放上灶眼、投料、起锅）。
    * **火候每帧的推进不发事件**——那是渲染层每帧直接读状态，

@@ -156,6 +156,8 @@ import {
 } from "./CharacterView.js";
 import { PetView } from "./PetView.js";
 import { CameraRig } from "../Engine/CameraRig.js";
+import { bathPhaseOf, requestFill, tickBath } from "../../Game/Systems/bath";
+import { BathAnimator } from "./BathAnimator.js";
 import { installFogShelter, setFogShelter } from "../Engine/fogShelter.js";
 import { Lighting } from "../Engine/Lighting.js";
 import { stepFade } from "../Engine/Fade.js";
@@ -212,6 +214,7 @@ export class RoomScene {
   /** 每日任务机满格时的那一下弹跳。没机器时什么都不做 */
   private readonly dailyBoardAnimator: DailyBoardAnimator;
   private readonly gramophoneAnimator: GramophoneAnimator;
+  private readonly bathAnimator: BathAnimator;
   /** 外门门板 + 它的逻辑实体，视图每帧照实体画 */
   private readonly doorViews: { view: DoorView; agent: DoorAgent | undefined }[] = [];
   private readonly roomDoorViews = new Map<string, RoomDoorView>();
@@ -395,6 +398,10 @@ export class RoomScene {
     );
     this.gramophoneAnimator = new GramophoneAnimator(() =>
       this.furnitureView.findInstancesByFurnitureId("furniture_gramophone"),
+    );
+    // 浴缸水面跟水位走：每帧读实例状态，节点按名找（bath-water）
+    this.bathAnimator = new BathAnimator(() =>
+      this.furnitureView.findInstancesWithCapability(FurnitureCapability.Bath),
     );
 
     this.furnitureView = new FurnitureView(this.built.size);
@@ -914,6 +921,11 @@ export class RoomScene {
             kind: ChatMessageKind.System,
             text: t("placement.not_empty"),
           });
+        } else if (result.ok === false && result.reason === "fixed") {
+          pushChatMessage({
+            kind: ChatMessageKind.System,
+            text: t("placement.fixed"),
+          });
         }
         return true;
       }
@@ -1099,6 +1111,9 @@ export class RoomScene {
       const holdingRecord = Boolean(
         findItemDefinition(getSelectedStack()?.itemId ?? "")?.record,
       );
+      const bathPhase = definition.placement.capabilities.includes(FurnitureCapability.Bath)
+        ? bathPhaseOf(placed.instanceId)
+        : null;
       const hint = definition.placement.capabilities.includes(
         FurnitureCapability.MusicPlayer,
       )
@@ -1109,7 +1124,17 @@ export class RoomScene {
               ? "hint.gramophone_insert"
               : `music.mode.${getMusicMode()}`,
           }
-        : definition.placement.interactHint;
+        : bathPhase
+          ? {
+              ...definition.placement.interactHint,
+              // 浴缸的气泡描述水位阶段：注水 / 注水中… / 泡澡 / 放水中…
+              localizationKey: `hint.ofuro_${bathPhase}`,
+              action:
+                bathPhase === "empty" || bathPhase === "full"
+                  ? ("interact" as const)
+                  : undefined,
+            }
+          : definition.placement.interactHint;
 
       bestHint = {
         instanceId: placed.instanceId,
@@ -1162,6 +1187,9 @@ export class RoomScene {
           ? ("cooking" as const)
           : definition.placement.capabilities.includes(FurnitureCapability.Storage)
             ? ("storage" as const)
+            : // 浴缸自己管"注水/泡"两步，比坐卧优先（它的锚点只在满缸时才给坐）
+              definition.placement.capabilities.includes(FurnitureCapability.Bath)
+              ? ("bath" as const)
             : // 床优先当"躺"处理；沙发这类只有 Sitting 的落到坐
               definition.placement.capabilities.includes(FurnitureCapability.Sleep)
               ? ("sleep" as const)
@@ -1177,6 +1205,14 @@ export class RoomScene {
           placed.instanceId,
           capability === "sleep" ? BodyPosture.Lie : BodyPosture.Sit,
         )
+      ) {
+        continue;
+      }
+      // 满缸且有人泡着：别再抢交互目标（和坐满的沙发同理）
+      if (
+        capability === "bath" &&
+        bathPhaseOf(placed.instanceId) === "full" &&
+        !hasFreeAnchor(placed.instanceId, BodyPosture.Sit)
       ) {
         continue;
       }
@@ -1331,6 +1367,15 @@ export class RoomScene {
           });
         } else if (this.interactTarget.capability === "sitting") {
           this.restAtTarget(BodyPosture.Sit);
+        } else if (this.interactTarget.capability === "bath") {
+          /*
+           * 两步：空缸按 F 注水；满缸按 F 坐进去泡（走坐卧系统，起身由
+           * Systems/bath 听 posture 事件自动放水）。注水/放水途中按 F 不理——
+           * 气泡会写"注水中…"，玩家知道在等什么。
+           */
+          const phase = bathPhaseOf(this.interactTarget.instanceId);
+          if (phase === "empty") requestFill(this.interactTarget.instanceId);
+          else if (phase === "full") this.restAtTarget(BodyPosture.Sit);
         } else if (this.interactTarget.capability === "unpack") {
           // 纸箱/奖励箱：弹领取面板，收下才真的入包并消失
           openUnpack(this.interactTarget.instanceId);
@@ -1855,6 +1900,9 @@ export class RoomScene {
     this.remotePlayers.update(deltaSeconds);
     this.dailyBoardAnimator.update(deltaSeconds);
     this.gramophoneAnimator.update(deltaSeconds);
+    // 浴缸先推水位再画水面：同一帧里状态和画面一致
+    tickBath(deltaSeconds);
+    this.bathAnimator.update();
 
     // 火候：只有架在灶眼上、且内容匹配到配方的锅才会走进度
     tickKitchen(deltaSeconds);

@@ -639,6 +639,45 @@ export const itemDefinitions = [
     },
   },
   {
+    /*
+     * 日式浴缸（2026-08-19，用户定）：4×3（占满浴室南端 x11..14 × y17..19）、
+     * 木色外壳方缸、一侧踏步高台、缸内坐台。空缸按 F 注水（约 6 秒涨满），
+     * 满了按 F 坐进去泡（Sit 锚点在缸里），起身自动放水。房子自带一只
+     * 固定在浴室（实例 state.fixed），物品本身可获得、另买的能搬。
+     *
+     * 4×3 全挡路；缸沿不算台面（surfaceHeight 不填）。
+     * 锚点：缸内坐台，承托面 0.35；人面朝 −Z（家具朝北摆在南墙根时，
+     * 就是面朝房间、背靠墙）。
+     */
+    id: "furniture_ofuro",
+    localizationKey: "item.furniture_ofuro",
+    category: ItemCategory.Furniture,
+    stackLimit: 1,
+    rarity: Rarity.Uncommon,
+    visual: { id: "ofuro" },
+    placement: {
+      surface: PlacementSurface.Floor,
+      footprint: { width: 4, height: 3 },
+      capabilities: [FurnitureCapability.Bath, FurnitureCapability.Rest],
+      floorLayer: FloorLayer.Object,
+      blocksMovement: true,
+      anchors: [
+        {
+          anchorId: "soak",
+          posture: BodyPosture.Sit,
+          // 坐台在池内靠墙那侧（本地 +Z ≈ 1.0），面朝房间（−Z = North）
+          offset: [0, 0.35, 1.0],
+          facing: Facing.North,
+        },
+      ],
+      interactHint: {
+        localizationKey: "hint.ofuro_empty",
+        action: "interact",
+        anchorHeight: 1.3,
+      },
+    },
+  },
+  {
     id: "furniture_long_rug",
     localizationKey: "item.furniture_long_rug",
     category: ItemCategory.Furniture,

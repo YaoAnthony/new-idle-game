@@ -43,8 +43,9 @@ import type { DroppedItem, WorldSave } from "./world.js";
  * v2（2026-08-04）：加 world:op 通道（见 WorldOp）。
  * v3（2026-08-04）：op 通道加每日任务两种（daily_board_ticked / _claimed）。
  * v4（2026-08-05）：加唱片机换唱片（gramophone_record_set）+ gramophones 刷新切片。
+ * v5（2026-08-19）：加浴缸水位转折（bath_water_set）。
  */
-export const NET_PROTOCOL_VERSION = 4;
+export const NET_PROTOCOL_VERSION = 5;
 
 /** 服务端强制的上限。放在共享类型里，客户端可以在发送前先自查 */
 export const NET_LIMITS = {
@@ -316,6 +317,17 @@ export type WorldOp =
        */
       kind: "daily_board_claimed";
       worldDayId: WorldDayId;
+    }
+  | {
+      /**
+       * 浴缸水位的**转折点**（协议 v5）：开始注水 / 满 / 开始放水 / 空。
+       * 带绝对 level 和 flow——接收方从这个水位按同一速率自己往下推，
+       * 中间不逐帧发（op 通道不保证有序，增量必歪）。幂等：同值再设跳过。
+       */
+      kind: "bath_water_set";
+      instanceId: string;
+      level: number;
+      flow: "in" | "out" | "still";
     };
 
 export type WorldOpEvent = {

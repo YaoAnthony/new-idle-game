@@ -2,6 +2,7 @@ import {
   Facing,
   PlacementSurface,
   findPlaceableItem,
+  type BathWater,
   type GridPosition,
   type HeldStack,
   type PlaceableItem,
@@ -239,6 +240,23 @@ export function seedInitialFurniture(): void {
     })),
   ];
 
+  /*
+   * 浴室自带的日式浴缸（2026-08-19）：占满浴室南端 x11..14 × y17..19，
+   * 踏步朝北（facing North，踏步在本地 −Z = 房间侧）。**fixed**：房子的
+   * 一部分，拿不走；物品本身仍可获得，另买的能搬。老存档由迁移 v27 补。
+   */
+  worldState.placedFurniture.push({
+    instanceId: nextInstanceId("furniture_ofuro"),
+    furnitureId: "furniture_ofuro",
+    placement: {
+      kind: PlacementSurface.Floor,
+      roomId: worldState.room.roomId,
+      gridPosition: { x: 11, y: 17 },
+      facing: Facing.North,
+    },
+    state: { fixed: true },
+  });
+
   emit("world_changed", { reason: "seeded" });
 }
 
@@ -313,6 +331,68 @@ export function replaySlotContent(
   content: HeldStack | null,
 ): void {
   writeSlotContent(instanceId, slotId, content);
+}
+
+// ---- 浴缸的水 ----
+
+function writeBathWater(instanceId: string, water: BathWater | null): boolean {
+  const placed = worldState.placedFurniture.find(
+    (item) => item.instanceId === instanceId,
+  );
+  if (!placed) return false;
+  const current = placed.state.water;
+  // 幂等：同值再设跳过（op 通道可能重复送达）
+  if (
+    (current === undefined && water === null) ||
+    (current && water && current.level === water.level && current.flow === water.flow)
+  ) {
+    return true;
+  }
+  const next = { ...placed.state };
+  if (water === null) delete next.water;
+  else next.water = water;
+  placed.state = next;
+  emit("bath_changed", { instanceId });
+  return true;
+}
+
+/**
+ * 浴缸水位**转折点**：开始注水 / 满 / 开始放水 / 空。null = 空缸。
+ * 只有转折点发 op（联机各端按同一速率自己推进，中间不逐帧发）。
+ */
+export function setBathWater(instanceId: string, water: BathWater | null): boolean {
+  if (!writeBathWater(instanceId, water)) return false;
+  emit("world_op", {
+    op: {
+      kind: "bath_water_set",
+      instanceId,
+      level: water?.level ?? 0,
+      flow: water?.flow ?? "still",
+    },
+  });
+  return true;
+}
+
+/** 重放房里其他人的浴缸操作（level 0 + still = 空缸） */
+export function replayBathWater(
+  instanceId: string,
+  level: number,
+  flow: BathWater["flow"],
+): void {
+  writeBathWater(instanceId, level <= 0 && flow === "still" ? null : { level, flow });
+}
+
+/**
+ * 每帧推进涨落。**故意不发事件、不发 op**——水位每帧都在动；视图每帧
+ * 直接读状态（BathAnimator），联机只同步转折点。到顶/到底由 Systems/bath
+ * 判定并走 setBathWater 发转折。
+ */
+export function advanceBathWater(instanceId: string, level: number): void {
+  const placed = worldState.placedFurniture.find(
+    (item) => item.instanceId === instanceId,
+  );
+  if (!placed?.state.water) return;
+  placed.state = { ...placed.state, water: { ...placed.state.water, level } };
 }
 
 /**

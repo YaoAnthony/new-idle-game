@@ -98,6 +98,7 @@ import {
 import { isRemoteWorldActive } from "../Game/Multiplayer/session";
 import { describeSoundscape, startSoundscape } from "./Engine/Soundscape";
 import { startMusicDirector } from "./Engine/MusicDirector";
+import { startBathSystem } from "../Game/Systems/bath";
 import { RoomScene } from "./World/RoomScene";
 
 /** /signal 的可选值。和 Core 的 StorySignalKind 一一对应 */
@@ -262,6 +263,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
     // 把手上拿的东西 / 坐姿汇进 participants 的 appearance 层。
     // 那是给渲染和（将来的）网络读的投影，见 Systems/participantSync
     const stopParticipantSync = startParticipantSync();
+    // 浴缸：起身自动放水（听 posture 事件），涨落本身由场景每帧 tickBath
+    const stopBath = startBathSystem();
     // 每日任务跨天：两边的重置本身是惰性的，这条只负责当场刷 UI
     const stopDailyRollover = startDailyRollover();
     const stopAutosave = startAutosave();
@@ -770,6 +773,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       offSpoil();
       stopStory();
       stopParticipantSync();
+      stopBath();
       stopDailyRollover();
       stopMusic();
       stopSoundscape();

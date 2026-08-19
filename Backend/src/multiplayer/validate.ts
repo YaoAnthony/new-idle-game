@@ -184,6 +184,7 @@ const OP_KINDS = new Set([
   'daily_board_ticked',
   'daily_board_claimed',
   'gramophone_record_set',
+  'bath_water_set',
 ])
 
 const MAX_OP_BYTES = 65_536

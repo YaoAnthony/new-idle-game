@@ -1013,6 +1013,100 @@ export const migrations: Migration[] = [
       return save;
     },
   },
+
+  /*
+   * v27（2026-08-19 日式浴缸）：浴室南端补一只房子自带的浴缸
+   * （furniture_ofuro，4×3 @ (11,17) 朝北，state.fixed）。和 v26 一个路数：
+   * 只认 2LDK 的 living；已经有 fixed 浴缸的档跳过；压在它占地里的家具交给
+   * revalidatePlacements 判、退回背包（把浴缸放在数组最前，后来的让路）。
+   */
+  {
+    to: 27,
+    migrate: (save) => {
+      const collected = new Map<string, number>();
+      const collect = (itemId: string, quantity: number): void => {
+        collected.set(itemId, (collected.get(itemId) ?? 0) + quantity);
+      };
+
+      for (const map of Object.values(save.ownWorld?.maps ?? {})) {
+        const room = map.rooms?.["living"] as RoomSave | undefined;
+        if (!room?.interiorWalls?.length || room.floorGrid.width !== 24) continue;
+        const placed = (save.ownWorld.placedFurniture ?? []) as PlacedFurniture[];
+        if (placed.some((p) => p.furnitureId === "furniture_ofuro" && p.state?.fixed)) continue;
+
+        const tub: PlacedFurniture = {
+          instanceId: "migration:furniture:furniture_ofuro#1",
+          furnitureId: "furniture_ofuro",
+          placement: {
+            kind: PlacementSurface.Floor,
+            roomId: "living",
+            gridPosition: { x: 11, y: 17 },
+            facing: Facing.North,
+          },
+          state: { fixed: true },
+        };
+        const { kept, displaced } = revalidatePlacements(room, [tub, ...placed], (id) =>
+          findPlaceableItem(id),
+        );
+        for (const item of displaced) {
+          collect(item.furnitureId, 1);
+          for (const stack of Object.values(item.state?.slotContents ?? {})) {
+            if (!stack) continue;
+            collect(stack.itemId, stack.quantity);
+            for (const inner of stack.state?.container?.items ?? []) {
+              collect(inner.itemId, inner.quantity);
+            }
+          }
+          const storageId = item.state?.storageInventoryId;
+          if (storageId && save.ownWorld.inventories?.[storageId]) {
+            for (const stack of save.ownWorld.inventories[storageId].stacks) {
+              collect(stack.itemId, stack.quantity);
+            }
+            delete save.ownWorld.inventories[storageId];
+          }
+        }
+        save.ownWorld.placedFurniture = kept;
+      }
+
+      const inventory = save.player.character.inventory;
+      const freeSlot = (): string | null => {
+        const used = new Set(inventory.map((stack) => String(stack.stackId)));
+        for (let i = 0; i < INVENTORY_SIZE; i += 1) {
+          if (!used.has(`slot:${i}`)) return `slot:${i}`;
+        }
+        return null;
+      };
+      for (const [itemId, total] of collected) {
+        const limit = findItemDefinition(itemId)?.stackLimit ?? 1;
+        let remaining = total;
+        while (remaining > 0) {
+          const slot = freeSlot();
+          if (!slot) break;
+          const take = Math.min(limit, remaining);
+          inventory.push({ stackId: slot, itemId, quantity: take });
+          remaining -= take;
+        }
+      }
+
+      // 人/宠物站在浴缸占地里（世界 x −1..3，z 7..10）的挪到浴室门口
+      const inTub = (p: { mapId?: string; x?: number; y?: number } | undefined): boolean =>
+        !!p &&
+        (p.mapId === "base" || p.mapId === undefined) &&
+        typeof p.x === "number" &&
+        typeof p.y === "number" &&
+        p.x >= -1.4 &&
+        p.x <= 3.4 &&
+        p.y >= 6.6 &&
+        p.y <= 10;
+      for (const pet of Object.values(save.ownWorld?.pets ?? {})) {
+        if (inTub(pet.position)) pet.position = { ...pet.position, x: 1, y: 4 };
+      }
+      const me = save.player?.character?.position;
+      if (inTub(me)) save.player.character.position = { ...me, x: 1, y: 4 };
+
+      return save;
+    },
+  },
 ];
 
 /**

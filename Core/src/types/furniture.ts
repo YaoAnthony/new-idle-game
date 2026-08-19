@@ -81,6 +81,13 @@ export enum FurnitureCapability {
    */
   MusicPlayer = "music_player",
 
+  /**
+   * 浴缸（2026-08-19）：空的按 F 注水，几秒涨满；满了按 F 坐进去泡（走坐卧
+   * 系统的 Sit 锚点），起身自动放水。水位是实例状态（PlacedFurnitureState.water），
+   * 不在定义里——同一种缸可以一只满一只空。
+   */
+  Bath = "bath",
+
   // ---- 行动支撑能力 ----
   // 「家里有什么家具 → 能做哪类行动」是内容规则，必须放 Core：
   // 联机时服务端校验读的是同一份（AGENTS.md：Backend 不得复制一份独立的内容规则）。
@@ -294,9 +301,28 @@ export type FurniturePlacement =
   | WallFurniturePlacement
   | SurfaceFurniturePlacement;
 
+/**
+ * 浴缸的水（对 FurnitureCapability.Bath）。
+ * level 0..1 是水位；flow 是此刻在涨还是在放——各端按同一个速率自己推进，
+ * 联机只在**转折点**（开始注水 / 满 / 开始放水 / 空）同步一次，中间不逐帧发。
+ */
+export type BathWater = {
+  level: number;
+  flow: "in" | "out" | "still";
+};
+
 export type PlacedFurnitureState = {
   durability?: number;
   storageInventoryId?: InventoryId;
+
+  /**
+   * 房子自带的固定装置，拿不走（浴室的浴缸）。**按实例记不按定义记**：
+   * 同一种浴缸玩家另买一只摆在别处，那只照样能搬。
+   */
+  fixed?: boolean;
+
+  /** 浴缸里的水（见 BathWater）。没有 = 空缸 */
+  water?: BathWater;
 
   /** 一次性容器的内容（对 FurnitureCapability.Unpack）。查 Data/loot 注册表 */
   lootTableId?: string;

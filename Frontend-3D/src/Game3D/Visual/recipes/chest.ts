@@ -17,6 +17,11 @@ import { box, cylinder, group, sphere } from "../primitives.js";
  * 要跟着配色走，比例也要粗一档（0.05 vs 0.022）——它是面板里的主角。
  *
  * 朝向沿用家具约定：正面朝 +Z，原点在底面中心。
+ *
+ * 盖子单独收进名为 "chest-lid" 的子组，**铰链放在后沿**（盖底后缘）：
+ * 开箱动画只要拿 getObjectByName("chest-lid") 转负的 rotation.x 就是
+ * "绕后沿往后翻开"。归属划分：拱盖、盖上的缝/高光/箍弧/冠饰跟盖走，
+ * 锁和箱体上的一切留在身上——参考图的锁是钉在箱体正面的，不跟盖动。
  */
 
 export type ChestTier = "common" | "uncommon" | "rare";
@@ -124,6 +129,24 @@ function keyhole(parts: Object3D[], color: string, y: number, z: number): void {
   parts.push(slot);
 }
 
+/**
+ * 组装：盖子进 "chest-lid" 子组，铰链（组原点）挪到盖底**后沿**。
+ * 盖件本来是按世界坐标摆的，所以里层再包一个反向偏移的 inner——
+ * 建模代码一行不用改，动画拿外层转就行。
+ */
+function assemble(
+  name: string,
+  bodyParts: Object3D[],
+  lidParts: Object3D[],
+  lidBaseY: number,
+): Object3D {
+  const lidInner = group("chest-lid-inner", lidParts);
+  lidInner.position.set(0, -lidBaseY, D / 2);
+  const lidPivot = group("chest-lid", [lidInner]);
+  lidPivot.position.set(0, lidBaseY, -D / 2);
+  return group(name, [...bodyParts, lidPivot]);
+}
+
 // ═══════════════════════════════════════════════════════════════
 // 木箱（常见）：横板条 + 两条细铁箍 + 小锁片。轻、旧、乡下。
 // ═══════════════════════════════════════════════════════════════
@@ -139,6 +162,7 @@ const WOOD = {
 
 function buildWoodChest(): Object3D {
   const parts: Object3D[] = [];
+  const lid: Object3D[] = [];
   const FOOT_H = 0.07;
   const RIM_H = 0.05;                       // 木箱没有厚腰带，只有一条窄沿
   const bodyY = FOOT_H + BODY_H / 2;
@@ -163,18 +187,19 @@ function buildWoodChest(): Object3D {
   // 窄沿（盖缝）
   parts.push(box([W + 0.04, RIM_H, D + 0.04], { color: WOOD.plankDark, position: [0, FOOT_H + BODY_H + RIM_H / 2, 0] }));
 
-  // 拱盖 + 盖上的板条缝（两道，跟着弧走）
-  parts.push(dome(WOOD.plank, domeBaseY, W - 0.02, squash));
+  // 拱盖 + 盖上的板条缝（两道，跟着弧走）——盖组
+  lid.push(dome(WOOD.plank, domeBaseY, W - 0.02, squash));
   for (const r of [DOME_R * 0.62, DOME_R * 0.86]) {
     const seamArc = domeArc(WOOD.seam, 0, domeBaseY, W - 0.015, squash, r);
     seamArc.userData.noOutline = true;
-    parts.push(seamArc);
+    lid.push(seamArc);
   }
 
   // 两条细铁箍：从盖上绕过、顺着箱体正反面下到底（参考图的标志结构）
   const STRAP_W = 0.09;
   for (const x of [-W / 4, W / 4]) {
-    parts.push(domeArc(WOOD.iron, x, domeBaseY, STRAP_W, squash + 0.035, DOME_R + 0.022));
+    // 箍的弧段骑在盖上，跟盖走；竖直段钉在箱体上，留在身上
+    lid.push(domeArc(WOOD.iron, x, domeBaseY, STRAP_W, squash + 0.035, DOME_R + 0.022));
     for (const side of [1, -1]) {
       const z = side * (D / 2 + 0.015);
       parts.push(
@@ -200,7 +225,7 @@ function buildWoodChest(): Object3D {
   );
   keyhole(parts, WOOD.outline, lockY, D / 2 + 0.062);
 
-  const root = group("chest-common", parts);
+  const root = assemble("chest-common", parts, lid, domeBaseY);
   outlineTree(root, WOOD.outline);
   return root;
 }
@@ -220,6 +245,7 @@ const SILVER = {
 
 function buildSilverChest(): Object3D {
   const parts: Object3D[] = [];
+  const lid: Object3D[] = [];
   const FOOT_H = 0.1;
   const BELT_H = 0.1;
   const PILLAR = 0.15;
@@ -274,13 +300,13 @@ function buildSilverChest(): Object3D {
     }),
   );
 
-  // 蓝瓷拱盖 + 顶部高光 + 两端银框弧
-  parts.push(dome(SILVER.panel, domeBaseY, W - 0.06, squash));
+  // 蓝瓷拱盖 + 顶部高光 + 两端银框弧——盖组
+  lid.push(dome(SILVER.panel, domeBaseY, W - 0.06, squash));
   const hi = dome(SILVER.panelLight, domeBaseY + 0.012, W - 0.24, squash * 0.94, DOME_R * 0.99);
   hi.castShadow = false;
-  parts.push(hi);
+  lid.push(hi);
   for (const x of [-(W / 2 - 0.09), W / 2 - 0.09]) {
-    parts.push(domeArc(SILVER.metal, x, domeBaseY, 0.13, squash + 0.03, DOME_R + 0.02));
+    lid.push(domeArc(SILVER.metal, x, domeBaseY, 0.13, squash + 0.03, DOME_R + 0.02));
   }
 
   // 大方锁：厚银板 + 内板 + 四角铆钉 + 大锁孔
@@ -306,7 +332,7 @@ function buildSilverChest(): Object3D {
   }
   keyhole(parts, SILVER.outline, lockY, D / 2 + 0.078);
 
-  const root = group("chest-uncommon", parts);
+  const root = assemble("chest-uncommon", parts, lid, domeBaseY);
   outlineTree(root, SILVER.outline);
   return root;
 }
@@ -326,6 +352,7 @@ const GOLD = {
 
 function buildGoldChest(): Object3D {
   const parts: Object3D[] = [];
+  const lid: Object3D[] = [];
   const FOOT_H = 0.1;
   const BELT_H = 0.1;
   const bodyY = FOOT_H + BODY_H / 2;
@@ -388,20 +415,20 @@ function buildGoldChest(): Object3D {
     }),
   );
 
-  // 蓝瓷拱盖 + 高光 + 两端金框弧
-  parts.push(dome(GOLD.panel, domeBaseY, W - 0.06, squash));
+  // 蓝瓷拱盖 + 高光 + 两端金框弧——盖组
+  lid.push(dome(GOLD.panel, domeBaseY, W - 0.06, squash));
   const hi = dome(GOLD.panelLight, domeBaseY + 0.012, W - 0.26, squash * 0.94, DOME_R * 0.99);
   hi.castShadow = false;
-  parts.push(hi);
+  lid.push(hi);
   for (const x of [-(W / 2 - 0.08), W / 2 - 0.08]) {
-    parts.push(domeArc(GOLD.gold, x, domeBaseY, 0.12, squash + 0.03, DOME_R + 0.02));
+    lid.push(domeArc(GOLD.gold, x, domeBaseY, 0.12, squash + 0.03, DOME_R + 0.02));
   }
 
-  // 冠饰：盖顶一条金脊 + 三个凸起（参考图金箱最认得出来的一笔）
+  // 冠饰：盖顶一条金脊 + 三个凸起（参考图金箱最认得出来的一笔）——盖组
   const crestY = domeBaseY + DOME_R * squash + 0.015;
-  parts.push(box([W * 0.62, 0.07, 0.15], { color: GOLD.gold, position: [0, crestY, 0] }));
+  lid.push(box([W * 0.62, 0.07, 0.15], { color: GOLD.gold, position: [0, crestY, 0] }));
   for (const x of [-W * 0.21, 0, W * 0.21]) {
-    parts.push(box([0.09, 0.07, 0.11], { color: GOLD.goldLight, position: [x, crestY + 0.05, 0] }));
+    lid.push(box([0.09, 0.07, 0.11], { color: GOLD.goldLight, position: [x, crestY + 0.05, 0] }));
   }
 
   // 华丽大锁：金外板 + 金亮内板 + 蓝内圈 + 大锁孔
@@ -423,7 +450,7 @@ function buildGoldChest(): Object3D {
   );
   keyhole(parts, GOLD.outline, lockY, D / 2 + 0.09);
 
-  const root = group("chest-rare", parts);
+  const root = assemble("chest-rare", parts, lid, domeBaseY);
   outlineTree(root, GOLD.outline);
   return root;
 }

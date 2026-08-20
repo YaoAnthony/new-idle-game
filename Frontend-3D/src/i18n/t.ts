@@ -346,6 +346,11 @@ const ZH: Record<string, string> = {
   "ui.chain.edit_hint":
     "拖节点摆位置 · 拖节点右缘的→到另一环连前置 · 点线删线 · 点环改内容",
   "ui.chain.tap_again_delete": "再点一下删除这条线",
+
+  // 开箱面板
+  "ui.chest.node_done": "完成了一环！",
+  "ui.chest.chain_done": "整条系列任务做完了！",
+  "ui.chest.tap_close": "点任意处收下",
   "ui.chain.optional": "（可不填）",
   "ui.chain.entry": "系列任务",
 

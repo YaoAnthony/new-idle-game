@@ -102,6 +102,7 @@ import { describeSoundscape, startSoundscape } from "./Engine/Soundscape";
 import { startMusicDirector } from "./Engine/MusicDirector";
 import { startBathSystem } from "../Game/Systems/bath";
 import { RoomScene } from "./World/RoomScene";
+import { ChestOverlay } from "../Components/ChestOverlay/ChestOverlay";
 
 /** /signal 的可选值。和 Core 的 StorySignalKind 一一对应 */
 const STORY_SIGNALS = [
@@ -856,6 +857,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       <GameSettingsModal />
       <SleepOverlay />
       <RewardPanel />
+      <ChestOverlay />
       <HudTopCenter />
       <FocusVignette />
       {/* 消息面板挂在游戏里而不是 App 里：消息记录属于**这个世界**，

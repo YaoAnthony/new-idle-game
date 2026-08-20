@@ -28,6 +28,7 @@ export type PanelId =
   | "station"
   | "storage"
   | "reward"
+  | "chest"
   | "escMenu";
 
 type UiState = {

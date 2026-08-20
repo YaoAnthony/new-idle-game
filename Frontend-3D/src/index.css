@@ -1057,3 +1057,63 @@ input {
 .ui-input::placeholder {
   color: var(--ink-soft);
 }
+
+/* ---- 开箱面板（ChestOverlay）---- */
+
+/* 物品卡出场：从箱口方向（上方）落下来，落位回弹。
+   曲线和快捷栏选中同一条，全局手感统一 */
+.chest-card-fly {
+  opacity: 0;
+  animation: chest-card-fly 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes chest-card-fly {
+  from {
+    opacity: 0;
+    transform: translateY(-52px) scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* 稀有档的卡多一圈描边和轻微呼吸 */
+.chest-card--rare .ui-slot {
+  border-color: #7fb2e0;
+  animation: chest-card-breathe 1.6s ease-in-out infinite;
+}
+@keyframes chest-card-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(127, 178, 224, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 10px 3px rgba(127, 178, 224, 0.55);
+  }
+}
+
+/* 大箱的纸屑：从顶上飘下来，各自转 */
+.chest-confetti {
+  position: absolute;
+  top: -18px;
+  width: 8px;
+  height: 12px;
+  border-radius: 2px;
+  animation-name: chest-confetti-fall;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+@keyframes chest-confetti-fall {
+  to {
+    transform: translateY(105vh) rotate(680deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chest-card-fly,
+  .chest-confetti,
+  .chest-card--rare .ui-slot {
+    animation: none;
+    opacity: 1;
+  }
+}

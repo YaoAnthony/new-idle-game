@@ -1,8 +1,10 @@
+import { spawnWorldOf } from "core";
 import { findMapDefinition } from "../../Maps/index.js";
 import { emit } from "../EventBus";
 import { isInSession } from "../Multiplayer/session";
 import { restoreLocalPosition } from "../State/participants";
 import { switchMapState } from "../State/world/entities";
+import { primaryRoomOf } from "../State/world/maps";
 import { getCurrentMap, getCurrentMapId } from "../State/worldRuntime";
 import { saveNow } from "../../Data/Save/autosave";
 import { standUp } from "./resting";
@@ -47,7 +49,10 @@ export function travelTo(
 
   switchMapState(target);
 
-  const arrive = landing ?? target.spawn;
+  // 出生点是房本地坐标（MapDefinition.spawn 的注释），经目标图主房间的
+  // 锚点世界化。switchMapState 刚把目标图的房间放进世界，直接取
+  const arrive =
+    landing ?? spawnWorldOf(target.spawn, primaryRoomOf(target));
 
   /*
    * 站到目标图的出生点。要在场景重建**之前**写好——新 RoomScene 的

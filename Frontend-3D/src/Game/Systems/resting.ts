@@ -3,6 +3,7 @@ import {
   findNearestFreeAnchor,
   hasAnchorFor,
   listRoomAnchors,
+  worldToRoomCell,
   type AnchorRef,
 } from "core";
 import {
@@ -25,13 +26,9 @@ import { getCurrentMap, getDefinition, getWorld } from "../State/worldRuntime";
  * posture_changed 之后做的事——Game/ 不能碰 three。
  */
 
-/** 世界坐标 → 格子坐标 */
+/** 世界坐标 → 格子坐标（官方换算，RoomAnchor 感知） */
 function toCell(x: number, z: number): { x: number; y: number } {
-  const { floorGrid } = getWorld().room;
-  return {
-    x: Math.floor(x + floorGrid.width / 2),
-    y: Math.floor(z + floorGrid.height / 2),
-  };
+  return worldToRoomCell(getWorld().room, x, z);
 }
 
 /** 屋里 + 院子里所有该姿态的锚点（据点③起室外家具也能坐） */

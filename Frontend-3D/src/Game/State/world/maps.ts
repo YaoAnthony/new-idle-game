@@ -1,5 +1,6 @@
 import {
   findPlaceableItem,
+  isHouseStowed,
   roomStyleDefinitions,
   type MapDefinition,
   type MapSave,
@@ -25,9 +26,25 @@ export type WorldRuntime = {
 export function getWorld(): WorldRuntime {
   return {
     room: worldState.room,
-    placedFurniture: worldState.placedFurniture,
+    /*
+     * **在场**的家具，不是存档里的全部——住在收起来的房子里的东西
+     * 跟着房子一起不在场（见 state.presentFurniture）。和"别图的实体
+     * 搁置起来"是同一套账：消费方永远只看见此刻真在世界上的东西。
+     */
+    placedFurniture: worldState.presentFurniture,
     occupancy: worldState.occupancy,
   };
+}
+
+/**
+ * 某张图的主房间几何（含 RoomAnchor）。出生点是房本地坐标
+ * （spawnWorldOf 要拿房间锚点世界化），跨图取房间的唯一入口在这——
+ * 当前图直接给活跃房间，别的图从搁置堆里翻。没访问过的图（还没生成
+ * 过几何）返回 undefined，调用方按缺省锚点算——首访的图必然还没挪过房。
+ */
+export function primaryRoomOf(map: MapDefinition): RoomSave | undefined {
+  if (map.mapId === worldState.map.mapId) return worldState.room;
+  return worldState.shelvedMaps[map.mapId]?.rooms[map.primaryRoomId];
 }
 
 /** 当前地图的定义（出生点、院子范围、室外分区 id 都从这里读） */
@@ -42,6 +59,27 @@ export function getCurrentMapId(): string {
 /** 当前屋子风格（环境音按 regionId 选，装修系统以后也读它） */
 export function getRoomStyle(): (typeof roomStyleDefinitions)[number] {
   return worldState.style;
+}
+
+/**
+ * 收起 / 放下一个房间（见 RoomSave.stowed）。**几何状态的唯一写入口**。
+ *
+ * 只改数据，不管规矩也不管重建：前置条件（人在不在屋里）由玩法层
+ * 决定（Systems/house），场景重建由 React 那头听 map_changed 做。
+ * 这一层要是顺手把两件事都办了，联机重放和调试指令就没法只走数据。
+ *
+ * 返回是否真的变了——已经是那个状态时不重建场景（白闪一下很难看）。
+ */
+export function setRoomStowed(roomId: string, stowed: boolean): boolean {
+  const target = worldState.rooms[roomId];
+  if (!target || isHouseStowed(target) === stowed) return false;
+
+  // false 写成 undefined 而不是 false：存档里不留"这栋房子没收起来"
+  // 这种废字段，老档和新档的形状也就还是一样的
+  const next: RoomSave = { ...target, stowed: stowed || undefined };
+  worldState.replaceRooms({ ...worldState.rooms, [roomId]: next });
+  emit("world_changed", { reason: stowed ? "house_stowed" : "house_placed" });
+  return true;
 }
 
 export function setRoomStyleId(styleId: string): void {

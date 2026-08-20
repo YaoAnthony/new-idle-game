@@ -1,6 +1,7 @@
 import type { MapDefinition } from "core";
 import type { OutdoorTerrainBuilder } from "../Game3D/World/outdoorTerrain.js";
 import { baseMapDefinition } from "./base/index.js";
+import { buildBaseHouseDressing } from "./base/houseDressing.js";
 import { buildBaseTerrain } from "./base/outdoor.js";
 import { shopMapDefinitions } from "./shops/index.js";
 import { shopInteriorBuilder } from "./shops/interiors.js";
@@ -72,6 +73,26 @@ const terrainBuilders: Record<string, OutdoorTerrainBuilder> = {
 /** 没登记外景的图给一块素草地兜底，别让新图一进去就掉进虚空 */
 export function outdoorTerrainOf(mapId: string): OutdoorTerrainBuilder {
   return terrainBuilders[mapId] ?? buildTownTerrain;
+}
+
+/**
+ * 各图**长在房上的陈设**（门前广场、储物角这类）。和外景地形分成两张
+ * 登记表是拆账的结果（2026-08-20）：外景是地理（世界固定），陈设跟房走
+ * ——建出来的组挂在房屋 root 底下，坐标写房本地系，锚点由 root 统一
+ * 入世界。收 floorLevel 是因为陈设站在院子地面上而 root 的 y=0 在
+ * 室内地板（同缘侧那笔账）。没有陈设的图不登记，返回 undefined。
+ */
+const houseDressingBuilders: Record<
+  string,
+  (floorLevel: number) => import("three").Object3D
+> = {
+  base: buildBaseHouseDressing,
+};
+
+export function houseDressingOf(
+  mapId: string,
+): ((floorLevel: number) => import("three").Object3D) | undefined {
+  return houseDressingBuilders[mapId];
 }
 
 export { baseMapDefinition, townMapDefinition };

@@ -1,10 +1,15 @@
 import {
   HouseZoneKind,
   WallOpeningKind,
+  anchorHeadingToWorld,
+  anchorOf,
+  anchorPointToWorld,
+  anchorVecToWorld,
   exteriorWallFace,
   faceCellCorner,
   faceCellToWorld,
-  placementFacesOf,
+  isHouseStowed,
+  localPlacementFacesOf,
   zoneAt,
   type InteriorWall,
   type OutdoorDeck,
@@ -68,6 +73,16 @@ export type BuiltHouse = {
   size: { width: number; depth: number };
   /** 墙高（来自存档的墙格，不再有硬编码常量） */
   wallHeight: number;
+  /**
+   * 这栋房子收起来了（见 RoomSave.stowed）：上面每个组都是空的，
+   * 但 size / wallHeight 仍是**户型蓝图的值**。
+   *
+   * 蓝图值不清零是刻意的：镜头取景范围、院子边界、外景构图全从房子
+   * 尺寸推——那些是**地理**（据点多大、樱花树离北墙多远），不该因为
+   * 房子暂时不在场就整个据点缩水一圈。消费方要判"有没有房子"读这个
+   * 标志，别去看 size 是不是 0。
+   */
+  stowed: boolean;
 };
 
 export type WindowAnchor = {
@@ -634,7 +649,9 @@ function buildFacePickers(room: RoomSave): {
   root.name = "face-pickers";
   const byFace = new Map<string, Object3D>();
   const material = new MeshBasicMaterial({ visible: false });
-  const faces = placementFacesOf(room).filter((face) => face.surface === "wall");
+  // 本地面而不是世界面：拾取平面挂在 root 底下，坐标由 root 的锚点
+  // 变换入世界——用世界面就转两次，房子一挪拾取面飞出去一倍远
+  const faces = localPlacementFacesOf(room).filter((face) => face.surface === "wall");
   for (const face of faces) {
     const { grid, frame } = face;
     const plane = new Mesh(new PlaneGeometry(grid.width, grid.height), material);
@@ -680,6 +697,37 @@ export function buildHouse(
     3,
     ...Object.values(room.walls).map((wall) => wall.grid.height),
   );
+
+  /*
+   * 房子收起来了：**一个网格体都不建**，直接还一副空壳。
+   *
+   * 走早退而不是在下面每一段前面加 if：这个函数有十几段建造（地板、
+   * 天花、木构、内墙、拾取面、外皮、屋顶、缘侧、门廊…），逐段加判据
+   * 等于把"房子在不在"这一个问题问十几遍，将来加一段就漏一处。
+   * openAir 那套按段跳过是另一回事——广场是**部分**构件不建。
+   *
+   * 空壳保住 BuiltHouse 的形状（同 openAir 用空组占位的理由）：
+   * RoomScene 拿到的字段一个不少，遍历空数组自然什么都不做。
+   */
+  if (isHouseStowed(room)) {
+    const empty = new Object3D();
+    empty.name = `room-${room.roomId}-stowed`;
+    return {
+      root: empty,
+      floor: new Object3D(),
+      ceiling: new Object3D(),
+      walls: new Map(),
+      windows: [],
+      doors: [],
+      interiorWalls: new Object3D(),
+      exteriorWalls: new Object3D(),
+      roofShell: new Object3D(),
+      ridgeHeight: wallHeight,
+      size: { width, depth },
+      wallHeight,
+      stowed: true,
+    };
+  }
 
   const root = new Object3D();
   root.name = `room-${room.roomId}`;
@@ -772,24 +820,48 @@ export function buildHouse(
    * 玄关门廊：每个外墙门口一座。进屋顶组当独立淡出单位——它挑出
    * 2.4 格又有实体山墙，玩家站门口时镜头俯角一大就会被它整个盖住。
    * 露天房间（广场）的门是镇门，不配玄关门廊。
+   * 注意门廊吃的是**本地**锚点（它自己也在 root 底下）——必须在下面
+   * 世界化 doors 之前建完。
    */
   if (!openAir) {
     for (const door of doors) roofShell.add(buildPorch(door, floorLevel));
   }
+
+  /*
+   * 房屋锚点（RoomAnchor）在这里入世界，**只此一处**：整棟房子都建在
+   * 房本地系里（中心原点、朝北），root 的一个变换把它搬到世界。
+   * rotation 用 Core 的 anchorHeadingToWorld(anchor, 0)——那正是四向
+   * 对应的 FACING_ROTATION 角，从同一份约定推，两边不可能拧。
+   *
+   * 例外是暴露给外界的门窗锚点：DoorView / 景深盒 / 环境音都活在
+   * 世界系（scene 层级），所以 center/inward 在出口处转成世界坐标。
+   */
+  const anchor = anchorOf(room);
+  root.position.set(anchor.x, anchor.elevation, anchor.z);
+  root.rotation.y = anchorHeadingToWorld(anchor, 0);
+
+  const toWorldAnchor = (a: WindowAnchor): WindowAnchor => {
+    const [cx, cy, cz] = a.center;
+    const [ix, iy, iz] = a.inward;
+    const c = anchorPointToWorld(anchor, { x: cx, y: cy, z: cz });
+    const n = anchorVecToWorld(anchor, { x: ix, y: iy, z: iz });
+    return { ...a, center: [c.x, c.y, c.z], inward: [n.x, n.y, n.z] };
+  };
 
   return {
     root,
     floor,
     ceiling,
     walls,
-    windows,
-    doors,
+    windows: windows.map(toWorldAnchor),
+    doors: doors.map(toWorldAnchor),
     interiorWalls,
     exteriorWalls: exterior.walls,
     roofShell,
     ridgeHeight,
     size: { width, depth },
     wallHeight,
+    stowed: false,
   };
 }
 

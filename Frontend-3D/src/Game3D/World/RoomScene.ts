@@ -1,4 +1,4 @@
-import { BodyPosture, DayPhaseId, Facing, FurnitureCapability, WeatherKind, findItemDefinition, findPath, findPetDefinition, type WeatherDefinition, yardBoundsOf } from "core";
+import { BodyPosture, DayPhaseId, Facing, FurnitureCapability, WeatherKind, findItemDefinition, findPath, findPetDefinition, roomCellToWorld, worldToRoomCell, type WeatherDefinition, yardBoundsOf } from "core";
 import type { InteractHint } from "core";
 import {
   PointLight,
@@ -101,7 +101,7 @@ import {
   roomIdAt,
   seedInitialFurniture,
 } from "../../Game/State/worldRuntime";
-import { outdoorTerrainOf } from "../../Maps/index";
+import { houseDressingOf, outdoorTerrainOf } from "../../Maps/index";
 import { buildGroundFixtures } from "./groundFixtures.js";
 import { getActiveAction } from "../../Game/Systems/actions";
 import {
@@ -312,6 +312,14 @@ export class RoomScene {
     );
     this.scene.add(this.built.root);
 
+    // 长在房上的陈设（门前广场、储物角…）：挂 root 底下随锚点走，
+    // 坐标是房本地系（见 Maps/index 的 houseDressingOf）。
+    // 房子收起来了就不建——陈设是房子的一部分，房子不在场它也不在
+    if (!this.built.stowed) {
+      const dressing = houseDressingOf(getCurrentMapId());
+      if (dressing) this.built.root.add(dressing(getCurrentMap().floorLevel));
+    }
+
     // 门板：没有它门洞会直接透出背景色
     for (const anchor of this.built.doors) {
       const door = new DoorView(anchor);
@@ -319,13 +327,15 @@ export class RoomScene {
       this.scene.add(door.root);
     }
 
-    // 内墙门洞的门板，由 Door 实体驱动（自动开关、锁都在逻辑层）
+    // 内墙门洞的门板，由 Door 实体驱动（自动开关、锁都在逻辑层）。
+    // 挂 built.root 不挂 scene：它的坐标是房本地系（cell - half），
+    // 房屋锚点由 root 的变换统一入世界（RoomAnchor），门板跟房走
     for (const doorway of room.interiorDoorways ?? []) {
       const agent = findDoorAgent(doorway.doorwayId);
       if (!agent) continue;
       const view = new RoomDoorView(doorway, agent, room.floorGrid);
       this.roomDoorViews.set(doorway.doorwayId, view);
-      this.scene.add(view.root);
+      this.built.root.add(view.root);
     }
 
     for (const anchor of this.built.windows) {
@@ -404,11 +414,11 @@ export class RoomScene {
       this.furnitureView.findInstancesWithCapability(FurnitureCapability.Bath),
     );
 
-    this.furnitureView = new FurnitureView(this.built.size);
+    this.furnitureView = new FurnitureView();
     this.scene.add(this.furnitureView.root);
 
     // 槽位上的锅碗单独一层：家具一天动不了几次，锅里的东西每次投料都变
-    this.cookwareView = new CookwareView(this.built.size);
+    this.cookwareView = new CookwareView();
     this.scene.add(this.cookwareView.root);
 
     this.droppedItemView = new DroppedItemView();
@@ -581,8 +591,10 @@ export class RoomScene {
     this.rig.setRoomBounds(
       this.built.size.width,
       this.built.size.depth,
-      // 露天房间（广场）没有天花板，矮墙 2 格锁镜头会把视角摁在地上
-      getCurrentMap().openAir ? 10 : this.built.wallHeight,
+      // 露天房间（广场）没有天花板，矮墙 2 格锁镜头会把视角摁在地上。
+      // 房子收起来时同理：头顶什么都没有，按蓝图墙高锁镜头就成了
+      // 一个看不见的天花板
+      this.ceilingClearance(),
     );
     // 开局就站在角色背后，不要让玩家看见镜头自己转过去
     this.rig.lookAtPoint(this.controller.x, this.controller.z);
@@ -951,8 +963,14 @@ export class RoomScene {
     const w = rotated ? footprint.height : footprint.width;
     const h = rotated ? footprint.width : footprint.height;
 
-    const centerX = gridPosition.x - room.floorGrid.width / 2 + w / 2;
-    const centerZ = gridPosition.y - room.floorGrid.height / 2 + h / 2;
+    // 占地中心（世界坐标，RoomAnchor 感知）
+    const centerWorld = roomCellToWorld(
+      room,
+      gridPosition.x + (w - 1) / 2,
+      gridPosition.y + (h - 1) / 2,
+    );
+    const centerX = centerWorld.x;
+    const centerZ = centerWorld.z;
 
     // 家具四周找一个可走的邻格
     const candidates: Array<{ x: number; y: number }> = [];
@@ -965,10 +983,7 @@ export class RoomScene {
       candidates.push({ x: gridPosition.x + w, y: gridPosition.y + dy });
     }
 
-    const start = {
-      x: Math.floor(this.controller.x + room.floorGrid.width / 2),
-      y: Math.floor(this.controller.z + room.floorGrid.height / 2),
-    };
+    const start = worldToRoomCell(room, this.controller.x, this.controller.z);
 
     this.controller.enabled = false;
 
@@ -979,12 +994,10 @@ export class RoomScene {
       });
       if (!path) continue;
 
-      const points = path.map(
-        (p): [number, number] => [
-          p.x - room.floorGrid.width / 2 + 0.5,
-          p.y - room.floorGrid.height / 2 + 0.5,
-        ],
-      );
+      const points = path.map((p): [number, number] => {
+        const world = roomCellToWorld(room, p.x, p.y);
+        return [world.x, world.z];
+      });
       this.controller.walkAlong(points, () => {
         this.enterFocusPose(centerX, centerZ);
       });
@@ -1131,7 +1144,7 @@ export class RoomScene {
       const center = furnitureWorldCenter(
         placed,
         definition.placement,
-        this.built.size,
+        getWorld().room,
       );
       const distance = Math.hypot(
         center.x - this.controller.x,
@@ -1452,7 +1465,7 @@ export class RoomScene {
                   ? furnitureWorldCenter(
                       placed,
                       getDefinition(placed.furnitureId)!.placement,
-                      this.built.size,
+                      getWorld().room,
                     )
                   : { x: this.controller.x, z: this.controller.z };
                 throwItem({
@@ -1637,7 +1650,7 @@ export class RoomScene {
       placed.placement,
       definition.placement.footprint,
       ref.anchor.offset,
-      this.built.size,
+      getWorld().room,
     );
 
     const poseId = ref.anchor.poseId ?? defaultPoseFor(ref.anchor.posture);
@@ -1676,7 +1689,7 @@ export class RoomScene {
       placed.placement,
       definition.placement.footprint,
       ref.slot.offset,
-      this.built.size,
+      getWorld().room,
     );
   }
 
@@ -2286,7 +2299,7 @@ export class RoomScene {
       this.rig.setRoomBounds(
         width,
         depth,
-        getCurrentMap().openAir ? 10 : this.built.wallHeight,
+        this.ceilingClearance(),
       );
       this.rig.setObstacleBoxes([]);
     }
@@ -2319,6 +2332,16 @@ export class RoomScene {
 
     this.rig.setAspect(width / Math.max(height, 1));
     this.renderer.resize(width, height);
+  }
+
+  /**
+   * 镜头竖向上限。有屋顶就按墙高锁住（动森式的"镜头在屋里"），
+   * 露天场地和**收起来的房子**头顶没东西，给一个够高的数放开。
+   */
+  private ceilingClearance(): number {
+    return getCurrentMap().openAir || this.built.stowed
+      ? 10
+      : this.built.wallHeight;
   }
 
   dispose(): void {

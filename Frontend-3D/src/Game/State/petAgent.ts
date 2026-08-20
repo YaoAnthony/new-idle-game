@@ -10,6 +10,8 @@ import {
   findPetTaste,
   findPlaceableItem,
   footprintCells,
+  roomCellToWorld,
+  worldToRoomCell,
   type GridPosition,
   type PetSave,
 } from "core";
@@ -77,19 +79,13 @@ const DEFAULT_THIRST_PER_HOUR = 12;
 const SLEEP_METABOLISM = 0.35;
 
 function gridToWorldXZ(cell: GridPosition): [number, number] {
-  const { room } = getWorld();
-  return [
-    cell.x - room.floorGrid.width / 2 + 0.5,
-    cell.y - room.floorGrid.height / 2 + 0.5,
-  ];
+  // 官方换算（RoomAnchor 感知），不再手写平移半间房
+  const p = roomCellToWorld(getWorld().room, cell.x, cell.y);
+  return [p.x, p.z];
 }
 
 function worldToGrid(x: number, z: number): GridPosition {
-  const { room } = getWorld();
-  return {
-    x: Math.floor(x + room.floorGrid.width / 2),
-    y: Math.floor(z + room.floorGrid.height / 2),
-  };
+  return worldToRoomCell(getWorld().room, x, z);
 }
 
 export class PetAgent {

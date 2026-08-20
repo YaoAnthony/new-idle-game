@@ -1,4 +1,4 @@
-import { AudioBusId, AudioTriggerKind, DayPhaseId, PlacementSurface, defaultZoneAudioProfile, findActionDefinition, findAudioProfileDefinition, resolveRegionAmbienceProfileId, zoneAt, zoneAudioProfiles, zoneFootstepProfileIds, type PlaceableItem, type PlacedFurniture } from "core";
+import { AudioBusId, AudioTriggerKind, DayPhaseId, PlacementSurface, defaultZoneAudioProfile, findActionDefinition, findAudioProfileDefinition, resolveRegionAmbienceProfileId, worldToRoomCell, zoneAt, zoneAudioProfiles, zoneFootstepProfileIds, type PlaceableItem, type PlacedFurniture } from "core";
 import { on } from "../../Game/EventBus";
 import { getClock } from "../../Game/State/clock";
 import { findDoorAgent } from "../../Game/State/doorsRuntime";
@@ -10,6 +10,7 @@ import {
   furnitureWorldCenter,
   slotWorldPosition,
 } from "../World/FurnitureView.js";
+import type { FurnitureRoom } from "../World/furnitureMath.js";
 import {
   activeLoops,
   getBusVolume,
@@ -101,11 +102,9 @@ function currentZoneProfile(): { weatherVolumeScale: number; ambienceVolumeScale
 }
 
 function worldToCell(x: number, z: number): { x: number; y: number } {
-  const { floorGrid } = getWorld().room;
-  return {
-    x: Math.floor(x + floorGrid.width / 2),
-    y: Math.floor(z + floorGrid.height / 2),
-  };
+  // 世界 → 地板格的官方换算（RoomAnchor 感知）。原来这里手写
+  // `floor(x + halfW)`——那是"房子中心=原点"公理的第 N 份拷贝
+  return worldToRoomCell(getWorld().room, x, z);
 }
 
 /**
@@ -133,7 +132,7 @@ function furnitureLoopProfile(
 function furnitureVolume(
   placed: PlacedFurniture,
   cookingInstances: Set<string>,
-  size: { width: number; depth: number },
+  room: FurnitureRoom,
 ): number {
   const definition = getDefinition(placed.furnitureId);
   const profileId = furnitureLoopProfile(definition);
@@ -155,7 +154,7 @@ function furnitureVolume(
 
   // 只比平面距离：挂钟挂在 1.8 米高，但"走到钟底下"就该听见，
   // 把高度算进去会让墙上的东西永远差一截
-  const distance = distanceToFurniture(placed, definition, size);
+  const distance = distanceToFurniture(placed, definition, room);
   if (distance >= radius) return 0;
 
   const falloff = 1 - distance / radius;
@@ -216,7 +215,7 @@ export function playOneShotAt(
 function distanceToFurniture(
   placed: PlacedFurniture,
   item: PlaceableItem,
-  size: { width: number; depth: number },
+  room: FurnitureRoom,
 ): number {
   const flat = (point: { x: number; z: number }): number =>
     Math.hypot(point.x - listenerX, point.z - listenerZ);
@@ -227,12 +226,12 @@ function distanceToFurniture(
     const placement = placed.placement;
     return Math.min(
       ...slots.map((slot) =>
-        flat(slotWorldPosition(placement, footprint, slot.offset, size)),
+        flat(slotWorldPosition(placement, footprint, slot.offset, room)),
       ),
     );
   }
 
-  return flat(furnitureWorldCenter(placed, item.placement, size));
+  return flat(furnitureWorldCenter(placed, item.placement, room));
 }
 
 /** 现在应该在播的持续音：tag → 目标 */
@@ -285,11 +284,10 @@ function desiredLoops(): Map<string, DesiredLoop> {
   // 分区档案**不缩放**家具音：它表达的是"隔着墙听外面"，
   // 而壁炉本来就和玩家在同一个屋里，卧室里的壁炉不该因为你在卧室就变小声
   const cookingInstances = activeFurnitureInstances();
-  const { floorGrid } = getWorld().room;
-  const size = { width: floorGrid.width, depth: floorGrid.height };
+  const room = getWorld().room;
 
   for (const placed of getWorld().placedFurniture) {
-    const volume = furnitureVolume(placed, cookingInstances, size);
+    const volume = furnitureVolume(placed, cookingInstances, room);
     if (volume <= 0) continue;
 
     const profileId = furnitureLoopProfile(getDefinition(placed.furnitureId));

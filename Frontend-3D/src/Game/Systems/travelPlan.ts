@@ -1,8 +1,9 @@
-import type { MapDefinition, MapPortal } from "core";
+import { spawnWorldOf, type MapDefinition, type MapPortal } from "core";
 import { findMapDefinition, mapDefinitions } from "../../Maps/index";
 import { buildingDoorOutward, findBuilding } from "../../Buildings/index";
 import { TOWN_BUILDINGS } from "../../Maps/town/buildings";
 import { t } from "../../i18n/t";
+import { primaryRoomOf } from "../State/world/maps";
 
 /**
  * "去某个地方"的两件数据：**能去哪儿**（地名表）和**怎么过去**（图与图
@@ -150,6 +151,8 @@ export function planRoute(
 function spawnSpot(mapId: string): { x: number; z: number } | null {
   const map = findMapDefinition(mapId);
   if (!map) return null;
-  // MapDefinition.spawn 的 y 就是世界 z（和 portal.landing 同一套约定）
-  return { x: map.spawn.x, z: map.spawn.y };
+  // spawn 是房本地坐标（y 是本地 z），经目标图主房间的锚点世界化；
+  // 没访问过的图还没有房间几何 → 按缺省锚点算（首访必然没挪过房）
+  const world = spawnWorldOf(map.spawn, primaryRoomOf(map));
+  return { x: world.x, z: world.y };
 }

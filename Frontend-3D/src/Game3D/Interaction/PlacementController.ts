@@ -1,4 +1,4 @@
-import { Facing, PlacementSurface } from "core";
+import { Facing, PlacementSurface, anchorOf, worldToRoomLocal } from "core";
 import {
   hostGeometryOf,
   surfaceChildPose,
@@ -24,7 +24,11 @@ import {
 } from "../../Game/State/worldRuntime";
 import { placeFromItem } from "../../Game/Systems/placement";
 import { buildItemVisual } from "../Visual/VisualRegistry.js";
-import { FACING_ROTATION, placeOnWall } from "../World/FurnitureView.js";
+import { placeOnWall } from "../World/FurnitureView.js";
+import {
+  furnitureCenterWorld,
+  furnitureWorldYaw,
+} from "../World/furnitureMath.js";
 import { wallFaceOf, worldToFaceCell } from "core";
 
 /**
@@ -277,8 +281,10 @@ export class PlacementController {
     const w = rotated ? footprint.height : footprint.width;
     const h = rotated ? footprint.width : footprint.height;
 
-    this.gridX = Math.round(this.hit.x + room.floorGrid.width / 2 - w / 2);
-    this.gridY = Math.round(this.hit.z + room.floorGrid.height / 2 - h / 2);
+    // 命中点世界 → 房本地再取格（RoomAnchor 感知；官方换算见 roomAnchor）
+    const local = worldToRoomLocal(room, this.hit.x, this.hit.z);
+    this.gridX = Math.round(local.x + room.floorGrid.width / 2 - w / 2);
+    this.gridY = Math.round(local.z + room.floorGrid.height / 2 - h / 2);
     this.refresh();
   }
 
@@ -352,13 +358,12 @@ export class PlacementController {
     );
     if (!geometry) return false;
 
-    const size = { width: room.floorGrid.width, depth: room.floorGrid.height };
     const cell = worldPointToSurfaceCell(
       geometry,
       first.point,
       surfaceFootprint,
       this.facing,
-      size,
+      room,
     );
 
     this.hostInstanceId = instanceId;
@@ -436,7 +441,6 @@ export class PlacementController {
     this.valid = check.ok && getCount(this.itemId) > 0;
 
     const { room } = getWorld();
-    const size = { width: room.floorGrid.width, depth: room.floorGrid.height };
 
     this.ghost.visible = true;
 
@@ -458,7 +462,7 @@ export class PlacementController {
         geometry,
         { gridPosition: target.gridPosition, facing: this.facing },
         surfaceFootprint,
-        size,
+        room,
       );
       this.ghost.position.set(pose.x, pose.y, pose.z);
       this.ghost.rotation.y = pose.rotationY;
@@ -470,20 +474,15 @@ export class PlacementController {
         definition.placement.footprint,
       );
     } else {
-      const rotated = this.facing === Facing.East || this.facing === Facing.West;
-      const w = rotated
-        ? definition.placement.footprint.height
-        : definition.placement.footprint.width;
-      const h = rotated
-        ? definition.placement.footprint.width
-        : definition.placement.footprint.height;
-
-      this.ghost.position.set(
-        this.gridX - size.width / 2 + w / 2,
-        0,
-        this.gridY - size.depth / 2 + h / 2,
+      // 虚影和落地渲染同一份数学（furnitureMath，RoomAnchor 感知）——
+      // 各算各的迟早差半格
+      const center = furnitureCenterWorld(
+        { gridPosition: { x: this.gridX, y: this.gridY }, facing: this.facing },
+        definition.placement.footprint,
+        room,
       );
-      this.ghost.rotation.y = FACING_ROTATION[this.facing];
+      this.ghost.position.set(center.x, anchorOf(room).elevation, center.z);
+      this.ghost.rotation.y = furnitureWorldYaw(room, this.facing);
     }
 
     const color = this.valid ? GHOST_OK : GHOST_BAD;

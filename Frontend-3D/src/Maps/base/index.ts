@@ -76,6 +76,10 @@ export const baseMapDefinition: MapDefinition = {
    * 玄关内侧（2LDK 户型门在西墙 z1~2）。heading = π/2 是朝东（+X）。
    * 出生点是地图的知识：每张地图的门开在哪、进门站哪，只有户型数据
    * 自己知道。
+   *
+   * **房本地坐标**（RoomAnchor 之后）：出生点长在玄关上，房子挪走
+   * 它得跟着门走——消费方经 spawnWorldOf 世界化，缺省锚点下数值
+   * 即世界坐标，和从前逐字相同。
    */
   spawn: { x: -8.5, y: -6, heading: Math.PI / 2 },
 
@@ -84,6 +88,8 @@ export const baseMapDefinition: MapDefinition = {
    * 据点里河改在东墙外——东缘侧隔墙看河，墙高压在坐姿视线以下
    * （0.9 墙 vs ≈1.1 视线），是把 home 的名场面搬来的关键一笔。
    */
+  // 缘侧贴着外墙长在房上：from/to 是**房本地**坐标（OutdoorDeck 注释），
+  // 房子挪走缘侧跟着走——groundMap 和 HouseBuilder 各自在出口处复合锚点
   outdoorDecks: [
     { deckId: "engawa-north", side: "north", from: -12, to: 14, depth: 2 },
     { deckId: "engawa-east", side: "east", from: -10, to: 10, depth: 2 },

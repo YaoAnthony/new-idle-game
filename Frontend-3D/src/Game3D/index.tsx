@@ -85,6 +85,7 @@ import {
 import { unlockAudio } from "./Engine/AudioEngine";
 import { initAudioSettings } from "./Engine/audioSettings";
 import { startParticipantSync } from "../Game/Systems/participantSync";
+import { placeHouse, stowHouse } from "../Game/Systems/house";
 import { travelTo } from "../Game/Systems/mapTravel";
 import { autoWalkTo, initAutoWalk } from "../Game/Systems/autoWalk";
 import { destinations } from "../Game/Systems/travelPlan";
@@ -539,6 +540,36 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
           // 门口挤不下大家伙，直接放到屋子中部空地
           debugPlacePet(petId, 0, 4);
           return ok(`${definition.id} 来了`);
+        },
+      }),
+      registerCommand({
+        name: "house",
+        arguments: [
+          { name: "动作", suggest: () => asSuggestions(["stow", "place"]) },
+        ],
+        usage: "house <stow|place>",
+        description: "收起 / 放下据点的房子（规矩在 Systems/house，这里只是入口）",
+        handler: (args) => {
+          const action = parseEnum(args[0], ["stow", "place"] as const, "动作");
+          const result = action === "stow" ? stowHouse() : placeHouse();
+          // `=== false` 收窄：同 /goto，tsconfig 没开 strict，
+          // 真值收窄在判别式联合上不生效
+          if (result.ok !== false) {
+            return ok(action === "stow" ? "房子收起来了" : "房子放回去了");
+          }
+          /*
+           * 逐条说清楚为什么不行。**这是"房子不是家具"落到玩家面前的
+           * 第一层**：家具右键就收走，房子会当面拒绝你，并且说得出理由。
+           * 将来接工人 NPC 时，这些理由就是他站在门口要说的话。
+           */
+          const why: Record<string, string> = {
+            busy: "现在动不了房子",
+            no_house: "这张图没有房子可收",
+            already:
+              action === "stow" ? "房子已经收起来了" : "房子本来就立着",
+            player_inside: "你还在屋里——先走出去，房子不能从你脚底下抽走",
+          };
+          return fail(why[result.reason] ?? "收不了");
         },
       }),
       registerCommand({

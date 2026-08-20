@@ -7,7 +7,12 @@ import {
   type GridPosition,
   type PlacedFurniture,
 } from "core";
-import { FACING_ROTATION, furnitureCenterWorld } from "./furnitureMath.js";
+import {
+  FACING_ROTATION,
+  furnitureCenterWorld,
+  furnitureWorldYaw,
+  type FurnitureRoom,
+} from "./furnitureMath.js";
 
 /**
  * 台面坐标 ↔ 世界坐标 的换算（V0.13）。**规则在 Core 的 logic/surfaces，
@@ -40,9 +45,9 @@ export function surfaceChildPose(
   host: HostGeometry,
   child: { gridPosition: GridPosition; facing: Facing },
   childFootprint: GridFootprint,
-  size: { width: number; depth: number },
+  room: FurnitureRoom,
 ): SurfaceChildPose {
-  const center = furnitureCenterWorld(host.placement, host.footprint, size);
+  const center = furnitureCenterWorld(host.placement, host.footprint, room);
 
   // 子物件占地中心（半格，本地系）。子物件自己的朝向会转它的宽高
   const oriented = orientedFootprint(childFootprint, child.facing);
@@ -57,13 +62,17 @@ export function surfaceChildPose(
     cellY * SURFACE_CELL_METERS -
     (host.surfaceGrid.height * SURFACE_CELL_METERS) / 2;
 
-  const angle = FACING_ROTATION[host.placement.facing];
+  // 世界角（宿主朝向复合房子朝向）：房子转的时候，台面上的东西
+  // 跟着宿主和房一起转
+  const angle = furnitureWorldYaw(room, host.placement.facing);
   const cos = Math.cos(angle);
   const sin = Math.sin(angle);
 
   return {
     x: center.x + localX * cos + localZ * sin,
-    y: host.surfaceHeight,
+    // surfaceHeight 是"离地板多高"；furnitureCenterWorld 只给平面坐标，
+    // 地板本身的世界 Y 由锚点的 elevation 决定（缺省 0，同老账）
+    y: host.surfaceHeight + (room.anchor?.elevation ?? 0),
     z: center.z - localX * sin + localZ * cos,
     rotationY: angle + FACING_ROTATION[child.facing],
   };
@@ -79,10 +88,11 @@ export function worldPointToSurfaceCell(
   point: { x: number; z: number },
   childFootprint: GridFootprint,
   childFacing: Facing,
-  size: { width: number; depth: number },
+  room: FurnitureRoom,
 ): GridPosition {
-  const center = furnitureCenterWorld(host.placement, host.footprint, size);
-  const angle = FACING_ROTATION[host.placement.facing];
+  const center = furnitureCenterWorld(host.placement, host.footprint, room);
+  // surfaceChildPose 里那个世界角的逆变换，两边必须同一个角
+  const angle = furnitureWorldYaw(room, host.placement.facing);
   const cos = Math.cos(angle);
   const sin = Math.sin(angle);
 

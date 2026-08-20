@@ -1,6 +1,9 @@
 import {
   findDoorDefinition,
   findDoors,
+  isHouseStowed,
+  roomLocalToWorld,
+  worldToRoomLocal,
   yardBoundsOf,
   type DoorDefinition,
   type DoorSave,
@@ -66,7 +69,8 @@ export function initDoors(): void {
   );
 
   // ---- 内墙门洞上的门 ----
-  for (const doorway of room.interiorDoorways ?? []) {
+  // 房子收起来了就一扇门都不建（外墙门那边由 findDoors 答空兜住）
+  for (const doorway of isHouseStowed(room) ? [] : (room.interiorDoorways ?? [])) {
     if (!doorway.doorId) continue;
     const definition = findDoorDefinition(doorway.doorId);
     if (!definition) {
@@ -85,10 +89,13 @@ export function initDoors(): void {
           : { x: doorway.cell.x, y: doorway.cell.y + i },
       );
     }
-    const center = {
+    // 门心先在房本地系里算，再经锚点入世界——door.center 的消费方
+    // （自动开门的距离、自动跑腿的路径相交）拿它和人物的世界坐标比
+    const centerLocal = {
       x: doorway.cell.x + (doorway.axis === "x" ? doorway.span / 2 : 0.5) - halfW,
       z: doorway.cell.y + (doorway.axis === "y" ? doorway.span / 2 : 0.5) - halfD,
     };
+    const center = roomLocalToWorld(room, centerLocal.x, centerLocal.z);
 
     const door = makeDoor(
       doorway.doorwayId,
@@ -102,7 +109,7 @@ export function initDoors(): void {
   }
 
   // ---- 大门（外墙开口）----
-  /** 大门的穿行通道（世界 z 范围）。西墙开口沿 z 轴排布 */
+  /** 大门的穿行通道（**房本地** z 范围——outdoorPass 的判定统一在本地系里做） */
   let frontDoorRef: string | null = null;
   let passMinZ = 0;
   let passMaxZ = 0;
@@ -119,7 +126,11 @@ export function initDoors(): void {
         opening.openingId,
         frontDefinition,
         [],
-        { x: -halfW + 0.5, z: opening.gridPosition.x - halfD + opening.size.width / 2 },
+        roomLocalToWorld(
+          room,
+          -halfW + 0.5,
+          opening.gridPosition.x - halfD + opening.size.width / 2,
+        ),
         savedByRef.get(opening.openingId)?.locked,
       );
       doors.set(door.refId, door);
@@ -195,11 +206,25 @@ export function initDoors(): void {
      */
     if (Object.keys(getWorld().room.walls).length === 0) return true;
 
+    /*
+     * **房子不在场也就没有边界**（2026-08-20）。上面那条说的是"没有墙
+     * 的房间"（广场），这条说的是"房子收起来了"——蓝图里的四面墙还在
+     * 数据里躺着，光看 walls 判不出来。少了它，收房子之后人会被一圈
+     * 看不见的墙圈在原地：判定要求"大门开着才能穿越"，而门早随房走了。
+     */
+    if (isHouseStowed(getWorld().room)) return true;
+
+    /*
+     * 从这里起是"和房子本体打交道"的判定，统一转进**房本地系**做
+     * （RoomAnchor）：房子挪走/转向后，墙线、门洞 z 跨度、西墙判据
+     * 全都自动跟着——上面院界和布景占地是地理，继续用世界坐标。
+     */
+    const local = worldToRoomLocal(getWorld().room, x, z);
     const overlapsHouse =
-      x + radius > -halfW &&
-      x - radius < halfW &&
-      z + radius > -halfD &&
-      z - radius < halfD;
+      local.x + radius > -halfW &&
+      local.x - radius < halfW &&
+      local.z + radius > -halfD &&
+      local.z - radius < halfD;
     if (!overlapsHouse) return true;
 
     /*
@@ -211,9 +236,9 @@ export function initDoors(): void {
      */
     if (map.openAir) {
       return (
-        z - radius >= passMinZ &&
-        z + radius <= passMaxZ &&
-        x - radius < -halfW + 0.01
+        local.z - radius >= passMinZ &&
+        local.z + radius <= passMaxZ &&
+        local.x - radius < -halfW + 0.01
       );
     }
 
@@ -221,8 +246,8 @@ export function initDoors(): void {
     // 导航采样时当门开着（走到跟前自动跑腿会开）——见 walkable 的 withDoorsOpen
     const passable = frontDoor?.open || (doorsAssumedOpen() && !frontDoor?.locked);
     if (!passable) return false;
-    if (z - radius < passMinZ || z + radius > passMaxZ) return false;
-    return x - radius < -halfW + 0.01;
+    if (local.z - radius < passMinZ || local.z + radius > passMaxZ) return false;
+    return local.x - radius < -halfW + 0.01;
   });
 }
 

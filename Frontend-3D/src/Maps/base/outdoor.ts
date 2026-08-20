@@ -9,13 +9,12 @@ import {
   IcosahedronGeometry,
   InstancedMesh,
   Mesh,
-  MeshLambertMaterial,
   MeshStandardMaterial,
   Object3D,
   Points,
   PointsMaterial,
 } from "three";
-import { PALETTE, jitterShade } from "../../Game3D/Visual/palette.js";
+import { PALETTE } from "../../Game3D/Visual/palette.js";
 import { blob, box, cylinder, ownMaterial } from "../../Game3D/Visual/primitives.js";
 import {
   hash01,
@@ -295,6 +294,13 @@ function buildForest(root: Object3D): void {
     if (ground > 6 && hash01(x * 3.1 + z * 7.3) < (ground - 6) / 20) return true;
     if (!inField(x, z) && z < -60 && x > 24 && x < 44) return true;
     if (!inField(x, z) && x < -70 && z > 29 && z < 44) return true;
+    /*
+     * 河对岸的小镇布景区：整块清掉。第一版只在桥头留 6 米空地，
+     * 屋影全埋在树冠里——从据点看过去"就是一堆森林塞了几个房子"
+     * （用户原话，2026-08-20）。镇区不长乔木，点景树 buildTownBackdrop
+     * 自己种；rect 比镇墙大一圈，镇外围的林子仍把镇子抱在中间。
+     */
+    if (x > 46 && x < 112 && z > -34 && z < 30) return true;
     for (const b of BRIDGES) {
       const near = b.axis === "x"
         ? Math.abs(z - b.at) < 4 && x > b.from - 2 && x < b.to + 6
@@ -556,106 +562,7 @@ function buildWater(root: Object3D): Mesh[] {
   return streaks;
 }
 
-/**
- * 石板铺装（前庭广场 + 入门通道）。**色块拼合，不是贴图**：每块石板
- * 是一片真实的四边形薄片（四角抖动出不规则轮廓），全部合并进一个
- * BufferGeometry 顶点着色——整个广场一次 draw call。缝隙露出的是垫底
- * 的深色底板，就是"石板间长草苔"的那条缝（设计稿 §7b）。
- *
- * 边缘做**破边**：最外一圈按概率丢块，再往草里撒几块孤石——概念图的
- * 铺装从来不是一条直线切进草地的。
- */
-function buildPaving(root: Object3D, areas: DeckRect[]): void {
-  const positions: number[] = [];
-  const colors: number[] = [];
-  const scratch = new Color();
 
-  const stone = (
-    cx: number,
-    cz: number,
-    w: number,
-    d: number,
-    tint: Color,
-    seed: number,
-  ): void => {
-    // 四角各自抖动：矩形变成不规则四边形，"石"味全靠这一步
-    const jitter = (k: number): number => (hash01(seed * 13.7 + k) - 0.5) * 0.24;
-    const x0 = cx - w / 2 + jitter(1);
-    const z0 = cz - d / 2 + jitter(2);
-    const x1 = cx + w / 2 + jitter(3);
-    const z1 = cz - d / 2 + jitter(4);
-    const x2 = cx + w / 2 + jitter(5);
-    const z2 = cz + d / 2 + jitter(6);
-    const x3 = cx - w / 2 + jitter(7);
-    const z3 = cz + d / 2 + jitter(8);
-    const y = 0.012;
-    // 两个三角，同色（石板是一块）
-    positions.push(x0, y, z0, x2, y, z2, x1, y, z1);
-    positions.push(x0, y, z0, x3, y, z3, x2, y, z2);
-    for (let k = 0; k < 6; k += 1) colors.push(tint.r, tint.g, tint.b);
-  };
-
-  const STEP_X = 1.15;
-  const STEP_Z = 0.92;
-
-  for (const [areaIndex, area] of areas.entries()) {
-    // 垫底：比铺装略收 0.1，缝隙从上面看全是它
-    const under = box(
-      [area.maxX - area.minX + 0.2, 0.016, area.maxZ - area.minZ + 0.2],
-      {
-        color: PALETTE.pavingJoint,
-        position: [(area.minX + area.maxX) / 2, 0.002, (area.minZ + area.maxZ) / 2],
-      },
-    );
-    under.receiveShadow = true;
-    root.add(under);
-
-    const cols = Math.max(1, Math.round((area.maxX - area.minX) / STEP_X));
-    const rows = Math.max(1, Math.round((area.maxZ - area.minZ) / STEP_Z));
-    for (let i = 0; i < cols; i += 1) {
-      for (let j = 0; j < rows; j += 1) {
-        const seed = areaIndex * 1000 + i * 57 + j * 3.3;
-        const cx = area.minX + (i + 0.5) * ((area.maxX - area.minX) / cols);
-        const cz = area.minZ + (j + 0.5) * ((area.maxZ - area.minZ) / rows);
-        const edge = i === 0 || j === 0 || i === cols - 1 || j === rows - 1;
-
-        // 破边：外圈四成的块让给草地
-        if (edge && hash01(seed * 1.9) < 0.4) {
-          // 丢掉的块有一半"散"到更外面变孤石
-          if (hash01(seed * 2.7) < 0.5) {
-            const outX = i === 0 ? -0.9 : i === cols - 1 ? 0.9 : 0;
-            const outZ = j === 0 ? -0.8 : j === rows - 1 ? 0.8 : 0;
-            scratch.copy(jitterShade(PALETTE.pavingMid, i + 31, j + 17, 0.05));
-            stone(cx + outX, cz + outZ, 0.7, 0.55, scratch, seed + 99);
-          }
-          continue;
-        }
-
-        // 8% 的块换成长草的（缝色），其余浅/中两色棋盘微差
-        const base =
-          hash01(seed * 3.1) < 0.08
-            ? PALETTE.pavingJoint
-            : hash01(seed * 5.3) < 0.5
-              ? PALETTE.pavingLight
-              : PALETTE.pavingMid;
-        scratch.copy(jitterShade(base, i, j, 0.045));
-        stone(cx, cz, (area.maxX - area.minX) / cols - 0.1, (area.maxZ - area.minZ) / rows - 0.1, scratch, seed);
-      }
-    }
-  }
-
-  const geometry = new BufferGeometry();
-  geometry.setAttribute("position", new BufferAttribute(new Float32Array(positions), 3));
-  geometry.setAttribute("color", new BufferAttribute(new Float32Array(colors), 3));
-  geometry.computeVertexNormals();
-  const mesh = new Mesh(
-    geometry,
-    new MeshLambertMaterial({ vertexColors: true, flatShading: true }),
-  );
-  mesh.receiveShadow = true;
-  mesh.name = "paving";
-  root.add(mesh);
-}
 
 /**
  * 种植区（15×7，先布景）：六垄作物 + 木栅栏 + 朝路的小门。
@@ -742,145 +649,172 @@ function buildField(root: Object3D, rect: DeckRect): void {
   post(GATE_X1, minZ);
 }
 
+
+
+
+
 /**
- * 后庭（宅北）：晾衣绳、香草花圃、储物角。铺装密度骤降——
- * "安静"就是这里的设计（设计稿 §7b），东西少而生活气足。
+ * 河对岸的小镇布景（东岸，x 47~110）。第一版只有四个屋影撒在林子里，
+ * 从据点看过去"就是一堆森林塞了几个房子"（用户原话，2026-08-20），
+ * 读不出"镇子在那边"。按小镇标高图重做，**轴线优先**：门洞、土路、
+ * 钟楼全压在东桥的延长线（z = GATE_EAST_Z）上——站在据点东门，视线
+ * 顺着桥-门-路一直落到钟楼，这条轴线就是"往小镇去"的方向感本身。
+ *
+ * 三层东西：小围墙+门洞（贴岸线，镇有边界但不圈死）、沿路两排镇街
+ * 房子加纵深一圈、钟楼收尾。镇区的森林整块清掉（见 buildForest 的
+ * 剔除区），点景树这里自己种。全部仍是布景（盒身+坡顶，不可进入），
+ * 真小镇是 Maps/town 那张图，桥尾触发带切图过去。
+ *
+ * 标高：x≤55 站在高度场的东岸顶上（本地 0），再往东是 -0.06 的围裙
+ * 平地——镇内的东西统一下沉一截埋进地里，别浮着。
  */
-function buildBackyard(root: Object3D): void {
-  // 晾衣绳：两杆一绳两件衣
-  const line = new Object3D();
-  for (const side of [-1, 1] as const) {
-    line.add(
-      box([0.12, 1.7, 0.12], { color: PALETTE.woodDark, position: [side * 2.2, 0.85, 0] }),
+function buildTownBackdrop(root: Object3D): void {
+  const AXIS_Z = GATE_EAST_Z;
+  const TOWER_X = 86;
+  const town = new Object3D();
+  town.name = "town-backdrop";
+
+  // ---- 小围墙：一道矮石墙贴着岸线，门洞对着桥，两端折向镇内收头 ----
+  const WALL_X = 49;
+  const SPAN = { minZ: -26, maxZ: 18 };
+  const WALL_H = 1.2;
+  const gate0 = AXIS_Z - 2.4;
+  const gate1 = AXIS_Z + 2.4;
+  const wallAlongZ = (z0: number, z1: number): void => {
+    const len = z1 - z0;
+    town.add(
+      box([0.4, WALL_H, len], {
+        color: PALETTE.baseStone,
+        position: [WALL_X, WALL_H / 2 - 0.08, (z0 + z1) / 2],
+      }),
+    );
+    town.add(
+      box([0.56, 0.12, len], {
+        color: PALETTE.baseStoneDark,
+        position: [WALL_X, WALL_H - 0.02, (z0 + z1) / 2],
+      }),
+    );
+  };
+  const wallAlongX = (x0: number, x1: number, z: number): void => {
+    const len = x1 - x0;
+    town.add(
+      box([len, WALL_H, 0.4], {
+        color: PALETTE.baseStone,
+        position: [(x0 + x1) / 2, WALL_H / 2 - 0.08, z],
+      }),
+    );
+    town.add(
+      box([len, 0.12, 0.56], {
+        color: PALETTE.baseStoneDark,
+        position: [(x0 + x1) / 2, WALL_H - 0.02, z],
+      }),
+    );
+  };
+  wallAlongZ(SPAN.minZ, gate0);
+  wallAlongZ(gate1, SPAN.maxZ);
+  wallAlongX(WALL_X, WALL_X + 8, SPAN.minZ);
+  wallAlongX(WALL_X, WALL_X + 8, SPAN.maxZ);
+
+  // 门柱一对（顶灯箱）+ 门楣石梁：读成"镇门"，不是墙缺了一段
+  for (const gz of [gate0 - 0.35, gate1 + 0.35]) {
+    town.add(
+      box([0.85, 2.1, 0.85], { color: PALETTE.baseStone, position: [WALL_X, 0.97, gz] }),
+    );
+    town.add(
+      box([1.0, 0.15, 1.0], { color: PALETTE.pavingLight, position: [WALL_X, 2.1, gz] }),
+    );
+    town.add(
+      box([0.26, 0.3, 0.26], {
+        color: PALETTE.lampGlow,
+        position: [WALL_X, 2.66, gz],
+        castShadow: false,
+      }),
     );
   }
-  line.add(box([4.4, 0.03, 0.03], { color: PALETTE.paperShade, position: [0, 1.58, 0] }));
-  line.add(box([0.8, 0.9, 0.04], { color: PALETTE.fabricCream, position: [-0.9, 1.1, 0] }));
-  line.add(box([0.7, 0.75, 0.04], { color: PALETTE.fabricRose, position: [0.6, 1.18, 0] }));
-  line.position.set(-6, 0, -18.5);
-  root.add(line);
-
-  // 香草花圃 ×3：矮木框 + 土 + 低绿簇（比种植区小一号——是"生活"不是"生产"）
-  for (let i = 0; i < 3; i += 1) {
-    const bed = new Object3D();
-    for (const [dx, dz, w, d] of [
-      [0, -0.65, 1.7, 0.1],
-      [0, 0.65, 1.7, 0.1],
-      [-0.8, 0, 0.1, 1.4],
-      [0.8, 0, 0.1, 1.4],
-    ] as const) {
-      bed.add(box([w, 0.24, d], { color: PALETTE.woodDark, position: [dx, 0.12, dz] }));
-    }
-    bed.add(box([1.5, 0.16, 1.2], { color: PALETTE.plotSoil, position: [0, 0.08, 0] }));
-    for (let k = 0; k < 4; k += 1) {
-      bed.add(
-        blob(0.14 + hash01(i * 7.7 + k) * 0.08, 0, {
-          color: k % 2 ? PALETTE.leafGreen : PALETTE.caneGreen,
-          position: [(hash01(i + k * 3.3) - 0.5) * 1.2, 0.22, (hash01(i + k * 5.9) - 0.5) * 0.8],
-          castShadow: false,
-        }),
-      );
-    }
-    bed.position.set(4 + i * 2.6, 0, -18);
-    root.add(bed);
-  }
-
-  // 储物角：两只桶 + 一个筐，靠北墙根
-  const corner = new Object3D();
-  for (const [dx, r, h] of [
-    [0, 0.42, 0.85],
-    [0.95, 0.36, 0.72],
-  ] as const) {
-    corner.add(cylinder(r, r * 0.92, h, 9, { color: PALETTE.woodMid, position: [dx, h / 2, 0] }));
-    corner.add(
-      box([r * 2.1, 0.05, 0.09], { color: PALETTE.ironMid, position: [dx, h * 0.62, 0] }),
-    );
-  }
-  corner.add(
-    box([0.7, 0.4, 0.5], { color: PALETTE.caneNode, position: [1.9, 0.2, 0.1] }),
+  town.add(
+    box([0.5, 0.32, gate1 - gate0 + 1.4], {
+      color: PALETTE.baseStoneDark,
+      position: [WALL_X, 2.35, AXIS_Z],
+    }),
   );
-  corner.position.set(-12, 0, -20);
-  root.add(corner);
-}
 
-/**
- * 前庭的圆形石沿花坛 ×2：石环 + 四色花簇（三个旧色 + 一个新紫，
- * 花和屋里的软装同族，世界才统一——设计稿 §7e）。
- */
-function buildFlowerbeds(root: Object3D): void {
-  const FLOWERS = [
-    PALETTE.boardButter,
-    PALETTE.fabricRose,
-    PALETTE.terracotta,
-    PALETTE.flowerViolet,
-  ];
-  // 两坛夹着"路→玄关"的轴线摆（门在西墙 z≈-8），对称摆位、错开配色
-  for (const [bedIndex, [bx, bz]] of ([[-16, -4.4], [-16, -11.6]] as const).entries()) {
-    const bed = new Object3D();
-    bed.add(cylinder(1.0, 1.05, 0.3, 12, { color: PALETTE.baseStone, position: [0, 0.15, 0] }));
-    bed.add(cylinder(0.85, 0.85, 0.3, 12, { color: PALETTE.plotSoil, position: [0, 0.18, 0] }));
-    for (let k = 0; k < 7; k += 1) {
-      const angle = (k / 7) * Math.PI * 2 + bedIndex * 0.9;
-      const radius = 0.25 + hash01(bedIndex * 17 + k * 3.7) * 0.4;
-      bed.add(
-        blob(0.13 + hash01(k * 9.1) * 0.06, 0, {
-          // 两坛花色错开：不对称配色、对称摆位
-          color: FLOWERS[(k + bedIndex * 2) % FLOWERS.length],
-          position: [Math.cos(angle) * radius, 0.42, Math.sin(angle) * radius],
-          castShadow: false,
-        }),
-      );
-      bed.add(
-        blob(0.1, 0, {
-          color: PALETTE.leafGreen,
-          position: [Math.cos(angle + 0.5) * radius * 0.7, 0.36, Math.sin(angle + 0.5) * radius * 0.7],
-          castShadow: false,
-        }),
-      );
-    }
-    bed.position.set(bx, 0, bz);
-    root.add(bed);
-  }
-}
+  // ---- 土路：门洞一直铺到钟楼脚下（轴线的可见化）。厚板往下沉，
+  // 跨过高度场东岸(0)到围裙(-0.06)的落差，两头都埋得住
+  town.add(
+    box([TOWER_X - 46, 0.16, 2.6], {
+      color: PALETTE.pavingLight,
+      position: [(46 + TOWER_X) / 2, -0.03, AXIS_Z],
+      castShadow: false,
+    }),
+  );
 
-/**
- * 墙外的世界（用户点破："外面不应该一望无际"）。概念图里据点是被
- * 密林抱着的，据点又坐在莉奥拉小镇的西南角——墙外要有三层粗略布景：
- * **密林圈**贴着墙外把视线接住（北面原有林墙照旧，补南、西两面），
- * 河对岸给几栋**粗建模屋影**（盒身+坡顶+烟囱，雾一罩就是"镇子在那边"
- * 的说明，不是能去的建筑）。
- */
-function buildOuterWorld(root: Object3D): void {
-  /*
-   * 树全部归 buildForest 了（地毯式铺满、实例化）。这里原来还有一段
-   * "沿脖子两侧压两排"的手摆树——两套森林叠在一起，一套 30 棵一套
-   * 1500 棵，前者纯属噪音，删。
-   */
-  /*
-   * 西门外原来有一条林间小径，随西门一起退役了（2026-08-18）。
-   * 没有门就不该有路——一条从栅栏里长出来的小径比断头路还怪。
-   */
-  // 对岸（东）的小镇屋影：盒身+坡顶+烟囱，雾里当剪影，不是能去的建筑
+  // 钟楼脚下一圈小广场（标高图"中央钟楼广场"的缩影）
+  const plaza = new Mesh(new CircleGeometry(5.2, 12), ownMaterial(PALETTE.pavingMid));
+  plaza.rotation.x = -Math.PI / 2;
+  plaza.position.set(TOWER_X, -0.045, AXIS_Z);
+  plaza.receiveShadow = true;
+  town.add(plaza);
+
+  // ---- 钟楼：小镇的天际线地标。基座-塔身-钟室-四棱锥顶，
+  // 表盘朝西（河这边）——钟是给走在桥上的人看的
+  const tower = new Object3D();
+  tower.name = "town-clocktower";
+  tower.position.set(TOWER_X, -0.06, AXIS_Z);
+  tower.add(box([3.6, 1.4, 3.6], { color: PALETTE.foundation, position: [0, 0.7, 0] }));
+  tower.add(box([2.7, 10.5, 2.7], { color: PALETTE.extWall, position: [0, 6.45, 0] }));
+  tower.add(box([3.1, 0.5, 3.1], { color: PALETTE.baseStone, position: [0, 11.95, 0] }));
+  tower.add(
+    box([0.16, 1.7, 1.7], {
+      color: PALETTE.fabricCream,
+      position: [-1.42, 10.2, 0],
+      castShadow: false,
+    }),
+  );
+  // 时针分针：两根深色小条，停在十点十分（钟表广告的老角度，最有钟样）
+  tower.add(
+    box([0.1, 0.66, 0.12], { color: PALETTE.ironDark, position: [-1.52, 10.5, 0], castShadow: false }),
+  );
+  tower.add(
+    box([0.1, 0.12, 0.5], { color: PALETTE.ironDark, position: [-1.52, 10.2, 0.22], castShadow: false }),
+  );
+  // 钟室：四面开黑洞——两个互相穿过的深色盒子，四面都读得到开口
+  tower.add(box([2.3, 1.7, 2.3], { color: PALETTE.extWallShade, position: [0, 13.05, 0] }));
+  tower.add(
+    box([2.42, 1.0, 1.3], { color: PALETTE.ironDark, position: [0, 13.05, 0], castShadow: false }),
+  );
+  tower.add(
+    box([1.3, 1.0, 2.42], { color: PALETTE.ironDark, position: [0, 13.05, 0], castShadow: false }),
+  );
+  const spire = new Mesh(new ConeGeometry(2.05, 2.6, 4), ownMaterial("#5c6b80"));
+  spire.rotation.y = Math.PI / 4; // 四棱锥转 45°：棱对正面，檐角对着四边
+  spire.position.set(0, 15.2, 0);
+  tower.add(spire);
+  tower.add(
+    box([0.16, 0.6, 0.16], { color: PALETTE.ironDark, position: [0, 16.7, 0], castShadow: false }),
+  );
+  town.add(tower);
+
+  // ---- 镇街：房子沿路两排 + 纵深一圈。盒身+坡顶+烟囱的布景，
+  // 加一扇朝西的门和一扇窗——隔着河能读出"有人住"，走近前就切图了
   const ROOFS = ["#5c6b80", "#7d5a52", "#5f7361"];
-  for (const [i, [hx, hz, s, rot]] of (
-    [
-      [62, -18, 2.6, 0.3],
-      [68, -4, 3.1, -0.15],
-      [64, 12, 2.3, 0.5],
-      [74, 24, 2.0, 0.2],
-    ] as const
-  ).entries()) {
+  const silhouetteHouse = (s: number, roofColor: string): Object3D => {
     const house = new Object3D();
     const w = 2.6 * s;
     const d = 2.0 * s;
     const wallH = 1.5 * s;
     const rise = 0.9 * s;
-    house.add(box([w, wallH, d], { color: PALETTE.extWallShade, position: [0, wallH / 2, 0], castShadow: false }));
+    house.add(
+      box([w, wallH, d], {
+        color: PALETTE.extWallShade,
+        position: [0, wallH / 2, 0],
+        castShadow: false,
+      }),
+    );
     const slopeLen = Math.hypot(d / 2 + 0.2, rise);
     const pitch = Math.atan2(rise, d / 2 + 0.2);
     for (const side of [-1, 1] as const) {
       const slope = box([w + 0.4, 0.09, slopeLen], {
-        color: ROOFS[i % ROOFS.length],
+        color: roofColor,
         position: [0, wallH + rise / 2, (side * (d / 2 + 0.2)) / 2],
         castShadow: false,
       });
@@ -894,10 +828,91 @@ function buildOuterWorld(root: Object3D): void {
         castShadow: false,
       }),
     );
-    house.position.set(hx, 0, hz);
+    house.add(
+      box([0.08, 0.62 * s, 0.4 * s], {
+        color: PALETTE.woodDark,
+        position: [-w / 2 - 0.02, 0.31 * s, d * 0.12],
+        castShadow: false,
+      }),
+    );
+    house.add(
+      box([0.08, 0.34 * s, 0.34 * s], {
+        color: PALETTE.fabricCream,
+        position: [-w / 2 - 0.02, 0.85 * s, -d * 0.18],
+        castShadow: false,
+      }),
+    );
+    return house;
+  };
+
+  const lots: Array<readonly [number, number, number, number]> = [
+    // 沿路北侧一排
+    [56, -11, 2.2, 0.12],
+    [65, -13, 2.7, -0.1],
+    [75, -11, 2.3, 0.2],
+    [95, -12, 2.6, -0.05],
+    // 沿路南侧一排
+    [57, 3, 2.4, -0.18],
+    [66, 5, 2.9, 0.08],
+    [77, 6, 2.2, -0.12],
+    [94, 4, 2.5, 0.15],
+    // 纵深第二圈：镇子往后还有厚度，不是一层片场立面
+    [60, -22, 2.0, 0.3],
+    [84, -21, 2.4, -0.2],
+    [104, -6, 2.9, 0.1],
+    [86, 15, 2.6, 0.25],
+    [102, 14, 2.1, -0.3],
+    [62, 17, 2.3, 0.4],
+  ];
+  for (const [i, [hx, hz, s, rot]] of lots.entries()) {
+    const house = silhouetteHouse(s, ROOFS[i % ROOFS.length]);
+    house.position.set(hx, -0.08, hz);
     house.rotation.y = rot;
-    root.add(house);
+    town.add(house);
   }
+
+  // 镇内点景树：清出镇区之后单独种几棵小的（院子树，不是森林）
+  for (const [tx, tz, th] of [
+    [58, 22, 5.5],
+    [99, -18, 6],
+    [69, -25, 5],
+  ] as const) {
+    town.add(
+      cylinder(0.14, 0.24, th * 0.5, 6, {
+        color: TRUNK_BROWN,
+        position: [tx, th * 0.25 - 0.06, tz],
+        castShadow: false,
+      }),
+    );
+    const crown = blob(th * 0.3, 0, {
+      color: TREE_GREEN,
+      position: [tx, th * 0.66 - 0.06, tz],
+      castShadow: false,
+    });
+    crown.scale.y = 1.15;
+    town.add(crown);
+  }
+
+  root.add(town);
+}
+
+/**
+ * 墙外的世界（用户点破："外面不应该一望无际"）。概念图里据点是被
+ * 密林抱着的，据点又坐在莉奥拉小镇的西南角——墙外的布景：**密林圈**
+ * 把视线接住（buildForest 铺的），河对岸（东）是小镇的西缘
+ * （buildTownBackdrop），桥头再补一点"到岸了"的细节。
+ */
+function buildOuterWorld(root: Object3D): void {
+  /*
+   * 树全部归 buildForest 了（地毯式铺满、实例化）。这里原来还有一段
+   * "沿脖子两侧压两排"的手摆树——两套森林叠在一起，一套 30 棵一套
+   * 1500 棵，前者纯属噪音，删。
+   */
+  /*
+   * 西门外原来有一条林间小径，随西门一起退役了（2026-08-18）。
+   * 没有门就不该有路——一条从栅栏里长出来的小径比断头路还怪。
+   */
+  buildTownBackdrop(root);
 
   /*
    * 两座桥的对岸桥头补景。地面视角从桥上望过去，对岸桥头前那一小块
@@ -943,20 +958,19 @@ function buildOuterWorld(root: Object3D): void {
 }
 
 /**
- * 跨河木桥（照河桥概念图的桥梁结构格）：桥板 + 护栏 + 桥墩 + 桥头灯柱。
+ * 跨河石拱桥（2026-08-20 从木板桥改的，用户定）：这是"前往小镇"的路，
+ * 桥得和对岸小镇的石造天际线一族——木板桥是营地味，跟钟楼接不上。
+ * 样子照小镇标高图里那座石桥：拱洞 + 柱礅 + 矮石护栏。
  *
- * **据点有两座**（用户定：三面是水，靠两座桥过河）：东桥直通镇口，
- * 南桥落在镇子南边。两座共用这一个建造器——桥的样子必须一模一样，
- * 各写一份迟早长歪。沿 `axis` 方向架设，`at` 是另一轴上的位置。
+ * **拱做在桥板底下，桥面照旧平走**：BRIDGE_SURFACES 声明的承托面是
+ * 一块和两岸齐平的平面（本地 y=0），桥面要是真拱起来，看得见的坡和
+ * 走得到的平面就分家了。所以做成高架拱桥：桥身切成一排柱、分出两三个
+ * 拱洞从河谷里砌上来——跨 4.5 米深的河谷，这个比例正好读成"石桥跨峡"。
+ * 桥面齐岸的理由也照旧：上桥要迈一步的桥会把人绊住。
  *
- * **桥面是真能走的**（2026-08-12）：承托面声明在 terrain.ts 的
- * BRIDGE_SURFACES 里，这里只管长什么样。上一版桥面是纯布景、触发带
- * 贴在墙内的桥头——那时河才 0.42 深，走上去也没意义；河挖到 4.5 米
- * 之后桥成了唯一通路，就得真的走过去。
- *
- * 桥板顶面**和两岸齐平**（本地 y=0）。原来浮在 0.55，那是"桥搁在
- * 水沟上"的高度；跨 4.5 米深的河谷，桥面必须接着岸走，否则上桥要迈
- * 一步——而 0.55 正好卡在一步高的上限上，人会被自己的桥绊住。
+ * **据点有两座**（三面是水，靠两座桥过河），仍共用这一个建造器——
+ * 桥的样子必须一模一样，各写一份迟早长歪。沿 `axis` 方向架设，
+ * `at` 是另一轴上的位置。
  */
 function buildBridge(
   root: Object3D,
@@ -973,50 +987,75 @@ function buildBridge(
   const sizeAlong = (len: number, thick: number, width: number): [number, number, number] =>
     axis === "x" ? [len, thick, width] : [width, thick, len];
 
-  const DECK_THICK = 0.14;
+  const DECK_THICK = 0.32;
+  const deckBottom = -DECK_THICK;
   const deck = box(sizeAlong(length, DECK_THICK, BRIDGE_WIDTH), {
-    color: PALETTE.deckPlank,
+    color: PALETTE.pavingMid,
     position: along(mid, 0, -DECK_THICK / 2),
   });
   deck.receiveShadow = true;
   bridge.add(deck);
 
+  // 石护栏：矮墙 + 亮色压顶 + 桥头端柱——和据点围墙同族（柱-墙-柱）
   for (const side of [-1, 1] as const) {
     bridge.add(
-      box(sizeAlong(length, 0.08, 0.16), {
-        color: PALETTE.deckEdge,
-        position: along(mid, side * 1.1, 0.09),
+      box(sizeAlong(length, 0.5, 0.22), {
+        color: PALETTE.baseStone,
+        position: along(mid, side * 1.0, 0.25),
       }),
     );
-    // 护栏：立柱 + 扶手
-    for (let v = from + 0.6; v < to; v += 1.6) {
-      bridge.add(
-        box([0.12, 0.62, 0.12], { color: PALETTE.woodDark, position: along(v, side * 1.02, 0.38) }),
-      );
-    }
     bridge.add(
-      box(sizeAlong(length, 0.09, 0.11), {
-        color: PALETTE.woodMid,
-        position: along(mid, side * 1.02, 0.69),
+      box(sizeAlong(length, 0.12, 0.32), {
+        color: PALETTE.pavingLight,
+        position: along(mid, side * 1.0, 0.56),
       }),
     );
-  }
-
-  /*
-   * 桥墩：从桥板一路扎到河床。原来是 1.6 的短柱——那是照 0.42 深的
-   * "河"配的，河谷挖到 4.5 米之后它们会悬在半空，桥看着像浮着。
-   * 长度从地形数据推，改河深不用回来改这里。
-   */
-  const pierHeight = YARD_Y - RIVER_BED_Y;
-  for (let v = from + length * 0.25; v < to; v += length * 0.25) {
-    for (const side of [-1, 1] as const) {
+    for (const v of [from + 0.3, to - 0.3]) {
       bridge.add(
-        box([0.24, pierHeight, 0.24], {
-          color: PALETTE.woodDark,
-          position: along(v, side * 0.8, -pierHeight / 2),
+        box([0.52, 0.95, 0.52], {
+          color: PALETTE.baseStone,
+          position: along(v, side * 1.0, 0.48),
+        }),
+      );
+      bridge.add(
+        box([0.64, 0.14, 0.64], {
+          color: PALETTE.pavingLight,
+          position: along(v, side * 1.0, 1.02),
         }),
       );
     }
+  }
+
+  /*
+   * 桥身：按 0.85 米切成一排竖柱，每根从桥板底往下砌。拱洞里的柱子
+   * 只留到拱线（半正弦），洞外的柱礅一路扎进河床——全是轴对齐的盒子，
+   * 没有真曲面，拱的"圆"由柱底的阶梯自己读出来（低多边形的老规矩）。
+   * 起拱线压在水面之上：拱脚泡在水里的桥看着就要塌。所有标高从
+   * terrain.ts 的数据推，改河深不用回来改这里。
+   */
+  const bedBottom = -(YARD_Y - RIVER_BED_Y) - 0.4; // 埋进河床，底沿不共面
+  const springY = WATER_LEVEL_Y - YARD_Y + 0.8; // 起拱线：水面之上 0.8
+  const crownY = deckBottom - 0.45; // 拱顶上方留一道拱圈的厚度
+  const arches = Math.max(2, Math.round(length / 9));
+  const archSpan = length / arches;
+  const PIER_HALF = 0.6;
+  const STEP = 0.85;
+  for (let u = 0; u < length - 0.01; u += STEP) {
+    const w = Math.min(STEP, length - u);
+    const posInArch = (u + w / 2) % archSpan;
+    const inOpening = posInArch > PIER_HALF && posInArch < archSpan - PIER_HALF;
+    const t = (posInArch - PIER_HALF) / (archSpan - 2 * PIER_HALF);
+    const bottom = inOpening
+      ? springY + (crownY - springY) * Math.sin(Math.PI * t)
+      : bedBottom;
+    const columnHeight = deckBottom - bottom;
+    const vc = from + u + w / 2;
+    bridge.add(
+      box(sizeAlong(w + 0.02, columnHeight, BRIDGE_WIDTH), {
+        color: hash01(vc * 7.3 + at) < 0.22 ? PALETTE.baseStoneMoss : PALETTE.baseStone,
+        position: along(vc, 0, deckBottom - columnHeight / 2),
+      }),
+    );
   }
 
   // 对岸桥头的一盏铁艺灯（概念图桥两头各一盏，我们这头的灯由门柱负责）
@@ -1402,11 +1441,14 @@ export function buildBaseTerrain(context: TerrainContext): OutdoorTerrain {
    * 尽头顶着一排木桩（用户："你这地面还是有一条路延展出去了"）。
    * 没有门就没有通道；广场本身留着，那是"门廊前的一块地"，四面都是草。
    */
-  buildPaving(root, [{ minX: -19.5, maxX: -12.3, minZ: -12, maxZ: -4 }]);
+  /*
+   * 门前石板广场、玄关花坛、后庭（晾衣绳/香草圃/储物角）不在这里了
+   * （2026-08-20 拆账）：它们是**长在房上的陈设**，搬进了同文件夹的
+   * houseDressing.ts，挂在房屋 root 底下随锚点走——房子挪走，广场
+   * 跟着门走，储物角跟着北墙走。这里只剩地理：田是地、树是树。
+   */
   // 种植区在广场南侧：进门右手边一路是田，整齐行列迎着来人
   buildField(root, { minX: -26.9, maxX: -12.9, minZ: -2.6, maxZ: 4.4 });
-  buildFlowerbeds(root);
-  buildBackyard(root);
   // 两座跨河桥。跨度和承托面读同一份 BRIDGES——桥板画到哪儿、
   // 人能走到哪儿，不可能再对不上
   for (const bridge of BRIDGES) {

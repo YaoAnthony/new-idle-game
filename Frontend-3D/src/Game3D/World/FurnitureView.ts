@@ -1,13 +1,17 @@
 import {
-  Facing,
   FurnitureCapability,
   PlacementSurface,
+  anchorOf,
   faceCellToWorld,
   faceYaw,
   wallFaceOf,
   type PlacedFurniture,
 } from "core";
-import { FACING_ROTATION as FACING_ROTATION_LOCAL } from "./furnitureMath.js";
+import {
+  furnitureCenterWorld,
+  furnitureWorldYaw,
+  type FurnitureRoom,
+} from "./furnitureMath.js";
 import { hostGeometryOf, surfaceChildPose } from "./SurfacePlacement.js";
 import { Object3D } from "three";
 import { on } from "../../Game/EventBus";
@@ -15,7 +19,6 @@ import { getDefinition, getWorld, groundHeightAt } from "../../Game/State/worldR
 import { clearFade, stepFade } from "../Engine/Fade.js";
 import { addOutline, setOutlineVisible } from "../Engine/Outline.js";
 import { buildItemVisual } from "../Visual/VisualRegistry.js";
-import { gridToWorld } from "./House/index.js";
 
 /** 墙饰离开墙面一点点，避免背面与墙面共面闪烁 */
 export const WALL_MOUNT_OFFSET = 0.012;
@@ -73,7 +76,7 @@ export function placeOnWall(
 export function furnitureWorldCenter(
   placed: PlacedFurniture,
   definition: { footprint: { width: number; height: number } },
-  size: { width: number; depth: number },
+  room: FurnitureRoom,
 ): { x: number; y: number; z: number } {
   const { footprint } = definition;
 
@@ -103,7 +106,7 @@ export function furnitureWorldCenter(
       geometry,
       placed.placement,
       childFootprint,
-      size,
+      room,
     );
     return { x: pose.x, y: pose.y, z: pose.z };
   }
@@ -119,17 +122,10 @@ export function furnitureWorldCenter(
     );
   }
 
-  const { gridPosition, facing } = placed.placement;
-  // 朝东/朝西时占地的宽高互换
-  const rotated = facing === Facing.East || facing === Facing.West;
-  const w = rotated ? footprint.height : footprint.width;
-  const h = rotated ? footprint.width : footprint.height;
-
-  return {
-    x: gridPosition.x - size.width / 2 + w / 2,
-    y: 0,
-    z: gridPosition.y - size.depth / 2 + h / 2,
-  };
+  // 地面家具：占地中心经房屋锚点入世界（宽高互换在 furnitureCenterWorld
+  // 里做，这里原来那份重复实现删了）。y 是地板的世界高度
+  const center = furnitureCenterWorld(placed.placement, footprint, room);
+  return { x: center.x, y: anchorOf(room).elevation, z: center.z };
 }
 
 // 纯数学下沉到 furnitureMath（台面换算也要用，放这儿会成环）。
@@ -164,7 +160,11 @@ export class FurnitureView {
   /** 此刻正在让开的墙体组名（RoomScene 每帧同步） */
   private hiddenHostGroups: ReadonlySet<string> = new Set();
 
-  constructor(private readonly size: { width: number; depth: number }) {
+  /*
+   * 原来这里收一个 size（floorGrid 的宽深）——RoomAnchor 之后光有尺寸
+   * 不够（还要锚点），而 getWorld().room 本来就两样都有，参数删掉。
+   */
+  constructor() {
     this.root.name = "furniture";
     this.unsubscribe = on("world_changed", () => this.sync());
     this.sync();
@@ -327,7 +327,7 @@ export class FurnitureView {
         geometry,
         placed.placement,
         childFootprint,
-        this.size,
+        getWorld().room,
       );
       visual.position.set(pose.x, pose.y, pose.z);
       visual.rotation.y = pose.rotationY;
@@ -343,26 +343,23 @@ export class FurnitureView {
       if (host) this.hostGroupByInstance.set(placed.instanceId, host);
       else this.hostGroupByInstance.delete(placed.instanceId);
     } else {
-      const { gridPosition, facing } = placed.placement;
-      const rotated = facing === Facing.East || facing === Facing.West;
-      const w = rotated
-        ? definition.placement.footprint.height
-        : definition.placement.footprint.width;
-      const h = rotated
-        ? definition.placement.footprint.width
-        : definition.placement.footprint.height;
-
-      const [originX, , originZ] = gridToWorld(
-        gridPosition.x,
-        gridPosition.y,
-        this.size,
+      const { facing } = placed.placement;
+      const room = getWorld().room;
+      // 占地中心经房屋锚点入世界（宽高互换在 furnitureCenterWorld 里做）
+      const center = furnitureCenterWorld(
+        placed.placement,
+        definition.placement.footprint,
+        room,
       );
-      const centerX = originX + (w - 1) / 2;
-      const centerZ = originZ + (h - 1) / 2;
-      // 落在脚下的承托面上：室内地板是 0（跟从前一样），院子里的
-      // 家具落到 -floorLevel——写死 0 的话据点的长椅会浮空半人高
-      visual.position.set(centerX, groundHeightAt(centerX, centerZ), centerZ);
-      visual.rotation.y = FACING_ROTATION_LOCAL[facing];
+      // 落在脚下的承托面上：室内地板是 elevation，院子里的家具落到
+      // -floorLevel——写死 0 的话据点的长椅会浮空半人高
+      visual.position.set(
+        center.x,
+        groundHeightAt(center.x, center.z),
+        center.z,
+      );
+      // 世界角 = 家具朝向复合房子朝向
+      visual.rotation.y = furnitureWorldYaw(room, facing);
     }
 
     visual.userData.instanceId = placed.instanceId;

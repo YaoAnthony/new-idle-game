@@ -1,4 +1,4 @@
-import { dailyBoardDefinition, FurnitureCapability } from "core";
+import { dailyBoardDefinition, FurnitureCapability, roomCellToWorld } from "core";
 import { emit } from "../EventBus";
 import {
   claimBoard,
@@ -104,13 +104,14 @@ function findSpout(): { x: number; z: number; heading: number } {
     return { x: local.x, z: local.z, heading: local.heading };
   }
 
-  // 格子中心 → 世界坐标（和 FurnitureView 同一套换算）
+  // 格子中心 → 世界坐标（官方换算，RoomAnchor 感知）
   const { gridPosition } = machine.placement;
+  const world = roomCellToWorld(room, gridPosition.x, gridPosition.y);
   return {
-    x: gridPosition.x - room.floorGrid.width / 2 + 0.5,
-    z: gridPosition.y - room.floorGrid.height / 2 + 0.5,
+    x: world.x,
+    z: world.z,
     // 朝玩家那边吐，别塞进墙里
-    heading: Math.atan2(local.x - gridPosition.x, local.z - gridPosition.y),
+    heading: Math.atan2(local.x - world.x, local.z - world.z),
   };
 }
 

@@ -1,3 +1,4 @@
+import { roomCellToWorld, worldToRoomLocal } from "core";
 import { worldState } from "./state.js";
 
 /**
@@ -62,10 +63,10 @@ export function hitsCreature(
 /** 某个格子有没有被活物的圆压住（放置校验用，格中心对圆判距离） */
 export function cellHitsCreature(key: string): boolean {
   const [gx, gy] = key.split(",").map(Number);
-  const centerX = gx - worldState.room.floorGrid.width / 2 + 0.5;
-  const centerZ = gy - worldState.room.floorGrid.height / 2 + 0.5;
+  // 格中心 → 世界：官方换算（RoomAnchor 感知）
+  const center = roomCellToWorld(worldState.room, gx, gy);
   // 半格余量：圆刚擦着格角时也算占，宁可少一格可放位置，不要放进毛里
-  return hitsCreature(centerX, centerZ, 0.5, PLAYER_OBSTACLE_ID);
+  return hitsCreature(center.x, center.z, 0.5, PLAYER_OBSTACLE_ID);
 }
 
 /**
@@ -92,10 +93,12 @@ export function setActorFootprint(x: number, z: number, radius: number): void {
   const halfD = worldState.room.floorGrid.height / 2;
   const next = new Set<string>();
 
-  const minGX = Math.floor(x - radius + halfW);
-  const maxGX = Math.floor(x + radius + halfW);
-  const minGY = Math.floor(z - radius + halfD);
-  const maxGY = Math.floor(z + radius + halfD);
+  // 格子数学在房本地系里做（RoomAnchor，同 walkable.isWalkable 的理由）
+  const local = worldToRoomLocal(worldState.room, x, z);
+  const minGX = Math.floor(local.x - radius + halfW);
+  const maxGX = Math.floor(local.x + radius + halfW);
+  const minGY = Math.floor(local.z - radius + halfD);
+  const maxGY = Math.floor(local.z + radius + halfD);
 
   for (let gy = minGY; gy <= maxGY; gy += 1) {
     for (let gx = minGX; gx <= maxGX; gx += 1) {

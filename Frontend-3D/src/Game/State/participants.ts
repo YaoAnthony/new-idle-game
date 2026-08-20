@@ -1,6 +1,7 @@
 import {
   GestureKind,
   Locomotion,
+  spawnWorldOf,
   type ActionId,
   type ParticipantAppearance,
   type ParticipantGesture,
@@ -57,9 +58,14 @@ const DEFAULT_POSTURE: PoseId = "stand";
  */
 export const SPAWN_POSITION: WorldPosition = {
   mapId: baseMapDefinition.mapId,
-  x: baseMapDefinition.spawn.x,
-  y: baseMapDefinition.spawn.y,
-  heading: baseMapDefinition.spawn.heading,
+  /*
+   * spawn 是房本地坐标（RoomAnchor 之后），这里按**缺省锚点**展开
+   * （spawnWorldOf(_, undefined)）而不是查房间几何：这个常量在模块
+   * 加载期求值，世界状态还没 hydrate。它只喂两条路——全新档、
+   * 读档读不到位置——前者必然是缺省锚点；后者在挪房玩法接通时要改成
+   * 读档后按真实锚点补算（那期的清单项，别忘）。
+   */
+  ...spawnWorldOf(baseMapDefinition.spawn, undefined),
 };
 
 const participants = new Map<PlayerId, ParticipantState>();

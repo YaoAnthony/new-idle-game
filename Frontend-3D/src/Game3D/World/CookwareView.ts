@@ -76,7 +76,11 @@ export class CookwareView {
   /** 火苗和火星的动画时钟。全局一份，几个灶眼靠各自的相位错开 */
   private elapsed = 0;
 
-  constructor(private readonly size: { width: number; depth: number }) {
+  /*
+   * 原来收 size（floorGrid 宽深）——RoomAnchor 之后槽位换算直接问
+   * getWorld().room（尺寸 + 锚点都在里面），参数删掉。
+   */
+  constructor() {
     this.root.name = "cookware";
     this.unsubscribe = on("kitchen_changed", () => this.sync());
     this.sync();
@@ -147,7 +151,7 @@ export class CookwareView {
       placed.placement,
       definition.placement.footprint,
       ref.slot.offset,
-      this.size,
+      getWorld().room,
     );
 
     const root = new Object3D();

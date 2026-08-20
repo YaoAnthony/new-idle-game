@@ -7,6 +7,9 @@ import {
   isStandable,
   surfaceElevationAt,
   surfaceHeightAt,
+  isHouseStowed,
+  worldToRoomCell,
+  worldToRoomLocal,
   type GroundMap,
 } from "core";
 import { hitsCreature } from "./obstacles.js";
@@ -17,19 +20,20 @@ import { worldState } from "./state.js";
  * 门和院子的知识不在这里——由 doorsRuntime 注册回调接进来（防循环依赖）。
  */
 
-/** 连续坐标 → 格子。房间原点在中心，所以要先平移半个房间 */
+/** 连续坐标 → 格子。官方换算（RoomAnchor 感知），不再自己平移半间房 */
 function cellAt(x: number, z: number): { x: number; y: number } {
-  return {
-    x: Math.floor(x + worldState.room.floorGrid.width / 2),
-    y: Math.floor(z + worldState.room.floorGrid.height / 2),
-  };
+  return worldToRoomCell(worldState.room, x, z);
 }
 
-/** 房间边界之外（撞墙） */
+/** 房间边界之外（撞墙）。先转进房本地系再比边——房子挪了走这里的一律跟着 */
 function outOfRoom(x: number, z: number): boolean {
+  // 房子收起来了：哪儿都是"屋外"。占用图（家具、内墙）随房离场，
+  // 查它没有意义——脚下的答案全部由院子的承托面给
+  if (isHouseStowed(worldState.room)) return true;
+  const local = worldToRoomLocal(worldState.room, x, z);
   return (
-    Math.abs(x) > worldState.room.floorGrid.width / 2 ||
-    Math.abs(z) > worldState.room.floorGrid.height / 2
+    Math.abs(local.x) > worldState.room.floorGrid.width / 2 ||
+    Math.abs(local.z) > worldState.room.floorGrid.height / 2
   );
 }
 
@@ -228,14 +232,29 @@ export function isWalkable(
    */
   if (!isStandable(currentGround(), x, z)) return false;
 
+  /*
+   * 房子收起来了：没有屋内可言，整张图都走室外通道判定。
+   * 不加这一条的话，下面按**蓝图尺寸**算出来的那个矩形会变成一圈
+   * 看不见的墙——人走到房子原来的位置上会被挡住，而那儿明明是草地。
+   */
+  if (isHouseStowed(worldState.room)) {
+    return outdoorPass?.(x, z, radius) ?? false;
+  }
+
+  /*
+   * 碰撞圆的格子数学在**房本地系**里做（RoomAnchor）：四向旋转下圆
+   * 还是圆、格还是轴对齐格，世界系里做的话旋转后的房间格就斜了。
+   * 半径不用变换——旋转平移都不改长度。
+   */
+  const local = worldToRoomLocal(worldState.room, x, z);
   const halfW = worldState.room.floorGrid.width / 2;
   const halfD = worldState.room.floorGrid.height / 2;
 
   if (
-    x - radius < -halfW ||
-    x + radius > halfW ||
-    z - radius < -halfD ||
-    z + radius > halfD
+    local.x - radius < -halfW ||
+    local.x + radius > halfW ||
+    local.z - radius < -halfD ||
+    local.z + radius > halfD
   ) {
     /*
      * 碰撞圆越出了房子地板——原来这里一票否决（人被锁死在屋里）。
@@ -246,10 +265,10 @@ export function isWalkable(
     return outdoorPass?.(x, z, radius) ?? false;
   }
 
-  const minGX = Math.floor(x - radius + halfW);
-  const maxGX = Math.floor(x + radius + halfW);
-  const minGY = Math.floor(z - radius + halfD);
-  const maxGY = Math.floor(z + radius + halfD);
+  const minGX = Math.floor(local.x - radius + halfW);
+  const maxGX = Math.floor(local.x + radius + halfW);
+  const minGY = Math.floor(local.z - radius + halfD);
+  const maxGY = Math.floor(local.z + radius + halfD);
 
   for (let gy = minGY; gy <= maxGY; gy += 1) {
     for (let gx = minGX; gx <= maxGX; gx += 1) {

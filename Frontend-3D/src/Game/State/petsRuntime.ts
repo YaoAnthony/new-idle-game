@@ -2,6 +2,7 @@ import {
   AffectionStage,
   cellHasClearance,
   findPetDefinition,
+  roomCellToWorld,
   type GiftTier,
   type GridPosition,
   type PetSave,
@@ -65,9 +66,10 @@ export function spawnPet(petId: string, definitionId: string): PetAgent {
   // 门在西墙中段，门内第一格
   const { room } = getWorld();
   const doorCell = { x: 0, y: Math.floor(room.floorGrid.height / 2) };
+  const doorWorld = roomCellToWorld(room, doorCell.x, doorCell.y);
   const pet = new PetAgent(petId, definitionId, {
-    x: doorCell.x - room.floorGrid.width / 2 + 0.5,
-    z: doorCell.y - room.floorGrid.height / 2 + 0.5,
+    x: doorWorld.x,
+    z: doorWorld.z,
     heading: Math.PI / 2,
   });
 
@@ -136,9 +138,10 @@ export function placeSleepingPet(definitionId: string): PetAgent | null {
 
   if (!cell) return null;
 
+  const cellWorld = roomCellToWorld(room, cell.x, cell.y);
   const pet = new PetAgent(`pet-${definitionId}`, definitionId, {
-    x: cell.x - room.floorGrid.width / 2 + 0.5,
-    z: cell.y - room.floorGrid.height / 2 + 0.5,
+    x: cellWorld.x,
+    z: cellWorld.z,
     heading: 0,
   });
   pet.fallAsleep();

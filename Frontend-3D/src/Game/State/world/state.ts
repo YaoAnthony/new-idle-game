@@ -1,6 +1,7 @@
 import {
   buildRoomOccupancy,
   findPlaceableItem,
+  isHouseStowed,
   roomStyleDefinitions,
   type DoorSave,
   type DroppedItem,
@@ -71,11 +72,41 @@ let shelvedEntities: Record<string, ShelvedEntities> = {};
 
 let placedFurniture: PlacedFurniture[] = [];
 
-/** 占用图是派生数据：每次家具变化后重建，不持久化 */
-let occupancy: RoomOccupancy = rebuildOccupancy();
+/**
+ * 此刻**在场**的家具：`placedFurniture` 减去住在收起来的房间里的那些
+ * （见 RoomSave.stowed）。
+ *
+ * 分成两份而不是收房子时把家具从表里删掉：**收房子不是扔东西**。
+ * 完整那份是真相、进存档；这份是"现在看得见摸得着的"，喂给渲染、
+ * 占用图、厨房槽位、音景那十几个遍历全表的消费方。
+ *
+ * 派生在这一层而不是让消费方各自过滤，走的是上面 shelvedEntities 那条
+ * 现成的判据（"15 处漏一处就是一个静默 bug"）——只是这次分桶的维度
+ * 从"哪张图"变成"房子在不在场"。快照侧照旧读完整那份，所以收着房子
+ * 存盘再读回来，屋里的东西一件不少。
+ */
+let presentFurniture: PlacedFurniture[] = [];
 
-function rebuildOccupancy(): RoomOccupancy {
-  return buildRoomOccupancy(room, placedFurniture, findPlaceableItem);
+/** 占用图是派生数据：每次家具变化后重建，不持久化 */
+let occupancy: RoomOccupancy = rebuildDerived();
+
+/**
+ * 重算两份派生数据。家具变了、房间几何变了（含收起/放下）都要走它——
+ * 两者任一变化都会让"谁在场"和"哪些格子被占"同时失效。
+ */
+function rebuildDerived(): RoomOccupancy {
+  const stowedRooms = new Set(
+    Object.values(rooms)
+      .filter((candidate) => isHouseStowed(candidate))
+      .map((candidate) => candidate.roomId),
+  );
+  presentFurniture =
+    stowedRooms.size === 0
+      ? placedFurniture
+      : placedFurniture.filter(
+          (item) => !stowedRooms.has(item.placement.roomId),
+        );
+  return buildRoomOccupancy(room, presentFurniture, findPlaceableItem);
 }
 
 // ---- 兄弟模块的读写口。函数而不是裸变量：ES module 的可变绑定
@@ -123,12 +154,18 @@ export const worldState = {
     shelvedEntities = next;
   },
 
+  /** 完整那份（存档的真相）。增删改一律走它 */
   get placedFurniture() {
     return placedFurniture;
   },
   set placedFurniture(next: PlacedFurniture[]) {
     placedFurniture = next;
-    occupancy = rebuildOccupancy();
+    occupancy = rebuildDerived();
+  },
+
+  /** 在场的那份（渲染和玩法看到的）。见上面 presentFurniture 的注释 */
+  get presentFurniture() {
+    return presentFurniture;
   },
 
   get occupancy() {
@@ -139,6 +176,7 @@ export const worldState = {
   replaceRooms(nextRooms: Record<string, RoomSave>, primary?: RoomSave) {
     rooms = nextRooms;
     room = primary ?? rooms[map.primaryRoomId] ?? Object.values(rooms)[0];
-    occupancy = rebuildOccupancy();
+    // 收起/放下房子也走这条：在场家具和占用图都得跟着重算
+    occupancy = rebuildDerived();
   },
 };

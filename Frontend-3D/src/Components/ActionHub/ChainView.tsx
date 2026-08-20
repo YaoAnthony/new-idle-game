@@ -35,12 +35,14 @@ import { CHAIN_COLORS, CHAIN_ICONS, chainColor, chainEmoji } from "./chainVisual
 /**
  * 系列任务屏（B 屏里点「系列任务」进来）。同一屏两个标签：
  *
- *   查看 —— 左边链列表（图标+颜色+进度），右边选中链的环；
- *           环分三组：可以做 / 还锁着 / 已完成（收起）。
+ *   查看 —— 左边链列表（图标+颜色+进度），右边是**技能树**（用户定案：
+ *           像技能树那样画出来，"做完 A 解锁 B"要看得见，不是列表）。
+ *           点树上的任务，底部详情条给出状态和开始键。
  *           「锁着」和「能做但缺条件」是两种视觉：前者灰+🔒（做完前置
  *           自然解开），后者亮着但开始键给出橙色原因（缺家具/精力/占线，
  *           要玩家去屋里解决）——混成一种玩家就不知道该去点树还是去搬家具。
- *   编辑 —— 拖拽画布：拖节点摆位、拖把手连前置、点线删线、一键整理。
+ *   编辑 —— 同一块画布的编辑模式：拖任务摆位、拖把手连前置、点线删线、
+ *           一键整理。
  *
  * 节点内容一张表单管到底（名字/时长/重要级/说明/前置勾选）。
  */
@@ -58,7 +60,7 @@ type Sub =
   | { kind: "edit_node"; chainId: string; nodeId: string };
 
 const START_FAIL_TEXT: Record<Exclude<StartNodeResult, "ok">, string> = {
-  missing: "这一环不存在了",
+  missing: "这个任务不存在了",
   locked: "前置还没做完",
   completed: "已经做过了",
   busy: "已有进行中的行动",
@@ -71,6 +73,8 @@ export function ChainView({ category, onBack, onClose }: Props) {
   const [tab, setTab] = useState<"view" | "edit">("view");
   const [sub, setSub] = useState<Sub>({ kind: "browse" });
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  /** 查看页树上点中的任务（详情条读它）。跟着链走，换链就清掉 */
+  const [pickedNodeId, setPickedNodeId] = useState<string | null>(null);
 
   useEffect(
     () => on("action_chains_changed", () => force((n) => n + 1)),
@@ -132,7 +136,7 @@ export function ChainView({ category, onBack, onClose }: Props) {
       onClose={onClose}
     >
       {/* 标签切换 */}
-      <div className="mb-3 flex justify-center gap-2">
+      <div className="mb-3 flex shrink-0 justify-center gap-2">
         {(["view", "edit"] as const).map((key) => (
           <button
             key={key}
@@ -153,6 +157,7 @@ export function ChainView({ category, onBack, onClose }: Props) {
           <ChainEditCanvas
             key={selected.chainId}
             chain={selected}
+            mode="edit"
             onEditNode={(nodeId) =>
               setSub({ kind: "edit_node", chainId: selected.chainId, nodeId })
             }
@@ -163,7 +168,7 @@ export function ChainView({ category, onBack, onClose }: Props) {
       ) : chains.length === 0 ? (
         <EmptyChains onNew={() => setSub({ kind: "new_chain" })} />
       ) : (
-        <div className="flex gap-3" style={{ height: "min(52vh, 420px)" }}>
+        <div className="flex min-h-0 flex-1 gap-3">
           {/* 左：链列表 */}
           <div className="ui-paper ui-scroll w-[230px] shrink-0 overflow-y-auto p-2.5">
             <button
@@ -179,7 +184,10 @@ export function ChainView({ category, onBack, onClose }: Props) {
                 key={chain.chainId}
                 chain={chain}
                 selected={chain.chainId === selected?.chainId}
-                onPick={() => setSelectedId(chain.chainId)}
+                onPick={() => {
+                  setSelectedId(chain.chainId);
+                  setPickedNodeId(null);
+                }}
               />
             ))}
 
@@ -193,22 +201,37 @@ export function ChainView({ category, onBack, onClose }: Props) {
                     key={chain.chainId}
                     chain={chain}
                     selected={chain.chainId === selected?.chainId}
-                    onPick={() => setSelectedId(chain.chainId)}
+                    onPick={() => {
+                      setSelectedId(chain.chainId);
+                      setPickedNodeId(null);
+                    }}
                   />
                 ))}
               </details>
             )}
           </div>
 
-          {/* 右：选中链的环 */}
-          <div className="ui-paper ui-scroll min-w-0 flex-1 overflow-y-auto p-3">
+          {/* 右：技能树 + 底部详情条 */}
+          <div className="flex min-w-0 flex-1 flex-col">
             {selected ? (
-              <ChainDetail
-                chain={selected}
-                onAddNode={() => setSub({ kind: "new_node", chainId: selected.chainId })}
-              />
+              <>
+                <ChainHeader
+                  chain={selected}
+                  onAddNode={() => setSub({ kind: "new_node", chainId: selected.chainId })}
+                />
+                <div className="mt-2 min-h-0 flex-1">
+                  <ChainEditCanvas
+                    key={selected.chainId}
+                    chain={selected}
+                    mode="view"
+                    selectedNodeId={pickedNodeId}
+                    onSelectNode={setPickedNodeId}
+                  />
+                </div>
+                <PickedNodeBar chain={selected} nodeId={pickedNodeId} />
+              </>
             ) : (
-              <div className="grid h-full place-items-center text-[13px] text-[#9a8360]">
+              <div className="ui-paper grid h-full place-items-center text-[13px] text-[#9a8360]">
                 {t("ui.chain.pick_one")}
               </div>
             )}
@@ -232,9 +255,13 @@ function Shell({
   children: React.ReactNode;
 }) {
   return (
+    /* 尺寸和 ActionHub 的 Panel 完全一致：链屏是行动面板的一层，切进切出不跳 */
     <div
-      className="ui-action-panel relative px-6 pb-5 pt-9"
-      style={{ width: "min(1120px,94vw)" }}
+      className="ui-action-panel relative flex flex-col px-6 pb-5 pt-9"
+      style={{
+        width: "min(1120px, 92vw)",
+        height: "min(calc(100dvh - 56px), 640px)",
+      }}
     >
       <div className="ui-plaque absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 px-8 py-2">
         <span className="whitespace-nowrap text-[18px] font-bold tracking-[0.2em] text-[#5c3a1d]">
@@ -257,14 +284,14 @@ function Shell({
       >
         ✕
       </button>
-      <div className="mt-2">{children}</div>
+      <div className="mt-2 flex min-h-0 flex-1 flex-col">{children}</div>
     </div>
   );
 }
 
 function EmptyChains({ onNew }: { onNew: () => void }) {
   return (
-    <div className="flex h-[40vh] flex-col items-center justify-center">
+    <div className="flex h-full flex-col items-center justify-center">
       <div className="text-[18px] font-bold text-[#7d6242]">
         {t("ui.chain.empty_title")}
       </div>
@@ -331,8 +358,8 @@ function ChainRow({
   );
 }
 
-/** 右侧：环列表（可以做 / 还锁着 / 已完成收起） + 删除链 */
-function ChainDetail({
+/** 树上方的标题行：链名 + 添加任务 + 删除链（两击确认） */
+function ChainHeader({
   chain,
   onAddNode,
 }: {
@@ -340,108 +367,82 @@ function ChainDetail({
   onAddNode: () => void;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const nameOf = useMemo(
-    () => new Map(chain.nodes.map((n) => [n.nodeId, n.customName])),
-    [chain],
-  );
-
-  const available = chain.nodes.filter(
-    (n) => !n.completedAtUtc && isNodeUnlocked(chain, n),
-  );
-  const locked = chain.nodes.filter(
-    (n) => !n.completedAtUtc && !isNodeUnlocked(chain, n),
-  );
-  const completed = chain.nodes.filter((n) => n.completedAtUtc);
-
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-2">
-        <span className="min-w-0 flex-1 truncate text-[15px] font-bold text-[#4a3b2a]">
-          {chainEmoji(chain.iconId)} {chain.title}
-          {chain.completedAtUtc && (
-            <span className="ml-2 text-[12px] font-normal text-[#7aa35a]">
-              ✅ {t("ui.chain.done_suffix")}
-            </span>
-          )}
-        </span>
-        {!chain.completedAtUtc && (
-          <button
-            type="button"
-            className="ui-green-btn shrink-0 px-3 py-1 text-[12px] font-bold"
-            onClick={onAddNode}
-          >
-            ＋ {t("ui.chain.add_node")}
-          </button>
+    <div className="flex shrink-0 items-center gap-2">
+      <span className="min-w-0 flex-1 truncate text-[15px] font-bold text-[#4a3b2a]">
+        {chainEmoji(chain.iconId)} {chain.title}
+        {chain.completedAtUtc && (
+          <span className="ml-2 text-[12px] font-normal text-[#7aa35a]">
+            ✅ {t("ui.chain.done_suffix")}
+          </span>
         )}
-        {/* 删除走两击确认，第一击把后果（几环）亮出来 */}
+        {chain.description && (
+          <span className="ml-2 text-[12px] font-normal text-[#9a8360]">
+            {chain.description}
+          </span>
+        )}
+      </span>
+      {!chain.completedAtUtc && (
         <button
           type="button"
-          className={[
-            "shrink-0 px-2.5 py-1 text-[12px] font-bold",
-            confirmDelete ? "ui-chip ui-chip--strong" : "ui-wood-btn",
-          ].join(" ")}
-          onClick={() => {
-            if (!confirmDelete) {
-              setConfirmDelete(true);
-              return;
-            }
-            deleteChain(chain.chainId);
-          }}
-          onBlur={() => setConfirmDelete(false)}
+          className="ui-green-btn shrink-0 px-3 py-1 text-[12px] font-bold"
+          onClick={onAddNode}
         >
-          {confirmDelete
-            ? t("ui.chain.delete_confirm").replace("{n}", String(chain.nodes.length))
-            : "🗑"}
+          ＋ {t("ui.chain.add_node")}
         </button>
-      </div>
-
-      {chain.description && (
-        <div className="text-[12px] text-[#9a8360]">{chain.description}</div>
       )}
-
-      {chain.nodes.length === 0 && (
-        <div className="py-6 text-center text-[13px] text-[#9a8360]">
-          {t("ui.chain.no_nodes")}
-        </div>
-      )}
-
-      {available.length > 0 && (
-        <Group label={`▶️ ${t("ui.chain.group_available")}`}>
-          {available.map((node) => (
-            <NodeRow key={node.nodeId} chain={chain} node={node} nameOf={nameOf} state="available" />
-          ))}
-        </Group>
-      )}
-
-      {locked.length > 0 && (
-        <Group label={`🔒 ${t("ui.chain.group_locked")}`}>
-          {locked.map((node) => (
-            <NodeRow key={node.nodeId} chain={chain} node={node} nameOf={nameOf} state="locked" />
-          ))}
-        </Group>
-      )}
-
-      {completed.length > 0 && (
-        <details>
-          <summary className="cursor-pointer select-none text-[12px] font-bold text-[#8a6a45]">
-            ✅ {t("ui.chain.group_completed")}（{completed.length}）
-          </summary>
-          <div className="mt-1.5 flex flex-col gap-1.5">
-            {completed.map((node) => (
-              <NodeRow key={node.nodeId} chain={chain} node={node} nameOf={nameOf} state="completed" />
-            ))}
-          </div>
-        </details>
-      )}
+      {/* 删除走两击确认，第一击把后果（几个任务）亮出来 */}
+      <button
+        type="button"
+        className={[
+          "shrink-0 px-2.5 py-1 text-[12px] font-bold",
+          confirmDelete ? "ui-chip ui-chip--strong" : "ui-wood-btn",
+        ].join(" ")}
+        onClick={() => {
+          if (!confirmDelete) {
+            setConfirmDelete(true);
+            return;
+          }
+          deleteChain(chain.chainId);
+        }}
+        onBlur={() => setConfirmDelete(false)}
+      >
+        {confirmDelete
+          ? t("ui.chain.delete_confirm").replace("{n}", String(chain.nodes.length))
+          : "🗑"}
+      </button>
     </div>
   );
 }
 
-function Group({ label, children }: { label: string; children: React.ReactNode }) {
+/** 树下方的详情条：树上点中的那个任务，NodeRow 原样复用 */
+function PickedNodeBar({
+  chain,
+  nodeId,
+}: {
+  chain: ActionChainSave;
+  nodeId: string | null;
+}) {
+  const nameOf = useMemo(
+    () => new Map(chain.nodes.map((n) => [n.nodeId, n.customName])),
+    [chain],
+  );
+  const node = chain.nodes.find((n) => n.nodeId === nodeId);
+  if (!node) {
+    return (
+      <div className="mt-1 shrink-0 py-2 text-center text-[12px] text-[#9a8360]">
+        {t("ui.chain.pick_node_hint")}
+      </div>
+    );
+  }
+  const state = node.completedAtUtc
+    ? "completed"
+    : isNodeUnlocked(chain, node)
+      ? "available"
+      : "locked";
   return (
-    <div>
-      <div className="mb-1.5 text-[12px] font-bold text-[#8a6a45]">{label}</div>
-      <div className="flex flex-col gap-1.5">{children}</div>
+    <div className="mt-2 shrink-0">
+      <NodeRow chain={chain} node={node} nameOf={nameOf} state={state} />
     </div>
   );
 }
@@ -563,7 +564,7 @@ function ChainForm({
 
   return (
     <Shell title={t("ui.chain.new")} onBack={onCancel} onClose={onClose}>
-      <div className="mx-auto flex max-w-[560px] flex-col gap-3">
+      <div className="ui-scroll mx-auto flex h-full w-full max-w-[560px] flex-col gap-3 overflow-y-auto">
         <div>
           <div className="mb-1 text-[14px] font-bold text-[#5c3a1d]">
             🌿 {t("ui.chain.form_title")}
@@ -713,7 +714,7 @@ function NodeForm({
       onBack={onDone}
       onClose={onClose}
     >
-      <div className="ui-scroll mx-auto flex max-w-[600px] flex-col gap-3 overflow-y-auto" style={{ maxHeight: "min(56vh, 460px)" }}>
+      <div className="ui-scroll mx-auto flex h-full w-full max-w-[600px] flex-col gap-3 overflow-y-auto">
         <div>
           <div className="mb-1 text-[14px] font-bold text-[#5c3a1d]">
             🌿 {t("ui.action.what")}

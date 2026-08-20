@@ -182,7 +182,6 @@ function Panel({
   onClose,
   children,
   footer,
-  width = "min(1120px,92vw)",
 }: {
   title: string;
   subtitle: string;
@@ -190,10 +189,21 @@ function Panel({
   onClose: () => void;
   children: React.ReactNode;
   footer?: React.ReactNode;
-  width?: string;
 }) {
   return (
-    <div className="ui-action-panel relative px-8 pb-6 pt-9" style={{ width }}>
+    /*
+     * 尺寸是**固定**的，三屏（网格/列表/表单）共用同一块：高吃满视口减
+     * 遮罩的 py-7（桌面封顶 640，SE 横屏自动收到 ~319），宽同理。
+     * 原来各屏由内容撑高，切屏面板一跳一跳的（用户打回）。内容装不下
+     * 就在自己的滚动区里滚，外壳不动。
+     */
+    <div
+      className="ui-action-panel relative flex flex-col px-8 pb-6 pt-9"
+      style={{
+        width: "min(1120px, 92vw)",
+        height: "min(calc(100dvh - 56px), 640px)",
+      }}
+    >
       {/* 牌匾压在面板上边缘 */}
       <div className="ui-plaque absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 px-10 py-2">
         <span className="text-[22px] font-bold tracking-[0.25em] text-[#5c3a1d]">
@@ -220,14 +230,14 @@ function Panel({
         ✕
       </button>
 
-      <div className="mb-4 mt-2 text-center text-[13px] tracking-wide text-[#8a6a45]">
+      <div className="mb-4 mt-2 shrink-0 text-center text-[13px] tracking-wide text-[#8a6a45]">
         ❧ {subtitle} ❧
       </div>
 
-      {children}
+      <div className="min-h-0 flex-1">{children}</div>
 
       {footer && (
-        <div className="mt-4 text-center text-[12px] text-[#8a6a45]">
+        <div className="mt-3 shrink-0 text-center text-[12px] text-[#8a6a45]">
           💡 {footer}
         </div>
       )}
@@ -249,7 +259,7 @@ function CategoryGrid({
       subtitle={t("ui.action.pick_category")}
       onClose={onClose}
     >
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid h-full grid-cols-4 gap-4">
         {CATEGORY_ORDER.map((category) => {
           const definition = actionDefinitions.find(
             (entry) => entry.category === category,
@@ -265,7 +275,7 @@ function CategoryGrid({
               type="button"
               disabled={!unlocked}
               className={[
-                "ui-action-card relative flex flex-col items-center px-3 pb-4 pt-5",
+                "ui-action-card relative flex flex-col items-center justify-between px-3 pb-4 pt-5",
                 unlocked ? "" : "ui-action-card--locked",
               ].join(" ")}
               onClick={() => unlocked && onEnter(category)}
@@ -368,13 +378,14 @@ function CategoryList({
           : t("ui.action.list_footer")
       }
     >
+      <div className="flex h-full flex-col">
       {/*
         工具行：左「系列任务」右「添加行动」，占一整行，信纸从它下面开始。
         原来两个按钮是 absolute 钉在 top-[70px] 的——正好骑在信纸的虚线框上，
         像两块贴上去的补丁（用户抓的就是这个）。按钮是布局的一部分就进布局流，
         绝对定位留给真正要悬浮的东西（关闭键、角标）。
       */}
-      <div className="mt-4 flex items-center justify-between">
+      <div className="flex shrink-0 items-center justify-between">
         {/* 系列任务入口：分类跟着这张卡走，链和它的所有环都继承这个分类 */}
         <button
           type="button"
@@ -398,19 +409,8 @@ function CategoryList({
         </button>
       </div>
 
-      {/*
-        高度用 clamp 随视口走：SE 横屏（375 高）只给得起 ~157px，桌面给到 300。
-        原来 min-h-[300px] 是按桌面写死的，SE 上整个面板底边捅出屏幕 90px。
-      */}
-      <div
-        className="ui-paper ui-scroll mt-2 overflow-y-auto p-4"
-        style={{
-          /* 235px = 面板头尾 + 工具行 + 脚注的固定开销，量出来的。
-             42vh 那版在 SE 上还差 7px 捅出屏幕——百分比对"高度只有 375"
-             的屏来说粒度太粗，直接用视口减开销才贴得住 */
-          height: "clamp(120px, calc(100vh - 235px), 300px)",
-        }}
-      >
+      {/* 信纸吃掉剩余全部高度（外壳已经定死尺寸），装不下自己滚 */}
+      <div className="ui-paper ui-scroll mt-2 min-h-0 flex-1 overflow-y-auto p-4">
         {entries.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center">
             <img
@@ -436,6 +436,7 @@ function CategoryList({
             ))}
           </div>
         )}
+      </div>
       </div>
     </Panel>
   );
@@ -556,9 +557,8 @@ function ActionForm({
       subtitle={definition ? t(definition.localizationKey) : ""}
       onClose={onClose}
       footer={t("ui.action.form_footer")}
-      width="min(760px,88vw)"
     >
-      <div className="flex flex-col gap-4">
+      <div className="ui-scroll mx-auto flex h-full w-full max-w-[760px] flex-col gap-4 overflow-y-auto">
         {/* 要做什么 */}
         <div>
           <div className="mb-1.5 text-[15px] font-bold text-[#5c3a1d]">

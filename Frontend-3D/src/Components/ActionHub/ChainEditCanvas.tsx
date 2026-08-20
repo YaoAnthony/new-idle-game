@@ -5,17 +5,22 @@ import {
   type ActionChainSave,
 } from "core";
 import { useRef, useState } from "react";
-import { updateChainNode } from "../../Game/State/actionChains";
+import { isNodeUnlocked, updateChainNode } from "../../Game/State/actionChains";
 import { t } from "../../i18n/t";
 import { chainColor } from "./chainVisuals";
 
 /**
- * 编辑画布：拖节点摆位置、从节点右缘的把手拖到另一个节点连前置、
- * 点线删线、拖空白平移、滚轮/双指缩放、一键整理。
+ * 技能树画布，两个模式共用一套渲染和手势：
+ *
+ *   view —— 查看页的主体（用户定案：像技能树那样，做完 A 解锁 B 要
+ *           **画成树**，不是列表）。只能看和选：点任务选中（详情条在
+ *           外面）、拖空白平移、滚轮/双指缩放。三种状态三种长相：
+ *           ✅完成=绿、▶可做=亮+链色粗描边、🔒锁定=灰。
+ *   edit —— 编辑：拖任务摆位置、拖右缘把手连前置、点线删线、一键整理。
  *
  * 全部用 **Pointer Events** 写：鼠标和触屏走同一套代码。手机上就是
  * 直接拖（定案："手机拖拽连线才是最好拖准的"），不做降级方案——
- * 该做的是把可点面积做大：节点卡 56px 高、连线把手 44px 命中区、
+ * 该做的是把可点面积做大：任务卡 56px 高、连线把手 44px 命中区、
  * 线有一条 16px 宽的隐形陪跑线接收点击。
  *
  * 环检测是**实时**的：把手悬在目标上那一刻就用 Core 的 wouldCreateCycle
@@ -29,7 +34,12 @@ import { chainColor } from "./chainVisuals";
 
 type Props = {
   chain: ActionChainSave;
-  onEditNode: (nodeId: string) => void;
+  mode: "view" | "edit";
+  /** edit：点按任务打开编辑表单 */
+  onEditNode?: (nodeId: string) => void;
+  /** view：点按任务选中（详情条由外面渲染） */
+  onSelectNode?: (nodeId: string) => void;
+  selectedNodeId?: string | null;
 };
 
 const NODE_W = 150;
@@ -59,7 +69,13 @@ type Gesture =
       panY0: number;
     };
 
-export function ChainEditCanvas({ chain, onEditNode }: Props) {
+export function ChainEditCanvas({
+  chain,
+  mode,
+  onEditNode,
+  onSelectNode,
+  selectedNodeId,
+}: Props) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [pan, setPan] = useState({ x: 40, y: 40 });
   const [zoom, setZoom] = useState(1);
@@ -67,6 +83,7 @@ export function ChainEditCanvas({ chain, onEditNode }: Props) {
   // 活跃指针表：两根手指同时按下时从平移升级为捏合
   const pointers = useRef(new Map<number, { x: number; y: number }>());
 
+  const editing = mode === "edit";
   const color = chainColor(chain.colorId);
   const nodes = chain.nodes;
   const byId = new Map(nodes.map((n) => [n.nodeId, n]));
@@ -80,7 +97,7 @@ export function ChainEditCanvas({ chain, onEditNode }: Props) {
     };
   };
 
-  /** 这个画布点落在哪个节点上（连线松手时用） */
+  /** 这个画布点落在哪个任务上（连线松手时用） */
   const nodeAt = (x: number, y: number): ActionChainNode | undefined =>
     nodes.find(
       (n) =>
@@ -116,7 +133,7 @@ export function ChainEditCanvas({ chain, onEditNode }: Props) {
 
     const target = e.target as HTMLElement;
     const handleId = target.closest("[data-handle]")?.getAttribute("data-handle");
-    if (handleId) {
+    if (handleId && editing) {
       const p = toCanvas(e.clientX, e.clientY);
       setGesture({ kind: "link", fromId: handleId, x: p.x, y: p.y, overId: null });
       return;
@@ -181,7 +198,7 @@ export function ChainEditCanvas({ chain, onEditNode }: Props) {
       const dy = (e.clientY - gesture.startY) / zoom;
       const moved = gesture.moved || Math.hypot(dx * zoom, dy * zoom) > 6;
       setGesture({ ...gesture, moved });
-      if (moved) {
+      if (moved && editing) {
         // 拖的过程直接写位置：位置不是危险数据，没必要攒到松手
         updateChainNode(
           { chainId: chain.chainId, nodeId: gesture.nodeId },
@@ -207,11 +224,12 @@ export function ChainEditCanvas({ chain, onEditNode }: Props) {
     pointers.current.delete(e.pointerId);
 
     if (gesture.kind === "node" && !gesture.moved) {
-      // 没拖动就是点按：打开这一环的编辑表单
-      onEditNode(gesture.nodeId);
+      // 没拖动就是点按：编辑模式开表单，查看模式选中
+      if (editing) onEditNode?.(gesture.nodeId);
+      else onSelectNode?.(gesture.nodeId);
     }
 
-    if (gesture.kind === "link" && gesture.overId) {
+    if (gesture.kind === "link" && gesture.overId && editing) {
       const to = byId.get(gesture.overId);
       if (
         to &&
@@ -224,7 +242,7 @@ export function ChainEditCanvas({ chain, onEditNode }: Props) {
           { requires: [...to.requires, gesture.fromId] },
         );
       }
-      // 成环/指向已完成的环：什么都不写。拖的过程已经标过红了
+      // 成环/指向已完成的任务：什么都不写。拖的过程已经标过红了
     }
 
     if (pointers.current.size === 0) setGesture({ kind: "none" });
@@ -260,11 +278,11 @@ export function ChainEditCanvas({ chain, onEditNode }: Props) {
       : false;
 
   return (
-    <div className="relative">
+    <div className="flex h-full flex-col">
       <div
         ref={viewportRef}
-        className="ui-paper relative overflow-hidden"
-        style={{ height: "min(52vh, 420px)", touchAction: "none" }}
+        className="ui-paper relative min-h-0 flex-1 overflow-hidden"
+        style={{ touchAction: "none" }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -284,12 +302,17 @@ export function ChainEditCanvas({ chain, onEditNode }: Props) {
               to.requires.map((fromId) => {
                 const from = byId.get(fromId);
                 if (!from) return null;
+                // 查看模式：走完的路线是实线链色，没走到的是灰虚线——
+                // 一眼看出"树推进到哪了"
+                const walked = from.completedAtUtc !== undefined;
                 return (
                   <Edge
                     key={`${fromId}->${to.nodeId}`}
                     from={from}
                     to={to}
-                    color={color}
+                    color={editing ? color : walked ? color : "#c9bda4"}
+                    dashed={!editing && !walked}
+                    deletable={editing}
                     onDelete={() =>
                       updateChainNode(
                         { chainId: chain.chainId, nodeId: to.nodeId },
@@ -314,32 +337,53 @@ export function ChainEditCanvas({ chain, onEditNode }: Props) {
           {nodes.map((node) => {
             const isLinkTarget = gesture.kind === "link" && gesture.overId === node.nodeId;
             const done = node.completedAtUtc !== undefined;
+            const unlocked = done || isNodeUnlocked(chain, node);
+            const selected = !editing && selectedNodeId === node.nodeId;
+
+            // 查看模式的三种状态三种长相；编辑模式保持原来的中性配色
+            let look: string;
+            if (isLinkTarget) {
+              look = linkBad ? "border-[#c94a3a] bg-[#fdf6e2]" : "border-[#7aa35a] bg-[#fdf6e2]";
+            } else if (editing) {
+              look = done ? "border-[#cfe0c0] bg-[#f2f7ea]" : "border-[#dcc89a] bg-[#fdf6e2]";
+            } else if (done) {
+              look = "border-[#8fbb72] bg-[#eef7e2]";
+            } else if (unlocked) {
+              look = "bg-[#fdf6e2]"; // 描边用链色，走内联样式
+            } else {
+              look = "border-[#cfc7b8] bg-[#ece6d9] opacity-75";
+            }
+
             return (
               <div
                 key={node.nodeId}
                 data-node={node.nodeId}
                 className={[
                   "absolute flex select-none items-center gap-1.5 rounded-lg border-2 px-2",
-                  done ? "bg-[#f2f7ea]" : "bg-[#fdf6e2]",
-                  isLinkTarget
-                    ? linkBad
-                      ? "border-[#c94a3a]"
-                      : "border-[#7aa35a]"
-                    : done
-                      ? "border-[#cfe0c0]"
-                      : "border-[#dcc89a]",
+                  look,
                 ].join(" ")}
                 style={{
                   left: node.position.x,
                   top: node.position.y,
                   width: NODE_W,
                   height: NODE_H,
-                  cursor: "grab",
+                  cursor: editing ? "grab" : "pointer",
+                  ...(!editing && unlocked && !done ? { borderColor: color } : {}),
+                  ...(selected
+                    ? { boxShadow: `0 0 0 3px ${color}55`, borderColor: "#b8894a" }
+                    : {}),
                 }}
               >
-                <span className="shrink-0 text-[13px]">{done ? "✅" : "🌱"}</span>
+                <span className="shrink-0 text-[13px]">
+                  {done ? "✅" : !editing && !unlocked ? "🔒" : "🌱"}
+                </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[12px] font-bold text-[#4a3b2a]">
+                  <span
+                    className={[
+                      "block truncate text-[12px] font-bold",
+                      !editing && !unlocked && !done ? "text-[#6f6a62]" : "text-[#4a3b2a]",
+                    ].join(" ")}
+                  >
                     {node.customName}
                   </span>
                   <span className="block text-[10px] text-[#9a8360]">
@@ -347,21 +391,23 @@ export function ChainEditCanvas({ chain, onEditNode }: Props) {
                   </span>
                 </span>
                 {/*
-                  连线把手：视觉 20px，命中区拉到 44px（负 margin 外扩）。
-                  已完成的环照样能当别人的前置，所以把手不藏
+                  连线把手（仅编辑模式）：视觉 20px，命中区拉到 44px（负 margin 外扩）。
+                  已完成的任务照样能当别人的前置，所以把手不藏
                 */}
-                <span
-                  data-handle={node.nodeId}
-                  className="grid shrink-0 place-items-center"
-                  style={{ width: 44, height: 44, margin: "-12px -14px -12px -8px", cursor: "crosshair" }}
-                >
+                {editing && (
                   <span
-                    className="grid h-5 w-5 place-items-center rounded-full text-[10px] text-white"
-                    style={{ backgroundColor: color }}
+                    data-handle={node.nodeId}
+                    className="grid shrink-0 place-items-center"
+                    style={{ width: 44, height: 44, margin: "-12px -14px -12px -8px", cursor: "crosshair" }}
                   >
-                    →
+                    <span
+                      className="grid h-5 w-5 place-items-center rounded-full text-[10px] text-white"
+                      style={{ backgroundColor: color }}
+                    >
+                      →
+                    </span>
                   </span>
-                </span>
+                )}
               </div>
             );
           })}
@@ -376,15 +422,19 @@ export function ChainEditCanvas({ chain, onEditNode }: Props) {
       </div>
 
       {/* 工具行 */}
-      <div className="mt-2 flex items-center justify-between">
-        <span className="text-[11px] text-[#9a8360]">{t("ui.chain.edit_hint")}</span>
-        <button
-          type="button"
-          className="ui-wood-btn px-4 py-1.5 text-[13px] font-bold"
-          onClick={tidy}
-        >
-          ✨ {t("ui.chain.tidy")}
-        </button>
+      <div className="mt-2 flex shrink-0 items-center justify-between">
+        <span className="text-[11px] text-[#9a8360]">
+          {editing ? t("ui.chain.edit_hint") : t("ui.chain.view_hint")}
+        </span>
+        {editing && (
+          <button
+            type="button"
+            className="ui-wood-btn px-4 py-1.5 text-[13px] font-bold"
+            onClick={tidy}
+          >
+            ✨ {t("ui.chain.tidy")}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -411,43 +461,58 @@ function pendingPath(from: ActionChainNode, x: number, y: number): string {
   return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x - dx} ${y}, ${x} ${y}`;
 }
 
-/** 一条前置线：可见线 + 一条 16px 宽的隐形陪跑线接收点击（点线删线） */
+/**
+ * 一条前置线。编辑模式带一条 16px 宽的隐形陪跑线接收点击（点线删线，
+ * 两击确认）；查看模式只是展示——走过的实线、没走到的灰虚线。
+ */
 function Edge({
   from,
   to,
   color,
+  dashed,
+  deletable,
   onDelete,
 }: {
   from: ActionChainNode;
   to: ActionChainNode;
   color: string;
+  dashed: boolean;
+  deletable: boolean;
   onDelete: () => void;
 }) {
   const [armed, setArmed] = useState(false);
   const d = edgePath(from, to);
   return (
     <g>
-      <path d={d} fill="none" stroke={armed ? "#c94a3a" : color} strokeWidth={armed ? 4 : 2.5} />
       <path
         d={d}
         fill="none"
-        stroke="transparent"
-        strokeWidth={16}
-        style={{ cursor: "pointer", pointerEvents: "stroke" }}
-        onPointerDown={(e) => {
-          // 别让画布把这次按下当成平移
-          e.stopPropagation();
-        }}
-        onPointerUp={(e) => {
-          e.stopPropagation();
-          // 两击确认：第一击变红示意，第二击才删
-          if (armed) onDelete();
-          else {
-            setArmed(true);
-            setTimeout(() => setArmed(false), 1600);
-          }
-        }}
+        stroke={armed ? "#c94a3a" : color}
+        strokeWidth={armed ? 4 : 2.5}
+        strokeDasharray={dashed ? "5 5" : undefined}
       />
+      {deletable && (
+        <path
+          d={d}
+          fill="none"
+          stroke="transparent"
+          strokeWidth={16}
+          style={{ cursor: "pointer", pointerEvents: "stroke" }}
+          onPointerDown={(e) => {
+            // 别让画布把这次按下当成平移
+            e.stopPropagation();
+          }}
+          onPointerUp={(e) => {
+            e.stopPropagation();
+            // 两击确认：第一击变红示意，第二击才删
+            if (armed) onDelete();
+            else {
+              setArmed(true);
+              setTimeout(() => setArmed(false), 1600);
+            }
+          }}
+        />
+      )}
       {armed && (
         <text
           x={(from.position.x + NODE_W + to.position.x) / 2}

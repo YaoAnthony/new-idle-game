@@ -10,6 +10,7 @@ import { buildCardboardBox, buildCardboardStack } from "./recipes/cardboardBox.j
 import { buildDailyBoard } from "./recipes/dailyBoard.js";
 import { buildGramophone } from "./recipes/gramophone.js";
 import { buildOfuro } from "./recipes/bath.js";
+import { buildCommonChest, buildRareChest, buildUncommonChest } from "./recipes/chest.js";
 import { buildRecordSleeve } from "./recipes/recordSleeve.js";
 import { buildPlate, buildTallPot, buildWok } from "./recipes/cookware.js";
 import {
@@ -130,6 +131,10 @@ const REGISTRY: Record<string, VisualEntry> = {
   daily_board: { kind: "procedural", build: buildDailyBoard },
   gramophone: { kind: "procedural", build: buildGramophone },
   ofuro: { kind: "procedural", build: buildOfuro },
+  // 奖励宝箱（系列任务开箱）。三档共用一个建模函数，差别在配色表里
+  chest_common: { kind: "procedural", build: buildCommonChest },
+  chest_uncommon: { kind: "procedural", build: buildUncommonChest },
+  chest_rare: { kind: "procedural", build: buildRareChest },
   // 唱片：每张专辑一行（手写注册，见 Core items 的 record 条目注释）
   record_animal_crossing: {
     kind: "procedural",

@@ -220,6 +220,49 @@ const JUMP_LEG_TUCK = -0.5;
 const JUMP_ARM_RAISE = -0.9;
 
 /**
+ * 每帧朝目标收敛的比例。站定收腿、姿势残留归零共用同一个手感——
+ * 两处各写一个数的话，站起来会看到腿先回中、手还撇着的错拍。
+ */
+const SETTLE = 1 - Math.exp(-0.2);
+
+/** 会被姿势摆过、但步态只驱动 x 轴的四肢 */
+const POSE_LIMBS = ["armLeft", "armRight", "legLeft", "legRight"] as const;
+/** 会被姿势摆过、步态压根不碰旋转的躯干部件 */
+const POSE_TRUNK = ["body", "head"] as const;
+
+/**
+ * 姿势退场：把 applyPose 留在零件上的残留角度收回去。
+ *
+ * applyPose 写的是**三个轴的绝对值**，而站姿动画只驱动四肢的 rotation.x
+ * （前后摆是走路唯一需要的轴）和 body.position.y。剩下的轴没人负责归零，
+ * 于是姿势一撤，残留就永久挂在身上：盘腿那份"膝盖外撇 + 手肘内收"
+ * （腿 y=±0.55/z=±0.3，手 z=±0.3）最明显——从坐垫上站起来，人还缩成一团；
+ * 伏案的上身前倾（body.rotation.x=0.14）也是同一个毛病，走起来一直弓着。
+ *
+ * 放在 animateCharacter 开头而不是"检测到起身的那一帧"：起身没有事件，
+ * posture 是外面直接赋值的公开字段；而站姿动画本来就是每帧跑的，
+ * 在这里收敛不需要任何状态。写完之后 applyPose 还会盖一遍活动层，
+ * 所以"站着伏案"的上身前倾不会被这里抹掉——它每帧都被重新写回来。
+ *
+ * 归零走趋近不走直接置 0：站起来是"舒展开"，不是姿势一撤零件啪地弹回原位。
+ * 四肢只收 y/z，x 是步态的地盘，这里插手会跟走路打架。
+ */
+function relaxPoseResidue(rig: CharacterRig): void {
+  const keep = 1 - SETTLE;
+  for (const name of POSE_LIMBS) {
+    const rotation = rig.parts[name].rotation;
+    rotation.y *= keep;
+    rotation.z *= keep;
+  }
+  for (const name of POSE_TRUNK) {
+    const rotation = rig.parts[name].rotation;
+    rotation.x *= keep;
+    rotation.y *= keep;
+    rotation.z *= keep;
+  }
+}
+
+/**
  * 程序化动画：持续动作用代码直接驱动零件。
  * walkCycle 0→1 表示步态相位；speed 0 时回到待机呼吸。
  *
@@ -234,6 +277,9 @@ export function animateCharacter(
   carrying = false,
   jumping = false,
 ): void {
+  // 先把上一个姿势的残留角度收一收：跳、走、站定都要还原（见 relaxPoseResidue）
+  relaxPoseResidue(rig);
+
   if (jumping) {
     /*
      * 腾空是个独立姿态，不套在 moving/idle 的插值逻辑里——那两套算的是
@@ -271,19 +317,19 @@ export function animateCharacter(
     rig.parts.body.position.y =
       Math.abs(Math.sin(walkPhase * Math.PI * 2)) * 0.045;
   } else {
-    const settle = 1 - Math.exp(-0.2);
-    rig.parts.legLeft.rotation.x *= 1 - settle;
-    rig.parts.legRight.rotation.x *= 1 - settle;
+    const keep = 1 - SETTLE;
+    rig.parts.legLeft.rotation.x *= keep;
+    rig.parts.legRight.rotation.x *= keep;
 
     if (carrying) {
       // 站着端东西：手臂平滑收到端持角度，不要一放手就弹回去
       rig.parts.armLeft.rotation.x +=
-        (CARRY_ARM_PITCH - rig.parts.armLeft.rotation.x) * settle;
+        (CARRY_ARM_PITCH - rig.parts.armLeft.rotation.x) * SETTLE;
       rig.parts.armRight.rotation.x +=
-        (CARRY_ARM_PITCH - rig.parts.armRight.rotation.x) * settle;
+        (CARRY_ARM_PITCH - rig.parts.armRight.rotation.x) * SETTLE;
     } else {
-      rig.parts.armLeft.rotation.x *= 1 - settle;
-      rig.parts.armRight.rotation.x *= 1 - settle;
+      rig.parts.armLeft.rotation.x *= keep;
+      rig.parts.armRight.rotation.x *= keep;
     }
 
     // 待机呼吸

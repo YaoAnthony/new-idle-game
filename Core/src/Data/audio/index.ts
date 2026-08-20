@@ -95,6 +95,41 @@ export const audioProfileDefinitions = [
     pitchVariance: 0.06,
   },
   {
+    /**
+     * 奖励宝箱落地。两档素材：普通（木/银箱）和高级（金箱）——
+     * 素材是按"普通/gold"给的两个，三档箱子里金箱独享 gold 档，
+     * 让最高一档在耳朵上也和另外两档拉开。要改归属只动 ChestOverlay
+     * 里那一行三元。
+     */
+    id: "sfx_chest_drop_normal",
+    busId: AudioBusId.Effects,
+    resourcePath: "/audio/furniture/box_drop_down_normal.wav",
+    localizationKey: "audio.chest_drop",
+    loop: false,
+    pitchVariance: 0.04,
+  },
+  {
+    id: "sfx_chest_drop_gold",
+    busId: AudioBusId.Effects,
+    resourcePath: "/audio/furniture/box_drop_down_gold.wav",
+    localizationKey: "audio.chest_drop",
+    loop: false,
+    pitchVariance: 0.04,
+  },
+  {
+    /**
+     * 奖励宝箱开盖。复用 chest_open.wav 这份素材但**单独立档**——
+     * sfx_unpack 是"随机二选一"的变体组（拆纸箱用），开盖这拍要的是
+     * 每次同一声：演出节拍是固定的，声音也该固定。
+     */
+    id: "sfx_chest_open",
+    busId: AudioBusId.Effects,
+    resourcePath: "/audio/action/chest_open.wav",
+    localizationKey: "audio.chest_open",
+    loop: false,
+    pitchVariance: 0.03,
+  },
+  {
     id: "sfx_eat",
     busId: AudioBusId.Effects,
     resourcePath: "/audio/action/eat-apple.wav",

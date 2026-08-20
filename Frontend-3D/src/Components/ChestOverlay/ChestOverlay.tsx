@@ -12,6 +12,7 @@ import {
   WebGLRenderer,
 } from "three";
 import { on } from "../../Game/EventBus";
+import { playOneShot, preloadProfiles } from "../../Game3D/Engine/AudioEngine";
 import { buildChest, type ChestTier } from "../../Game3D/Visual/recipes/chest";
 import { disposeTree } from "../../Game3D/Visual/primitives";
 import { t } from "../../i18n/t";
@@ -94,6 +95,13 @@ export function ChestOverlay() {
     const canvas = canvasRef.current;
     if (!current || !canvas) return;
 
+    // 先热音频：落地声在 0.15s 就要响，等它现下现解码会踩不上拍
+    void preloadProfiles([
+      "sfx_chest_drop_normal",
+      "sfx_chest_drop_gold",
+      "sfx_chest_open",
+    ]);
+
     const scene = new Scene();
     const camera = new PerspectiveCamera(34, 300 / 230, 0.1, 20);
     camera.position.set(0, 1.2, 3.5);
@@ -134,6 +142,11 @@ export function ChestOverlay() {
     const shakes = big ? 3 : 2;
     let raf = 0;
     let didReveal = false;
+    let didThud = false;
+    let didCreak = false;
+    // 金箱独享 gold 落地声（素材就给了普通/gold 两档），木/银箱走普通
+    const dropSfx =
+      tierOf(current.rarity) === "rare" ? "sfx_chest_drop_gold" : "sfx_chest_drop_normal";
     const startedAt = performance.now();
 
     const tick = () => {
@@ -145,6 +158,12 @@ export function ChestOverlay() {
         chest.position.y = (1 - k * k) * 1.7;
         chest.scale.setScalar(baseScale);
       } else if (seconds < 0.55) {
+        // 落地那一下响落地声（声音跟着触地帧走，不跟事件走——
+        // 排队的第二个箱子是在上一个收下之后才落地的）
+        if (!didThud) {
+          didThud = true;
+          playOneShot(dropSfx, 0.9);
+        }
         // 第二拍：squash & stretch 抖动（衰减的弹性摆）
         chest.position.y = 0;
         const k = (seconds - 0.15) / 0.4;
@@ -155,6 +174,11 @@ export function ChestOverlay() {
           baseScale * (1 + wave),
         );
       } else {
+        // 开盖那一拍响开盖声
+        if (!didCreak) {
+          didCreak = true;
+          playOneShot("sfx_chest_open", 0.85);
+        }
         // 第三拍：开盖 + 光柱
         chest.position.y = 0;
         chest.scale.setScalar(baseScale);

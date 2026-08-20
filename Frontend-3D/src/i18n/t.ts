@@ -577,6 +577,8 @@ const ZH: Record<string, string> = {
   "audio.wall_clock": "挂钟",
   "audio.action_writing": "笔尖",
   "audio.storage_open": "开箱",
+  "audio.chest_drop": "宝箱落地",
+  "audio.chest_open": "宝箱开盖",
 
   // 音乐（白噪音台上归一条推子；曲名来自文件名，不进词典）
   "audio.music": "音乐",

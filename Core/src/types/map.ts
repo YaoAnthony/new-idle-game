@@ -88,6 +88,9 @@ export type WallSave = {
    * 这面墙的放置框架。**不填就按 facing 当作矩形屋的四面之一推**
    * （北墙沿 +x 铺、南墙也沿 +x、东西墙沿 +z——这是老存档定下的墙格
    * 约定，改了老档里挂钟就换位置）。异形屋/非矩形墙填它。
+   *
+   * 写在**房本地系**里（房中心为原点、朝北，同 RoomAnchor 的消费规则）：
+   * 房子挪走时 frame 数据不动，出口处统一复合锚点。
    */
   frame?: FaceFrame;
   grid: GridFootprint;
@@ -166,6 +169,37 @@ export type HouseZone = {
   rect: { x: number; y: number; width: number; height: number };
 };
 
+/**
+ * 房间（房屋）在世界里的锚点：**房子从"世界的一部分"降级成"世界里的
+ * 一个实例"**（2026-08-20，为"工人挪房"铺路）。
+ *
+ * 字段形状对齐 `BuildingPlacement`（types/building.ts）——家具是
+ * 「型号+摆放+状态」，建筑也是，小镇六家店铺已经这么钉在世界里了；
+ * 大宅补上它一直缺的那条摆放数据。不直接复用那个类型：instanceId /
+ * buildingId 对房间没有意义（RoomSave 本身就是实例，户型就是型号）。
+ *
+ * 约定：
+ * - **不填 = 房子中心在世界原点、朝北、地板 y=0**——正是锚点引入前
+ *   全项目的隐含公理，所以老存档零迁移。
+ * - x/z 是房子**中心**的世界坐标，吸附整数格（1 世界单位 = 1 格）。
+ * - facing 沿用四向（和 BuildingPlacement 同理：房子贴格摆，能转 37°
+ *   只会让碰撞和铺装对不齐）。North = 引入锚点前的朝向。
+ *   旋转约定与家具同一份（logic/facing.ts 的四分之一圈表）。
+ * - elevation 是室内地板的世界 Y。目前恒 0（据点墙内是平地），字段
+ *   留着是因为小镇台地已经证明建筑需要高度。
+ *
+ * 消费规则：**RoomSave 内部的一切几何（墙格、frame、缘侧、门窗）都写
+ * 在房本地系里**（中心为原点、朝北），只在出口处（placementFacesOf、
+ * buildGroundMap、表现层的 root 变换）复合锚点。哪一层数据里都不许
+ * 出现"已经转到世界"的坐标——那会让挪房变成全量改写存档。
+ */
+export type RoomAnchor = {
+  x: number;
+  z: number;
+  elevation: number;
+  facing: Facing;
+};
+
 export type RoomSave = {
   roomId: RoomId;
   floorGrid: GridFootprint;
@@ -179,6 +213,32 @@ export type RoomSave = {
 
   /** 楼层序号。初期只构建和渲染一层，但维度先留出来 */
   floor: number;
+
+  /** 房子在世界里的摆放。不填 = 中心在原点朝北（老存档的隐含公理） */
+  anchor?: RoomAnchor;
+
+  /**
+   * **这栋房子收起来了**——户型还在，但它此刻不立在世界上。
+   *
+   * 和 anchor 的分工：anchor 说"放下时放在哪"，这个说"放没放下"。
+   * 分成两个字段而不是让 anchor 兼职（`anchor: null` = 收起）是因为
+   * **收起来的房子仍然记得自己原来在哪**——工人挪房是"收起 → 选址 →
+   * 放下"，中间那步要是把位置也丢了，取消操作就没法还原。
+   *
+   * 语义是"不在场"，不是"被删除"：屋里的家具、门的锁态、储物箱内容
+   * **原样留在存档里**，几何推导对它们一律答空（见下面的清单），
+   * 放回来一切归位。收房子丢东西是这套设计明确要避免的事。
+   *
+   * 收起时答空的推导（都在 Core，Frontend 只跟着走）：
+   * - `placementFacesOf` / `wallFaceOf`：没有面 → 摆不了东西，也拾取不到
+   * - `buildGroundMap`：不铺地板和缘侧 → 脚下是院子的地，不是悬空木板
+   * - `interiorWallCells`：不挡路，占用图随之空
+   * - `findDoors` / `findWindows`：没有门窗
+   * - `zoneAt`：不在任何分区里（音景退回兜底档案）
+   *
+   * 不填 = 立着。老存档、以及"房子本来就该在"的一切情形都走这条。
+   */
+  stowed?: boolean;
 };
 
 export type MapSave = {
@@ -206,7 +266,7 @@ export type OutdoorDeck = {
   deckId: string;
   /** 贴着哪面外墙。决定庇往哪边挑、椽子朝哪个方向排 */
   side: "north" | "south" | "east" | "west";
-  /** 沿墙方向的起止（世界坐标，房子中心为原点） */
+  /** 沿墙方向的起止（**房本地坐标**，房子中心为原点；挪房跟着房走） */
   from: number;
   to: number;
   /** 从外墙面往外挑多深 */
@@ -389,7 +449,14 @@ export type MapDefinition = {
    */
   openAir?: boolean;
 
-  /** 出生点（也是读档读不到位置时的退路）。mapId 就是本地图，不重复存 */
+  /**
+   * 出生点（也是读档读不到位置时的退路）。mapId 就是本地图，不重复存。
+   *
+   * **主房间的房本地坐标**（y 是本地 z，沿用 WorldPosition 的历史命名）：
+   * 出生点是"玄关内侧"这类房子的知识，房子挪走它得跟着门走。世界化
+   * 走 logic/roomAnchor 的 spawnWorldOf——缺省锚点下数值即世界坐标，
+   * 和引入锚点前逐字相同。portal.landing 仍是世界坐标（桥头是地理）。
+   */
   spawn: { x: number; y: number; heading: number };
 
   /**

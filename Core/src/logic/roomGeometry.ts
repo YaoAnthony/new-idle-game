@@ -1,4 +1,5 @@
 import type { GridPosition } from "../types/base.js";
+import { isHouseStowed } from "./roomAnchor.js";
 import {
   WallOpeningKind,
   type HouseZone,
@@ -26,6 +27,10 @@ export function zoneAt(
   room: RoomSave,
   cell: { x: number; y: number },
 ): HouseZone | undefined {
+  // 房子收起来了：人站在原地也不在任何分区里（音景退回兜底档案）。
+  // 不加这一条的话，格坐标照样落在网格内，音景会说"你在 LDK"，
+  // 而玩家其实站在草地上
+  if (isHouseStowed(room)) return undefined;
   return room.zones?.find(
     (zone) =>
       cell.x >= zone.rect.x &&
@@ -37,6 +42,8 @@ export function zoneAt(
 
 /** 内墙覆盖的所有格子（占用图和渲染共用同一份推导） */
 export function interiorWallCells(room: RoomSave): GridPosition[] {
+  // 收起来的房子不挡路（占用图和内墙放置面都由它推）
+  if (isHouseStowed(room)) return [];
   const cells: GridPosition[] = [];
   for (const wall of room.interiorWalls ?? []) {
     for (let i = 0; i < wall.length; i += 1) {
@@ -52,6 +59,7 @@ export function interiorWallCells(room: RoomSave): GridPosition[] {
 
 /** 找出房间里所有门（宠物派遣的寻路目标） */
 export function findDoors(room: RoomSave): WallOpening[] {
+  if (isHouseStowed(room)) return [];
   return Object.values(room.walls).flatMap((wall) =>
     wall.openings.filter((opening) => opening.kind === WallOpeningKind.Door),
   );
@@ -59,6 +67,7 @@ export function findDoors(room: RoomSave): WallOpening[] {
 
 /** 找出房间里所有窗（环境音按玩家到窗口的距离衰减） */
 export function findWindows(room: RoomSave): WallOpening[] {
+  if (isHouseStowed(room)) return [];
   return Object.values(room.walls).flatMap((wall) =>
     wall.openings.filter((opening) => opening.kind === WallOpeningKind.Window),
   );
@@ -72,11 +81,13 @@ export type DeckRect = {
 };
 
 /**
- * 缘侧的世界坐标矩形。**渲染和通行判定共用这一个函数**——
+ * 缘侧的**房本地**矩形（房中心为原点；RoomAnchor 引入后世界化在
+ * 消费方出口做——groundMap 经 anchorRectToWorld，表现层挂在锚定
+ * root 下天然本地）。**渲染和通行判定共用这一个函数**——
  * `side + from/to + depth` 是紧凑好写的数据形式，但两边各自展开成
  * 矩形迟早展开出两种结果（差半格的那种，最难看出来）。
  *
- * `floorGrid` 是房子的占地，墙面线由它推导（房子中心在原点）。
+ * `floorGrid` 是房子的占地，墙面线由它推导。
  */
 export function outdoorDeckRect(
   deck: OutdoorDeck,
@@ -101,6 +112,12 @@ export function outdoorDeckRect(
  * 院子的可走边界（世界坐标矩形）。**读边距的唯一入口**——四向边距
  * 是可选的（yardMargins，缺哪向退回均匀的 yardMargin），让每个消费方
  * 自己做这个回退，迟早有一处忘了，那一侧的墙和可走边界就错位了。
+ *
+ * **刻意不看 RoomAnchor**：可走边界是地理（据点的岬角、围墙、岸线），
+ * 不是房子的属性——房子挪走，据点还是那么大。边距数值是围着**默认
+ * 锚点**的房 rect 调的（历史原因，margins 语义是"从房边缘往外量"），
+ * 所以这里继续按原点房 rect 展开，得到的正是那块世界固定的地理矩形。
+ * 房子挪到边上导致"离边界很近"是选址校验的事，不该反过来让边界跟房跑。
  */
 export function yardBoundsOf(
   map: Pick<MapDefinition, "yardMargin" | "yardMargins">,

@@ -7,6 +7,7 @@ import {
 } from "../types/furniture.js";
 import type { PlaceableItem } from "../types/items.js";
 import type { RoomSave } from "../types/map.js";
+import { FACING_TURNS, rotateQuarter } from "./facing.js";
 import { footprintCells } from "./grid.js";
 
 /**
@@ -30,13 +31,6 @@ export type AnchorRef = {
   cell: GridPosition;
   /** 叠加了家具朝向之后的世界朝向 */
   facing: Facing;
-};
-
-const FACING_TURNS: Record<Facing, number> = {
-  [Facing.North]: 0,
-  [Facing.East]: 1,
-  [Facing.South]: 2,
-  [Facing.West]: 3,
 };
 
 const TURN_FACING: Facing[] = [
@@ -89,14 +83,12 @@ function anchorCell(
   const height = maxY - minY + 1;
 
   // 本地偏移绕 Y 轴旋转到世界方向（和表现层同一套约定：North=0，顺时针为负）
-  const turns = FACING_TURNS[placed.placement.facing];
   const [ox, , oz] = anchor.offset;
-  const rotated = [
-    { x: ox, z: oz },
-    { x: -oz, z: ox },
-    { x: -ox, z: -oz },
-    { x: oz, z: -ox },
-  ][turns];
+  const rotated = rotateQuarter(
+    FACING_TURNS[placed.placement.facing],
+    ox,
+    oz,
+  );
 
   // 占地中心（格子坐标系里，中心可能落在半格上）
   const centerX = minX + (width - 1) / 2;

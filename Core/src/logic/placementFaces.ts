@@ -1,4 +1,5 @@
 import { Facing, type GridPosition } from "../types/base.js";
+import { anchorFrameToWorld, anchorOf, isHouseStowed } from "./roomAnchor.js";
 import { interiorWallCells } from "./roomGeometry.js";
 import {
   WallOpeningKind,
@@ -25,6 +26,15 @@ import {
  *
  * 想再加一块能放的面（院子地面、二楼、异形墙）：地图/房间给一条
  * PlacementFace，或者像内墙这样让生成器推出来。放置系统一行不改。
+ *
+ * ## 本地面和世界面（RoomAnchor 引入后的分层，2026-08-20）
+ *
+ * 单件的推导函数（floorFace / exteriorWallFace / interiorWallFaces）产出
+ * **房本地系**的面（房中心为原点、朝北）——表现层在挂了锚点变换的
+ * root 底下建模用它们，放置校验（placement.ts）只用格子域也用它们。
+ * 汇总入口（placementFacesOf / wallFaceOf）在出口处复合 room.anchor，
+ * 产出**世界系**的面——射线拾取、家具世界坐标这些和世界打交道的
+ * 消费方走这两个入口。缺省锚点下两层完全相同，老档零变化。
  */
 
 const DOOR_HEIGHT = 2;
@@ -60,7 +70,7 @@ function rectangularWallFrame(
   }
 }
 
-/** 一面外墙 → 放置面（有 frame 用 frame，没有按矩形屋推） */
+/** 一面外墙 → 放置面（**房本地系**；有 frame 用 frame，没有按矩形屋推） */
 export function exteriorWallFace(room: RoomSave, wall: WallSave): PlacementFace {
   return {
     faceId: wall.wallId,
@@ -72,7 +82,7 @@ export function exteriorWallFace(room: RoomSave, wall: WallSave): PlacementFace 
   };
 }
 
-/** 房间的地面（格 (0,0) 在西北角，网格 x 沿 +x、y 沿 +z，朝上） */
+/** 房间的地面（**房本地系**；格 (0,0) 在西北角，网格 x 沿 +x、y 沿 +z，朝上） */
 export function floorFace(room: RoomSave): PlacementFace {
   return {
     faceId: room.roomId,
@@ -225,8 +235,24 @@ export function interiorWallFaces(room: RoomSave): PlacementFace[] {
   return faces;
 }
 
-/** 这个房间所有的放置面：地面 + 外墙 + 内墙两面 */
-export function placementFacesOf(room: RoomSave): PlacementFace[] {
+/**
+ * 房本地面 → 世界面：frame 复合锚点，格子域（grid/openings）原样透传。
+ * 没有锚点时直接还回原对象——不是省一次分配，是让"缺省 == 引入前"
+ * 这条承诺连对象身份都成立（有缓存按身份失效的消费方）。
+ */
+function anchorFace(room: RoomSave, face: PlacementFace): PlacementFace {
+  if (room.anchor === undefined) return face;
+  return { ...face, frame: anchorFrameToWorld(anchorOf(room), face.frame) };
+}
+
+/**
+ * 这个房间所有的放置面（**房本地系**）。给挂在锚定 root 底下建模的
+ * 表现层用（拾取平面、墙体几何）——那里的坐标由 root 的变换入世界，
+ * 面再带锚点就转两次。逻辑端别用这个，用 placementFacesOf。
+ */
+export function localPlacementFacesOf(room: RoomSave): PlacementFace[] {
+  // 收起来的房子没有面：摆不了东西，射线也拾取不到（见 RoomSave.stowed）
+  if (isHouseStowed(room)) return [];
   return [
     floorFace(room),
     ...Object.values(room.walls).map((wall) => exteriorWallFace(room, wall)),
@@ -234,11 +260,21 @@ export function placementFacesOf(room: RoomSave): PlacementFace[] {
   ];
 }
 
-/** 按 id 找一张墙面（外墙 id 或内墙面 id）。找不到 = 这面墙不存在 */
+/** 这个房间所有的放置面（**世界系**）：地面 + 外墙 + 内墙两面 */
+export function placementFacesOf(room: RoomSave): PlacementFace[] {
+  return localPlacementFacesOf(room).map((face) => anchorFace(room, face));
+}
+
+/** 按 id 找一张墙面（**世界系**；外墙 id 或内墙面 id）。找不到 = 这面墙不存在 */
 export function wallFaceOf(room: RoomSave, wallId: string): PlacementFace | undefined {
+  // 收起来的房子连墙都不在场。挂在墙上的东西由消费方各自处理"面没了"
+  // （FurnitureView 藏起来、checkPlacement 判非法）——那条路本来就有，
+  // 坏档里的 wallId 走的就是它
+  if (isHouseStowed(room)) return undefined;
   const exterior = room.walls[wallId];
-  if (exterior) return exteriorWallFace(room, exterior);
-  return interiorWallFaces(room).find((face) => face.faceId === wallId);
+  if (exterior) return anchorFace(room, exteriorWallFace(room, exterior));
+  const face = interiorWallFaces(room).find((f) => f.faceId === wallId);
+  return face ? anchorFace(room, face) : undefined;
 }
 
 // ---- 面上的坐标换算（纯数学，表现层和校验共用同一份） ----

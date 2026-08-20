@@ -6,6 +6,7 @@ import {
   type GroundRect,
   type GroundSurface,
 } from "../types/ground.js";
+import { anchorOf, anchorRectToWorld, isHouseStowed } from "./roomAnchor.js";
 import { outdoorDeckRect } from "./roomGeometry.js";
 
 /**
@@ -56,29 +57,50 @@ export function buildGroundMap(
 ): GroundMap {
   const halfW = room.floorGrid.width / 2;
   const halfD = room.floorGrid.height / 2;
+  const anchor = anchorOf(room);
 
   const surfaces: GroundSurface[] = [];
 
-  // 室内地板。世界原点定在这儿（见 MapDefinition.floorLevel 的注释）
-  surfaces.push({
-    surfaceId: `floor:${room.roomId}`,
-    kind: GroundKind.Floor,
-    roomId: room.roomId,
-    floorIndex: room.floor ?? 0,
-    rect: { minX: -halfW, maxX: halfW, minZ: -halfD, maxZ: halfD },
-    elevation: 0,
-  });
+  /*
+   * 房子收起来了：**不铺地板、也不铺缘侧**，脚下直接是院子的地。
+   * 少了这一条，收起来的房子会在原地留下一块看不见的木地板——
+   * 人走到那儿平地拔高 0.45 米，还会被判成"在屋里"（isIndoors 问的
+   * 正是脚下是不是 Floor 面）。声明式承托面的好处在这儿兑现：
+   * 不铺 = 那块地不存在，不需要在查询端加任何判据。
+   */
+  const stowed = isHouseStowed(room);
 
-  // 缘侧：室内楼板的延伸，恒与地板齐平。矩形展开必须走 outdoorDeckRect
-  // ——渲染建木台用的同一个函数，两边差半格的事故就是这么防的
-  for (const deck of map.outdoorDecks ?? []) {
+  // 室内地板。标高 = 锚点的 elevation（缺省 0，正是"世界原点定在
+  // 室内地板上"的老公理——见 MapDefinition.floorLevel 的注释）；
+  // 矩形从房本地经锚点转到世界，房子挪走地板跟着走
+  if (!stowed) {
+    surfaces.push({
+      surfaceId: `floor:${room.roomId}`,
+      kind: GroundKind.Floor,
+      roomId: room.roomId,
+      floorIndex: room.floor ?? 0,
+      rect: anchorRectToWorld(anchor, {
+        minX: -halfW,
+        maxX: halfW,
+        minZ: -halfD,
+        maxZ: halfD,
+      }),
+      elevation: anchor.elevation,
+    });
+  }
+
+  // 缘侧：室内楼板的延伸，恒与地板齐平（所以标高同样取锚点的
+  // elevation）。矩形展开必须走 outdoorDeckRect——渲染建木台用的
+  // 同一个函数，两边差半格的事故就是这么防的；它产出房本地矩形，
+  // 缘侧长在房上，跟房一起经锚点入世界
+  for (const deck of stowed ? [] : (map.outdoorDecks ?? [])) {
     surfaces.push({
       surfaceId: `deck:${deck.deckId}`,
       kind: GroundKind.Deck,
       roomId: map.outdoorRoomId,
       floorIndex: 0,
-      rect: outdoorDeckRect(deck, room.floorGrid),
-      elevation: 0,
+      rect: anchorRectToWorld(anchor, outdoorDeckRect(deck, room.floorGrid)),
+      elevation: anchor.elevation,
     });
   }
 

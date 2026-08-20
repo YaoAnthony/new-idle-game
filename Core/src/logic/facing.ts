@@ -17,6 +17,37 @@ import { Facing } from "../types/base.js";
 
 const ORDER = [Facing.North, Facing.East, Facing.South, Facing.West];
 
+/** 朝向 → 四分之一圈数（North=0 顺时针数）。离散旋转的唯一编码 */
+export const FACING_TURNS: Record<Facing, number> = {
+  [Facing.North]: 0,
+  [Facing.East]: 1,
+  [Facing.South]: 2,
+  [Facing.West]: 3,
+};
+
+/**
+ * 平面向量按四分之一圈旋转（本地 → 世界）。**全项目唯一的一份查表**——
+ * 家具锚点（logic/anchors）、房屋锚点（logic/roomAnchor）都转它。
+ * 和表现层 FACING_ROTATION（North=0、East=-π/2…）逐项等价，
+ * 用查表而不是三角函数：四向旋转没有理由引入浮点误差。
+ */
+export function rotateQuarter(
+  turns: number,
+  x: number,
+  z: number,
+): { x: number; z: number } {
+  switch (turns & 3) {
+    case 0:
+      return { x, z };
+    case 1:
+      return { x: -z, z: x };
+    case 2:
+      return { x: -x, z: -z };
+    default:
+      return { x: z, z: -x };
+  }
+}
+
 /** 弧度（从 +z 轴转向 +x）量化到最近的四向 */
 export function headingToFacing(heading: number): Facing {
   // & 3 而不是 % 4：负角度取模在 JS 里会得到负数，按位与直接落回 0..3

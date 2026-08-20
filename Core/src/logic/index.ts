@@ -16,6 +16,8 @@ export * from "./placement.js";
 export * from "./placementFaces.js";
 export * from "./surfaces.js";
 export * from "./projectile.js";
+export * from "./housePlacementCheck.js";
+export * from "./roomAnchor.js";
 export * from "./roomGeometry.js";
 export * from "./storyAudit.js";
 export * from "./terrainBake.js";

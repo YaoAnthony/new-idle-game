@@ -22,6 +22,8 @@ import {
 import { getDefinition, getWorld } from "../../Game/State/worldRuntime";
 import { t } from "../../i18n/t";
 import { usePanel } from "../PanelStack/usePanel";
+import { ChainView } from "./ChainView";
+import { getActionChains } from "../../Game/State/actionChains";
 
 /**
  * 行动面板。三屏，对照 `old/版本期望/figures` 的像素稿：
@@ -48,7 +50,8 @@ const CATEGORY_ORDER: ActionCategory[] = [
 type Screen =
   | { kind: "grid" }
   | { kind: "list"; category: ActionCategory }
-  | { kind: "form"; category: ActionCategory };
+  | { kind: "form"; category: ActionCategory }
+  | { kind: "chains"; category: ActionCategory };
 
 /** 该分类当前会用到的家具名（表单里的「使用家具」只读行） */
 function supportingFurnitureName(category: ActionCategory): string | null {
@@ -82,12 +85,14 @@ export function ActionHub() {
       if (status === "started") setOpen(false);
     });
     const offEntries = on("action_entries_changed", () => force((n) => n + 1));
+    const offChains = on("action_chains_changed", () => force((n) => n + 1));
     const offNeeds = on("needs_changed", () => force((n) => n + 1));
     const offWorld = on("world_changed", () => force((n) => n + 1));
 
     return () => {
       offAction();
       offEntries();
+      offChains();
       offNeeds();
       offWorld();
     };
@@ -146,6 +151,14 @@ export function ActionHub() {
               onBack={() => setScreen({ kind: "grid" })}
               onClose={() => setOpen(false)}
               onAdd={() => setScreen({ kind: "form", category: screen.category })}
+              onChains={() => setScreen({ kind: "chains", category: screen.category })}
+            />
+          )}
+          {screen.kind === "chains" && (
+            <ChainView
+              category={screen.category}
+              onBack={() => setScreen({ kind: "list", category: screen.category })}
+              onClose={() => setOpen(false)}
             />
           )}
           {screen.kind === "form" && (
@@ -330,11 +343,13 @@ function CategoryList({
   onBack,
   onClose,
   onAdd,
+  onChains,
 }: {
   category: ActionCategory;
   onBack: () => void;
   onClose: () => void;
   onAdd: () => void;
+  onChains: () => void;
 }) {
   const definition = actionDefinitions.find(
     (entry) => entry.category === category,
@@ -359,6 +374,21 @@ function CategoryList({
         onClick={onAdd}
       >
         ＋ {t("ui.action.add")}
+      </button>
+
+      {/* 系列任务入口：分类跟着这张卡走，链和它的所有环都继承这个分类 */}
+      <button
+        type="button"
+        className="ui-wood-btn absolute left-16 top-[70px] px-4 py-2 text-[14px] font-bold"
+        onClick={onChains}
+      >
+        🌳 {t("ui.chain.entry")}
+        {(() => {
+          const count = getActionChains().filter(
+            (chain) => chain.category === category && !chain.completedAtUtc,
+          ).length;
+          return count > 0 ? ` ${count}` : "";
+        })()}
       </button>
 
       <div className="ui-paper ui-scroll mt-6 max-h-[46vh] min-h-[300px] overflow-y-auto p-4">

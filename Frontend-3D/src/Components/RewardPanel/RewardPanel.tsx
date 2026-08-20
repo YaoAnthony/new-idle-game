@@ -1,12 +1,13 @@
 import { findItemDefinition } from "core";
 import { useEffect, useState } from "react";
-import { emit, on } from "../../Game/EventBus";
+import { on } from "../../Game/EventBus";
 import {
   claimUnpack,
   dismissUnpack,
   getPendingUnpack,
 } from "../../Game/Systems/unpack";
 import { t } from "../../i18n/t";
+import { useMirroredPanel } from "../PanelStack/useMirroredPanel";
 import { ItemIcon } from "../Inventory/slots";
 
 /**
@@ -26,15 +27,13 @@ export function RewardPanel() {
 
   const pending = getPendingUnpack();
 
-  // 面板挡视线：告诉剧情系统别在这时候放宠物登场的过场
-  useEffect(() => {
-    emit("blocking_panel_changed", { open: pending !== null });
-  }, [pending]);
+  // 挡屏，进面板栈；ESC 弹栈之后当作"不拆了"处理
+  useMirroredPanel("reward", pending !== null, dismissUnpack);
 
   useEffect(() => {
     if (!pending) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") dismissUnpack();
+      // Escape 归 EscArbiter（弹栈 → useMirroredPanel 调 dismissUnpack）
       // 回车 / 空格 = 收下，让"按 F 开箱 → 直接确认"能一气呵成
       if (event.key === "Enter" || event.key === " ") claimUnpack();
     };

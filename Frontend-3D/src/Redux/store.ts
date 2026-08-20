@@ -16,6 +16,7 @@ import {
 
 import { authApi } from "../Api/auth/authApi";
 import { makePersistConfig } from "./presist";
+import uiReducer from "./features/uiSlice";
 import userReducer from "./features/userSlice";
 
 /**
@@ -25,6 +26,9 @@ import userReducer from "./features/userSlice";
 
 const rootReducer = combineReducers({
   user: userReducer,
+  // 面板开关。**刻意不进 persist 白名单**：它是"这一刻屏幕上开着什么"，
+  // 落盘的话下次进游戏会把背包恢复成开着的
+  ui: uiReducer,
   [authApi.reducerPath]: authApi.reducer,
 });
 
@@ -50,3 +54,4 @@ export const persistor = persistStore(store);
 
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
+export type AppStore = typeof store;

@@ -15,6 +15,7 @@ import {
   pushSystemMessage,
 } from "../../Game/State/chatLog";
 import { isTouchMode } from "../../Game/State/touchMode";
+import { usePanel } from "../PanelStack/usePanel";
 import { t } from "../../i18n/t";
 
 /**
@@ -58,7 +59,8 @@ const KIND_CLASS: Record<ChatMessageKind, string> = {
 };
 
 export function ChatPanel() {
-  const [open, setOpen] = useState(false);
+  // 挡屏面板，开关挂在全局面板栈上（ESC 分层归 EscArbiter）
+  const [open, setOpen] = usePanel("chat");
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState<readonly ChatMessage[]>([]);
   const [selected, setSelected] = useState(0);
@@ -130,7 +132,7 @@ export function ChatPanel() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open]);
+  }, [open, setOpen]);
 
   useEffect(
     () => on("ui_panel_requested", ({ panel }) => {
@@ -139,7 +141,7 @@ export function ChatPanel() {
         setOpen(true);
       }
     }),
-    [],
+    [setOpen],
   );
 
   useEffect(() => {
@@ -163,10 +165,10 @@ export function ChatPanel() {
     if (row instanceof HTMLElement) row.scrollIntoView({ block: "nearest" });
   }, [selected, draft]);
 
-  // 打字时游戏要停手：不锁的话按 W 会一边打字一边往前走
-  useEffect(() => {
-    emit("blocking_panel_changed", { open });
-  }, [open]);
+  /*
+   * 打字时游戏要停手：不锁的话按 W 会一边打字一边往前走。这条广播现在由
+   * 面板栈统一派生（EscArbiter 里那一发），进栈就等于"挡着"，不用自己喊。
+   */
 
   const close = (): void => {
     setOpen(false);

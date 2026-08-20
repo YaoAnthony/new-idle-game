@@ -14,7 +14,7 @@ import {
   cycleMusicMode,
   getMusicMode,
 } from "../../Game3D/Engine/MusicDirector";
-import { emit, on } from "../../Game/EventBus";
+import { on } from "../../Game/EventBus";
 import { listCommands } from "../../Game/CommandLine/commands";
 import {
   INPUT_ACTION_GROUPS,
@@ -33,6 +33,7 @@ import {
   getWeather,
 } from "../../Game/State/weather";
 import { t } from "../../i18n/t";
+import { usePanel } from "../PanelStack/usePanel";
 import {
   LANGUAGE_CHOICES,
   MUSIC_MODE_LABELS,
@@ -65,7 +66,8 @@ const LOCALE_KEY = "idle-home:locale";
 
 export function GameSettingsModal() {
   const reduceMotion = useReducedMotion();
-  const [open, setOpen] = useState(false);
+  // 挡屏面板，开关挂在全局面板栈上
+  const [open, setOpen] = usePanel("settings");
   const [tab, setTab] = useState<SettingsTabId>("world");
   const [settings, setSettings] = useState<StoredAudioSettings>(() =>
     loadAudioSettings(),
@@ -88,7 +90,7 @@ export function GameSettingsModal() {
       on("ui_panel_requested", ({ panel }) => {
         if (panel === "settings") setOpen(true);
       }),
-    [],
+    [setOpen],
   );
 
   // 改了就立刻作用到音频总线并落盘——没有"确定"按钮，拖着就能听见
@@ -97,30 +99,14 @@ export function GameSettingsModal() {
     saveAudioSettings(settings);
   }, [settings]);
 
-  // 面板挡视线，剧情系统要据此推迟宠物登场这类过场
-  useEffect(() => {
-    emit("blocking_panel_changed", { open });
-  }, [open]);
-
   useEffect(() => subscribeBindings(setLocalBindings), []);
 
-  /**
-   * Esc：改键时先取消这次改键，再按才关面板。
-   * 直接关掉的话，玩家想放弃一次误触发的改键就只能连带把面板也关了。
+  /*
+   * Esc 的两层语义还在，只是分工换了：**改键时**由下面那个 capture 阶段的
+   * 监听吃掉（它 stopPropagation，事件根本到不了 window 的冒泡阶段，也就到不了
+   * EscArbiter），取消这次改键；**没在改键时**事件正常走到 EscArbiter，
+   * 由它弹栈关面板。玩家的手感不变：第一下取消改键，第二下才关面板。
    */
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      if (capturing) {
-        setCapturing(null);
-        return;
-      }
-      setOpen(false);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, capturing]);
 
   /**
    * 改键捕获。**capture 阶段 + preventDefault**：不抢在冒泡前面的话，

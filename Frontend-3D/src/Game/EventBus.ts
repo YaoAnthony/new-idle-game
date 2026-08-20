@@ -123,7 +123,14 @@ export type GameEvents = {
   cutscene_changed: { active: boolean };
   /** 行动开始 / 完成 / 取消（专注模式随之进出） */
   action_changed: { status: "started" | "completed" | "cancelled" };
-  /** 挡视线的面板开关（工作台等）。剧情用它推迟宠物登场这类过场 */
+  /**
+   * 有没有面板挡着视线。剧情用它推迟宠物登场这类过场，触摸端用它收起按钮。
+   *
+   * **只有一个发送方**：EscArbiter 从面板栈（Redux 的 ui.panelStack）派生出来。
+   * 原来是每块面板各喊各的，同一个布尔被最后说话的那个覆盖——"背包开着"却报
+   * "没人开着"，ESC 于是既关了背包又弹出侧边栏。要问"谁开着"请读面板栈，
+   * 这条事件只回答"有没有"。
+   */
   blocking_panel_changed: { open: boolean };
   /** 该不该显示触摸操作（设备变化或手动覆盖） */
   touch_mode_changed: { touch: boolean };

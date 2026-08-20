@@ -17,6 +17,7 @@ import { getRoomStyle } from "../../Game/State/worldRuntime";
 import { getActiveAction } from "../../Game/Systems/actions";
 import { isTouchMode } from "../../Game/State/touchMode";
 import { t } from "../../i18n/t";
+import { usePanel } from "../PanelStack/usePanel";
 import "./EscMenu.css";
 
 /**
@@ -148,19 +149,19 @@ function useHeight(ref: React.RefObject<HTMLElement | null>): number {
 }
 
 export function EscMenu() {
-  const [open, setOpen] = useState(false);
+  /*
+   * 侧边栏自己也是面板栈里的一层。
+   *
+   * 这里原来还有一个 `blockedRef`：靠听 `blocking_panel_changed` 攒一个
+   * "现在有没有别的面板开着"的布尔，用来决定 ESC 该不该归自己。它是全场
+   * 九块面板往同一个布尔里喊出来的结果，最后一个说话的人覆盖前面所有人
+   * ——实测"ESC 菜单里点背包"之后这个布尔就是错的，于是下一次 ESC 既关了
+   * 背包又把菜单弹了出来。栈本身就回答了"谁在最上面"，不需要再攒第二份。
+   */
+  const [open, setOpen] = usePanel("escMenu");
   const [, force] = useState(0);
   const panelRef = useRef<HTMLElement>(null);
   const height = useHeight(panelRef);
-  /**
-   * 别的挡视线面板开着的时候，ESC 归它们（关自己）。
-   * 不挡一下的话按一次 ESC 会既关掉背包又弹出菜单。
-   */
-  const blockedRef = useRef(false);
-
-  useEffect(() => on("blocking_panel_changed", ({ open: busy }) => {
-    blockedRef.current = busy;
-  }), []);
 
   // 菜单里的读数都是快照，开着的时候跟着这几条事件刷新
   useEffect(() => {
@@ -172,25 +173,13 @@ export function EscMenu() {
     return () => offs.forEach((off) => off());
   }, []);
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-
-      const target = event.target as HTMLElement | null;
-      if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA") return;
-
-      if (open) return setOpen(false);
-      if (blockedRef.current) return;
-      setOpen(true);
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open]);
-
-  useEffect(() => {
-    emit("blocking_panel_changed", { open });
-  }, [open]);
+  /*
+   * ESC 的处理搬去 [EscArbiter] 了——全场只剩那一个监听。
+   *
+   * 这里原来是"我开着就关自己，没开就看 blockedRef 决定要不要打开"。问题不在
+   * 这段逻辑本身，而在于它是九个 ESC 监听里的一个：同一次按键被每块面板各处理
+   * 一遍，谁先谁后取决于挂载顺序。裁判只留一个之后，这块面板只管画自己。
+   */
 
   const clock = getClock();
   const needs = getNeeds();

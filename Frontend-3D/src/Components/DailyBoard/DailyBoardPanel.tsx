@@ -1,6 +1,6 @@
 import { dailyBoardDefinition } from "core";
 import { useEffect, useState } from "react";
-import { emit, on } from "../../Game/EventBus";
+import { on } from "../../Game/EventBus";
 import {
   addTask,
   canReroll,
@@ -15,6 +15,7 @@ import {
   rerollDailyTask,
 } from "../../Game/Systems/dailyTasks";
 import { t } from "../../i18n/t";
+import { usePanel } from "../PanelStack/usePanel";
 
 /**
  * 每日任务面板（按 F 打开机器）。左边"我的清单"（自由文本增删），
@@ -27,13 +28,17 @@ import { t } from "../../i18n/t";
  */
 
 export function DailyBoardPanel() {
-  const [open, setOpen] = useState(false);
+  // 挡屏面板，开关挂在全局面板栈上（ESC 分层归 EscArbiter）
+  const [open, setOpen] = usePanel("daily");
   const [, force] = useState(0);
   const [draft, setDraft] = useState("");
   /** 加不进去时的原因提示（重复/满了）。输入框下面那行小字 */
   const [addHint, setAddHint] = useState<string | null>(null);
 
-  useEffect(() => on("daily_board_open_requested", () => setOpen(true)), []);
+  useEffect(
+    () => on("daily_board_open_requested", () => setOpen(true)),
+    [setOpen],
+  );
 
   // 数据变了就重画：本地操作、联机重放、跨天归零都走这两条事件
   useEffect(() => {
@@ -44,19 +49,11 @@ export function DailyBoardPanel() {
     return () => offs.forEach((off) => off());
   }, []);
 
-  // 挡视线的面板都要报一声（剧情推迟过场、ESC 分层靠它）
-  useEffect(() => {
-    emit("blocking_panel_changed", { open });
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open]);
+  /*
+   * 挡屏广播和 ESC 监听都不在这儿了：前者由面板栈统一派生（EscArbiter 里那一发），
+   * 后者由 EscArbiter 独占。下面输入框里那句 Escape 留着——它先 stopPropagation，
+   * 事件到不了裁判，玩家在输入框里按 ESC 得有人管。
+   */
 
   /*
    * 惰性抽签 / 补抽放在 effect 里，**不能放在 render 里**。

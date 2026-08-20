@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from "react";
 import { ActionHub } from "../Components/ActionHub/ActionHub";
 import { t } from "../i18n/t";
 import { ChatPanel } from "../Components/Chat/ChatPanel";
+import { EscArbiter } from "../Components/PanelStack/EscArbiter";
 import { EscMenu } from "../Components/EscMenu/EscMenu";
 import {
   isTouchMode,
@@ -862,6 +863,9 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       {/* 换图加载遮罩：盖住拆旧建新的几帧，也给"去了另一个地方"一点仪式感 */}
       <TravelOverlay />
       <EscMenu />
+      {/* ESC 的唯一裁判：按面板栈退最上面那一层，栈空了才开侧边栏。
+          面板自己不再各挂一个 ESC 监听 */}
+      <EscArbiter />
       {/*
         触摸操作只在触摸设备上出现（判据见 State/touchMode）。
         桌面上挂着一个摇杆纯属碍事，而且它的感应区会吃掉左下角的点击。

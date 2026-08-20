@@ -7,7 +7,7 @@ import {
   type PlayerActionEntry,
 } from "core";
 import { useEffect, useState } from "react";
-import { emit, on } from "../../Game/EventBus";
+import { on } from "../../Game/EventBus";
 import {
   addActionEntry,
   canAfford,
@@ -21,6 +21,7 @@ import {
 } from "../../Game/Systems/actions";
 import { getDefinition, getWorld } from "../../Game/State/worldRuntime";
 import { t } from "../../i18n/t";
+import { usePanel } from "../PanelStack/usePanel";
 
 /**
  * 行动面板。三屏，对照 `old/版本期望/figures` 的像素稿：
@@ -62,27 +63,17 @@ function supportingFurnitureName(category: ActionCategory): string | null {
 }
 
 export function ActionHub() {
-  const [open, setOpen] = useState(false);
+  // 挡屏面板，开关挂在全局面板栈上：谁开着、ESC 该退哪一层，全场一份账
+  const [open, setOpen] = usePanel("actions");
   const [screen, setScreen] = useState<Screen>({ kind: "grid" });
   const [, force] = useState(0);
   const active = getActiveAction();
-
-  /**
-   * 这也是一块挡视线的面板，要跟着广播。
-   *
-   * 原来没发：剧情系统靠这条推迟过场，ESC 菜单靠它判断"该不该抢 ESC"——
-   * 不发的话按一次 ESC 会既关掉这个面板又弹出菜单。挡屏的面板都该报一声，
-   * 这不是给某一个消费方开的口子。
-   */
-  useEffect(() => {
-    emit("blocking_panel_changed", { open });
-  }, [open]);
 
   useEffect(
     () => on("ui_panel_requested", ({ panel }) => {
       if (panel === "actions") setOpen(true);
     }),
-    [],
+    [setOpen],
   );
 
   useEffect(() => {
@@ -100,7 +91,7 @@ export function ActionHub() {
       offNeeds();
       offWorld();
     };
-  }, []);
+  }, [setOpen]);
 
   // 关闭时回到网格，下次打开不会停在上次的子页
   useEffect(() => {

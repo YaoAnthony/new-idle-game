@@ -1,6 +1,6 @@
 import { findPlaceableItem } from "core";
 import { useEffect, useState } from "react";
-import { emit, on } from "../../Game/EventBus";
+import { on } from "../../Game/EventBus";
 import {
   getInventory,
   isLoadedWare,
@@ -16,6 +16,7 @@ import {
   type StorageSlot,
 } from "../../Game/State/storage";
 import { t } from "../../i18n/t";
+import { useMirroredPanel } from "../PanelStack/useMirroredPanel";
 import { ItemIcon, ItemTooltip, useTooltip } from "../Inventory/slots";
 
 /**
@@ -63,16 +64,11 @@ export function StoragePanel() {
       );
     });
 
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setTarget(null);
-    };
-    window.addEventListener("keydown", onKeyDown);
-
+    // ESC 归 EscArbiter：它弹栈，useMirroredPanel 再把 target 清掉
     return () => {
       offOpen();
       offInventory();
       offLeave();
-      window.removeEventListener("keydown", onKeyDown);
     };
   }, []);
 
@@ -85,9 +81,8 @@ export function StoragePanel() {
     return off;
   }, [inventoryId]);
 
-  useEffect(() => {
-    emit("blocking_panel_changed", { open: target !== null });
-  }, [target]);
+  // 开的是哪个箱子仍是本地状态，只把"开着"这件事同步给面板栈
+  useMirroredPanel("storage", target !== null, () => setTarget(null));
 
   if (!target || !inventoryId) return null;
 

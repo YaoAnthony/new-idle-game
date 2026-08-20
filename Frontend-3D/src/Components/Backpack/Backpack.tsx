@@ -18,6 +18,7 @@ import { presentedItemId, servedDish } from "../../Game/Systems/servedDish";
 import { isTouchMode } from "../../Game/State/touchMode";
 import { t } from "../../i18n/t";
 import { DragGhost, ItemIcon, SlotCell } from "../Inventory/slots";
+import { usePanel } from "../PanelStack/usePanel";
 
 /**
  * 背包面板（B 开关）。
@@ -56,25 +57,15 @@ const TAB_KEY: Record<string, string> = {
 };
 
 export function Backpack() {
-  const [open, setOpen] = useState(false);
+  // 开关挂在全局面板栈上（见 usePanel）：谁开着、ESC 该退哪一层，全场一份账
+  const [open, setOpen] = usePanel("backpack");
 
   // ESC 菜单里那一格也能开背包——B 键之外的第二个入口，开关仍归这里管
-  /**
-   * 这也是一块挡视线的面板，要跟着广播。
-   *
-   * 原来没发：剧情系统靠这条推迟过场，ESC 菜单靠它判断"该不该抢 ESC"——
-   * 不发的话按一次 ESC 会既关掉这个面板又弹出菜单。挡屏的面板都该报一声，
-   * 这不是给某一个消费方开的口子。
-   */
-  useEffect(() => {
-    emit("blocking_panel_changed", { open });
-  }, [open]);
-
   useEffect(
     () => on("ui_panel_requested", ({ panel }) => {
       if (panel === "backpack") setOpen(true);
     }),
-    [],
+    [setOpen],
   );
   // 一份数据。面板把它切成两片渲染（背包网格 + 底下那行快捷栏），
   // 但槽位号是同一套，所以跨片拖拽不需要任何换算
@@ -87,18 +78,11 @@ export function Backpack() {
     const off = on("inventory_changed", () => setItems(getInventory()));
 
     const onKeyDown = (event: KeyboardEvent) => {
-      /**
-       * **Esc 不受输入框守卫限制**。那道守卫的本意只是别让 `b` 被
-       * 当成快捷键从输入框里抢走（否则打字打不出 b），但原来它挡在
-       * 整个 handler 前面，连 Esc 一起吞了——先按过 ` 开调试台、
-       * 或者点过任何输入框，Esc 就关不掉背包了。关闭是兜底操作，
-       * 任何时候都得管用。
+      /*
+       * 这里不再管 Esc。关闭统一归 [EscArbiter]：它按面板栈退最上面那一层，
+       * 顺带保住了原来这条注释讲的事——"焦点在输入框里 Esc 也得能关面板"。
+       * 每块面板各挂一个 Esc 监听正是那个"一次按键被处理两遍"的来源。
        */
-      if (event.key === "Escape") {
-        setOpen(false);
-        return;
-      }
-
       const target = event.target as HTMLElement | null;
       if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA") return;
       if (matchesAction(event, "backpack")) setOpen((current) => !current);
@@ -109,7 +93,7 @@ export function Backpack() {
       off();
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, []);
+  }, [setOpen]);
 
   // 副作用不能写在 setOpen 的 updater 里——updater 必须是纯函数，
   // 在渲染期发信号会去改别的组件（TutorialGuide），StrictMode 下还会发两次

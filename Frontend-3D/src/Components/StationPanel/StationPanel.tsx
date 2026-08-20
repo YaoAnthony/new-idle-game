@@ -1,8 +1,9 @@
 import { FurnitureCapability } from "core";
 import { useEffect, useRef, useState } from "react";
-import { emit, on } from "../../Game/EventBus";
+import { on } from "../../Game/EventBus";
 import { craft, listRecipes, type RecipeView } from "../../Game/Systems/crafting";
 import { t } from "../../i18n/t";
+import { useMirroredPanel } from "../PanelStack/useMirroredPanel";
 import { ItemIcon } from "../Inventory/slots";
 
 /**
@@ -27,9 +28,11 @@ export function StationPanel() {
 
   useEffect(() => {
     stationRef.current = station;
-    // 告诉剧情系统"有面板挡着"——宠物登场这类过场要等它关掉再演
-    emit("blocking_panel_changed", { open: station !== null });
   }, [station]);
+
+  // 开着的是哪张桌子仍是本地状态，只把"开着"这件事同步给面板栈；
+  // ESC 弹栈之后回头把 station 清掉，见 useMirroredPanel
+  useMirroredPanel("station", station !== null, () => setStation(null));
 
   const refresh = (target: OpenStation | null) => {
     if (!target) return setRecipes([]);
@@ -59,16 +62,11 @@ export function StationPanel() {
       );
     });
 
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setStation(null);
-    };
-    window.addEventListener("keydown", onKeyDown);
-
+    // ESC 归 EscArbiter：它弹栈，useMirroredPanel 再把 station 清掉
     return () => {
       offOpen();
       offInventory();
       offLeave();
-      window.removeEventListener("keydown", onKeyDown);
     };
   }, []);
 

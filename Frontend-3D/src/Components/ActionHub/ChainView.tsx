@@ -154,14 +154,24 @@ export function ChainView({ category, onBack, onClose }: Props) {
 
       {tab === "edit" ? (
         selected ? (
-          <ChainEditCanvas
-            key={selected.chainId}
-            chain={selected}
-            mode="edit"
-            onEditNode={(nodeId) =>
-              setSub({ kind: "edit_node", chainId: selected.chainId, nodeId })
-            }
-          />
+          /* 标题行和查看页同一条（添加任务/删除链）：编辑页正是加任务的
+             地方，按钮只在查看页有是漏配（用户抓的） */
+          <div className="flex min-h-0 flex-1 flex-col">
+            <ChainHeader
+              chain={selected}
+              onAddNode={() => setSub({ kind: "new_node", chainId: selected.chainId })}
+            />
+            <div className="mt-2 min-h-0 flex-1">
+              <ChainEditCanvas
+                key={selected.chainId}
+                chain={selected}
+                mode="edit"
+                onEditNode={(nodeId) =>
+                  setSub({ kind: "edit_node", chainId: selected.chainId, nodeId })
+                }
+              />
+            </div>
+          </div>
         ) : (
           <EmptyChains onNew={() => setSub({ kind: "new_chain" })} />
         )

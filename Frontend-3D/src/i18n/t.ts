@@ -313,7 +313,6 @@ const ZH: Record<string, string> = {
   "ui.chain.title": "系列任务",
   "ui.chain.tab_view": "查看",
   "ui.chain.tab_edit": "编辑",
-  "ui.chain.edit_soon": "编辑画布施工中",
   "ui.chain.new": "新建系列任务",
   "ui.chain.create": "创建",
   "ui.chain.empty_title": "还没有系列任务",
@@ -339,6 +338,14 @@ const ZH: Record<string, string> = {
   "ui.chain.form_requires": "前置",
   "ui.chain.form_requires_hint": "勾中的全部做完，这一环才解锁；全不勾=起点",
   "ui.chain.save_node": "保存这一环",
+  "ui.chain.edit_node": "编辑这一环",
+  "ui.chain.delete_node": "删除",
+  "ui.chain.delete_node_confirm": "确认删除（下游自动接上）",
+  "ui.chain.would_cycle": "勾了会绕成一圈，先解开另一头",
+  "ui.chain.tidy": "一键整理",
+  "ui.chain.edit_hint":
+    "拖节点摆位置 · 拖节点右缘的→到另一环连前置 · 点线删线 · 点环改内容",
+  "ui.chain.tap_again_delete": "再点一下删除这条线",
   "ui.chain.optional": "（可不填）",
   "ui.chain.entry": "系列任务",
 

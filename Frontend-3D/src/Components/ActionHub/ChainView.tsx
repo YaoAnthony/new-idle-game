@@ -4,6 +4,7 @@ import {
   actionDefinitions,
   actionPriorityDefinitions,
   findActionByCategory,
+  wouldCreateCycle,
   type ActionChainNode,
   type ActionChainSave,
 } from "core";
@@ -13,9 +14,12 @@ import {
   addChainNode,
   createChain,
   deleteChain,
+  deleteChainNode,
   getActionChains,
   isNodeUnlocked,
+  updateChainNode,
 } from "../../Game/State/actionChains";
+import { ChainEditCanvas } from "./ChainEditCanvas";
 import {
   startChainNodeAction,
   type StartNodeResult,
@@ -36,7 +40,7 @@ import { CHAIN_COLORS, CHAIN_ICONS, chainColor, chainEmoji } from "./chainVisual
  *           「锁着」和「能做但缺条件」是两种视觉：前者灰+🔒（做完前置
  *           自然解开），后者亮着但开始键给出橙色原因（缺家具/精力/占线，
  *           要玩家去屋里解决）——混成一种玩家就不知道该去点树还是去搬家具。
- *   编辑 —— 拖拽画布（阶段 4），先占位。
+ *   编辑 —— 拖拽画布：拖节点摆位、拖把手连前置、点线删线、一键整理。
  *
  * 节点内容一张表单管到底（名字/时长/重要级/说明/前置勾选）。
  */
@@ -45,13 +49,13 @@ type Props = {
   category: ActionCategory;
   onBack: () => void;
   onClose: () => void;
-  renderEditTab?: (chain: ActionChainSave) => React.ReactNode;
 };
 
 type Sub =
   | { kind: "browse" }
   | { kind: "new_chain" }
-  | { kind: "new_node"; chainId: string };
+  | { kind: "new_node"; chainId: string }
+  | { kind: "edit_node"; chainId: string; nodeId: string };
 
 const START_FAIL_TEXT: Record<Exclude<StartNodeResult, "ok">, string> = {
   missing: "这一环不存在了",
@@ -62,7 +66,7 @@ const START_FAIL_TEXT: Record<Exclude<StartNodeResult, "ok">, string> = {
   tired: "精力不够",
 };
 
-export function ChainView({ category, onBack, onClose, renderEditTab }: Props) {
+export function ChainView({ category, onBack, onClose }: Props) {
   const [, force] = useState(0);
   const [tab, setTab] = useState<"view" | "edit">("view");
   const [sub, setSub] = useState<Sub>({ kind: "browse" });
@@ -106,6 +110,21 @@ export function ChainView({ category, onBack, onClose, renderEditTab }: Props) {
     );
   }
 
+  if (sub.kind === "edit_node") {
+    const chain = chains.find((c) => c.chainId === sub.chainId);
+    const node = chain?.nodes.find((n) => n.nodeId === sub.nodeId);
+    if (chain && node) {
+      return (
+        <NodeForm
+          chain={chain}
+          editNode={node}
+          onClose={onClose}
+          onDone={() => setSub({ kind: "browse" })}
+        />
+      );
+    }
+  }
+
   return (
     <Shell
       title={`${title} · ${t("ui.chain.title")}`}
@@ -131,13 +150,13 @@ export function ChainView({ category, onBack, onClose, renderEditTab }: Props) {
 
       {tab === "edit" ? (
         selected ? (
-          renderEditTab ? (
-            renderEditTab(selected)
-          ) : (
-            <div className="grid h-[40vh] place-items-center text-[14px] text-[#9a8360]">
-              {t("ui.chain.edit_soon")}
-            </div>
-          )
+          <ChainEditCanvas
+            key={selected.chainId}
+            chain={selected}
+            onEditNode={(nodeId) =>
+              setSub({ kind: "edit_node", chainId: selected.chainId, nodeId })
+            }
+          />
         ) : (
           <EmptyChains onNew={() => setSub({ kind: "new_chain" })} />
         )
@@ -648,24 +667,38 @@ function ChainForm({
   );
 }
 
-/** 加环表单：名字/时长/重要级/说明 + 前置勾选（同一张表单管所有节点内容） */
+/**
+ * 节点表单：名字/时长/重要级/说明 + 前置勾选。**建和改共用同一张**
+ * （设计定案：一个表单管所有节点内容）——editNode 有值就是编辑模式，
+ * 带初值、可删环；前置勾选里会成环的候选直接禁灰（实时反馈，
+ * 不让玩家勾完保存才被拒）。
+ */
 function NodeForm({
   chain,
+  editNode,
   onClose,
   onDone,
 }: {
   chain: ActionChainSave;
+  editNode?: ActionChainNode;
   onClose: () => void;
   onDone: () => void;
 }) {
-  const [name, setName] = useState("");
-  const [minutes, setMinutes] = useState(25);
-  const [priority, setPriority] = useState<ActionPriority>(ActionPriority.Normal);
-  const [note, setNote] = useState("");
-  const [requires, setRequires] = useState<string[]>(
-    // 默认接在最后一环后面——最常见的用法是"顺着往下写"
-    chain.nodes.length > 0 ? [chain.nodes[chain.nodes.length - 1].nodeId] : [],
+  const [name, setName] = useState(editNode?.customName ?? "");
+  const [minutes, setMinutes] = useState(editNode?.durationMinutes ?? 25);
+  const [priority, setPriority] = useState<ActionPriority>(
+    editNode?.priority ?? ActionPriority.Normal,
   );
+  const [note, setNote] = useState(editNode?.note ?? "");
+  const [requires, setRequires] = useState<string[]>(
+    editNode
+      ? editNode.requires
+      : // 默认接在最后一环后面——最常见的用法是"顺着往下写"
+        chain.nodes.length > 0
+          ? [chain.nodes[chain.nodes.length - 1].nodeId]
+          : [],
+  );
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const definition = actionDefinitions.find((d) => d.category === chain.category);
   const clampMinutes = (value: number): number => {
@@ -675,7 +708,11 @@ function NodeForm({
   };
 
   return (
-    <Shell title={`${chain.title} · ${t("ui.chain.add_node")}`} onBack={onDone} onClose={onClose}>
+    <Shell
+      title={`${chain.title} · ${editNode ? t("ui.chain.edit_node") : t("ui.chain.add_node")}`}
+      onBack={onDone}
+      onClose={onClose}
+    >
       <div className="ui-scroll mx-auto flex max-w-[600px] flex-col gap-3 overflow-y-auto" style={{ maxHeight: "min(56vh, 460px)" }}>
         <div>
           <div className="mb-1 text-[14px] font-bold text-[#5c3a1d]">
@@ -780,34 +817,44 @@ function NodeForm({
               </span>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {chain.nodes.map((node) => {
-                const checked = requires.includes(node.nodeId);
-                return (
-                  <button
-                    key={node.nodeId}
-                    type="button"
-                    className={[
-                      "ui-chip max-w-[180px] truncate px-2.5 py-1 text-[12px]",
-                      checked ? "ui-chip--on" : "",
-                    ].join(" ")}
-                    onClick={() =>
-                      setRequires((prev) =>
-                        checked
-                          ? prev.filter((id) => id !== node.nodeId)
-                          : [...prev, node.nodeId],
-                      )
-                    }
-                  >
-                    {checked ? "✓ " : ""}
-                    {node.customName}
-                  </button>
-                );
-              })}
+              {chain.nodes
+                .filter((node) => node.nodeId !== editNode?.nodeId)
+                .map((node) => {
+                  const checked = requires.includes(node.nodeId);
+                  // 编辑模式下勾这个会不会成环（新建的环还不在图里，怎么勾都不会）
+                  const cyclic =
+                    !checked &&
+                    editNode !== undefined &&
+                    wouldCreateCycle(chain.nodes, node.nodeId, editNode.nodeId);
+                  return (
+                    <button
+                      key={node.nodeId}
+                      type="button"
+                      disabled={cyclic}
+                      title={cyclic ? t("ui.chain.would_cycle") : undefined}
+                      className={[
+                        "ui-chip max-w-[180px] truncate px-2.5 py-1 text-[12px]",
+                        checked ? "ui-chip--on" : "",
+                        cyclic ? "opacity-40" : "",
+                      ].join(" ")}
+                      onClick={() =>
+                        setRequires((prev) =>
+                          checked
+                            ? prev.filter((id) => id !== node.nodeId)
+                            : [...prev, node.nodeId],
+                        )
+                      }
+                    >
+                      {checked ? "✓ " : cyclic ? "⛔ " : ""}
+                      {node.customName}
+                    </button>
+                  );
+                })}
             </div>
           </div>
         )}
 
-        <div className="mt-1 flex items-center justify-between">
+        <div className="mt-1 flex items-center justify-between gap-2">
           <button
             type="button"
             className="ui-chip px-7 py-2 text-[14px] font-bold"
@@ -815,19 +862,56 @@ function NodeForm({
           >
             {t("ui.action.cancel")}
           </button>
+
+          {editNode && !editNode.completedAtUtc && (
+            <button
+              type="button"
+              className={[
+                "px-4 py-2 text-[13px] font-bold",
+                confirmDelete ? "ui-chip ui-chip--strong" : "ui-wood-btn",
+              ].join(" ")}
+              onClick={() => {
+                if (!confirmDelete) {
+                  setConfirmDelete(true);
+                  return;
+                }
+                deleteChainNode({ chainId: chain.chainId, nodeId: editNode.nodeId });
+                onDone();
+              }}
+              onBlur={() => setConfirmDelete(false)}
+            >
+              {confirmDelete
+                ? t("ui.chain.delete_node_confirm")
+                : `🗑 ${t("ui.chain.delete_node")}`}
+            </button>
+          )}
+
           <button
             type="button"
             className="ui-green-btn px-8 py-2 text-[15px] font-bold"
             disabled={name.trim().length === 0}
             onClick={() => {
-              addChainNode(chain.chainId, {
-                customName: name.trim(),
-                durationMinutes: minutes,
-                priority,
-                note: note.trim() || undefined,
-                requires,
-                position: { x: chain.nodes.length * 220, y: 0 },
-              });
+              if (editNode) {
+                updateChainNode(
+                  { chainId: chain.chainId, nodeId: editNode.nodeId },
+                  {
+                    customName: name.trim(),
+                    durationMinutes: minutes,
+                    priority,
+                    note: note.trim() || undefined,
+                    requires,
+                  },
+                );
+              } else {
+                addChainNode(chain.chainId, {
+                  customName: name.trim(),
+                  durationMinutes: minutes,
+                  priority,
+                  note: note.trim() || undefined,
+                  requires,
+                  position: { x: chain.nodes.length * 220, y: 0 },
+                });
+              }
               onDone();
             }}
           >

@@ -148,6 +148,8 @@ export type GameEvents = {
   };
   /** 行动清单增删（分类卡角标要重算） */
   action_entries_changed: Record<string, never>;
+  /** 系列任务变了（建/改/删链或节点、节点完成、结项）。UI 整棵重读，不做增量 */
+  action_chains_changed: { reason: string };
   /** 睡眠开始 / 结束 */
   sleep_changed: { phase: "start" | "end" };
   /** 饥饿 / 疲劳变化 */

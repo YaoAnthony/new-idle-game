@@ -41,6 +41,10 @@ import {
 } from "../../Game/State/inventory";
 import { getNeeds, restoreNeeds } from "../../Game/State/needs";
 import { restoreAvatar, snapshotAvatar } from "../../Game/State/avatar";
+import {
+  restoreActionChains,
+  snapshotActionChains,
+} from "../../Game/State/actionChains";
 import { restoreDoors } from "../../Game/State/doorsRuntime";
 import { restorePets } from "../../Game/State/petsRuntime";
 import { getRoomStyle, setRoomStyleId } from "../../Game/State/worldRuntime";
@@ -105,7 +109,7 @@ export function serializeGameSave(previous?: GameSave): GameSave {
     player: {
       name: previous?.player.name ?? "旅人",
       avatar: snapshotAvatar(),
-      missions: previous?.player.missions ?? { daily: [], primary: [] },
+      actionChains: snapshotActionChains(),
       character: {
         inventory: snapshotInventory(),
         needs: getNeeds(),
@@ -269,5 +273,9 @@ export function hydrateGameSave(save: GameSave): void {
 
   // 行动最后恢复：它可能立刻结算并发奖励，需要背包已经就位
   restoreActionEntries(save.player.actionEntries);
+  // 链要在行动**之前**就位：restoreAction 会把离线期间已到点的行动
+  // 当场补结算，带 chainRef 的那条要立刻回链上打勾——链还没恢复就打，
+  // 勾会打在空气里，奖励发了、树却停在原地
+  restoreActionChains(save.player.actionChains);
   restoreAction(save.player.activeActionProcess);
 }

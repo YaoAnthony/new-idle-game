@@ -1,7 +1,6 @@
 import type {
   FeatureId,
   LocalizationKey,
-  MissionId,
 } from "./base.js";
 import type { ItemId } from "./items.js";
 import type { UtcTimestamp, WorldDayId } from "./time.js";
@@ -19,12 +18,6 @@ export type EventProgressSave = Record<
     completedAtUtc?: UtcTimestamp;
   }
 >;
-
-export type MissionInstance = {
-  missionId: MissionId;
-  status: "active" | "completed" | "claimed";
-  assignedWorldDayId?: WorldDayId;
-};
 
 export type RewardDefinition =
   | {

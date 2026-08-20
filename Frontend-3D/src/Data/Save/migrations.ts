@@ -1107,6 +1107,24 @@ export const migrations: Migration[] = [
       return save;
     },
   },
+
+  /*
+   * v28（2026-08-20 系列任务）：PlayerSave 加 actionChains（玩家自建的
+   * 行动链），同场删掉 missions 死壳——那个 { daily, primary } 三态领奖
+   * 的形状从 V0.8 起就没有任何读写方，留着只会诱惑后人往里塞东西。
+   * 数据本身：老档没有链就是空数组；missions 直接丢，它从来是空的。
+   */
+  {
+    to: 28,
+    migrate: (save) => {
+      const player = save.player as unknown as Record<string, unknown>;
+      if (player) {
+        delete player.missions;
+        player.actionChains ??= [];
+      }
+      return save;
+    },
+  },
 ];
 
 /**

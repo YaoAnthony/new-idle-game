@@ -73,6 +73,74 @@ export type PlayerActionEntry = {
   createdAtUtc: UtcTimestamp;
 };
 
+// ---- 系列任务（玩家自建的行动链，2026-08-20）----
+
+export type ActionChainId = string;
+export type ActionChainNodeId = string;
+
+/**
+ * 树上的一个任务节点。**不混进 PlayerActionEntry**——清单里的散条目是
+ * "可反复做的模板"，节点是"做完就定格的一环"，硬套会得到两边都不像的
+ * 类型（missions 死壳当年就是这么废掉的）。
+ */
+export type ActionChainNode = {
+  nodeId: ActionChainNodeId;
+
+  // 拿去跑「行动」的三个值（分类跟链走，节点不存）
+  customName: string;
+  durationMinutes: number;
+  priority: ActionPriority;
+
+  /** 玩家写给自己看的说明。可选，不强制 */
+  note?: string;
+
+  /** 前置：同链内这些节点**全部**完成后才解锁。空 = 这棵树的起点之一 */
+  requires: ActionChainNodeId[];
+
+  /** 树上的位置（编辑面板里拖出来的），必须存 */
+  position: { x: number; y: number };
+
+  /** 做完的时刻。一次性，不能重做 */
+  completedAtUtc?: UtcTimestamp;
+
+  /**
+   * 这一环实际给了什么。**完成那一刻抽出来写进去，之后不再变**——
+   * 有值 = 已发过，读档/重开/重复触发都不再抽（发奖的幂等就是它）。
+   * 预先填了内容就用填的不抽（测试和将来的特殊链用）。
+   */
+  rewards: RewardDefinition[];
+};
+
+/** 一条系列任务（挂在 PlayerSave.actionChains，跟着玩家走） */
+export type ActionChainSave = {
+  chainId: ActionChainId;
+
+  /** 从哪张分类卡进去建的。链里所有节点都用它（家具门禁按它查） */
+  category: ActionCategory;
+
+  title: string;
+  description?: string;
+
+  /** 玩家挑的视觉标识（列表里一眼认出来） */
+  iconId: string;
+  colorId: string;
+
+  createdAtUtc: UtcTimestamp;
+  /** 整条链做完的时刻。有值 = 已结项，自动收进「已完成」分组 */
+  completedAtUtc?: UtcTimestamp;
+
+  nodes: ActionChainNode[];
+
+  /** 结项实际给了什么。语义同节点的 rewards */
+  rewards: RewardDefinition[];
+};
+
+/** 进行中的行动是从哪个链节点启动的。散条目/直接开始的行动没有它 */
+export type ActionChainRef = {
+  chainId: ActionChainId;
+  nodeId: ActionChainNodeId;
+};
+
 export type ActionProcessSave = {
   processId: ProcessId;
   actionId: ActionId;
@@ -81,6 +149,11 @@ export type ActionProcessSave = {
   durationMinutes: number;
   status: "active" | "completed" | "cancelled";
   furnitureInstanceId?: PlacedFurnitureInstanceId;
+  /**
+   * 从哪个链节点启动的。**必须存**——行动会在离线期间完成，读档补结算时
+   * 要靠它找到该打勾的那一环；不存的话奖励发了、树却停在原地。
+   */
+  chainRef?: ActionChainRef;
   /**
    * 开始时的重要级。**必须存**——行动会在离线期间完成，
    * 读档时要按当初那个重要级结算奖励倍率。缺省按"普通"。

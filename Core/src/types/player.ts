@@ -2,7 +2,7 @@ import type { AnchorId, InventoryId, PlayerId, WorldPosition } from "./base.js";
 import type { ActionProcessSave, PlayerActionEntry } from "./actions.js";
 import type { AvatarConfig } from "./avatar.js";
 import type { DailyTasksSave } from "./dailyTasks.js";
-import type { MissionInstance } from "./events.js";
+import type { ActionChainSave } from "./actions.js";
 import type { PlacedFurnitureInstanceId } from "./furniture.js";
 import type { InventoryStack } from "./inventory.js";
 import type { RecipeId } from "./recipes.js";
@@ -20,10 +20,15 @@ export type PlayerSave = {
   playerId?: PlayerId;
   name: string;
   avatar: AvatarConfig;
-  missions: {
-    daily: MissionInstance[];
-    primary: MissionInstance[];
-  };
+  /**
+   * 玩家自建的系列任务（行动链）。跟着人走：联机进别人的世界，
+   * 看到的还是自己的目标。
+   *
+   * 这里原来是 missions: { daily, primary }（MissionInstance 三态领奖的
+   * 死壳，从未被读写）——v28 删掉。系统派发的任务将来要做时另起类型，
+   * 别复活那个壳。
+   */
+  actionChains: ActionChainSave[];
   character: {
     inventory: InventoryStack[];
     inventoryId?: InventoryId;

@@ -1,5 +1,12 @@
-import { BackSide, Mesh, MeshBasicMaterial, Object3D } from "three";
-import { box, cylinder, group, sphere } from "../primitives.js";
+import {
+  BackSide,
+  CircleGeometry,
+  CylinderGeometry,
+  Mesh,
+  MeshBasicMaterial,
+  Object3D,
+} from "three";
+import { box, cylinder, flatMaterial, group, sphere } from "../primitives.js";
 
 /**
  * 奖励宝箱（系列任务开箱用）。照抄参考图（Clash Royale 宝箱）——
@@ -17,6 +24,10 @@ import { box, cylinder, group, sphere } from "../primitives.js";
  * 要跟着配色走，比例也要粗一档（0.05 vs 0.022）——它是面板里的主角。
  *
  * 朝向沿用家具约定：正面朝 +Z，原点在底面中心。
+ *
+ * 盖子是**空心半壳**（外弧面 + 深色内膛 + 两端半月端盖），不是实心
+ * 圆柱——实心的合上时看不出破绽，翻开就是一个圆桶（用户抓的）。
+ * 打开后看到的该是凹进去的内膛。骑在盖上的箍/缝/高光同理全是半圈。
  *
  * 盖子单独收进名为 "chest-lid" 的子组，**铰链放在后沿**（盖底后缘）：
  * 开箱动画只要拿 getObjectByName("chest-lid") 转负的 rotation.x 就是
@@ -51,40 +62,68 @@ function outlineTree(root: Object3D, color: string, scale = 1.05): void {
   }
 }
 
-/** 拱盖：横放的圆柱，下半埋进箱体。squash 压扁弧度 */
-function dome(
-  color: string,
-  baseY: number,
-  length: number,
-  squash: number,
-  radius = DOME_R,
-): Mesh {
-  const mesh = cylinder(radius, radius, length, 16, {
-    color,
-    position: [0, baseY, 0],
-    rotation: [0, 0, Math.PI / 2],
-  });
-  mesh.scale.z = squash;
-  return mesh;
-}
-
-/** 盖箍/盖框的弧：开口圆筒（带端盖的圆盘会把侧面糊死，参考图侧面是面板色） */
-function domeArc(
+/**
+ * 空心半圆拱壳。CylinderGeometry 的 θ∈[0,π] 那半在 rotation.z=π/2 之后
+ * 正好朝上（推导：绕 Z 转 90° 把局部 +X 送到世界 +Y，而侧壁顶点的
+ * x = r·sinθ，θ 走 0..π 时恒非负）。双面材质：从下往里看是同色的凹面。
+ * thetaStart/thetaLength 可以再收窄，给"只贴在顶上的高光条"用。
+ */
+function halfShell(
   color: string,
   x: number,
   baseY: number,
-  width: number,
+  length: number,
+  squash: number,
+  radius: number,
+  opts: {
+    thetaStart?: number;
+    thetaLength?: number;
+    castShadow?: boolean;
+    noOutline?: boolean;
+    segments?: number;
+  } = {},
+): Mesh {
+  const mesh = new Mesh(
+    new CylinderGeometry(
+      radius,
+      radius,
+      length,
+      opts.segments ?? 16,
+      1,
+      true,
+      opts.thetaStart ?? 0,
+      opts.thetaLength ?? Math.PI,
+    ),
+    flatMaterial(color, true),
+  );
+  mesh.position.set(x, baseY, 0);
+  mesh.rotation.z = Math.PI / 2;
+  mesh.scale.z = squash;
+  mesh.castShadow = opts.castShadow ?? true;
+  if (opts.noOutline) mesh.userData.noOutline = true;
+  return mesh;
+}
+
+/**
+ * 盖子的端盖：竖着的半月圆盘，把半壳的两端封住——不封的话从侧面
+ * 能一眼看穿盖内。rotation.y=π/2 让盘面法线对着 ±X（双面材质，
+ * 两端共用同一个朝向）；squash 压在局部 x 上（转完对应世界 z）。
+ */
+function halfCap(
+  color: string,
+  x: number,
+  baseY: number,
   squash: number,
   radius: number,
 ): Mesh {
-  const mesh = cylinder(radius, radius, width, 12, {
-    color,
-    position: [x, baseY, 0],
-    rotation: [0, 0, Math.PI / 2],
-    openEnded: true,
-    doubleSide: true,
-  });
-  mesh.scale.z = squash;
+  const mesh = new Mesh(
+    new CircleGeometry(radius, 12, 0, Math.PI),
+    flatMaterial(color, true),
+  );
+  mesh.position.set(x, baseY, 0);
+  mesh.rotation.y = Math.PI / 2;
+  mesh.scale.x = squash;
+  mesh.castShadow = false;
   return mesh;
 }
 
@@ -187,19 +226,37 @@ function buildWoodChest(): Object3D {
   // 窄沿（盖缝）
   parts.push(box([W + 0.04, RIM_H, D + 0.04], { color: WOOD.plankDark, position: [0, FOOT_H + BODY_H + RIM_H / 2, 0] }));
 
-  // 拱盖 + 盖上的板条缝（两道，跟着弧走）——盖组
-  lid.push(dome(WOOD.plank, domeBaseY, W - 0.02, squash));
-  for (const r of [DOME_R * 0.62, DOME_R * 0.86]) {
-    const seamArc = domeArc(WOOD.seam, 0, domeBaseY, W - 0.015, squash, r);
-    seamArc.userData.noOutline = true;
-    lid.push(seamArc);
+  // 拱盖：外壳 + 深色内膛 + 两端半月端盖 + 两道板条缝（骑在壳外）
+  const LID_LEN = W - 0.02;
+  lid.push(halfShell(WOOD.plank, 0, domeBaseY, LID_LEN, squash, DOME_R));
+  lid.push(
+    halfShell(WOOD.seam, 0, domeBaseY, LID_LEN - 0.04, squash, DOME_R - 0.035, {
+      castShadow: false,
+      noOutline: true,
+    }),
+  );
+  for (const x of [-LID_LEN / 2, LID_LEN / 2]) {
+    lid.push(halfCap(WOOD.plankDark, x, domeBaseY, squash, DOME_R));
+  }
+  for (const x of [-LID_LEN / 5, LID_LEN / 5]) {
+    lid.push(
+      halfShell(WOOD.seam, x, domeBaseY, 0.024, squash, DOME_R + 0.006, {
+        castShadow: false,
+        noOutline: true,
+        segments: 12,
+      }),
+    );
   }
 
   // 两条细铁箍：从盖上绕过、顺着箱体正反面下到底（参考图的标志结构）
   const STRAP_W = 0.09;
   for (const x of [-W / 4, W / 4]) {
     // 箍的弧段骑在盖上，跟盖走；竖直段钉在箱体上，留在身上
-    lid.push(domeArc(WOOD.iron, x, domeBaseY, STRAP_W, squash + 0.035, DOME_R + 0.022));
+    lid.push(
+      halfShell(WOOD.iron, x, domeBaseY, STRAP_W, squash + 0.035, DOME_R + 0.022, {
+        segments: 12,
+      }),
+    );
     for (const side of [1, -1]) {
       const z = side * (D / 2 + 0.015);
       parts.push(
@@ -236,6 +293,8 @@ function buildWoodChest(): Object3D {
 
 const SILVER = {
   panel: "#5FC7DB",
+  /** 盖内膛。比面板深两档：凹进去的地方吃不到光才像凹 */
+  panelDeep: "#3D93A6",
   panelLight: "#8ADDEB",
   metal: "#B9C7CC",
   metalDark: "#93A6AC",
@@ -300,13 +359,33 @@ function buildSilverChest(): Object3D {
     }),
   );
 
-  // 蓝瓷拱盖 + 顶部高光 + 两端银框弧——盖组
-  lid.push(dome(SILVER.panel, domeBaseY, W - 0.06, squash));
-  const hi = dome(SILVER.panelLight, domeBaseY + 0.012, W - 0.24, squash * 0.94, DOME_R * 0.99);
-  hi.castShadow = false;
-  lid.push(hi);
+  // 蓝瓷拱盖：外壳 + 深色内膛 + 银端盖 + 顶部高光条 + 两端银框弧
+  const LID_LEN = W - 0.06;
+  lid.push(halfShell(SILVER.panel, 0, domeBaseY, LID_LEN, squash, DOME_R));
+  lid.push(
+    halfShell(SILVER.panelDeep, 0, domeBaseY, LID_LEN - 0.04, squash, DOME_R - 0.035, {
+      castShadow: false,
+      noOutline: true,
+    }),
+  );
+  for (const x of [-LID_LEN / 2, LID_LEN / 2]) {
+    lid.push(halfCap(SILVER.metal, x, domeBaseY, squash, DOME_R));
+  }
+  // 高光只贴顶上一条（θ 收窄到中段），不再是整个第二层壳
+  lid.push(
+    halfShell(SILVER.panelLight, 0, domeBaseY, W - 0.24, squash, DOME_R + 0.005, {
+      thetaStart: Math.PI * 0.32,
+      thetaLength: Math.PI * 0.36,
+      castShadow: false,
+      noOutline: true,
+    }),
+  );
   for (const x of [-(W / 2 - 0.09), W / 2 - 0.09]) {
-    lid.push(domeArc(SILVER.metal, x, domeBaseY, 0.13, squash + 0.03, DOME_R + 0.02));
+    lid.push(
+      halfShell(SILVER.metal, x, domeBaseY, 0.13, squash + 0.03, DOME_R + 0.02, {
+        segments: 12,
+      }),
+    );
   }
 
   // 大方锁：厚银板 + 内板 + 四角铆钉 + 大锁孔
@@ -343,6 +422,8 @@ function buildSilverChest(): Object3D {
 
 const GOLD = {
   gold: "#F0C440",
+  /** 盖内膛，同银箱的道理 */
+  panelDeep: "#3B93A8",
   goldDark: "#D5A928",
   goldLight: "#FBE383",
   panel: "#54C4D6",
@@ -415,17 +496,41 @@ function buildGoldChest(): Object3D {
     }),
   );
 
-  // 蓝瓷拱盖 + 高光 + 两端金框弧——盖组
-  lid.push(dome(GOLD.panel, domeBaseY, W - 0.06, squash));
-  const hi = dome(GOLD.panelLight, domeBaseY + 0.012, W - 0.26, squash * 0.94, DOME_R * 0.99);
-  hi.castShadow = false;
-  lid.push(hi);
+  // 蓝瓷拱盖：外壳 + 深色内膛 + 金端盖 + 顶部高光条 + 两端金框弧
+  const LID_LEN = W - 0.06;
+  lid.push(halfShell(GOLD.panel, 0, domeBaseY, LID_LEN, squash, DOME_R));
+  lid.push(
+    halfShell(GOLD.panelDeep, 0, domeBaseY, LID_LEN - 0.04, squash, DOME_R - 0.035, {
+      castShadow: false,
+      noOutline: true,
+    }),
+  );
+  for (const x of [-LID_LEN / 2, LID_LEN / 2]) {
+    lid.push(halfCap(GOLD.gold, x, domeBaseY, squash, DOME_R));
+  }
+  lid.push(
+    halfShell(GOLD.panelLight, 0, domeBaseY, W - 0.26, squash, DOME_R + 0.005, {
+      thetaStart: Math.PI * 0.32,
+      thetaLength: Math.PI * 0.36,
+      castShadow: false,
+      noOutline: true,
+    }),
+  );
   for (const x of [-(W / 2 - 0.08), W / 2 - 0.08]) {
-    lid.push(domeArc(GOLD.gold, x, domeBaseY, 0.12, squash + 0.03, DOME_R + 0.02));
+    lid.push(
+      halfShell(GOLD.gold, x, domeBaseY, 0.12, squash + 0.03, DOME_R + 0.02, {
+        segments: 12,
+      }),
+    );
   }
 
-  // 冠饰：盖顶一条金脊 + 三个凸起（参考图金箱最认得出来的一笔）——盖组
-  const crestY = domeBaseY + DOME_R * squash + 0.015;
+  // 冠饰：盖顶一条金脊 + 三个凸起（参考图金箱最认得出来的一笔）——盖组。
+  // 高度按**未压扁**的 DOME_R 算：squash 压的是深度(z)不是高度(y)，
+  // 按 R*squash 算出来的脊会埋进壳里——实心盖时代看不出来，掏空后
+  // 那截埋着的金条从内膛里穿帮（用户抓的"圆桶"返工时一起浮出来的）。
+  // 现在脊底沉到外壳和内膛之间（R-0.015 > 内膛的 R-0.035），外面立得
+  // 更精神，里面一点不漏。
+  const crestY = domeBaseY + DOME_R + 0.02;
   lid.push(box([W * 0.62, 0.07, 0.15], { color: GOLD.gold, position: [0, crestY, 0] }));
   for (const x of [-W * 0.21, 0, W * 0.21]) {
     lid.push(box([0.09, 0.07, 0.11], { color: GOLD.goldLight, position: [x, crestY + 0.05, 0] }));

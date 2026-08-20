@@ -5,6 +5,7 @@ import {
   findActionByCategory,
   findActionDefinition,
   findActionPriority,
+  type ActionChainRef,
   type ActionDefinition,
   type ActionProcessSave,
   type PlayerActionEntry,
@@ -19,6 +20,9 @@ import { signal } from "./story";
 import { addItem } from "../State/inventory";
 import { getNeeds, restoreFatigue, spendFatigue } from "../State/needs";
 import { getPets } from "../State/petsRuntime";
+// 循环引用是刻意的：actionChains 要 startAction（发起），这里要
+// completeChainNode（回勾）。两边都只在运行时调用，模块求值期互不取值
+import { completeChainNode } from "./actionChains";
 import { getDefinition, getWorld } from "../State/worldRuntime";
 
 /**
@@ -39,6 +43,8 @@ export type ActiveAction = {
   startedAtMs: number;
   durationMs: number;
   furnitureInstanceId: string;
+  /** 从哪个链节点发起的（散清单/直接开始的没有）。完成时凭它回链打勾 */
+  chainRef?: ActionChainRef;
 };
 
 export type ActionEnd = {
@@ -139,6 +145,7 @@ export function startAction(
   customName: string,
   durationSeconds: number,
   priority: ActionPriority = ActionPriority.Normal,
+  chainRef?: ActionChainRef,
 ): boolean {
   if (active) return false;
 
@@ -159,6 +166,7 @@ export function startAction(
     startedAtMs: nowMs(),
     durationMs: durationSeconds * 1000,
     furnitureInstanceId,
+    chainRef,
   });
 
   // 开始时就扣，避免"开着不完成"白嫖；休息类是负数，等于当场回一点
@@ -205,10 +213,14 @@ function finish(completed: boolean): void {
       (pet) => pet.affectionStage !== AffectionStage.Stranger,
     );
 
+  const chainRef = active.chainRef;
   lastEnd = { action: active, completed, rewards, petCompanion };
   setActive(null);
   emit("action_changed", { status: completed ? "completed" : "cancelled" });
   if (completed) signal("action_completed", definition?.id);
+  // 链的回勾放最后：completeChainNode 会发奖、可能连带整链结项弹箱，
+  // 那些事件的监听方应当看到"行动已经结束"的世界
+  if (completed && chainRef) completeChainNode(chainRef);
 }
 
 // ---- 行动清单 ----
@@ -299,6 +311,7 @@ export function snapshotAction(): ActionProcessSave | undefined {
     status: "active",
     furnitureInstanceId: active.furnitureInstanceId,
     priority: active.priority,
+    chainRef: active.chainRef,
   };
 }
 
@@ -328,6 +341,7 @@ export function restoreAction(saved: ActionProcessSave | undefined): void {
     startedAtMs,
     durationMs,
     furnitureInstanceId: saved.furnitureInstanceId ?? "",
+    chainRef: saved.chainRef,
   });
 
   const remainingMs = startedAtMs + durationMs - nowMs();

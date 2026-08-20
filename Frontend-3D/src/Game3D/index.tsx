@@ -96,6 +96,7 @@ import {
   registerDailyCommands,
   startDailyRollover,
 } from "../Game/Systems/dailyCommands";
+import { registerChainCommands } from "../Game/Systems/chainCommands";
 import { isRemoteWorldActive } from "../Game/Multiplayer/session";
 import { describeSoundscape, startSoundscape } from "./Engine/Soundscape";
 import { startMusicDirector } from "./Engine/MusicDirector";
@@ -284,6 +285,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       ...registerNetCommands(),
       // 每日任务：正式交互在机器面板上，命令行是验收工具兼调试入口
       ...registerDailyCommands(),
+      ...registerChainCommands(),
       registerCommand({
         name: "time",
         usage: "time <dawn|day|dusk|night>",

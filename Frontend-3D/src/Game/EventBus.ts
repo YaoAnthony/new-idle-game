@@ -150,6 +150,21 @@ export type GameEvents = {
   action_entries_changed: Record<string, never>;
   /** 系列任务变了（建/改/删链或节点、节点完成、结项）。UI 整棵重读，不做增量 */
   action_chains_changed: { reason: string };
+  /**
+   * 开箱面板该弹了（节点完成=小箱，整链结项=大箱）。
+   * 奖励此刻**已经入包**，面板只负责演出——错过事件不丢东西。
+   * rarity 是箱里最高的一档，箱子模型按它换木/银/金
+   */
+  action_chest_ready: {
+    size: "node" | "chain";
+    title: string;
+    chainId: string;
+    nodeId?: string;
+    iconId: string;
+    colorId: string;
+    rarity: import("core").Rarity;
+    items: Array<{ itemId: string; quantity: number }>;
+  };
   /** 睡眠开始 / 结束 */
   sleep_changed: { phase: "start" | "end" };
   /** 饥饿 / 疲劳变化 */

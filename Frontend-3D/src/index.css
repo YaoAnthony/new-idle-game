@@ -963,6 +963,31 @@ input {
   padding-inline: clamp(12px, 2vmin, 20px);
 }
 
+/*
+ * 图片按钮（右上角的行动/设置，图来自 public/icons/button/）：
+ * 图自己带描边木框，再叠 ui-wood-btn 的木纹皮会打架——皮全去掉，
+ * 只留投影。放大缩小的动效在组件里用 motion 做（hover 放大、按下
+ * 缩小），不写 CSS transition，免得和 transform 双方各改一半。
+ */
+.hud-icon-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  filter: drop-shadow(0 3px 3px rgb(90 62 25 / 0.35));
+}
+.hud-icon-btn img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+/* 行动钮原来是文字药丸（内容撑宽）；换成图后收成和齿轮一样的正方 */
+.hud-corner-btn--inner.hud-icon-btn {
+  width: var(--hud-btn);
+  padding-inline: 0;
+}
+
 /* 选中态（捏脸页的槽位标签用）：亮起来，和 .ui-slot--selected 一个语言 */
 .ui-wood-btn--active {
   border-color: #fffdf8;

@@ -7,6 +7,7 @@ import {
   type PlayerActionEntry,
 } from "core";
 import { useEffect, useState } from "react";
+import { motion } from "motion/react";
 import { on } from "../../Game/EventBus";
 import {
   addActionEntry,
@@ -114,19 +115,21 @@ export function ActionHub() {
 
   return (
     <>
-      <button
+      {/*
+        用户提供的图标（work.png，自带木框描边）换掉原来的文字药丸；
+        文案挪进 aria-label。几何仍交给 .hud-corner-btn--inner（见
+        index.css）：按 --hud-btn 算高度、按齿轮的宽度算让位距离。
+      */}
+      <motion.button
         type="button"
-        /*
-         * 几何全交给 .hud-corner-btn--inner（见 index.css）：它按
-         * --hud-btn 算高度、按齿轮的宽度算让位距离。原来这里写的是
-         * right-16 + py-2 —— 一个躲齿轮的魔数加一个由文字撑出来的高度，
-         * 齿轮换尺寸就会压上来，而且大屏上小得不像主按钮。
-         */
-        className="ui-wood-btn hud-corner-btn hud-corner-btn--inner z-10 font-bold"
+        aria-label={t("ui.action.title")}
+        className="hud-icon-btn hud-corner-btn hud-corner-btn--inner z-10"
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
         onClick={() => setOpen((value) => !value)}
       >
-        {t("ui.action.title")}
-      </button>
+        <img src="/icons/button/work.png" alt="" />
+      </motion.button>
 
       {open && (
         /*

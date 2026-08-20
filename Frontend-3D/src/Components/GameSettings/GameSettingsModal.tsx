@@ -165,27 +165,20 @@ export function GameSettingsModal() {
 
   return (
     <>
-      <button
+      {/* 用户提供的图标（自带木框描边），hover 放大、按下缩小 */}
+      <motion.button
         type="button"
         aria-label={t("ui.settings.title")}
-        className={`ui-wood-btn hud-corner-btn hud-corner-btn--outer ${open ? "z-50" : "z-30"}`}
+        className={`hud-icon-btn hud-corner-btn hud-corner-btn--outer ${open ? "z-50" : "z-30"}`}
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
         onClick={() => {
           unlockAudio();
           setOpen((value) => !value);
         }}
       >
-        <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true">
-          <path
-            fill="currentColor"
-            d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm0 5.5a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z"
-          />
-          <path
-            fill="currentColor"
-            d="m19.4 13-.1-1 1.7-1.3-1.7-3-2 .8-.9-.5-.3-2.1h-3.4l-.3 2.1-.9.5-2-.8-1.7 3L9.5 12l-.1 1-1.7 1.3 1.7 3 2-.8.9.5.3 2.1h3.4l.3-2.1.9-.5 2 .8 1.7-3L19.4 13Zm-1.7 2.6-1.4-.6-2.2 1.3-.2 1.5h-1.8l-.2-1.5-2.2-1.3-1.4.6-.9-1.6 1.2-.9v-2.2l-1.2-.9.9-1.6 1.4.6 2.2-1.3.2-1.5h1.8l.2 1.5 2.2 1.3 1.4-.6.9 1.6-1.2.9v2.2l1.2.9-.9 1.6Z"
-            opacity="0.55"
-          />
-        </svg>
-      </button>
+        <img src="/icons/button/setting.png" alt="" />
+      </motion.button>
 
       <AnimatePresence>
         {open && (

@@ -368,32 +368,51 @@ function CategoryList({
           : t("ui.action.list_footer")
       }
     >
-      <button
-        type="button"
-        className="ui-green-btn absolute right-16 top-[70px] px-4 py-2 text-[14px] font-bold"
-        onClick={onAdd}
-      >
-        ＋ {t("ui.action.add")}
-      </button>
+      {/*
+        工具行：左「系列任务」右「添加行动」，占一整行，信纸从它下面开始。
+        原来两个按钮是 absolute 钉在 top-[70px] 的——正好骑在信纸的虚线框上，
+        像两块贴上去的补丁（用户抓的就是这个）。按钮是布局的一部分就进布局流，
+        绝对定位留给真正要悬浮的东西（关闭键、角标）。
+      */}
+      <div className="mt-4 flex items-center justify-between">
+        {/* 系列任务入口：分类跟着这张卡走，链和它的所有环都继承这个分类 */}
+        <button
+          type="button"
+          className="ui-wood-btn px-4 py-2 text-[14px] font-bold"
+          onClick={onChains}
+        >
+          🌳 {t("ui.chain.entry")}
+          {(() => {
+            const count = getActionChains().filter(
+              (chain) => chain.category === category && !chain.completedAtUtc,
+            ).length;
+            return count > 0 ? ` ${count}` : "";
+          })()}
+        </button>
+        <button
+          type="button"
+          className="ui-green-btn px-4 py-2 text-[14px] font-bold"
+          onClick={onAdd}
+        >
+          ＋ {t("ui.action.add")}
+        </button>
+      </div>
 
-      {/* 系列任务入口：分类跟着这张卡走，链和它的所有环都继承这个分类 */}
-      <button
-        type="button"
-        className="ui-wood-btn absolute left-16 top-[70px] px-4 py-2 text-[14px] font-bold"
-        onClick={onChains}
+      {/*
+        高度用 clamp 随视口走：SE 横屏（375 高）只给得起 ~157px，桌面给到 300。
+        原来 min-h-[300px] 是按桌面写死的，SE 上整个面板底边捅出屏幕 90px。
+      */}
+      <div
+        className="ui-paper ui-scroll mt-2 overflow-y-auto p-4"
+        style={{
+          /* 235px = 面板头尾 + 工具行 + 脚注的固定开销，量出来的。
+             42vh 那版在 SE 上还差 7px 捅出屏幕——百分比对"高度只有 375"
+             的屏来说粒度太粗，直接用视口减开销才贴得住 */
+          height: "clamp(120px, calc(100vh - 235px), 300px)",
+        }}
       >
-        🌳 {t("ui.chain.entry")}
-        {(() => {
-          const count = getActionChains().filter(
-            (chain) => chain.category === category && !chain.completedAtUtc,
-          ).length;
-          return count > 0 ? ` ${count}` : "";
-        })()}
-      </button>
-
-      <div className="ui-paper ui-scroll mt-6 max-h-[46vh] min-h-[300px] overflow-y-auto p-4">
         {entries.length === 0 ? (
-          <div className="flex h-[280px] flex-col items-center justify-center">
+          <div className="flex h-full flex-col items-center justify-center">
             <img
               src="/ui/action-empty.png"
               alt=""

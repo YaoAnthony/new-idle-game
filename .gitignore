@@ -34,3 +34,6 @@ production/session-logs/
 # 结果就不一样——跟踪它等于每个人 dev 一次就多一坨 diff，还互相覆盖。
 # 新 clone 跑 npm run dev 就会长出来。
 Frontend-3D/src/Data/music/generated.ts
+
+# 本地打包的依赖快照，340MB，超过 GitHub 单文件上限
+node_modules.zip

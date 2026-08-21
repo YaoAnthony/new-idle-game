@@ -191,20 +191,15 @@ export class CameraRig {
     this.camera.updateProjectionMatrix();
   }
 
-  /** 告诉相机房间的内壁在哪。margin 是相机离墙/天花板的最小距离 */
-  setRoomBounds(
-    width: number,
-    depth: number,
-    wallHeight: number,
-    margin = 0.35,
-  ): void {
-    this.setBoundsRect(-width / 2, width / 2, -depth / 2, depth / 2, wallHeight, margin);
-  }
-
   /**
-   * 任意矩形的内壁盒。目前唯一的调用方是 setRoomBounds（整栋房子）——
+   * 内壁盒。**矩形由调用方给，这里不认识"房子在哪"**——
+   * 原来还有一个 `setRoomBounds(width, depth, …)` 顺手摊成
+   * `-width/2 … width/2`，那是"房子中心=世界原点"公理的一份拷贝，
+   * 房子挂上锚点能挪之后就是错的，所以连函数一起删了：留着它，
+   * 下一个人还会调，公理就复活了。
+   *
    * "按分区锁相机"的方案已放弃（客厅进深 8 格会把镜头顶成俯视），
-   * 挡视线的内墙走遮挡淡出。保留矩形形式是为了以后多层/别馆。
+   * 挡视线的内墙走遮挡淡出。矩形形式保留给以后的多层/别馆。
    */
   setBoundsRect(
     minX: number,

@@ -58,7 +58,14 @@ export class WindowView {
 
   private readonly boxWidth: number;
 
-  constructor(anchor: WindowAnchor) {
+  constructor(
+    anchor: WindowAnchor,
+    /**
+     * 菱格（女巫小屋）：玻璃上铺一层斜 45° 的细木条。挂在构造参数上而
+     * 不是另起一个类——玻璃、雨光、尘埃三样两种窗都一样，只差格子。
+     */
+    options: { lattice?: boolean } = {},
+  ) {
     this.root = new Object3D();
     this.root.name = `window-view-${anchor.openingId}`;
 
@@ -75,6 +82,7 @@ export class WindowView {
     this.boxWidth = anchor.width + 0.8;
 
     this.buildFrame(anchor);
+    if (options.lattice) this.buildLattice(anchor);
 
     // ---- 玻璃：极淡的蓝白片 + 一道斜高光 ----
     const glass = new Mesh(
@@ -144,6 +152,46 @@ export class WindowView {
    * 落地窗（高 ≥2.5 且贴地）和小窗共用外框，差别在里面：
    * 落地窗是两根竖梃 + 深窗台，小窗是十字格。
    */
+  /**
+   * 菱格：两组各 45° 的细木条，间距 0.28，裁在窗洞内。条数由窗洞对角线
+   * 定，不写死——东墙的窗和北墙的窗一样大，但别让这个假设进代码。
+   * 木条贴在玻璃屋外那一侧（−Z），从屋里看隔着玻璃，从外面看压在玻璃上
+   */
+  private buildLattice(anchor: WindowAnchor): void {
+    const w = anchor.width;
+    const h = anchor.height;
+    const lattice = new Object3D();
+    lattice.name = "lattice";
+    const pitch = 0.28;
+    const diag = Math.hypot(w, h);
+    const count = Math.ceil(diag / pitch);
+    for (const dir of [1, -1]) {
+      for (let i = -count; i <= count; i += 1) {
+        // 沿法线方向的偏移 d；条长按它和矩形的交线截，粗略取对角线再让
+        // 两端被外框盖住——格子细到 0.03，多出来那点看不出来
+        const d = i * pitch;
+        if (Math.abs(d) > diag / 2) continue;
+        const len = Math.min(diag, 2 * Math.sqrt(Math.max(0, (diag / 2) ** 2 - d * d)) + 0.1);
+        lattice.add(
+          box([len, 0.03, 0.02], {
+            color: PALETTE.wallTrim,
+            position: [(-d * Math.SQRT1_2) * dir, d * Math.SQRT1_2, -0.03],
+            rotation: [0, 0, (Math.PI / 4) * dir],
+            castShadow: false,
+          }),
+        );
+      }
+    }
+    // 裁边：窗洞外面的那截条子由加厚的外框盖掉
+    for (const side of [-1, 1]) {
+      lattice.add(
+        box([0.18, h + 0.3, 0.12], { color: PALETTE.wallTrim, position: [side * (w / 2 + 0.08), 0, -0.04], castShadow: false }),
+        box([w + 0.36, 0.18, 0.12], { color: PALETTE.wallTrim, position: [0, side * (h / 2 + 0.08), -0.04], castShadow: false }),
+      );
+    }
+    this.root.add(lattice);
+  }
+
   private buildFrame(anchor: WindowAnchor): void {
     const w = anchor.width;
     const h = anchor.height;

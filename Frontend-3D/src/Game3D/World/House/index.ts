@@ -19,5 +19,6 @@ export {
   type WindowAnchor,
 } from "./HouseBuilder.js";
 export { DoorView } from "./DoorView.js";
+export { PlankDoor } from "./PlankDoor.js";
 export { RoomDoorView } from "./RoomDoorView.js";
 export { WindowView } from "./WindowView.js";

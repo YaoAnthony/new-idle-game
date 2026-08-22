@@ -1,6 +1,7 @@
 import type { MapDefinition } from "core";
 import type { OutdoorTerrainBuilder } from "../Game3D/World/outdoorTerrain.js";
 import { baseMapDefinition } from "./base/index.js";
+import { buildCottageDressing } from "./base/dressing.js";
 import { buildBaseTerrain } from "./base/outdoor.js";
 import { shopMapDefinitions } from "./shops/index.js";
 import { shopInteriorBuilder } from "./shops/interiors.js";
@@ -90,7 +91,10 @@ const houseDressingBuilders: Record<
    * 它们长在老房子上，而房子从期 2 起是一栋会升级、会挪位的建筑，
    * 旧陈设跟不动。这张表本身留着——"长在房上的陈设"这条机制没有错，
    * 错的是那批具体内容；新房子的陈设以后照样从这里登记。
+   *
+   * 2026-08-22：新房子（女巫小屋）的蘑菇和野花从这里回来了。
    */
+  base: buildCottageDressing,
 };
 
 export function houseDressingOf(

@@ -310,14 +310,21 @@ export function findRoute(
   const start = nearestWalkable(grid, from.x, from.z);
   const goal = nearestWalkable(grid, to.x, to.z);
   if (start < 0 || goal < 0) return null;
-  if (start === goal) return [[to.x, to.z]];
+  /*
+   * 终点：目标自己站得住就用真实坐标（不然总差半格）；站不住（点在墙里、
+   * 锁着的地里、家具上）就停在吸附到的那格的格心。以前不分情况一律用
+   * 真实坐标，最后一段又不过视线测试——目标在北墙外半米时，吸附格在
+   * 屋里贴墙，角色走到那格之后**再穿墙挪到目标点**。2026-08-22 女巫小屋
+   * 的寻路验收抓到的
+   */
+  const end: [number, number] = cellOf(grid, to.x, to.z) === goal ? [to.x, to.z] : worldOf(grid, goal);
+  if (start === goal) return [end];
 
   const cells = search(grid, start, goal);
   if (!cells) return null;
 
   const raw = cells.map((index) => worldOf(grid, index));
-  // 终点用真实目标，不用格心——不然总差半格
-  raw[raw.length - 1] = [to.x, to.z];
+  raw[raw.length - 1] = end;
 
   const smoothed: Array<[number, number]> = [raw[0]];
   let anchor = 0;

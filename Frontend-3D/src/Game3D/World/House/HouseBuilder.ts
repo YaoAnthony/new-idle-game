@@ -1,5 +1,6 @@
 import {
   HouseZoneKind,
+  type HouseZone,
   WallOpeningKind,
   anchorHeadingToWorld,
   anchorOf,
@@ -27,6 +28,8 @@ import { buildEngawa } from "./Engawa.js";
 import { buildExteriorWalls } from "./ExteriorWalls.js";
 import { buildPorch } from "./Porch.js";
 import { buildRoof } from "./Roof.js";
+import { buildStoneWalls } from "./StoneWalls.js";
+import { buildChimney, buildWitchRoof } from "./WitchRoof.js";
 
 /**
  * 把 Core 的 RoomSave（纯数据）变成网格体。
@@ -749,7 +752,13 @@ export function buildHouse(
    * 塞进函数里：函数本身没错，是"要不要墙的装饰"该由外面回答。
    */
   const hasWalls = Object.keys(room.walls).length > 0;
-  if (hasWalls) root.add(buildTimberFrame(room, wallHeight));
+  /*
+   * 外壳（2026-08-22）：一条管线两套皮。地板、天花、内墙、门洞、拾取面、
+   * 窗玻璃照旧共用；屋顶 / 外皮 / 门廊 / 柱长押按 room.shell 选建造器。
+   * 女巫小屋是石屋，柱和长押是木构造的语言，不配。
+   */
+  const witch = room.shell === "witch_cottage";
+  if (hasWalls && !witch) root.add(buildTimberFrame(room, wallHeight));
   const genkanStep = buildGenkanStep(room);
   if (genkanStep) root.add(genkanStep);
 
@@ -772,9 +781,11 @@ export function buildHouse(
    * room.walls。广场拆墙后四角还立着四根 3 米高的转角板，从空中看
    * 就是围着石板地的四根杆子。用空组占位，保住 BuiltHouse 的形状。
    */
-  const exterior = hasWalls
-    ? buildExteriorWalls(room, floorLevel)
-    : { walls: new Object3D(), plinth: new Object3D() };
+  const exterior = !hasWalls
+    ? { walls: new Object3D(), plinth: new Object3D() }
+    : witch
+      ? buildStoneWalls(room, floorLevel)
+      : buildExteriorWalls(room, floorLevel);
   root.add(exterior.walls);
   root.add(exterior.plinth);
 
@@ -787,9 +798,18 @@ export function buildHouse(
   roofShell.name = "roof-shell";
   let ridgeHeight = wallHeight;
   if (!openAir) {
-    const built = buildRoof(room, wallHeight);
+    const built = witch ? buildWitchRoof(room, wallHeight) : buildRoof(room, wallHeight);
     roofShell.add(built.roof);
     ridgeHeight = built.ridgeHeight;
+  }
+  if (witch && !openAir) {
+    /*
+     * 烟囱对着壁炉那一行（z），壁炉按 LDK 分区中行推——不写死格号：
+     * 户型是数据，壁炉挪了烟囱跟着走。坡上的位置（x）由 WitchRoof 定
+     */
+    const hearth = room.zones?.find((zone) => zone.kind === HouseZoneKind.Ldk);
+    const at = chimneyAnchor(room, hearth?.rect);
+    roofShell.add(buildChimney(room, wallHeight, at));
   }
 
   const engawa = buildEngawa(room, outdoorDecks, floorLevel);
@@ -823,7 +843,7 @@ export function buildHouse(
    * 注意门廊吃的是**本地**锚点（它自己也在 root 底下）——必须在下面
    * 世界化 doors 之前建完。
    */
-  if (!openAir) {
+  if (!openAir && !witch) {
     for (const door of doors) roofShell.add(buildPorch(door, floorLevel));
   }
 
@@ -863,6 +883,24 @@ export function buildHouse(
     wallHeight,
     stowed: false,
   };
+}
+
+/**
+ * 烟囱落点（房本地）。壁炉是家具不是户型，HouseBuilder 看不到它；这里按
+ * "LDK 东墙中段、贴墙内侧一格"定——和 seedInitialFurniture 摆壁炉的规则
+ * 是同一句话，两边都从 ldk 分区推，不各写一个数。
+ */
+function chimneyAnchor(
+  room: RoomSave,
+  ldk: HouseZone["rect"] | undefined,
+): { x: number; z: number } {
+  const size = { width: room.floorGrid.width, depth: room.floorGrid.height };
+  const gx = room.floorGrid.width - 1;
+  const gy = ldk ? ldk.y + Math.floor(ldk.height / 2) : Math.floor(room.floorGrid.height / 2);
+  const [x, , z] = gridToWorld(gx, gy, size);
+  // 壁炉是 2×1 贴墙竖放，占 gy..gy+1 两格，烟囱对它的中心；x 往墙外探
+  // 一点：烟囱骑在墙上，一半压在天花上一半露在外皮外
+  return { x: x + 0.35, z: z + 0.5 };
 }
 
 /** 网格坐标 → 世界坐标（格子中心） */

@@ -141,6 +141,9 @@ export type InteriorDoorway = {
   initiallyLocked?: boolean;
 };
 
+/** 房子的外皮风格。渲染层按它选屋顶/外墙/大门/门廊的建造器 */
+export type HouseShellKind = "wafu" | "witch_cottage";
+
 export enum HouseZoneKind {
   Ldk = "ldk",
   Genkan = "genkan",
@@ -217,6 +220,17 @@ export type RoomSave = {
 
   /** 房子在世界里的摆放。不填 = 中心在原点朝北（老存档的隐含公理） */
   anchor?: RoomAnchor;
+
+  /**
+   * **外皮风格**：屋顶、外墙、大门、门廊长什么样。不填 = 和风（`wafu`，
+   * 2LDK 那一套：切妻顶、木板外皮、引き戸、玄关门廊）。
+   *
+   * 挂在房间几何上而不是地区风格（RoomStyleDefinition）上：地区风格是
+   * 新建世界时随机分配的"这片地的味道"，管地板色、窗样式；而外皮跟着
+   * **这一栋楼是哪一栋**走——女巫小屋在哪个地区都是石墙木瓦，升到
+   * LV3 的 2LDK 才换回和风。几何存结果不存配方，外皮是结果的一部分。
+   */
+  shell?: HouseShellKind;
 
   /**
    * **这栋房子收起来了**——户型还在，但它此刻不立在世界上。

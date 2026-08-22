@@ -95,3 +95,33 @@ test("洗手间有瓷砖分区、卧室有分区、玄关贴着门", () => {
   expect(genkan.rect.width).toBe(door.size.width);
   expect(genkan.rect.y + genkan.rect.height).toBe(room.floorGrid.height);
 });
+
+// ---- 寻路：目标站不住的时候路的终点在哪 ----
+
+test("目标在北墙外的锁定格里：路在屋里贴墙那格停下，不穿墙去目标点", async () => {
+  const { findRoute, invalidateNavGrid } = await import("../src/Game/Systems/navigation");
+  const { isWalkable } = await import("../src/Game/State/worldRuntime");
+  invalidateNavGrid();
+  // Arrange：灶台旁（LDK 里）→ 北墙外半米。北墙外是 C2，开局锁着，站不住
+  const from = { x: -0.5, z: 9.5 };
+  const to = { x: -2.5, z: 2.5 };
+  expect(isWalkable(to.x, to.z, 0.3)).toBe(false);
+
+  // Act
+  const route = findRoute(from, to);
+
+  // Assert：有路（吸附到最近可站格），但终点不是那个站不住的原点，且每个路点都站得住
+  expect(route).not.toBeNull();
+  const end = route![route!.length - 1];
+  expect(end).not.toEqual([to.x, to.z]);
+  for (const [x, z] of route!) expect(isWalkable(x, z, 0.3), `路点 (${x}, ${z}) 站不住`).toBe(true);
+  // 终点还在屋里（z ≥ 3 是北墙），没有穿出去
+  expect(end[1]).toBeGreaterThanOrEqual(3);
+});
+
+test("目标本身站得住：终点用真实坐标，不吸到格心", async () => {
+  const { findRoute } = await import("../src/Game/Systems/navigation");
+  // 屋里两点（headless 没有场景，院子的通行规则没注册，只能在屋里测）
+  const route = findRoute({ x: -0.5, z: 9.5 }, { x: 0.3, z: 11.7 });
+  expect(route![route!.length - 1]).toEqual([0.3, 11.7]);
+});

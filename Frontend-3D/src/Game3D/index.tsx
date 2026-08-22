@@ -594,6 +594,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
           const spot = parseYardCell(args[1], args[2]);
           if (!spot) return fail("用法：build <型号> <格X> <格Y> [朝向]");
           const facing = toFacing(parseEnum(args[3] ?? "north", FACINGS, "朝向"));
+          // 家是地图自带的，不是盖出来的（04 文档）；型号还在，只是这个口不开
+          if (args[0] === "house") return fail("家已经有了");
           const result = placeBuildingAtCell(args[0] ?? "", spot, facing);
           if (result.ok !== false) return ok(`盖好了：${result.instanceId}`);
           return fail(whyBuild(result.reason));

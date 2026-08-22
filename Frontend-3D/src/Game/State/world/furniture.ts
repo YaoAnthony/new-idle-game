@@ -219,8 +219,10 @@ export function seedInitialFurniture(): void {
      * 的细节。**fixed**：它是房子的一部分，拿不走（烟囱可不会跟着走）。
      */
     {
+      // 行 6 = LDK 分区的中行：HouseBuilder 的烟囱按同一条规则落在东墙
+      // 这一段的正上方，里外对得上
       furnitureId: "furniture_fireplace",
-      gridPosition: { x: 7, y: 7 },
+      gridPosition: { x: 7, y: 6 },
       facing: Facing.West,
       state: { fixed: true },
     },

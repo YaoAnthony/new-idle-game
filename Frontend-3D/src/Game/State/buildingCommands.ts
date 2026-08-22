@@ -42,9 +42,16 @@ export function toFacing(name: string): Facing {
   return FACING_BY_NAME[name] ?? Facing.North;
 }
 
-/** 能在领地里建的型号：**有 levels 但没有 interiorMapId 的**（后者是小镇的店） */
+/**
+ * 能在领地里建的型号：**有 levels 但没有 interiorMapId 的**（后者是小镇的店）。
+ *
+ * `house` 不在这里（2026-08-22）：默认的家现在是地图自带的女巫小屋，再让
+ * 玩家 `/build house` 就是领地上立两个家。型号定义留着（`maxInstances: 1`
+ * 不动，期 2 的用例还在用它验占地/升级规则），摘掉的只是入口；把默认家
+ * 合并成建筑实例 l1 是下一期的事，见 04 文档
+ */
 export function buildableIds(): string[] {
-  return ["gold_jar", "farm_plot", "land_cabin", "house"];
+  return ["gold_jar", "farm_plot", "land_cabin"];
 }
 
 export function parseYardCell(

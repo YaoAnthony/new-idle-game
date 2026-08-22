@@ -422,6 +422,8 @@ export function generateCottageL1(params: {
     interiorDoorways,
     zones,
     floor: 0,
+    // 石墙、木瓦、女巫帽顶——外皮跟着这一栋走，不跟地区风格走
+    shell: "witch_cottage",
   };
 }
 

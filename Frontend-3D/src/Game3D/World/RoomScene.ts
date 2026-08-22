@@ -186,6 +186,7 @@ import {
 import { HeldItemView } from "./HeldItemView.js";
 import {
   DoorView,
+  PlankDoor,
   RoomDoorView,
   WindowView,
   buildHouse,
@@ -275,7 +276,7 @@ export class RoomScene {
   private readonly gramophoneAnimator: GramophoneAnimator;
   private readonly bathAnimator: BathAnimator;
   /** 外门门板 + 它的逻辑实体，视图每帧照实体画 */
-  private readonly doorViews: { view: DoorView; agent: DoorAgent | undefined }[] = [];
+  private readonly doorViews: { view: DoorView | PlankDoor; agent: DoorAgent | undefined }[] = [];
   private readonly roomDoorViews = new Map<string, RoomDoorView>();
   /** 上次报"锁着"的时刻。连按 F 只晃门不刷屏（见 interact 里的注释） */
   private lastLockedNoticeAt = 0;
@@ -387,8 +388,10 @@ export class RoomScene {
     }
 
     // 门板：没有它门洞会直接透出背景色
+    // 女巫小屋用木板门（平开 + 雨棚），和风那栋用引き戸；两者接口相同
+    const witch = room.shell === "witch_cottage";
     for (const anchor of this.built.doors) {
-      const door = new DoorView(anchor);
+      const door = witch ? new PlankDoor(anchor) : new DoorView(anchor);
       this.doorViews.push({ view: door, agent: findDoorAgent(anchor.openingId) });
       this.scene.add(door.root);
     }
@@ -405,7 +408,7 @@ export class RoomScene {
     }
 
     for (const anchor of this.built.windows) {
-      const view = new WindowView(anchor);
+      const view = new WindowView(anchor, { lattice: witch });
       this.windowViews.push(view);
       this.scene.add(view.root);
     }

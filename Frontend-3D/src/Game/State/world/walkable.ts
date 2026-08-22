@@ -152,15 +152,20 @@ export function setOutdoorPass(
  */
 let cachedGround: {
   map: typeof worldState.map;
-  room: typeof worldState.room;
+  rooms: typeof worldState.rooms;
   ground: GroundMap;
 } | null = null;
 
 function currentGround(): GroundMap {
   const map = worldState.map;
-  const room = worldState.room;
-  if (!cachedGround || cachedGround.map !== map || cachedGround.room !== room) {
-    cachedGround = { map, room, ground: buildGroundMap(map, room) };
+  /*
+   * 缓存键从"当前房间"换成"整份房间表"（期 1：承托面按全部房间编译）。
+   * `replaceRooms` 换的是整个 Record，所以引用比较照旧成立——而只盯着
+   * 主房间的话，第二栋收起/放下不会让缓存失效，那栋的地板会赖在图上。
+   */
+  const rooms = worldState.rooms;
+  if (!cachedGround || cachedGround.map !== map || cachedGround.rooms !== rooms) {
+    cachedGround = { map, rooms, ground: buildGroundMap(map, Object.values(rooms)) };
   }
   return cachedGround.ground;
 }

@@ -85,6 +85,13 @@ import {
 import { unlockAudio } from "./Engine/AudioEngine";
 import { initAudioSettings } from "./Engine/audioSettings";
 import { startParticipantSync } from "../Game/Systems/participantSync";
+import {
+  allPlots,
+  ownedPlotIds,
+  resetTerritory,
+  unlockPlotById,
+  unlockablePlotIds,
+} from "../Game/State/territory";
 import { placeHouse, stowHouse } from "../Game/Systems/house";
 import { travelTo } from "../Game/Systems/mapTravel";
 import { autoWalkTo, initAutoWalk } from "../Game/Systems/autoWalk";
@@ -540,6 +547,59 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
           // 门口挤不下大家伙，直接放到屋子中部空地
           debugPlacePet(petId, 0, 4);
           return ok(`${definition.id} 来了`);
+        },
+      }),
+      registerCommand({
+        name: "territory",
+        arguments: [
+          { name: "动作", suggest: () => asSuggestions(["list", "unlock", "reset"]) },
+          { name: "地块", suggest: () => asSuggestions(unlockablePlotIds()) },
+        ],
+        usage: "territory [list|unlock <id>|reset]",
+        description: "领地：看格盘 / 开一块地 / 回到开局（正式驱动接上前的调试入口）",
+        handler: (args) => {
+          const action = args[0] ?? "list";
+
+          if (action === "list") {
+            if (allPlots().length === 0) return fail("这张图没有领地");
+            const owned = new Set(ownedPlotIds());
+            const open = new Set(unlockablePlotIds());
+            const lines = allPlots().map((plot) => {
+              const state = owned.has(plot.plotId)
+                ? "已开"
+                : open.has(plot.plotId)
+                  ? "可开"
+                  : "锁定";
+              const { minX, maxX, minZ, maxZ } = plot.rect;
+              return `${plot.plotId} ${state}  x ${minX}..${maxX} / z ${minZ}..${maxZ}`;
+            });
+            return ok(lines.join(" · "));
+          }
+
+          if (action === "reset") {
+            resetTerritory();
+            return ok(`回到开局：${ownedPlotIds().join(", ")}`);
+          }
+
+          if (action !== "unlock") return fail("用法：territory [list|unlock <id>|reset]");
+
+          const plotId = args[1];
+          if (!plotId) return fail(`用法：territory unlock <id>，现在可开：${unlockablePlotIds().join(", ") || "（没有）"}`);
+
+          const result = unlockPlotById(plotId);
+          if (result.ok !== false) return ok(`开了 ${plotId}，现在拥有：${ownedPlotIds().join(", ")}`);
+          /*
+           * 逐条说清楚为什么不行。和 /house 同一条路数——拒绝要说得出
+           * 理由，将来正式的扩展驱动（圣水买地、剧情）报的就是这几句。
+           */
+          const why: Record<string, string> = {
+            no_territory: "这张图没有领地",
+            unknown: `没有这块地：${plotId}`,
+            owned: `${plotId} 已经是你的了`,
+            not_adjacent: `${plotId} 和你现在的地不相邻——只能从已开的地往外扩`,
+            busy: "做客期间不能动别人家的地",
+          };
+          return fail(why[result.reason] ?? "开不了");
         },
       }),
       registerCommand({

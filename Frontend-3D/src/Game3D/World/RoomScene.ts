@@ -190,6 +190,7 @@ import {
   type BuiltHouse,
 } from "./House/index.js";
 import { OutdoorScene } from "./OutdoorScene.js";
+import { TerritoryView } from "./TerritoryView.js";
 
 /**
  * 一栋**站着的**房子在镜头眼里的样子。
@@ -261,6 +262,11 @@ export class RoomScene {
   private readonly houses: Array<{ room: RoomSave; built: BuiltHouse }> = [];
   private readonly windowViews: WindowView[] = [];
   private readonly outdoor: OutdoorScene;
+  /**
+   * 领地的围栏、锁定格的杂草和地标。没有领地的图（小镇、店铺）它自己
+   * 空转——`hasTerritory()` 为假时一个网格都不建。
+   */
+  private readonly territoryView: TerritoryView;
   private readonly fogField: FogField;
   /** 联机时房间里其他人的形象。单机时名册是空的，它每帧空转一圈 */
   private readonly remotePlayers: RemotePlayersView;
@@ -419,6 +425,10 @@ export class RoomScene {
     // 声明的可走固定件（石阶、平台）。挂 scene 不挂 outdoor.root：
     // 声明里的标高是世界 Y，outdoor.root 整体压了 -floorLevel
     this.scene.add(buildGroundFixtures(getCurrentMap()));
+
+    // 领地：绳索围栏 + 锁定格的杂草和地标。它自己听 world_changed
+    // reason "territory" 重建，不需要场景转发
+    this.territoryView = new TerritoryView(this.scene);
 
     /*
      * 清晰度场（大雾天灯和房子驱雾用的 tile 网格 + 雾毯）。
@@ -2557,6 +2567,7 @@ export class RoomScene {
     this.dailyBoardAnimator.dispose();
     this.furnitureView.dispose();
     this.outdoor.dispose();
+    this.territoryView.dispose();
     this.fogField.dispose();
     this.cookwareView.dispose();
     this.heldItemView.dispose();

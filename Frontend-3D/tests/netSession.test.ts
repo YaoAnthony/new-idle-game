@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { Facing, type GameSave, type WorldSave } from "core";
+import { Facing, worldToRoomCell, type GameSave, type WorldSave } from "core";
 
 // ---- 假 Api 层。必须在 import session 之前声明 ----
 
@@ -103,7 +103,7 @@ import {
   clearAllFurniture,
   placeFurniture,
 } from "../src/Game/State/world/furniture";
-import { getWorld } from "../src/Game/State/worldRuntime";
+import { getCurrentMap, getRoom, getWorld } from "../src/Game/State/worldRuntime";
 import { restoreStorages } from "../src/Game/State/storage";
 import { createIndexDbRepository } from "../src/Data/IndexDB";
 import { emit, on } from "../src/Game/EventBus";
@@ -122,6 +122,34 @@ import { emit, on } from "../src/Game/EventBus";
 
 const store = createIndexDbRepository<unknown>("gameSaves");
 
+/**
+ * 院子里一个**落在开局领地（C3）内**的格。
+ *
+ * 期 1 起院子的网格盖住整块领地（60×45），但开局只拥有 C3 一格，别处
+ * 放置会被 `outside_territory` 拒掉。硬写格号会和格盘一起走散，所以从
+ * **世界坐标**反算：(−2, 10) 是 C3 中央，也是新档的出生点。
+ */
+function homeCell(dx = 0, dy = 0): { x: number; y: number } {
+  const yard = getRoom(getCurrentMap().outdoorRoomId)!;
+  const cell = worldToRoomCell(yard, -2, 10);
+  return { x: cell.x + dx, y: cell.y + dy };
+}
+
+/**
+ * 一个**此刻在场**的房间 id。
+ *
+ * 不能写 `getWorld().room.roomId`（主房间）：期 1 起房子默认收起（T9），
+ * 而收起房间里的家具不进 `presentFurniture`——这几条用例断言的正是
+ * `getWorld().placedFurniture`，拿主房间当落点会让它们全部读到空数组，
+ * 看起来像"世界没换过去"，其实只是东西装在一个不在场的屋子里。
+ *
+ * 院子永远在场，所以用它。这些用例要验的是"世界换没换、op 重放对不对"，
+ * 家具具体摆在哪一间与之无关。
+ */
+function inSceneRoomId(): string {
+  return getCurrentMap().outdoorRoomId;
+}
+
 /** 一份"房主的世界"，和自己的世界能一眼分辨 */
 function hostWorld(): WorldSave {
   const mine = serializeGameSave();
@@ -135,7 +163,7 @@ function hostWorld(): WorldSave {
         furnitureId: "furniture_bed",
         placement: {
           kind: "floor",
-          roomId: getWorld().room.roomId,
+          roomId: inSceneRoomId(),
           gridPosition: { x: 1, y: 1 },
           facing: Facing.North,
         },
@@ -212,7 +240,7 @@ async function readSaveFromDisk(): Promise<GameSave> {
 
 describe("开房（房主）", () => {
   test("房主继续在自己家过日子，世界不换", async () => {
-    placeFurniture("furniture_table", { x: 3, y: 3 }, Facing.North);
+    placeFurniture("furniture_table", homeCell(), Facing.North);
     const before = getWorld().placedFurniture.length;
 
     const code = await hostSession();
@@ -257,7 +285,7 @@ describe("开房（房主）", () => {
 
 describe("做客（房客）", () => {
   test("入房后运行时里是房主的世界", async () => {
-    placeFurniture("furniture_table", { x: 3, y: 3 }, Facing.North);
+    placeFurniture("furniture_table", homeCell(), Facing.North);
     const host = hostWorld();
     fakeApi.replies.set("join", joinReply(host));
 
@@ -286,7 +314,7 @@ describe("做客（房客）", () => {
    */
   test("做客期间落盘：世界侧是自家的，玩家侧是运行时现状", async () => {
     // 自家有一张桌子
-    placeFurniture("furniture_table", { x: 3, y: 3 }, Facing.North);
+    placeFurniture("furniture_table", homeCell(), Facing.North);
     addItem("wood", 5);
 
     fakeApi.replies.set("join", joinReply(hostWorld()));
@@ -333,7 +361,7 @@ describe("做客（房客）", () => {
   });
 
   test("回家：世界换回自己的，做客期间的收获留着", async () => {
-    placeFurniture("furniture_table", { x: 3, y: 3 }, Facing.North);
+    placeFurniture("furniture_table", homeCell(), Facing.North);
     fakeApi.replies.set("join", joinReply(hostWorld()));
     await joinSession("ABC234");
 
@@ -355,7 +383,7 @@ describe("做客（房客）", () => {
     await settle(); // 等回家那一次 void saveNow() 落地，免得它盖掉下面这次
 
     // 现在摆一件家具，它必须能进档（做客期间是进不去的）
-    placeFurniture("furniture_chair", { x: 5, y: 5 }, Facing.North);
+    placeFurniture("furniture_chair", homeCell(3, 3), Facing.North);
     await saveNow();
 
     const written = await readSaveFromDisk();
@@ -365,7 +393,7 @@ describe("做客（房客）", () => {
   });
 
   test("房主跑了：被动结束也走同一条回家路", async () => {
-    placeFurniture("furniture_table", { x: 3, y: 3 }, Facing.North);
+    placeFurniture("furniture_table", homeCell(), Facing.North);
     fakeApi.replies.set("join", joinReply(hostWorld()));
     await joinSession("ABC234");
     addItem("iron_ingot", 1);
@@ -378,7 +406,7 @@ describe("做客（房客）", () => {
   });
 
   test("回标题：房客先把自家世界灌回去，App 的存盘才不会写错", async () => {
-    placeFurniture("furniture_table", { x: 3, y: 3 }, Facing.North);
+    placeFurniture("furniture_table", homeCell(), Facing.North);
     fakeApi.replies.set("join", joinReply(hostWorld()));
     await joinSession("ABC234");
 
@@ -416,7 +444,7 @@ describe("做客（房客）", () => {
 describe("op 通道", () => {
   test("单机时本地突变不往外发", async () => {
     fakeApi.reset();
-    placeFurniture("furniture_table", { x: 3, y: 3 }, Facing.North);
+    placeFurniture("furniture_table", homeCell(), Facing.North);
 
     expect(fakeApi.outbound.filter((o) => o.kind === "op")).toEqual([]);
   });
@@ -425,7 +453,7 @@ describe("op 通道", () => {
     await hostSession();
     fakeApi.reset();
 
-    placeFurniture("furniture_table", { x: 3, y: 3 }, Facing.North);
+    placeFurniture("furniture_table", homeCell(), Facing.North);
     await Promise.resolve(); // sendOp 走的是 ensureConnected().then
 
     const ops = fakeApi.outbound.filter((o) => o.kind === "op");
@@ -446,7 +474,7 @@ describe("op 通道", () => {
           furnitureId: "furniture_chair",
           placement: {
             kind: "floor",
-            roomId: getWorld().room.roomId,
+            roomId: inSceneRoomId(),
             gridPosition: { x: 6, y: 6 },
             facing: Facing.North,
           },
@@ -472,7 +500,7 @@ describe("op 通道", () => {
           furnitureId: "furniture_chair",
           placement: {
             kind: "floor",
-            roomId: getWorld().room.roomId,
+            roomId: inSceneRoomId(),
             gridPosition: { x: 6, y: 6 },
             facing: Facing.North,
           },
@@ -514,7 +542,7 @@ describe("整片刷新", () => {
             furnitureId: "furniture_bookshelf",
             placement: {
               kind: "floor",
-              roomId: getWorld().room.roomId,
+              roomId: inSceneRoomId(),
               gridPosition: { x: 0, y: 0 },
               facing: Facing.North,
             },
@@ -531,7 +559,7 @@ describe("整片刷新", () => {
 
   test("房主自己收到刷新要无视——世界的权威在他这边", async () => {
     await hostSession();
-    placeFurniture("furniture_table", { x: 3, y: 3 }, Facing.North);
+    placeFurniture("furniture_table", homeCell(), Facing.North);
 
     fakeApi.inbound("worldRefresh", {
       revision: 9,

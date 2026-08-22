@@ -3,6 +3,7 @@ import {
   findDoors,
   isHouseStowed,
   roomLocalToWorld,
+  worldToRoomCell,
   worldToRoomLocal,
   yardBoundsOf,
   type DoorDefinition,
@@ -15,10 +16,12 @@ import { Door, RoomDoor } from "./doorAgent";
 import { getPets } from "./petsRuntime";
 import {
   getCurrentMap,
+  getRoom,
   getWorld,
   setDoorBlocker,
   setOutdoorPass,
 } from "./worldRuntime";
+import { isInsideTerritory } from "./territory";
 
 /**
  * 门的集合管理（和 petsRuntime 同一套摆法：Agent 类管一扇门怎么动，
@@ -176,6 +179,40 @@ export function initDoors(): void {
       z + radius > bounds.maxZ
     ) {
       return false;
+    }
+
+    /*
+     * **领地外不能走**，不只是不能建（决策 T1）。
+     *
+     * 判点不判圆：和 `isIndoors` 同一条理由——问的是"这个人在不在自己
+     * 地里"，一个人不可能半只脚在领地内。按圆判的话人贴着边界站着就会
+     * 被弹开，而边界是一条抽象的线不是一堵墙。
+     *
+     * 导航网格自动跟随（它采样 `isWalkable`），`world_changed` 已经触发
+     * `invalidateNavGrid`——所以开一块地之后 `/go` 立刻能走过去，这里
+     * 一行都不用通知谁。
+     */
+    if (!isInsideTerritory(x, z)) return false;
+
+    /*
+     * 院子网格内的点：问**院子那张占用图**（院里的家具、房子脚印）。
+     * 网格外（桥、河、镇）不问——那些地方本来就没有格子。
+     *
+     * 围墙阻挡盒本期**不**并进占用图：它们还要给镜头当禁入盒，两处
+     * 各读各的。合并是以后的收口，现在合了会让镜头那边少一份数据。
+     */
+    const yard = getRoom(map.outdoorRoomId);
+    if (yard) {
+      const cell = worldToRoomCell(yard, x, z);
+      if (
+        cell.x >= 0 &&
+        cell.y >= 0 &&
+        cell.x < yard.floorGrid.width &&
+        cell.y < yard.floorGrid.height &&
+        getWorld().occupancyOf(yard.roomId).blocked.has(`${cell.x},${cell.y}`)
+      ) {
+        return false;
+      }
     }
 
     /*

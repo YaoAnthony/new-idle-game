@@ -280,3 +280,45 @@ function wallLineSegments(
   }
   return segments;
 }
+
+/**
+ * 领地矩形：x −40..20、z −27..18（60×45）。
+ *
+ * 东边贴旧东墙线 x=20（再往东 x 24–27 是河岸），南边贴旧南墙线 z=18
+ * （再往南 z 21–28 是河岸）——**河岸是领地的天然边界**（决策 T11）。
+ * 往西、北的森林那边扩，那两面本来就是陆地。
+ */
+export const TERRITORY_RECT = { minX: -40, maxX: 20, minZ: -27, maxZ: 18 };
+
+/**
+ * 院子 = **一个没有墙的房间**，网格盖住整块领地（60×45），锚点在领地中心。
+ *
+ * `roomId` 必须等于 `baseMapDefinition.outdoorRoomId`（`"yard"`）：
+ * `buildGroundMap` 靠这条判断"这个房间的地板就是地形"，不加这层关系
+ * 就得在 RoomSave 上另立一个 isOutdoor 标记。
+ *
+ * **网格从第一天就是最大的**，领地扩展只改"哪些格可用"，不改网格尺寸。
+ * 网格原点在中心（`placementFaces` 的 origin = −width/2），尺寸一变所有
+ * 格号都移位，已放置的家具会集体错位——这是必须避开的坑，也是为什么
+ * 调试指令的格号可以固定盖整个 60×45、不随开地变（决策 B13 的前提）。
+ *
+ * 没有墙不是缺陷：`RoomSave` 对"房间"的唯一要求是有一张 floorGrid。
+ * 小镇广场就是先例（`town/layout.ts` 的 `walls: {}`），广场上的家具、
+ * 寻路、放置今天就走 `buildRoomOccupancy` 那一套，零特判。
+ */
+export function generateYard(): RoomSave {
+  const width = TERRITORY_RECT.maxX - TERRITORY_RECT.minX;
+  const height = TERRITORY_RECT.maxZ - TERRITORY_RECT.minZ;
+  return {
+    roomId: "yard",
+    floorGrid: { width, height },
+    walls: {},
+    floor: 0,
+    anchor: {
+      x: (TERRITORY_RECT.minX + TERRITORY_RECT.maxX) / 2,
+      z: (TERRITORY_RECT.minZ + TERRITORY_RECT.maxZ) / 2,
+      elevation: 0,
+      facing: Facing.North,
+    },
+  };
+}

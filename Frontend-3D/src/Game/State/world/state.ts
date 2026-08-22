@@ -1,7 +1,10 @@
 import {
+  anchorOf,
+  anchorRectToWorld,
   buildRoomOccupancy,
   findPlaceableItem,
   isHouseStowed,
+  worldToRoomCell,
   roomStyleDefinitions,
   type DoorSave,
   type DroppedItem,
@@ -87,14 +90,62 @@ let placedFurniture: PlacedFurniture[] = [];
  */
 let presentFurniture: PlacedFurniture[] = [];
 
-/** 占用图是派生数据：每次家具变化后重建，不持久化 */
-let occupancy: RoomOccupancy = rebuildDerived();
+/**
+ * 占用图是派生数据：每次家具变化后重建，不持久化。
+ *
+ * **按房间各一张**（期 1）。原来只有一张——那是"一图一主屋"公理在占用图
+ * 里的一份拷贝。院子成为可放置房间之后至少有两张（屋里一张、院子一张），
+ * 而"这件家具占了哪格"只能问它自己那个房间的那张。
+ */
+let occupancies: Record<string, RoomOccupancy> = rebuildDerived();
 
 /**
- * 重算两份派生数据。家具变了、房间几何变了（含收起/放下）都要走它——
+ * 主屋的脚印在**院子网格**里盖住哪些格。
+ *
+ * 一栋房子两个身份：内部是自己的 RoomSave + 自己的占用图，外壳是院子
+ * 占用图里的一块阻挡。不盖的话人能穿墙走进屋、家具能摆在房子底下。
+ *
+ * **收起来的房子不盖**——那正是新档的常态（T9），这条路只在
+ * `/house place` 之后才走到。
+ */
+function houseFootprintCells(
+  yard: RoomSave,
+  house: RoomSave,
+): Array<{ x: number; y: number }> {
+  if (isHouseStowed(house)) return [];
+
+  const halfW = house.floorGrid.width / 2;
+  const halfD = house.floorGrid.height / 2;
+  // 房子的世界占地 → 院子的房本地格。1 格 = 1 世界单位，屋里院子同一把尺子
+  const world = anchorRectToWorld(anchorOf(house), {
+    minX: -halfW,
+    maxX: halfW,
+    minZ: -halfD,
+    maxZ: halfD,
+  });
+  const cells: Array<{ x: number; y: number }> = [];
+  for (let x = Math.floor(world.minX); x < Math.ceil(world.maxX); x += 1) {
+    for (let z = Math.floor(world.minZ); z < Math.ceil(world.maxZ); z += 1) {
+      // 取格心：整数边的矩形，格心永远落在某一格内部而不是边线上
+      const cell = worldToRoomCell(yard, x + 0.5, z + 0.5);
+      if (
+        cell.x >= 0 &&
+        cell.y >= 0 &&
+        cell.x < yard.floorGrid.width &&
+        cell.y < yard.floorGrid.height
+      ) {
+        cells.push(cell);
+      }
+    }
+  }
+  return cells;
+}
+
+/**
+ * 重算派生数据。家具变了、房间几何变了（含收起/放下）都要走它——
  * 两者任一变化都会让"谁在场"和"哪些格子被占"同时失效。
  */
-function rebuildDerived(): RoomOccupancy {
+function rebuildDerived(): Record<string, RoomOccupancy> {
   const stowedRooms = new Set(
     Object.values(rooms)
       .filter((candidate) => isHouseStowed(candidate))
@@ -106,7 +157,28 @@ function rebuildDerived(): RoomOccupancy {
       : placedFurniture.filter(
           (item) => !stowedRooms.has(item.placement.roomId),
         );
-  return buildRoomOccupancy(room, presentFurniture, findPlaceableItem);
+
+  const yard = rooms[map.outdoorRoomId];
+  const next: Record<string, RoomOccupancy> = {};
+  for (const candidate of Object.values(rooms)) {
+    /*
+     * 院子那张额外盖进**每一栋房子的脚印**。今天只有主屋一栋，但写成
+     * 遍历而不是特判主屋——第二栋（陆地小屋）盖起来时这里一行不用改。
+     */
+    const extra =
+      yard && candidate.roomId === yard.roomId
+        ? Object.values(rooms)
+            .filter((house) => house.roomId !== yard.roomId)
+            .flatMap((house) => houseFootprintCells(yard, house))
+        : [];
+    next[candidate.roomId] = buildRoomOccupancy(
+      candidate,
+      presentFurniture,
+      findPlaceableItem,
+      extra,
+    );
+  }
+  return next;
 }
 
 // ---- 兄弟模块的读写口。函数而不是裸变量：ES module 的可变绑定
@@ -160,7 +232,7 @@ export const worldState = {
   },
   set placedFurniture(next: PlacedFurniture[]) {
     placedFurniture = next;
-    occupancy = rebuildDerived();
+    occupancies = rebuildDerived();
   },
 
   /** 在场的那份（渲染和玩法看到的）。见上面 presentFurniture 的注释 */
@@ -168,8 +240,25 @@ export const worldState = {
     return presentFurniture;
   },
 
+  /**
+   * **玩家所在房间**的占用图。保留这个单数入口是为了不动二十来个消费方：
+   * 屋里的东西本来就该问"我在哪间"，原来它恒等于主房间只是因为从前
+   * 只有一间。语义改对之后大多数调用方自动正确。
+   */
   get occupancy() {
-    return occupancy;
+    return occupancies[room.roomId] ?? buildRoomOccupancy(room, presentFurniture, findPlaceableItem);
+  },
+
+  /** 指名道姓要某个房间的那张。院子的放置、走路判定走它 */
+  occupancyOf(roomId: string): RoomOccupancy {
+    return (
+      occupancies[roomId] ??
+      buildRoomOccupancy(
+        rooms[roomId] ?? room,
+        presentFurniture,
+        findPlaceableItem,
+      )
+    );
   },
 
   /** 换房间几何（读档 / 联机刷新）。房间变了占用图必须跟着重建 */
@@ -177,6 +266,6 @@ export const worldState = {
     rooms = nextRooms;
     room = primary ?? rooms[map.primaryRoomId] ?? Object.values(rooms)[0];
     // 收起/放下房子也走这条：在场家具和占用图都得跟着重算
-    occupancy = rebuildDerived();
+    occupancies = rebuildDerived();
   },
 };

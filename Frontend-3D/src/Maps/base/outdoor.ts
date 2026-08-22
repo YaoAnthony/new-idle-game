@@ -1,4 +1,4 @@
-import { sampleHeightfield, type DeckRect } from "core";
+import { sampleHeightfield } from "core";
 import {
   BufferAttribute,
   BufferGeometry,
@@ -11,8 +11,6 @@ import {
   Mesh,
   MeshStandardMaterial,
   Object3D,
-  Points,
-  PointsMaterial,
 } from "three";
 import { PALETTE } from "../../Game3D/Visual/palette.js";
 import { blob, box, cylinder, ownMaterial } from "../../Game3D/Visual/primitives.js";
@@ -31,15 +29,10 @@ import {
   ESTATE_SHORE,
   FLOOR_LEVEL,
   GATE_EAST_Z,
-  GATE_HALF,
-  GATE_SOUTH_X,
   RIVER_BED_Y,
-  WALL_HEIGHT,
   WALL_RECT,
-  WALL_THICKNESS,
   WATER_LEVEL_Y,
   YARD_Y,
-  SOUTH_RUIN,
   baseHeightfield,
 } from "./terrain.js";
 import { buildHeightfieldMesh } from "../../Game3D/World/heightfieldMesh.js";
@@ -92,17 +85,6 @@ const BANK_DROP = YARD_Y - RIVER_BED_Y + 0.6;
 /** 岸壁的石色。临水一圈都是它，和围墙同族 */
 const BANK_STONE = PALETTE.baseStoneDark;
 
-/** 樱花树：落地窗正外的庭院地标（常开的奇观，不接季节） */
-const SAKURA_X = 7.5;
-/**
- * 离北墙多远。北院扩到 12 米之后从 4.2 退到 7（2026-08-18）：4.2 是
- * 树冠贴着玻璃、"占满窗子"的甜点，但那是北院只有 6 米时不得已的近；
- * 现在有地方了，7 米是"院子里立着一棵树"的距离——从缘侧看它整棵在
- * 画里，树下还站得住人。
- */
-const SAKURA_DISTANCE = 7;
-
-const PETAL_COUNT = 90;
 
 /**
  * 一块陆地：顶面（多边形扇形三角化）+ 一圈往下探的岸壁。
@@ -564,90 +546,6 @@ function buildWater(root: Object3D): Mesh[] {
 
 
 
-/**
- * 种植区（15×7，先布景）：六垄作物 + 木栅栏 + 朝路的小门。
- * 垄和作物是"镇上有田"的说明书，真种田系统立项时布景垄换可交互
- * 田块，栅栏和门不动（设计稿 §8 留的口）。
- */
-function buildField(root: Object3D, rect: DeckRect): void {
-  const { minX, maxX, minZ, maxZ } = rect;
-
-  // 垄：六条深土埂沿 x 展开，埂间留走道
-  const RIDGES = 6;
-  const usableD = maxZ - minZ - 1.2;
-  const crops = [
-    PALETTE.cabbageLeaf,
-    PALETTE.leafGreen,
-    PALETTE.tomatoRed,
-    PALETTE.leafGreenDark,
-    PALETTE.boardButter,
-    PALETTE.leafGreen,
-  ];
-  for (let r = 0; r < RIDGES; r += 1) {
-    const cz = minZ + 0.6 + (r + 0.5) * (usableD / RIDGES);
-    const ridge = box([maxX - minX - 1.2, 0.14, 0.72], {
-      color: PALETTE.plotSoil,
-      position: [(minX + maxX) / 2, 0.07, cz],
-    });
-    ridge.receiveShadow = true;
-    root.add(ridge);
-
-    // 一垄作物：一排小色球，颜色按垄轮换（概念图里最讨喜的就是整齐的行列）
-    const count = Math.floor((maxX - minX - 2) / 0.9);
-    for (let k = 0; k < count; k += 1) {
-      const scale = 0.16 + hash01(r * 31.7 + k * 3.1) * 0.08;
-      root.add(
-        blob(scale, 0, {
-          color: crops[r % crops.length],
-          position: [minX + 1.4 + k * 0.9, 0.18, cz],
-          castShadow: false,
-        }),
-      );
-    }
-  }
-
-  // 木栅栏一圈：矮桩 + 双横杆，**北侧朝路留门洞**（路在田的北边，
-  // 入口构图转西之后田的开口跟着朝路）
-  const GATE_X0 = (minX + maxX) / 2 - 1;
-  const GATE_X1 = (minX + maxX) / 2 + 1;
-  const post = (x: number, z: number): void => {
-    root.add(
-      box([0.14, 0.72, 0.14], { color: PALETTE.woodDark, position: [x, 0.36, z] }),
-    );
-  };
-  const rail = (x0: number, z0: number, x1: number, z1: number): void => {
-    const length = Math.hypot(x1 - x0, z1 - z0);
-    for (const h of [0.28, 0.52]) {
-      const bar = box([length, 0.07, 0.07], {
-        color: PALETTE.woodMid,
-        position: [(x0 + x1) / 2, h, (z0 + z1) / 2],
-      });
-      bar.rotation.y = -Math.atan2(z1 - z0, x1 - x0);
-      root.add(bar);
-    }
-  };
-  const STEP = 2.2;
-  for (let x = minX; x < maxX - 0.01; x += STEP) {
-    if (x + STEP >= GATE_X0 && x <= GATE_X1) post(x, maxZ);
-    else {
-      post(x, minZ);
-      post(x, maxZ);
-    }
-  }
-  post(maxX, minZ);
-  post(maxX, maxZ);
-  for (let z = minZ; z < maxZ - 0.01; z += STEP) {
-    post(minX, z);
-    post(maxX, z);
-  }
-  rail(minX, minZ, GATE_X0, minZ);
-  rail(GATE_X1, minZ, maxX, minZ);
-  rail(minX, maxZ, maxX, maxZ);
-  rail(minX, minZ, minX, maxZ);
-  rail(maxX, minZ, maxX, maxZ);
-  post(GATE_X0, minZ);
-  post(GATE_X1, minZ);
-}
 
 
 
@@ -1073,352 +971,13 @@ function buildBridge(
   root.add(bridge);
 }
 
-/**
- * 樱花树：**树冠就是一堆粉色球**，靠三个粉调拉出体积。
- * 树干分两段带弯折，一根侧枝伸向窗户方向，树下铺落花圆斑。
- */
-function buildSakura(root: Object3D, northZ: number): void {
-  const tree = new Object3D();
-  tree.name = "sakura";
-  tree.position.set(SAKURA_X, 0, northZ - SAKURA_DISTANCE);
 
-  const PINK = "#f2b8cc";
-  const PINK_DARK = "#e394b3";
-  const PINK_LIGHT = "#fbe0e9";
 
-  tree.add(
-    cylinder(0.22, 0.3, 2.0, 6, {
-      color: TRUNK_BROWN,
-      position: [0, 1.0, 0],
-      castShadow: false,
-    }),
-  );
-  const upper = cylinder(0.14, 0.2, 1.5, 6, {
-    color: TRUNK_BROWN,
-    position: [0.25, 2.6, 0],
-    castShadow: false,
-  });
-  upper.rotation.z = -0.22;
-  tree.add(upper);
-
-  const branch = cylinder(0.08, 0.13, 1.4, 5, {
-    color: TRUNK_BROWN,
-    position: [-0.7, 2.5, 0.15],
-    castShadow: false,
-  });
-  branch.rotation.z = 1.0;
-  tree.add(branch);
-
-  const puffs: Array<[number, number, number, number, string]> = [
-    [0.3, 3.7, 0, 1.5, PINK],
-    [-1.15, 3.2, 0.2, 1.05, PINK],
-    [1.35, 3.35, -0.2, 1.1, PINK_DARK],
-    [0.5, 4.5, 0.3, 0.95, PINK_LIGHT],
-    [-0.5, 4.2, -0.5, 0.85, PINK_LIGHT],
-    [1.0, 4.0, 0.6, 0.8, PINK],
-    [-1.5, 3.9, -0.3, 0.7, PINK_DARK],
-    [0.0, 3.0, 0.8, 0.75, PINK_DARK],
-  ];
-  for (const [px, py, pz, radius, color] of puffs) {
-    tree.add(blob(radius, 0, { color, position: [px, py, pz], castShadow: false }));
-  }
-
-  // 树下的落花：贴地圆斑（零厚度，掠射角不会露侧面）
-  for (let i = 0; i < 5; i += 1) {
-    const patch = new Mesh(
-      new CircleGeometry(0.8 + hash01(i * 5.3) * 0.9, 10),
-      ownMaterial(PINK_LIGHT),
-    );
-    patch.rotation.x = -Math.PI / 2;
-    patch.position.set(
-      (hash01(i * 3.7) - 0.5) * 4,
-      0.005,
-      (hash01(i * 7.9) - 0.5) * 3.5,
-    );
-    tree.add(patch);
-  }
-
-  root.add(tree);
-}
-
-/**
- * 花瓣粒子：从树冠体积里生成，边落边横摆。每片一个 seed，
- * 横摆相位从它推——没有两片同步，才像风里的花瓣不是粉色的雨。
- */
-function buildPetals(northZ: number): { points: Points; seeds: Float32Array } {
-  const positions = new Float32Array(PETAL_COUNT * 3);
-  const seeds = new Float32Array(PETAL_COUNT);
-
-  for (let i = 0; i < PETAL_COUNT; i += 1) {
-    positions[i * 3] = SAKURA_X + (Math.random() - 0.5) * 5;
-    positions[i * 3 + 1] = Math.random() * 4.6;
-    positions[i * 3 + 2] = northZ - SAKURA_DISTANCE + (Math.random() - 0.5) * 4;
-    seeds[i] = Math.random() * Math.PI * 2;
-  }
-
-  const geometry = new BufferGeometry();
-  geometry.setAttribute("position", new BufferAttribute(positions, 3));
-
-  const material = new PointsMaterial({
-    color: "#f7cdd9",
-    size: 0.11,
-    transparent: true,
-    opacity: 0.95,
-    depthWrite: false,
-  });
-
-  const points = new Points(geometry, material);
-  points.name = "sakura-petals";
-  return { points, seeds };
-}
-
-/**
- * 围墙与南大门（据点①的第一版，柱-墙-柱节奏见设计稿 §7c）。
- *
- * 墙**照 terrain.ts 的 WALL_RECT 建，不再照可走边界**（2026-08-12）。
- *
- * 原来两者是同一条线，"看得见的墙 = 走得到的边"。挖河之后可走范围
- * 放开到了对岸（要能走上桥），墙要是跟着放开就跑到河里去了。所以
- * 围墙从此是自己的一份数据，同时进 outdoorBlockers 真的挡人——
- * 以前它只是把那条隐形线画出来，其实是假的。
- *
- * 内立面贴着 WALL_RECT：墙身往外推半个墙厚，人贴墙走才不会嵌进石头。
- */
-function buildWalls(root: Object3D): void {
-  const bounds = WALL_RECT;
-  const WALL_H = WALL_HEIGHT;
-  const WALL_T = WALL_THICKNESS;
-  const POST_STEP = 6;
-  /** 两个门洞的位置和净宽全在 terrain.ts——墙、柱、桥、出入口读同一份 */
-  const BRIDGE_E_Z = GATE_EAST_Z;
-  const BRIDGE_S_X = GATE_SOUTH_X;
-
-  const post = (x: number, z: number, big: boolean): void => {
-    const side = big ? 0.7 : 0.5;
-    const height = big ? 1.6 : 1.25;
-    root.add(
-      box([side, height, side], {
-        color: PALETTE.baseStone,
-        position: [x, height / 2, z],
-      }),
-    );
-    // 压顶帽：探出一圈，柱子才有"戴帽"的轮廓
-    root.add(
-      box([side + 0.16, 0.14, side + 0.16], {
-        color: PALETTE.pavingLight,
-        position: [x, height + 0.07, z],
-      }),
-    );
-    if (big) {
-      // 门柱顶的灯箱：自发光色块假亮（真路灯是据点③的家具）
-      root.add(
-        box([0.26, 0.3, 0.26], {
-          color: PALETTE.lampGlow,
-          position: [x, height + 0.32, z],
-        }),
-      );
-    }
-  };
-
-  /** 一段墙体 + 沿途的柱。start/end 是这段墙的两端（沿 axis 的坐标） */
-  const run = (
-    axis: "x" | "z",
-    start: number,
-    end: number,
-    at: number,
-    outward: 1 | -1,
-  ): void => {
-    const length = end - start;
-    if (length <= 0) return;
-    // 墙身中心往外推半个墙厚：内立面贴着可走边界
-    const center = at + outward * (WALL_T / 2);
-    const mid = (start + end) / 2;
-
-    const size: [number, number, number] =
-      axis === "x" ? [length, WALL_H, WALL_T] : [WALL_T, WALL_H, length];
-    const position: [number, number, number] =
-      axis === "x" ? [mid, WALL_H / 2, center] : [center, WALL_H / 2, mid];
-    const body = box(size, { color: PALETTE.baseStone, position });
-    body.receiveShadow = true;
-    root.add(body);
-
-    // 压顶条：略宽于墙身，压出一条水平明暗线
-    const capSize: [number, number, number] =
-      axis === "x"
-        ? [length, 0.12, WALL_T + 0.14]
-        : [WALL_T + 0.14, 0.12, length];
-    root.add(
-      box(capSize, {
-        color: PALETTE.baseStoneDark,
-        position: axis === "x" ? [mid, WALL_H + 0.06, center] : [center, WALL_H + 0.06, mid],
-      }),
-    );
-
-    // 沿途的柱（两端由转角/门柱负责，这里只立中间的）
-    for (let d = POST_STEP; d < length - 0.5; d += POST_STEP) {
-      const cx = axis === "x" ? start + d : center;
-      const cz = axis === "x" ? center : start + d;
-      post(cx, cz, false);
-    }
-  };
-
-  /**
-   * 塌掉的一段南墙（只做沿 x 的）。三样东西：
-   * - 基础石：从滩台地面一直砌到墙脚，墙不再悬在沟上；
-   * - 残墙：按 1.2～2.2 米一截，高度在 0.3～0.9 之间起伏，隔几截空一截
-   *   （塌没了）；压顶条只盖在还剩整高的那几截上；
-   * - 碎石：塌下去的石块滚在滩台上、墙脚外 0.6～2.4 米，落在真实地面
-   *   高度上（读高度场，别浮着）。
-   * 全部确定性抖动（hash01 按位置），刷新不会换样子。
-   */
-  const ruinRun = (start: number, end: number, at: number, outward: 1 | -1): void => {
-    const length = end - start;
-    if (length <= 0) return;
-    const center = at + outward * (WALL_T / 2);
-    const groundAt = (x: number, z: number): number =>
-      sampleHeightfield(baseHeightfield, x, z) - YARD_Y;
-
-    // 基础石：按 1 米一块往下探到地面（地面沿 x 变化，整条一块会露缝）
-    for (let x = start; x < end - 0.01; x += 1) {
-      const w = Math.min(1, end - x);
-      const cx = x + w / 2;
-      const g = Math.min(groundAt(cx, center + outward * 0.6), groundAt(cx, center));
-      const top = 0.02;
-      const h = top - g + 0.3;
-      root.add(
-        box([w + 0.02, h, WALL_T + 0.1], {
-          color: PALETTE.baseStoneDark,
-          position: [cx, top - h / 2, center],
-        }),
-      );
-    }
-
-    // 残墙
-    let x = start;
-    let i = 0;
-    while (x < end - 0.2) {
-      const seg = Math.min(1.2 + hash01(x * 2.3 + at) * 1.0, end - x);
-      const r = hash01(x * 7.1 + 13);
-      // 每四截左右空一截；其余高度在 0.3～0.9 起伏
-      const missing = r > 0.72 && i > 0;
-      if (missing) {
-        // 塌没的那截：原地堆一堆碎石（不然看着像能走过去——挡人的盒子还在）
-        for (let k = 0; k < 3; k += 1) {
-          const size = 0.3 + hash01(x * 3.3 + k) * 0.25;
-          root.add(
-            box([size, size * 0.6, size], {
-              color: k === 1 ? PALETTE.baseStoneDark : PALETTE.baseStone,
-              position: [x + 0.3 + k * (seg - 0.6) / 2, size * 0.25, center + (hash01(k * 7 + x) - 0.5) * 0.3],
-              rotation: [0, hash01(x + k * 2.1) * Math.PI, 0],
-            }),
-          );
-        }
-      } else {
-        const h = r < 0.25 ? WALL_H : 0.3 + r * 0.65;
-        const body = box([seg - 0.04, h, WALL_T], {
-          color: PALETTE.baseStone,
-          position: [x + seg / 2, h / 2, center],
-        });
-        body.receiveShadow = true;
-        root.add(body);
-        if (h >= WALL_H - 0.01) {
-          root.add(
-            box([seg - 0.04, 0.12, WALL_T + 0.14], {
-              color: PALETTE.baseStoneDark,
-              position: [x + seg / 2, WALL_H + 0.06, center],
-            }),
-          );
-        }
-      }
-      x += seg;
-      i += 1;
-    }
-
-    // 碎石：滚到滩台上
-    const count = Math.round(length * 1.4);
-    for (let k = 0; k < count; k += 1) {
-      const sx = start + hash01(k * 3.7 + start) * length;
-      const sz = center + outward * (0.6 + hash01(k * 5.3 + at) * 1.8);
-      const size = 0.22 + hash01(k * 9.1) * 0.32;
-      const g = groundAt(sx, sz);
-      const stone = box([size, size * 0.7, size * 0.85], {
-        color: k % 3 === 0 ? PALETTE.baseStone : PALETTE.baseStoneDark,
-        position: [sx, g + size * 0.3, sz],
-        rotation: [0, hash01(k * 1.3) * Math.PI, hash01(k * 2.9) * 0.4 - 0.2],
-      });
-      root.add(stone);
-    }
-  };
-
-  /**
-   * 木栅栏段：矮石礅 + 双横杆。**只用在西面陆地侧**——概念图里石墙
-   * 和木栅栏的分布不是随机的，跟着地形走：临水一圈是护岸的石墙，
-   * 接陆地那面才是围院子的木栅栏。
-   */
-  const fenceRun = (start: number, end: number, at: number): void => {
-    if (end - start <= 0) return;
-    const x = at - WALL_T / 2;
-    for (let z = start; z <= end + 0.01; z += 2.4) {
-      root.add(box([0.16, 0.8, 0.16], { color: PALETTE.woodDark, position: [x, 0.4, z] }));
-    }
-    for (const h of [0.34, 0.62]) {
-      root.add(
-        box([0.1, 0.08, end - start], {
-          color: PALETTE.woodMid,
-          position: [x, h, (start + end) / 2],
-        }),
-      );
-    }
-  };
-
-  /*
-   * 临水三面（北、东、南）= 石护岸墙；西面陆地侧 = 木栅栏。
-   * 两个口子：东桥头、南桥头。（西门 2026-08-18 退役——森林那面不通
-   * 任何地方，留一个口子就是留一个"走出去什么也没有"的坑）
-   */
-  run("x", bounds.minX, bounds.maxX, bounds.minZ, -1);
-  run("z", bounds.minZ, BRIDGE_E_Z - GATE_HALF - 0.35, bounds.maxX, 1);
-  run("z", BRIDGE_E_Z + GATE_HALF + 0.35, bounds.maxZ, bounds.maxX, 1);
-  /*
-   * 南墙过滩台那一段（SOUTH_RUIN.minX..maxX）是**塌掉的**：墙脚下的岸
-   * 滑进了滩台（地形上 z=18 一线从 −0.5 掉到 −1.4/−2.4），原来的墙在
-   * 那上面悬着——用户拍板不填地形，就让它坏在那儿："未来可能能修，
-   * 现在肯定修不了"。墙体换成残段 + 落到滩台的基础石 + 塌下去的碎石，
-   * 门洞两侧各一截。挡人的 outdoorBlockers 不变：塌了也还是一道墙。
-   */
-  run("x", bounds.minX, SOUTH_RUIN.minX, bounds.maxZ, 1);
-  ruinRun(SOUTH_RUIN.minX, BRIDGE_S_X - GATE_HALF - 0.35, bounds.maxZ, 1);
-  ruinRun(BRIDGE_S_X + GATE_HALF + 0.35, SOUTH_RUIN.maxX, bounds.maxZ, 1);
-  run("x", SOUTH_RUIN.maxX, bounds.maxX, bounds.maxZ, 1);
-  // 西面栅栏一整条：西门退役了（2026-08-18）
-  fenceRun(bounds.minZ, bounds.maxZ, bounds.minX);
-
-  // 四角柱 + 三处加粗门柱（柱顶灯箱，照概念图的门柱灯与桥头灯）
-  const wallOff = WALL_T / 2;
-  post(bounds.minX - wallOff, bounds.minZ - wallOff, false);
-  post(bounds.maxX + wallOff, bounds.minZ - wallOff, false);
-  post(bounds.minX - wallOff, bounds.maxZ + wallOff, false);
-  post(bounds.maxX + wallOff, bounds.maxZ + wallOff, false);
-  post(bounds.maxX + wallOff, BRIDGE_E_Z - GATE_HALF, true);
-  post(bounds.maxX + wallOff, BRIDGE_E_Z + GATE_HALF, true);
-  post(BRIDGE_S_X - GATE_HALF, bounds.maxZ + wallOff, true);
-  post(BRIDGE_S_X + GATE_HALF, bounds.maxZ + wallOff, true);
-  // 南门柱站在塌段中间，也要有基础石探到滩台地面，不然两根柱子悬在桥头
-  for (const px of [BRIDGE_S_X - GATE_HALF, BRIDGE_S_X + GATE_HALF]) {
-    const pz = bounds.maxZ + wallOff;
-    const g = sampleHeightfield(baseHeightfield, px, pz + 0.5) - YARD_Y;
-    const h = 0.02 - g + 0.3;
-    root.add(
-      box([0.8, h, 0.8], {
-        color: PALETTE.baseStoneDark,
-        position: [px, 0.02 - h / 2, pz],
-      }),
-    );
-  }
-}
 
 export function buildBaseTerrain(context: TerrainContext): OutdoorTerrain {
-  const { northZ } = context;
+  // 樱花和围墙拆了之后这里不再需要 northZ（T12）——留着 context 参数是
+  // 因为它是 OutdoorTerrain 的通用签名，别的图还在用
+  void context;
   const root = new Object3D();
   root.name = "terrain-base";
 
@@ -1431,8 +990,18 @@ export function buildBaseTerrain(context: TerrainContext): OutdoorTerrain {
   const streaks = buildWater(root);
   buildLand(root);
   buildForest(root);
-  buildSakura(root, northZ);
-  buildWalls(root);
+  /*
+   * **领地内全清**（期 1 的 T12）：樱花树、四面石墙、田垄、门前广场、
+   * 后庭陈设全部拿掉，领地里只剩地形和杂草。
+   *
+   * 理由不是"不好看"，是**没有归宿**：石墙在领地往西北扩之后会横穿
+   * A 列和第 1 行——自己地里竖着一道墙；田垄由期 2 的农田建筑替代；
+   * 樱花和陈设都长在老房子上，而房子从期 2 起是一栋会升级、会挪位的
+   * 建筑，旧陈设跟不动。领地的边界从此**只有绳索一种表达**（TerritoryView）。
+   *
+   * 东、南两面本来就靠河岸挡人（岸壁陡度 > 63° 走不下去），拆墙不影响
+   * 拦人——那圈石头拦的一直是镜头不是脚。
+   */
   /*
    * 前庭广场：玄关门廊外一块石板地，门 z≈-8 居中。
    *
@@ -1447,20 +1016,16 @@ export function buildBaseTerrain(context: TerrainContext): OutdoorTerrain {
    * houseDressing.ts，挂在房屋 root 底下随锚点走——房子挪走，广场
    * 跟着门走，储物角跟着北墙走。这里只剩地理：田是地、树是树。
    */
-  // 种植区在广场南侧：进门右手边一路是田，整齐行列迎着来人
-  buildField(root, { minX: -26.9, maxX: -12.9, minZ: -2.6, maxZ: 4.4 });
   // 两座跨河桥。跨度和承托面读同一份 BRIDGES——桥板画到哪儿、
   // 人能走到哪儿，不可能再对不上
   for (const bridge of BRIDGES) {
     buildBridge(root, bridge.axis, bridge.at, bridge.from, bridge.to);
   }
   buildOuterWorld(root);
-  const petals = buildPetals(northZ);
-  root.add(petals.points);
 
   return {
     root,
-    update(deltaSeconds, elapsed, tick) {
+    update(deltaSeconds) {
       // 河面流光顺流（+z）漂
       for (let i = 0; i < streaks.length; i += 1) {
         const streak = streaks[i];
@@ -1469,29 +1034,6 @@ export function buildBaseTerrain(context: TerrainContext): OutdoorTerrain {
         if (streak.position.z > 16) streak.position.z = -55;
       }
 
-      // 花瓣：下落 + 正弦横摆，落地回到树冠。风天飘得更斜更快
-      const attribute = petals.points.geometry.getAttribute(
-        "position",
-      ) as BufferAttribute;
-      const array = attribute.array as Float32Array;
-      const drift = tick.windy ? 2.1 : 0.75;
-      const fall = tick.windy ? 0.9 : 0.55;
-
-      for (let i = 0; i < PETAL_COUNT; i += 1) {
-        const offset = i * 3;
-        const seed = petals.seeds[i];
-        array[offset] +=
-          (Math.sin(elapsed * 0.8 + seed) * 0.35 + drift * 0.25) * deltaSeconds;
-        array[offset + 1] -= fall * deltaSeconds;
-        array[offset + 2] += Math.cos(elapsed * 0.6 + seed) * 0.3 * deltaSeconds;
-
-        if (array[offset + 1] < 0) {
-          array[offset] = SAKURA_X + (Math.random() - 0.5) * 5;
-          array[offset + 1] = 3.4 + Math.random() * 1.4;
-          array[offset + 2] = northZ - SAKURA_DISTANCE + (Math.random() - 0.5) * 4;
-        }
-      }
-      attribute.needsUpdate = true;
     },
   };
 }

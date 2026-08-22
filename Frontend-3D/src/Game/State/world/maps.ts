@@ -22,6 +22,12 @@ export type WorldRuntime = {
   readonly room: RoomSave;
   readonly placedFurniture: readonly PlacedFurniture[];
   readonly occupancy: RoomOccupancy;
+  /**
+   * 指名道姓要某个房间的占用图。院子的放置和走路判定走它——
+   * 上面那个单数的 `occupancy` 是"玩家所在房间"的那张，问院子的事
+   * 拿它是错的。
+   */
+  readonly occupancyOf: (roomId: string) => RoomOccupancy;
 };
 
 export function getWorld(): WorldRuntime {
@@ -34,6 +40,7 @@ export function getWorld(): WorldRuntime {
      */
     placedFurniture: worldState.presentFurniture,
     occupancy: worldState.occupancy,
+    occupancyOf: (roomId: string) => worldState.occupancyOf(roomId),
   };
 }
 

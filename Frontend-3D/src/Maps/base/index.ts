@@ -1,11 +1,10 @@
 import { DEFAULT_MAP_ID, type MapDefinition } from "core";
-import { YARD_MARGIN, generateHouse } from "./layout.js";
+import { YARD_MARGIN, generateHouse, generateYard } from "./layout.js";
+import { baseTerritory } from "./territory.js";
 import { basePortals } from "./portals.js";
 import {
   BRIDGE_SURFACES,
   FLOOR_LEVEL,
-  WALL_BLOCKERS,
-  WALL_RECT,
   baseHeightfield,
 } from "./terrain.js";
 
@@ -57,14 +56,19 @@ export const baseMapDefinition: MapDefinition = {
    */
   terrainHeightfield: baseHeightfield,
 
-  /**
-   * 围墙。可走范围放开到河岸之后它必须自己站住——以前是 yardBounds
-   * 顺手挡的，那圈石头其实是假的。带 height：0.9 的矮墙不挡镜头。
+  /*
+   * **围墙拆了**（期 1 的 T12），所以这里没有 outdoorBlockers 了。
+   *
+   * 领地往西北扩之后，西墙 x=−28 和北墙 z=−22 会横穿 A 列和第 1 行
+   * ——自己地里竖着一道墙。东、南两面本来就靠河岸挡人（岸壁陡度 > 63°，
+   * 走不下去），那圈石头拦的一直是镜头不是脚。拆掉之后领地边界只有
+   * 绳索一种表达（TerritoryView），拦人只有 isInsideTerritory 一处。
+   *
+   * `WALL_RECT` 常量留着不删：两座桥的位置仍从它的 maxX / maxZ 推。
+   *
+   * 雾的庇护区（shelter）一并去掉——没有墙就没有"墙内雾薄"，大雾天
+   * 整片一样浓。
    */
-  outdoorBlockers: WALL_BLOCKERS,
-
-  /** 大雾天院墙内雾薄一档（清晰度场的庇护区），见 Game3D/World/FogField */
-  shelter: WALL_RECT,
 
   /**
    * 两座桥的桥面。**声明即可走**——承托面系统在楼梯上兑现过一次，
@@ -73,15 +77,16 @@ export const baseMapDefinition: MapDefinition = {
   groundFixtures: BRIDGE_SURFACES,
 
   /**
-   * 玄关内侧（2LDK 户型门在西墙 z1~2）。heading = π/2 是朝东（+X）。
-   * 出生点是地图的知识：每张地图的门开在哪、进门站哪，只有户型数据
-   * 自己知道。
+   * 开局站在 **C3 格**（x −10..5 / z 3..18）中间偏北的一块空地上。
    *
-   * **房本地坐标**（RoomAnchor 之后）：出生点长在玄关上，房子挪走
-   * 它得跟着门走——消费方经 spawnWorldOf 世界化，缺省锚点下数值
-   * 即世界坐标，和从前逐字相同。
+   * 旧出生点是玄关内侧 (−8.5, −6)——那在 B2 格里，而开局只拥有 C3。
+   * 房子默认收起来（T9）之后玄关根本不存在，人一进游戏就站在锁定格里
+   * 走不动。`territoryAudit` 校验的正是这一条：出生点必须在 initial 格内，
+   * 改错了启动就报。
+   *
+   * heading = π/2 是朝东（+X）。
    */
-  spawn: { x: -8.5, y: -6, heading: Math.PI / 2 },
+  spawn: { x: -2, y: 10, heading: Math.PI / 2 },
 
   /**
    * 缘侧走**北面 + 东面转角**（2026-08-08 定，随宅迁入不动）。
@@ -102,8 +107,22 @@ export const baseMapDefinition: MapDefinition = {
 
   portals: basePortals,
 
+  /** 领地地块（期 1）。格盘和地标见 ./territory.ts */
+  territory: baseTerritory,
+
   generateRooms: (style) => {
-    const living = generateHouse({ roomId: "living", style });
-    return { [living.roomId]: living };
+    /*
+     * **房子默认收起**（决策 T9）。24×20 装不进 15×15 的格，而房屋升级
+     * 是期 2 的事——收起来之后"跨格"这个问题直接消失：收起的房子不建
+     * 几何、不占格、不进占用图，开局就是一块空地 + 出生点，正合
+     * "一开始位置很小"。想看房子照常 `/house place`（调试用）。
+     */
+    const living = { ...generateHouse({ roomId: "living", style }), stowed: true };
+    /*
+     * 院子现在是**一个房间**：有网格所以能放家具，没有墙所以哪儿都通。
+     * roomId 必须等于 outdoorRoomId，buildGroundMap 靠它判"地板就是地形"。
+     */
+    const yard = generateYard();
+    return { [living.roomId]: living, [yard.roomId]: yard };
   },
 };

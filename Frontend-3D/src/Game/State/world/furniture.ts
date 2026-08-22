@@ -7,11 +7,15 @@ import {
   type HeldStack,
   type PlaceableItem,
   type PlacedFurniture,
-  type PlacementCheck,
 } from "core";
 import { emit } from "../../EventBus";
 import { nextObjectId } from "../ids";
-import { checkPlacementTarget, type PlacementTarget } from "./placement.js";
+import {
+  checkPlacementTarget,
+  defaultPlacementRoom,
+  type LocalPlacementCheck,
+  type PlacementTarget,
+} from "./placement.js";
 import { worldState } from "./state.js";
 
 /**
@@ -56,11 +60,13 @@ function insertPlacedFurniture(placed: PlacedFurniture): void {
 export function placeFurnitureAt(
   furnitureId: string,
   target: PlacementTarget,
-): PlacementCheck {
+): LocalPlacementCheck {
   const check = checkPlacementTarget(furnitureId, target);
   if (!check.ok) return check;
 
-  const roomId = worldState.room.roomId;
+  // 摆进哪一间由落点说了算（期 1：院子也是一间）。不指定时走那条
+  // "主屋在场就主屋、收起来就院子"的兜底——见 defaultPlacementRoom
+  const roomId = target.roomId ?? defaultPlacementRoom();
   const placed: PlacedFurniture = {
     instanceId: nextInstanceId(furnitureId),
     furnitureId,
@@ -117,7 +123,7 @@ export function placeFurniture(
   furnitureId: string,
   gridPosition: GridPosition,
   facing: Facing,
-): PlacementCheck {
+): LocalPlacementCheck {
   return placeFurnitureAt(furnitureId, {
     kind: PlacementSurface.Floor,
     gridPosition,

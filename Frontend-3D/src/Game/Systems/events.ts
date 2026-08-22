@@ -64,6 +64,19 @@ export function isFeatureUnlocked(featureId: FeatureId): boolean {
   return unlockedFeatures.has(featureId);
 }
 
+/**
+ * 整份换掉已解锁清单。**只给调试指令用**（`/territory reset`）。
+ *
+ * 没有 `lockFeature(id)` 是刻意的：进度只增不减是这套机制的性质，
+ * 玩法层里"取消解锁"没有任何正当场景。开一个整份重灌的口而不是单个
+ * 删除，是让调用者必须显式写出"我要把清单换成这一份"——顺手锁掉一个
+ * 特性写不出来。
+ */
+export function replaceUnlockedFeatures(next: readonly FeatureId[]): void {
+  unlockedFeatures = new Set(next);
+  emit("event_progress_changed", { eventId: "feature:*", stageId: "replaced" });
+}
+
 // ---- 存档 ----
 
 export function getUnlockedFeatures(): FeatureId[] {

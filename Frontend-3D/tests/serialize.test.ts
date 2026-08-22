@@ -1,5 +1,5 @@
 import { beforeEach, expect, test } from "vitest";
-import { DEFAULT_MAP_ID, Facing, ItemQuality } from "core";
+import { DEFAULT_MAP_ID, Facing, ItemQuality, worldToRoomCell } from "core";
 
 import { hydrateGameSave, serializeGameSave } from "../src/Data/Save/serialize";
 import { SAVE_SCHEMA_VERSION } from "../src/Data/Save/types";
@@ -14,7 +14,7 @@ import { addToStorage, getAllStorageCounts, restoreStorages, storageIdFor } from
 import { listDroppedItems, restoreDroppedItems, settleItem } from "../src/Game/State/droppedItems";
 import { clearAllFurniture, placeFurniture } from "../src/Game/State/world/furniture";
 import { allFurnitureInstanceIds } from "../src/Game/State/world/entities";
-import { getCurrentMapId, getWorld } from "../src/Game/State/worldRuntime";
+import { getCurrentMap, getCurrentMapId, getRoom, getWorld } from "../src/Game/State/worldRuntime";
 import { travelTo } from "../src/Game/Systems/mapTravel";
 import { getResting, restoreResting } from "../src/Game/State/posture";
 import { getNeeds, restoreNeeds } from "../src/Game/State/needs";
@@ -59,6 +59,19 @@ beforeEach(() => {
 });
 
 /**
+ * 院子里一个**落在开局领地（C3）内**的格。
+ *
+ * 期 1 起院子的网格盖住整块领地（60×45），但开局只拥有 C3 一格，别处
+ * 放置会被 `outside_territory` 拒掉。硬写格号会和格盘一起走散，所以从
+ * **世界坐标**反算：(−2, 10) 是 C3 中央，也是新档的出生点。
+ */
+function homeCell(dx = 0, dy = 0): { x: number; y: number } {
+  const yard = getRoom(getCurrentMap().outdoorRoomId)!;
+  const cell = worldToRoomCell(yard, -2, 10);
+  return { x: cell.x + dx, y: cell.y + dy };
+}
+
+/**
  * 摆一件真的储物家具并返回它的箱子 id。
  *
  * 不能凭空编一个 inventoryId——`hydrateGameSave` 里紧跟着
@@ -67,7 +80,7 @@ beforeEach(() => {
  */
 function placeChest(): string {
   const before = new Set(allFurnitureInstanceIds());
-  const check = placeFurniture("furniture_storage_chest", { x: 2, y: 2 }, Facing.North);
+  const check = placeFurniture("furniture_storage_chest", homeCell(), Facing.North);
   expect(check.ok, `摆箱子失败：${JSON.stringify(check)}`).toBe(true);
 
   const instanceId = allFurnitureInstanceIds().find((id) => !before.has(id));

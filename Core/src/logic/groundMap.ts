@@ -51,29 +51,64 @@ export type GroundMapSource = Pick<
   | "terrainHeightfield"
 >;
 
+/**
+ * 收**全部房间**而不是一间。
+ *
+ * 一图多栋是已定的形态（房子和陆地小屋都是同图走进去的），而
+ * "脚下踩的是什么"只能有一个答案来源——每栋各建一张 GroundMap 再
+ * 拼起来，拼的顺序就成了第二份优先级规则。
+ *
+ * 传数组不传 Record：面的**顺序即优先级**（见下面兜底面的注释），
+ * Record 的键序是引擎细节，不该决定谁盖住谁。
+ */
 export function buildGroundMap(
   map: GroundMapSource,
-  room: RoomSave,
+  rooms: readonly RoomSave[],
 ): GroundMap {
-  const halfW = room.floorGrid.width / 2;
-  const halfD = room.floorGrid.height / 2;
-  const anchor = anchorOf(room);
-
   const surfaces: GroundSurface[] = [];
 
   /*
-   * 房子收起来了：**不铺地板、也不铺缘侧**，脚下直接是院子的地。
-   * 少了这一条，收起来的房子会在原地留下一块看不见的木地板——
-   * 人走到那儿平地拔高 0.45 米，还会被判成"在屋里"（isIndoors 问的
-   * 正是脚下是不是 Floor 面）。声明式承托面的好处在这儿兑现：
-   * 不铺 = 那块地不存在，不需要在查询端加任何判据。
+   * **室外房间的"地板"就是兜底的地形面**，不再另推一块平板。
+   *
+   * 期 1 起院子也是一个房间（有 floorGrid、能放家具），但它和屋子不同：
+   * 屋子的地板是一块海拔恒定的平板，院子的地板是**起伏的地形**。
+   * 照屋子那套给院子推一块 elevation 0 的平板，会把河岸岸壁整个压平，
+   * 人直接走进河里。
+   *
+   * 规则是**推出来的不是标出来的**：兜底的地形面本来就带着
+   * `roomId = map.outdoorRoomId`（见文件末尾），所以"roomId 等于这张图的
+   * outdoorRoomId"这件事本身就说明了它的地板在哪——不需要在 RoomSave
+   * 上加一个 `isOutdoor` 标记。高度全由高度场答（surfaceElevationAt 按面
+   * 分三档：高度场 > 单轴坡 > 常数），河岸岸壁照旧是陡坡。
+   *
+   * 小镇广场没踩到这个坑只因为它本来是平的，而且它不是任何图的
+   * outdoorRoomId。
    */
-  const stowed = isHouseStowed(room);
+  const indoorRooms = rooms.filter((room) => room.roomId !== map.outdoorRoomId);
 
-  // 室内地板。标高 = 锚点的 elevation（缺省 0，正是"世界原点定在
-  // 室内地板上"的老公理——见 MapDefinition.floorLevel 的注释）；
-  // 矩形从房本地经锚点转到世界，房子挪走地板跟着走
-  if (!stowed) {
+  /*
+   * 缘侧只长在**主屋**上（第一间室内房间）。它是房子的一部分——
+   * 第二栋小屋有没有缘侧是那栋自己的事，不该跟着主屋一起铺。
+   */
+  const primary = indoorRooms[0];
+
+  for (const room of indoorRooms) {
+    const halfW = room.floorGrid.width / 2;
+    const halfD = room.floorGrid.height / 2;
+    const anchor = anchorOf(room);
+
+    /*
+     * 这栋房子收起来了：**不铺地板、也不铺缘侧**，脚下直接是院子的地。
+     * 少了这一条，收起来的房子会在原地留下一块看不见的木地板——
+     * 人走到那儿平地拔高 0.45 米，还会被判成"在屋里"（isIndoors 问的
+     * 正是脚下是不是 Floor 面）。声明式承托面的好处在这儿兑现：
+     * 不铺 = 那块地不存在，不需要在查询端加任何判据。
+     */
+    if (isHouseStowed(room)) continue;
+
+    // 室内地板。标高 = 锚点的 elevation（缺省 0，正是"世界原点定在
+    // 室内地板上"的老公理——见 MapDefinition.floorLevel 的注释）；
+    // 矩形从房本地经锚点转到世界，房子挪走地板跟着走
     surfaces.push({
       surfaceId: `floor:${room.roomId}`,
       kind: GroundKind.Floor,
@@ -93,13 +128,14 @@ export function buildGroundMap(
   // elevation）。矩形展开必须走 outdoorDeckRect——渲染建木台用的
   // 同一个函数，两边差半格的事故就是这么防的；它产出房本地矩形，
   // 缘侧长在房上，跟房一起经锚点入世界
-  for (const deck of stowed ? [] : (map.outdoorDecks ?? [])) {
+  for (const deck of primary && !isHouseStowed(primary) ? (map.outdoorDecks ?? []) : []) {
+    const anchor = anchorOf(primary);
     surfaces.push({
       surfaceId: `deck:${deck.deckId}`,
       kind: GroundKind.Deck,
       roomId: map.outdoorRoomId,
       floorIndex: 0,
-      rect: anchorRectToWorld(anchor, outdoorDeckRect(deck, room.floorGrid)),
+      rect: anchorRectToWorld(anchor, outdoorDeckRect(deck, primary.floorGrid)),
       elevation: anchor.elevation,
     });
   }

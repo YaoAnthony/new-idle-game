@@ -20,6 +20,8 @@ export * from "./housePlacementCheck.js";
 export * from "./roomAnchor.js";
 export * from "./roomGeometry.js";
 export * from "./storyAudit.js";
+export * from "./territory.js";
+export * from "./territoryAudit.js";
 export * from "./terrainBake.js";
 export * from "./storyTriggers.js";
 export * from "./weather.js";

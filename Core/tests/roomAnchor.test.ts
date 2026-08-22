@@ -77,7 +77,7 @@ test("缺省锚点：groundMap 的地板矩形与老版相同、标高 0", () =>
     groundFixtures: [],
     terrainHeightfield: undefined,
   };
-  const ground = buildGroundMap(map, room);
+  const ground = buildGroundMap(map, [room]);
   const floor = ground.surfaces.find((s) => s.kind === GroundKind.Floor);
   assert.deepEqual(floor?.rect, { minX: -12, maxX: 12, minZ: -10, maxZ: 10 });
   assert.equal(floor?.elevation, 0);
@@ -158,7 +158,7 @@ test("groundMap 跟随：地板/缘侧矩形随锚点走，标高吃 elevation",
     terrainHeightfield: undefined,
   };
   const moved = anchored({ x: 6, z: 4, elevation: 0.3, facing: Facing.North });
-  const ground = buildGroundMap(map, moved);
+  const ground = buildGroundMap(map, [moved]);
 
   const floor = ground.surfaces.find((s) => s.kind === GroundKind.Floor);
   assert.deepEqual(floor?.rect, { minX: -6, maxX: 18, minZ: -6, maxZ: 14 });

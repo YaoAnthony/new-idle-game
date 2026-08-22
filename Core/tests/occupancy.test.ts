@@ -194,3 +194,32 @@ test("isWallAreaFree：从没摆过东西的墙返回自由", () => {
   const occupancy = buildRoomOccupancy(makeRoom(), [], lookup);
   assert.equal(isWallAreaFree(occupancy, "east", [{ x: 0, y: 0 }]), true);
 });
+
+/**
+ * ---- 房子脚印进院子的占用图（期 1 的 1A-3）----
+ *
+ * 一栋房子两个身份：内部是自己的 RoomSave + 自己的占用图，外壳是**院子
+ * 占用图里的一块阻挡**。不喂进去的话人能穿墙走进屋、家具能摆在房子底下。
+ */
+test("extraBlocked：主屋脚印盖住的格全部进 blocked，三层都占上", () => {
+  const yard = makeRoom({ roomId: "yard", floorGrid: { width: 60, height: 45 } });
+
+  // 24×20 的主屋，脚印在院子网格里从 (18,12) 起算
+  const footprint: Array<{ x: number; y: number }> = [];
+  for (let x = 18; x < 18 + 24; x += 1) {
+    for (let y = 12; y < 12 + 20; y += 1) footprint.push({ x, y });
+  }
+
+  const withHouse = buildRoomOccupancy(yard, [], () => undefined, footprint);
+  assert.equal(footprint.length, 480);
+  for (const cell of footprint) {
+    assert.ok(withHouse.blocked.has(`${cell.x},${cell.y}`), `(${cell.x},${cell.y}) 应当挡住`);
+  }
+  // 脚印外一格没被误伤
+  assert.ok(!withHouse.blocked.has("17,12"));
+  assert.ok(!withHouse.blocked.has("42,12"));
+
+  // 房子收起来时调用方传空 → 院子干干净净，那片地能走能放
+  const stowed = buildRoomOccupancy(yard, [], () => undefined, []);
+  assert.equal(stowed.blocked.size, 0);
+});

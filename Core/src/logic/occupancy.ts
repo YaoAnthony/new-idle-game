@@ -81,8 +81,29 @@ export function buildRoomOccupancy(
   room: RoomSave,
   placedFurniture: PlacedFurniture[],
   lookup: FurnitureLookup,
+  /**
+   * 额外挡住的格子：**房子和建筑的脚印**。
+   *
+   * 一栋房子有两个身份：内部是它自己的 RoomSave + 自己的占用图，外壳是
+   * **院子占用图里的一块阻挡**。院子成为可放置房间之后，这个口就是把
+   * 外壳喂进院子那张图的地方——不加的话人能穿墙走进屋、家具能摆在
+   * 房子底下。
+   *
+   * 走参数而不是让这个函数自己去查房子：它是纯规则，不该知道"世界上
+   * 还有哪些房间"。调用方（Frontend 的 rebuildDerived）本来就握着那份
+   * 名单，算好格子递进来即可。
+   */
+  extraBlocked?: Iterable<GridPosition>,
 ): RoomOccupancy {
   const occupancy = createEmptyOccupancy(room.roomId);
+
+  for (const cell of extraBlocked ?? []) {
+    const key = cellKey(cell);
+    occupancy.blocked.add(key);
+    // 三层都占上：脚印上不能放地面件，也不能放地毯这类覆盖件
+    occupancy.occupied[FloorLayer.Object].add(key);
+    occupancy.occupied[FloorLayer.Covering].add(key);
+  }
 
   // 内墙占整格：既挡通行（玩家/宠物寻路）也占放置层（家具不能放进墙里）。
   // 门洞就是没有墙段的格子，自然可通行，不需要任何特判

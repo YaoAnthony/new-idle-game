@@ -41,7 +41,7 @@ const map: GroundMapSource = {
 };
 
 test("编译出的面按优先级排：地板 → 缘侧 → 固定件 → 兜底大地", () => {
-  const ground = buildGroundMap(map, room);
+  const ground = buildGroundMap(map, [room]);
   const kinds = ground.surfaces.map((surface) => surface.kind);
 
   assert.equal(kinds[0], GroundKind.Floor);
@@ -52,7 +52,7 @@ test("编译出的面按优先级排：地板 → 缘侧 → 固定件 → 兜�
 });
 
 test("室内是 0，院子是 −floorLevel，缘侧和地板恒齐平", () => {
-  const ground = buildGroundMap(map, room);
+  const ground = buildGroundMap(map, [room]);
 
   assert.equal(groundLevelAt(ground, 0, 0), 0, "世界 y=0 就是室内地板");
   assert.equal(groundLevelAt(ground, 0, 11), 0, "缘侧是楼板伸出去的一截，不是台子");
@@ -61,7 +61,7 @@ test("室内是 0，院子是 −floorLevel，缘侧和地板恒齐平", () => {
 });
 
 test("缘侧的矩形和渲染读的是同一个函数——差半格的事故就是这么防的", () => {
-  const ground = buildGroundMap(map, room);
+  const ground = buildGroundMap(map, [room]);
   const deck = ground.surfaces.find((s) => s.kind === GroundKind.Deck)!;
 
   // 房子半深 10，南侧缘侧从 z=10 挑到 z=12
@@ -79,7 +79,7 @@ test("声明的固定件排在地板缘侧之后、兜底之前", () => {
     rect: { minX: 20, maxX: 22, minZ: 0, maxZ: 2 },
     elevation: 0.9,
   };
-  const ground = buildGroundMap({ ...map, groundFixtures: [platform] }, room);
+  const ground = buildGroundMap({ ...map, groundFixtures: [platform] }, [room]);
 
   // 摆在院里要赢过大地
   assert.equal(groundLevelAt(ground, 21, 1), 0.9);
@@ -88,7 +88,7 @@ test("声明的固定件排在地板缘侧之后、兜底之前", () => {
 });
 
 test("groundSurfaceAt 一定有答案，且面知道自己归哪个分区", () => {
-  const ground = buildGroundMap(map, room);
+  const ground = buildGroundMap(map, [room]);
 
   assert.equal(groundSurfaceAt(ground, 0, 0).roomId, room.roomId);
   assert.equal(groundSurfaceAt(ground, 0, 40).roomId, "yard");
@@ -186,7 +186,7 @@ const tinyMap: GroundMapSource = {
 };
 
 test("高度场里的标高是世界 Y 的绝对值，不再减床高", () => {
-  const ground = buildGroundMap({ ...tinyMap, terrainHeightfield: field }, tinyRoom);
+  const ground = buildGroundMap({ ...tinyMap, terrainHeightfield: field }, [tinyRoom]);
 
   // 写地形的人想的是"河床 −3.5、院子 0"，不该再去和 floorLevel 做减法
   assert.equal(groundLevelAt(ground, 2, 2), 2);
@@ -226,7 +226,7 @@ test("下行上限不能松回 1.6——那等于允许 73° 的单向陷阱", (
 // ---- 陡度即障碍 ----
 
 test("平面处处站得住", () => {
-  const ground = buildGroundMap(map, room);
+  const ground = buildGroundMap(map, [room]);
 
   assert.equal(isStandable(ground, 0, 0), true);
   assert.equal(isStandable(ground, 0, 40), true);
@@ -242,7 +242,7 @@ test("陡坡站不住——悬崖是地形形状的推论，不是手写的禁�
     // x=2→3 这一格之内落 4 米，梯度远超上限；两侧是平的
     heights: [0, 0, 0, -4, -4, 0, 0, 0, -4, -4],
   };
-  const ground = buildGroundMap({ ...tinyMap, terrainHeightfield: cliffField }, tinyRoom);
+  const ground = buildGroundMap({ ...tinyMap, terrainHeightfield: cliffField }, [tinyRoom]);
 
   // 岸壁中段：斜着走也没用，那个点根本不是可走面
   assert.equal(isStandable(ground, 2.5, 0.5), false);
@@ -284,4 +284,83 @@ test("坡度上限就是可走角度的定义（1.0 = 45°）", () => {
 
   assert.ok(surfaceSlopeAt(gentle, 5, 0) <= MAX_WALKABLE_SLOPE);
   assert.ok(surfaceSlopeAt(steep, 5, 0) > MAX_WALKABLE_SLOPE);
+});
+
+/**
+ * ---- 院子成为房间之后（期 1 的 1A-2）----
+ *
+ * 院子有了 floorGrid 就能放家具，但它的"地板"不能照屋子那套推一块平板
+ * ——那会把河岸岸壁压平，人直接走进河。规则从数据推：roomId 等于这张图的
+ * outdoorRoomId 的房间，地板面就是兜底的地形面。
+ */
+
+const yardRoom = makeRoom({ roomId: "yard", floorGrid: { width: 60, height: 45 } });
+
+test("院子房间不推地板面——它的地就是地形，否则岸壁被压平人走进河", () => {
+  const ground = buildGroundMap(map, [room, yardRoom]);
+  const ids = ground.surfaces.map((surface) => surface.surfaceId);
+
+  assert.ok(!ids.includes("floor:yard"), `不该有 floor:yard，实际：${ids.join()}`);
+  assert.ok(ids.includes("floor:living"), "屋子的地板照旧要有");
+
+  // 兜底的地形面本来就带着 yard 这个 roomId——"院子的地板在哪"是它答的
+  const terrain = ground.surfaces.find((surface) => surface.kind === GroundKind.Terrain);
+  assert.equal(terrain?.roomId, "yard");
+  assert.equal(terrain?.rect, null, "兜底面必须没有矩形，才接得住所有点");
+});
+
+test("院子成了房间之后，河岸标高仍由高度场答（没被压平）", () => {
+  // x ∈ [30,40] 挖一条 −5 的河，其余 −0.45
+  const columns = 41;
+  const rows = 41;
+  const heights: number[] = new Array<number>(columns * rows);
+  for (let r = 0; r < rows; r += 1) {
+    for (let c = 0; c < columns; c += 1) {
+      const x = -100 + c * 5;
+      heights[r * columns + c] = x >= 30 && x <= 40 ? -5 : -0.45;
+    }
+  }
+  const field: GroundHeightfield = {
+    originX: -100, originZ: -100, columns, rows, spacing: 5, heights,
+  };
+  const withRiver = { ...map, terrainHeightfield: field };
+
+  const before = buildGroundMap(withRiver, [room]);
+  const after = buildGroundMap(withRiver, [room, yardRoom]);
+
+  // 河心（35, 0）在院子网格内（60×45 盖 x −30..30… 取一个院内的河点）
+  for (const [x, z] of [[35, 0], [20, 12], [-25, -20]] as const) {
+    assert.equal(
+      groundLevelAt(after, x, z),
+      groundLevelAt(before, x, z),
+      `(${x}, ${z}) 的标高在院子成为房间前后必须一样`,
+    );
+  }
+  // 河心确实是低的——证明上面那条不是"两边都被压平了"的假绿
+  assert.ok(groundLevelAt(after, 35, 0) < -4, "河心该是 −5 附近");
+});
+
+test("多栋房子各推各的地板面；收起来的那栋不推", () => {
+  const shed = makeRoom({
+    roomId: "shed",
+    floorGrid: { width: 6, height: 6 },
+    anchor: { x: 20, z: 0, elevation: 0, facing: "north" as never },
+  });
+  const both = buildGroundMap(map, [room, shed, yardRoom]);
+  const ids = both.surfaces.map((surface) => surface.surfaceId);
+  assert.ok(ids.includes("floor:living"));
+  assert.ok(ids.includes("floor:shed"));
+
+  const stowedShed = { ...shed, stowed: true };
+  const one = buildGroundMap(map, [room, stowedShed, yardRoom]);
+  const oneIds = one.surfaces.map((surface) => surface.surfaceId);
+  assert.ok(oneIds.includes("floor:living"));
+  assert.ok(!oneIds.includes("floor:shed"), "收起来的房子不该留下一块看不见的地板");
+});
+
+test("缘侧只长在主屋上，第二栋不跟着铺", () => {
+  const shed = makeRoom({ roomId: "shed", floorGrid: { width: 6, height: 6 } });
+  const ground = buildGroundMap(map, [room, shed, yardRoom]);
+  const decks = ground.surfaces.filter((surface) => surface.kind === GroundKind.Deck);
+  assert.equal(decks.length, 1, "一条缘侧，不该因为多了一栋房子变成两条");
 });

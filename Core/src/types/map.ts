@@ -10,6 +10,7 @@ import type {
 } from "./base.js";
 import type { BuildingPlacement } from "./building.js";
 import type { GroundHeightfield, GroundSurface } from "./ground.js";
+import type { TerritoryDefinition } from "./territory.js";
 import type { RoomStyleDefinition } from "./roomStyle.js";
 
 export enum WallOpeningKind {
@@ -469,6 +470,15 @@ export type MapDefinition = {
    * 就是"天花板压着镜头怎么调都不生效"。内容型的图必须跟着代码走。
    */
   volatileRooms?: boolean;
+
+  /**
+   * 这张图的领地地块。**没有 = 整图能走能建**（小镇、店铺就是这样）。
+   *
+   * 领地只盖住据点那块矩形；桥、河、镇子在格外，那里是**地理**不是领地
+   * ——`isInsideTerritory` 对格外的点返回 true，能不能走到由既有规则
+   * （陡度、桥面、出入口）回答。
+   */
+  territory?: TerritoryDefinition;
 
   /**
    * 按屋子风格生成全部房间几何。只在**新开世界**时调用——

@@ -97,11 +97,11 @@ test("放置面：立着有面，收起来一张都没有", () => {
 });
 
 test("承托面：收起来不铺地板也不铺缘侧，只剩兜底的大地", () => {
-  const on = buildGroundMap(map, standing);
+  const on = buildGroundMap(map, [standing]);
   assert.ok(on.surfaces.some((s) => s.kind === GroundKind.Floor));
   assert.ok(on.surfaces.some((s) => s.kind === GroundKind.Deck));
 
-  const off = buildGroundMap(map, stowed);
+  const off = buildGroundMap(map, [stowed]);
   assert.equal(off.surfaces.some((s) => s.kind === GroundKind.Floor), false);
   assert.equal(off.surfaces.some((s) => s.kind === GroundKind.Deck), false);
   // 兜底面必须还在——任何点脚下都得有答案，否则人掉进虚空

@@ -12,6 +12,8 @@ OUT = BASE + "/HTML/index.html"
 
 DOCS = [
     ("01-期0-清场", "期0 · 清场"),
+    ("02-期1-领地扩展", "期1 · 领地扩展"),
+    ("03-期2-建筑与升级", "期2 · 建筑与升级"),
 ]
 
 md = markdown.Markdown(extensions=["tables", "fenced_code", "sane_lists"])

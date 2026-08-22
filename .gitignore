@@ -37,3 +37,8 @@ Frontend-3D/src/Data/music/generated.ts
 
 # 本地打包的依赖快照，340MB，超过 GitHub 单文件上限
 node_modules.zip
+
+# 规划文档的网页版：由同目录 build.py 从 *.md 现生成（不是自动联动，改完 md 要重跑）。
+# 生成物一次重跑就整份重写，跟踪它等于每改一句话就在 diff 里翻出两千行噪音。
+# 源真相是那几份 .md；要看网页版自己跑一下脚本。
+Frontend-3D/gpt设计稿/金币与商店/HTML/index.html

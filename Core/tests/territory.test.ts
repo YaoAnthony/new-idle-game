@@ -11,13 +11,14 @@ import {
   plotsShareEdge,
   rectInsideTerritory,
   unlockPlot,
+  territoryStandingAt,
   unlockablePlots,
 } from "../src/logic/territory.js";
 import { auditTerritory } from "../src/logic/territoryAudit.js";
 
 /**
  * 领地格盘。要钉住的是三条容易走偏的判据：
- * - **格外 = 在领地内**（桥、河、镇是地理不是领地）；
+ * - 三态：owned / locked / **outside**（桥、河、镇是地理不是领地，能不能走由地理答）；
  * - 邻接是**共边**不是共角（不然开一块地会顺带解锁斜对角，领地长成斜线）；
  * - 不可开时 `unlockPlot` 返回**同一个引用**（调用方靠它判"有没有真的变"）。
  */
@@ -185,4 +186,28 @@ test("audit：非整数边要报错——格心取样会落在边线上，归属
     ],
   };
   assert.ok(auditTerritory(half).some((m) => m.includes("不是整数")));
+});
+
+test("三态：你的地 / 还没开的格 / 领地不管这里", () => {
+  assert.equal(territoryStandingAt(territory, none, -2, 10), "owned"); // C3
+  assert.equal(territoryStandingAt(territory, none, 0, 0), "locked"); // C2
+  assert.equal(territoryStandingAt(territory, none, 30, -4), "outside"); // 东桥
+
+  const after = unlockPlot(territory, none, "C2");
+  assert.equal(territoryStandingAt(territory, after, 0, 0), "owned");
+});
+
+test("outside 和 owned 在 isInsideTerritory 里都算真，只有 locked 是假", () => {
+  /*
+   * 这条钉住的是分工：`isInsideTerritory` 是**放置**用的（只问"这里能不能
+   * 摆"），格外的点根本传不进来（放置只在院子网格内问）。
+   * 走路那条链要区分"格外能不能走"——那是地理的事，用三态版本。
+   *
+   * 历史：这两件事原来合成一个布尔（格外一律返回真），后果是领地东、南
+   * 两边墙拆之后剩下的那条平地走廊变成了合法通路，人能绕过锁定格直接
+   * 走到桥上，"扩充两次才看得到桥"被整个绕过去。
+   */
+  assert.equal(isInsideTerritory(territory, none, -2, 10), true); // owned
+  assert.equal(isInsideTerritory(territory, none, 0, 0), false); // locked
+  assert.equal(isInsideTerritory(territory, none, 30, -4), true); // outside
 });

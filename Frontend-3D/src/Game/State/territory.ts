@@ -1,5 +1,7 @@
 import {
   isInsideTerritory as coreIsInside,
+  territoryStandingAt as coreStandingAt,
+  type TerritoryStanding,
   ownedBoundaryEdges as coreBoundaryEdges,
   ownedPlots as coreOwnedPlots,
   plotFeatureId,
@@ -64,6 +66,16 @@ export function isInsideTerritory(x: number, z: number): boolean {
   const definition = territoryOf();
   if (!definition) return true;
   return coreIsInside(definition, unlockedSet(), x, z);
+}
+
+/**
+ * 这个点相对领地的身份：**你的地 / 还没开的格 / 领地不管这里**。
+ * 没有领地的图恒 `outside`——整图能走能建，领地这套概念在那儿不存在。
+ */
+export function territoryStandingAt(x: number, z: number): TerritoryStanding {
+  const definition = territoryOf();
+  if (!definition) return "outside";
+  return coreStandingAt(definition, unlockedSet(), x, z);
 }
 
 /** 整个矩形都在领地里吗（家具占地、房子脚印用） */

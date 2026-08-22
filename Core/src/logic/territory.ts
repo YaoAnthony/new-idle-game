@@ -88,10 +88,43 @@ function plotAt(
 }
 
 /**
- * 这个点在领地里吗。
+ * 一个点相对领地的三种身份。
  *
- * **不在任何格里 → true**（桥、河、小镇）。见文件头：那些地方是地理，
- * 不是领地。
+ * 分成三态而不是一个布尔，是**实测逼出来的**：领地矩形的东、南两边画在
+ * 旧院墙线上，而墙拆了之后（T12）墙线到河岸之间还剩一条平地走廊。
+ * 走廊在格外——按"格外 = 在领地内"那条布尔规则它是可走的，于是人可以
+ * 从开局格往南出界、沿走廊绕到东边、直接上桥，把"扩充两次才看得到桥"
+ * 整个绕过去（实测路径 (5.3,18.3) → (20.3,18.3) → (20.8,−3.3)）。
+ *
+ * 三态把"领地不管这里"和"这里能走"拆开：
+ * - `owned` —— 你的地，能走能建；
+ * - `locked` —— 还没开的格，不能走也不能建；
+ * - `outside` —— **领地不管这里**。能不能走由地理回答（脚下是不是一块
+ *   声明出来的可走面），那是承托面系统的事，不是领地的事。
+ *
+ * 这条分工让"D2 没开就到不了东桥"重新成立：桥面是声明的固定面所以能走，
+ * 但桥头 (20,−4) 在 D2 的边上，D2 锁着人就走不到那条边；而桥两侧的
+ * 河岸带不是声明面，只是兜底地形，于是绕不过去。
+ */
+export type TerritoryStanding = "owned" | "locked" | "outside";
+
+export function territoryStandingAt(
+  definition: TerritoryDefinition,
+  unlocked: ReadonlySet<FeatureId>,
+  x: number,
+  z: number,
+): TerritoryStanding {
+  const plot = plotAt(definition, x, z);
+  if (!plot) return "outside";
+  return isOwned(plot, unlocked) ? "owned" : "locked";
+}
+
+/**
+ * 这个点**允许在上面活动**吗（放置校验用）。
+ *
+ * `outside` 算真：放家具那条链只在院子网格内问它，而院子网格就是领地
+ * 矩形，格外的点根本传不进来。走路那条链要区分"格外能不能走"，用上面
+ * 的三态版本。
  */
 export function isInsideTerritory(
   definition: TerritoryDefinition,
@@ -99,8 +132,7 @@ export function isInsideTerritory(
   x: number,
   z: number,
 ): boolean {
-  const plot = plotAt(definition, x, z);
-  return plot ? isOwned(plot, unlocked) : true;
+  return territoryStandingAt(definition, unlocked, x, z) !== "locked";
 }
 
 /**

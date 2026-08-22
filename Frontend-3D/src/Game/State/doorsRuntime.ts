@@ -21,7 +21,7 @@ import {
   setDoorBlocker,
   setOutdoorPass,
 } from "./worldRuntime";
-import { isInsideTerritory } from "./territory";
+import { territoryStandingAt } from "./territory";
 
 /**
  * 门的集合管理（和 petsRuntime 同一套摆法：Agent 类管一扇门怎么动，
@@ -60,6 +60,26 @@ let pendingSaves: DoorSave[] | null = null;
 
 export function restoreDoors(saved: DoorSave[] | undefined): void {
   pendingSaves = saved ?? null;
+}
+
+/**
+ * 脚下是不是一块**声明出来的**可走固定面（`MapDefinition.groundFixtures`）。
+ *
+ * 今天只有两座桥的桥面。地形兜底面不算——那是"大地"，声明面才是"路"。
+ */
+function onDeclaredSurface(
+  map: ReturnType<typeof getCurrentMap>,
+  x: number,
+  z: number,
+): boolean {
+  for (const fixture of map.groundFixtures ?? []) {
+    const rect = fixture.rect;
+    if (!rect) continue;
+    if (x >= rect.minX && x <= rect.maxX && z >= rect.minZ && z <= rect.maxZ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function initDoors(): void {
@@ -182,17 +202,32 @@ export function initDoors(): void {
     }
 
     /*
-     * **领地外不能走**，不只是不能建（决策 T1）。
+     * **领地外不能走**，不只是不能建（决策 T1）。三态各有各的答法：
+     *
+     * - `locked` —— 还没开的格，直接拦。
+     * - `owned` —— 你的地，往下走别的判定。
+     * - `outside` —— **领地不管这里**，交给地理：脚下得是一块**声明出来的**
+     *   可走面（`groundFixtures`，今天就是两座桥的桥面）才让过。
+     *
+     * 最后那条不是多余的谨慎，是实测逼出来的。领地矩形的东、南两边画在
+     * 旧院墙线上，而墙拆了之后（T12）墙线到河岸之间还剩一条平地走廊；
+     * 按"格外一律放行"的写法，人可以从开局格往南出界、沿走廊绕到东边、
+     * 直接上桥——"扩充两次才看得到桥"被整个绕过去（实测路径
+     * (5.3,18.3) → (20.3,18.3) → (20.8,−3.3)）。
+     *
+     * 用"是不是声明面"而不是"再画一圈禁行盒"：桥是**声明即可走**的
+     * （承托面那套），河岸带只是兜底地形。判据落在已有的数据上，不新增
+     * 一份要和地图同步维护的边界。
      *
      * 判点不判圆：和 `isIndoors` 同一条理由——问的是"这个人在不在自己
-     * 地里"，一个人不可能半只脚在领地内。按圆判的话人贴着边界站着就会
-     * 被弹开，而边界是一条抽象的线不是一堵墙。
+     * 地里"，一个人不可能半只脚在领地内。
      *
      * 导航网格自动跟随（它采样 `isWalkable`），`world_changed` 已经触发
-     * `invalidateNavGrid`——所以开一块地之后 `/go` 立刻能走过去，这里
-     * 一行都不用通知谁。
+     * `invalidateNavGrid`——开一块地之后 `/go` 立刻能走过去。
      */
-    if (!isInsideTerritory(x, z)) return false;
+    const standing = territoryStandingAt(x, z);
+    if (standing === "locked") return false;
+    if (standing === "outside" && !onDeclaredSurface(map, x, z)) return false;
 
     /*
      * 院子网格内的点：问**院子那张占用图**（院里的家具、房子脚印）。

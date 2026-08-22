@@ -1,3 +1,4 @@
+import { farmTuning } from "../buildings/index.js";
 import { Facing, Rarity } from "../../types/base.js";
 import {
   BodyPosture,
@@ -980,6 +981,26 @@ export const itemDefinitions = [
   //
   // 一律**不带 food 块**：生番茄、生鸡蛋、米都不能直接吃。
   // 否则啃生食材比做饭省事，厨房就成了可选玩法而不是必经之路。
+  {
+    /*
+     * 番茄种子。本期只做这一对（种子 → 作物）——作物表和"商店卖种子"
+     * 是以后的事。数值走 Core/Data/buildings 的 farmTuning，不写在这儿：
+     * 内容注册表记"是什么"，平衡表记"多少"。
+     */
+    id: "tomato_seed",
+    localizationKey: "item.tomato_seed",
+    category: ItemCategory.Material,
+    stackLimit: 99,
+    rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    visual: { id: "tomato_seed" },
+    seed: {
+      cropItemId: "tomato",
+      waterAtMinutes: farmTuning.tomato.waterAtMinutes,
+      growMinutes: farmTuning.tomato.growMinutes,
+      yield: farmTuning.tomato.yield,
+    },
+  },
   {
     id: "tomato",
     localizationKey: "item.tomato",

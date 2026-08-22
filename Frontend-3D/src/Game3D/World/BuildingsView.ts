@@ -34,6 +34,14 @@ export class BuildingsView {
         if (reason === "buildings" || reason === "restored") this.rebuild();
       }),
     );
+    /*
+     * 状态变了**只更新那一栋**，不重建。液面每存一次钱就要动，作物阶段
+     * 每过一阵就要换——整组重建的代价（拆几百个网格再建回来）在这个
+     * 频率下是真的贵，而且会打断正在播的动画。
+     */
+    this.offListeners.push(
+      on("building_state_changed", ({ instanceId }) => this.refreshOne(instanceId)),
+    );
   }
 
   private clear(): void {
@@ -57,6 +65,14 @@ export class BuildingsView {
       applyState(node, placement.state);
       this.root.add(node);
     }
+  }
+
+  /** 按实例 id 找到那一栋，只把状态重新贴一遍 */
+  private refreshOne(instanceId: string): void {
+    const node = this.root.getObjectByName(`building-${instanceId}`);
+    if (!node) return;
+    const placement = listBuildings().find((item) => item.instanceId === instanceId);
+    if (placement) applyState(node, placement.state);
   }
 
   dispose(): void {

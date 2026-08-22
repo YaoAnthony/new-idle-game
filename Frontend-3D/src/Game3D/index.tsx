@@ -113,6 +113,15 @@ import {
   worldToYardCell,
 } from "../Game/State/buildingCommands";
 import { findBuildingLevel } from "../Buildings/index";
+import {
+  depositGoldTo,
+  getGold,
+  getGoldCapacity,
+  refreshJarFills,
+  spendGoldFrom,
+} from "../Game/State/gold";
+import { jarLevelIds } from "../Game/State/buildings";
+import { farmStageOf, interactWithFarm } from "../Game/Systems/farming";
 import { placeHouse, stowHouse } from "../Game/Systems/house";
 import { travelTo } from "../Game/Systems/mapTravel";
 import { autoWalkTo, initAutoWalk } from "../Game/Systems/autoWalk";
@@ -693,6 +702,58 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
         },
       }),
       registerCommand({
+        name: "gold",
+        arguments: [
+          { name: "动作", suggest: () => asSuggestions(["show", "add", "spend"]) },
+          { name: "数量" },
+        ],
+        usage: "gold [show|add <n>|spend <n>]",
+        description: "看/加/花金币。**罐就是钱包**——没罐就全额溢出",
+        handler: (args) => {
+          const action = args[0] ?? "show";
+          if (action === "show") {
+            return ok(`${getGold()} / ${getGoldCapacity()}（罐 ${jarLevelIds().length} 只）`);
+          }
+          const amount = Number(args[1]);
+          if (!Number.isFinite(amount) || amount <= 0) return fail("用法：gold add <数量>");
+
+          if (action === "add") {
+            const r = depositGoldTo(amount);
+            return ok(
+              r.overflowed > 0
+                ? `进账 ${r.accepted}，溢出 ${r.overflowed}（${getGold()} / ${getGoldCapacity()}）`
+                : `进账 ${r.accepted}（${getGold()} / ${getGoldCapacity()}）`,
+            );
+          }
+          if (action === "spend") {
+            const r = spendGoldFrom(amount);
+            if (r.ok !== false) return ok(`花了 ${amount}（${getGold()} / ${getGoldCapacity()}）`);
+            return fail(`还差 ${r.short} 金币`);
+          }
+          return fail("用法：gold [show|add <n>|spend <n>]");
+        },
+      }),
+      registerCommand({
+        name: "farm",
+        arguments: [
+          { name: "实例或型号", suggest: () => asSuggestions(listBuildings().filter((b) => b.buildingId === "farm_plot").map((b) => b.instanceId)) },
+        ],
+        usage: "farm <instanceId|farm_plot>",
+        description: "对一块田按 F（播种/浇水/收获，做什么由地里的状态定）",
+        handler: (args) => {
+          const target = resolveBuilding(args[0] ?? "farm_plot");
+          if (target.ok === false) return fail(target.message);
+          const stage = farmStageOf(target.instanceId);
+          const result = interactWithFarm(target.instanceId);
+          if (result.ok !== false) return ok(`${stage} → ${result.did}`);
+          return fail(
+            result.reason === "not_a_farm"
+              ? "那不是一块田"
+              : `现在没什么可做的（${stage}）——长着呢，或者手上没种子`,
+          );
+        },
+      }),
+      registerCommand({
         name: "territory",
         arguments: [
           { name: "动作", suggest: () => asSuggestions(["list", "unlock", "reset"]) },
@@ -1029,6 +1090,22 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
    * 前者是玩法（决策 T1：领地外不能走），后者才是问题。都报同一句的话，
    * 玩家会把设计当成 bug——而这个游戏里"走不过去"恰恰是最常见的一句。
    */
+  /*
+   * 建筑变了要重算罐的液面：升级/拆罐改的是容量不是余额，而液面是
+   * 两者之比。不重算的话升完级液面还贴在罐口上，看起来像白升了。
+   */
+  useEffect(() => {
+    /*
+     * **挂载时先算一次**：读档（`restored`）发生在 GameView 挂载之前，
+     * 那一次事件没人听得到，罐里的 fill 会停在存档写下的那个值。
+     * 存档里存的是升级**之前**的比例，于是一读档液面就贴在罐口上。
+     */
+    refreshJarFills();
+    return on("world_changed", ({ reason }) => {
+      if (reason === "buildings" || reason === "restored") refreshJarFills();
+    });
+  }, []);
+
   useEffect(
     () =>
       on("auto_walk_ended", ({ label, reason, hint }) => {

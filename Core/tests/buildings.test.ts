@@ -11,6 +11,7 @@ import {
   type LevelShape,
 } from "../src/logic/buildings.js";
 import { auditBuildings } from "../src/logic/buildingAudit.js";
+import { farmActionAt, farmStageAt } from "../src/logic/farm.js";
 import {
   depositGold,
   spendGold,
@@ -365,4 +366,55 @@ test("数值可调：把 goldJarTuning 整体乘 10，上面的关系仍然成�
   } finally {
     Object.assign(goldJarTuning.capacityByLevel, backup);
   }
+});
+
+// ---- 农田：阶段是算出来的不是存的 ----
+
+const SEED = { waterAtMinutes: 30, growMinutes: 120 };
+const T0 = "2026-08-22T00:00:00.000Z";
+const at = (minutes: number) =>
+  new Date(Date.parse(T0) + minutes * 60_000).toISOString();
+
+test("空地 / 已播种 / 需浇水：按播种时刻算", () => {
+  assert.equal(farmStageAt(undefined, SEED, at(0)), "empty");
+
+  const planted = { seedItemId: "tomato_seed", plantedUtc: T0 };
+  assert.equal(farmStageAt(planted, SEED, at(10)), "planted");
+  assert.equal(farmStageAt(planted, SEED, at(29)), "planted");
+  assert.equal(farmStageAt(planted, SEED, at(30)), "thirsty");
+});
+
+test("不浇水就停在需浇水，**不枯死**——陪伴类游戏不惩罚忘记", () => {
+  const planted = { seedItemId: "tomato_seed", plantedUtc: T0 };
+  assert.equal(farmStageAt(planted, SEED, at(60)), "thirsty");
+  assert.equal(farmStageAt(planted, SEED, at(60 * 24)), "thirsty");
+  assert.equal(farmStageAt(planted, SEED, at(60 * 24 * 30)), "thirsty");
+});
+
+test("浇水之后从浇水那一刻接着算，不是从播种算", () => {
+  /*
+   * 忘了三天再浇水，一浇就熟的话，"记得浇水"这件事就没有意义了。
+   * 剩下的时长是 growMinutes − waterAtMinutes = 90 分钟。
+   */
+  const lateWater = at(60 * 24 * 3);
+  const state = {
+    seedItemId: "tomato_seed",
+    plantedUtc: T0,
+    wateredUtc: lateWater,
+  };
+  const afterWater = (m: number) =>
+    new Date(Date.parse(lateWater) + m * 60_000).toISOString();
+
+  assert.equal(farmStageAt(state, SEED, afterWater(1)), "growing");
+  assert.equal(farmStageAt(state, SEED, afterWater(89)), "growing");
+  assert.equal(farmStageAt(state, SEED, afterWater(90)), "ripe");
+});
+
+test("按 F 做什么由地里的状态决定——同一个键，四种事", () => {
+  assert.equal(farmActionAt("empty", true), "sow");
+  assert.equal(farmActionAt("empty", false), "none"); // 手上没种子就没得种
+  assert.equal(farmActionAt("thirsty", false), "water");
+  assert.equal(farmActionAt("ripe", false), "harvest");
+  assert.equal(farmActionAt("planted", true), "none");
+  assert.equal(farmActionAt("growing", true), "none");
 });

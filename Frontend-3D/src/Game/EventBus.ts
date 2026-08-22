@@ -24,6 +24,15 @@ export type GameEvents = {
   /** 世界数据变化（家具增删等），渲染层据此同步场景图 */
   world_changed: { reason: string };
   /**
+   * 一栋楼的实例状态变了（罐里的钱、田里的进度）。
+   *
+   * 和 `world_changed` 分开：那条会触发整组重建 + 导航网格作废，而状态
+   * 变化每秒可能好几次（液面涨、作物长）。听这条的只有视图，做轻量更新。
+   */
+  building_state_changed: { instanceId: string };
+  /** 余额或上限变了（存钱、花钱、建罐、升罐、拆罐） */
+  gold_changed: { gold: number; capacity: number };
+  /**
    * 自动跑腿结束：到了 / 玩家接管 / 找不到路。
    *
    * `hint` 说的是**为什么**走不过去，只在 failed 时可能有值。今天只有

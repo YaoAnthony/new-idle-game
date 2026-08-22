@@ -95,6 +95,26 @@ export type ItemDefinition = {
   placement?: PlacementBlock;
 
   /**
+   * **一包种子**：种下去长出什么、多久熟。有这一块的物品能在农田上播种。
+   *
+   * 和"家具是带 placement 块的物品"同一个路数：**能力块而不是新类型**。
+   * 种子不另立 ItemCategory，因为它在背包里、能堆叠、能送人，就是个物品；
+   * "能种"是它多出来的一项能力。
+   *
+   * 为什么不直接种食材：番茄种出番茄就是无限循环，平衡没法做。种子是
+   * 单独物品，产出比才有得调。
+   */
+  seed?: {
+    cropItemId: ItemId;
+    /** 播种后多久进入"需浇水" */
+    waterAtMinutes: number;
+    /** 浇过水之后再多久成熟（从播种算起的总时长） */
+    growMinutes: number;
+    /** 收获几个 */
+    yield: number;
+  };
+
+  /**
    * 是一张唱片（V0.12）。`albumId` 对应 public/music 下的专辑文件夹
    * （见 Frontend 的曲库生成脚本：文件夹名 slug 化就是 albumId）。
    *

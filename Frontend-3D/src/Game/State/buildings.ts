@@ -353,6 +353,28 @@ export function syncBuildingInteriors(): void {
   replaceRooms(next);
 }
 
+/**
+ * 改一栋楼的实例状态（罐里的钱、田里的进度）。
+ *
+ * **合并写不整份替换**：一栋楼的状态由几个互不相干的系统各管一块
+ * （金币归金币、播种归农田），整份替换会让后写的把先写的抹掉。
+ *
+ * 不发 `world_changed`——状态变化每秒可能好几次（液面、生长），
+ * 而那条事件会触发整组重建和导航网格作废。视图听 `building_state_changed`
+ * 做轻量更新即可。
+ */
+export function setBuildingState(
+  instanceId: string,
+  patch: Record<string, unknown>,
+): void {
+  placements = placements.map((item) =>
+    item.instanceId === instanceId
+      ? { ...item, state: { ...item.state, ...patch } }
+      : item,
+  );
+  emit("building_state_changed", { instanceId });
+}
+
 // ---- 金币罐的总账（罐就是钱包）----
 
 /** 场上所有金币罐的等级，按建造顺序 */

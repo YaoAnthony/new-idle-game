@@ -200,6 +200,8 @@ export function seedInitialFurniture(): void {
     gridPosition: GridPosition;
     facing: Facing;
     state?: Record<string, unknown>;
+    /** 摆进哪个房间。不写 = 主房间（屋里）。院子是另一个房间，要写 */
+    roomId?: string;
   }> = [
     // 搬家纸箱：LDK 西侧，别挡门口
     {
@@ -232,6 +234,25 @@ export function seedInitialFurniture(): void {
       gridPosition: { x: 4, y: 0 },
       facing: Facing.South,
     },
+    /*
+     * 院子里的井（2026-08-22）：**全游戏的水源**。宠物渴了走过来喝。
+     *
+     * 以前水源是 L 形橱柜台面的水槽，而橱柜从开局纸箱里换成了 2×1 的
+     * 独立灶台（小屋放不下 6×4 的橱柜）——水源因此搬到屋外。森林里的
+     * 小屋本来也不该有自来水。
+     *
+     * 院子格 (27, 25) = 世界 x −13..−11 / z −2..0（格号 = 世界坐标 −
+     * 领地西北角 (−40, −27)）：在门前那片院子的西侧，离房子西墙
+     * （x = −10）一格，也不挡从大门往北走的那条路。
+     * **fixed**：井挖在地里，拿不走。
+     */
+    {
+      furnitureId: "well",
+      gridPosition: { x: 27, y: 25 },
+      facing: Facing.South,
+      state: { fixed: true },
+      roomId: worldState.map.outdoorRoomId,
+    },
   ];
 
   worldState.placedFurniture = pieces.map((piece) => ({
@@ -239,7 +260,7 @@ export function seedInitialFurniture(): void {
     furnitureId: piece.furnitureId,
     placement: {
       kind: PlacementSurface.Floor as const,
-      roomId: worldState.room.roomId,
+      roomId: piece.roomId ?? worldState.room.roomId,
       gridPosition: piece.gridPosition,
       facing: piece.facing,
     },

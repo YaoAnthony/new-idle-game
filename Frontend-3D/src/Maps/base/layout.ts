@@ -298,7 +298,7 @@ function wallLineSegments(
  *  y0  ┌───────────┬───┐                     北墙
  *  y1  │  洗手间   │墙 │
  *  y2  │   3×3     │   │      睡觉的角落
- *  y3  ├───┬门┬───┴───┘      （只有地面分色，没有墙）
+ *  y3  ├─┬门┬─┴───┘          （只有地面分色，没有墙）
  *  y4  │
  *  y5  │
  *  y6  │         一 整 间（灶台靠东墙）        东墙外立烟囱，
@@ -406,9 +406,16 @@ export function generateCottageL1(params: {
    * 靠地板材质代替不了的事。睡觉的角落还在，靠 bedroom 分区的地面
    * 分色标出来，不靠墙。
    */
+  /*
+   * 洗手间的门：南墙（行 y=3）上，**1 格宽的单开门**。
+   *
+   * 上一版是 2 格宽的双开门——2 米宽的对开门装在 3×3 的洗手间上，
+   * 比正经的房子大门还气派，加上当时的板门造型，读起来就是茅房
+   * （用户原话）。现实里洗手间门是全屋最窄的一扇，1 格（1 米）正好，
+   * 也还留得下角色（半径 0.3）走过去的余量。
+   */
   const interiorDoorways: InteriorDoorway[] = [
-    // 洗手间：南墙（行 y=3）上，x1..2
-    { doorwayId: "doorway-bath", cell: { x: 1, y: 3 }, axis: "x", span: 2, doorId: "room_door" },
+    { doorwayId: "doorway-bath", cell: { x: 1, y: 3 }, axis: "x", span: 1, doorId: "room_door_single" },
   ];
 
   const interiorWalls: InteriorWall[] = [

@@ -5,7 +5,11 @@ import {
   buildFloorLamp,
 } from "./recipes/ambience.js";
 import { buildCushion, buildWoodenBed } from "./recipes/bedroom.js";
-import { buildGardenBench, buildStreetLamp } from "./recipes/estate.js";
+import {
+  buildGardenBench,
+  buildStreetLamp,
+  buildWell,
+} from "./recipes/estate.js";
 import { buildCardboardBox, buildCardboardStack } from "./recipes/cardboardBox.js";
 import { buildDailyBoard } from "./recipes/dailyBoard.js";
 import { buildGramophone } from "./recipes/gramophone.js";
@@ -115,6 +119,7 @@ const REGISTRY: Record<string, VisualEntry> = {
   pencil: { kind: "procedural", build: buildPencil },
 
   stove_default: { kind: "procedural", build: buildStove },
+  well_stone: { kind: "procedural", build: buildWell },
   kitchen_counter_l: { kind: "procedural", build: buildKitchenCounter },
   cardboard_box: { kind: "procedural", build: buildCardboardBox },
   cardboard_stack: { kind: "procedural", build: buildCardboardStack },

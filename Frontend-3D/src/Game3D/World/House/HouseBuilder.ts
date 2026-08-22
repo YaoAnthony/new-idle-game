@@ -336,18 +336,49 @@ function buildWall(
   const blocked = openingCellSet(wall.openings);
   const quads: Quad[] = [];
 
+  /*
+   * 最下面一行是**墙裙**。和风那栋只刷暗一档（wallShade）暗示一下；
+   * 女巫小屋刷成木色，配下面那道压顶条，就是一圈真的木护墙板。
+   *
+   * 石屋里整面灰泥从地到顶会读成毛坯——用户看着洗手间那面墙问
+   * "这是茅坑吗"，一半是门的错，另一半是这个。护墙板必须**四面墙加
+   * 隔断一起**：只给隔断加，木裙走到墙角就断了，比不加还难看
+   * （隔断那边见 buildInteriorWalls）。
+   */
+  const witch = room.shell === "witch_cottage";
   for (let wy = 0; wy < wall.grid.height; wy += 1) {
     for (let wx = 0; wx < wall.grid.width; wx += 1) {
       if (blocked.has(`${wx},${wy}`)) continue;
 
-      // 越靠近地面越暗一点，制造墙裙的层次
-      const base = wy === 0 ? PALETTE.wallShade : PALETTE.wall;
+      const base =
+        wy === 0 ? (witch ? PALETTE.woodLight : PALETTE.wallShade) : PALETTE.wall;
 
       quads.push({
         corners: layout.corners(wx, wy) as [number, number, number][],
         normal: layout.normal,
         color: jitterShade(base, wx, wy, 0.035),
       });
+    }
+  }
+
+  /*
+   * 压顶条（chair rail）：墙裙和灰泥的交界，**逐格**建。逐格是为了让开
+   * 门窗——横着拉一根通条会从大门正中穿过去。判据取两行（墙裙那行和
+   * 它上面那行），任一行被开口占了就跳过这一格。
+   */
+  const rail = new Object3D();
+  if (witch) {
+    const [nx, , nz] = layout.normal;
+    const alongZ = Math.abs(nx) > 0.5;
+    for (let wx = 0; wx < wall.grid.width; wx += 1) {
+      if (blocked.has(`${wx},0`) || blocked.has(`${wx},1`)) continue;
+      const c = layout.center(wx, 0);
+      rail.add(
+        box([alongZ ? 0.07 : 1, 0.1, alongZ ? 1 : 0.07], {
+          color: PALETTE.wallTrim,
+          position: [c[0] + nx * 0.035, 1, c[2] + nz * 0.035],
+        }),
+      );
     }
   }
 
@@ -366,10 +397,19 @@ function buildWall(
     };
   });
 
-  return {
-    mesh: createQuadMesh(quads, `wall-${wall.wallId}`, { castShadow: true }),
-    anchors,
-  };
+  /*
+   * 墙体和压顶条合成一个节点交出去：调用方按"一面墙"加进场景，
+   * 拆成两个会让墙裙的条子留在原地不跟着墙走
+   */
+  const mesh = new Object3D();
+  mesh.name = `wall-${wall.wallId}`;
+  mesh.add(createQuadMesh(quads, `wall-face-${wall.wallId}`, { castShadow: true }));
+  if (rail.children.length > 0) {
+    rail.name = `wall-rail-${wall.wallId}`;
+    mesh.add(rail);
+  }
+
+  return { mesh, anchors };
 }
 
 /**
@@ -528,36 +568,78 @@ function buildInteriorWalls(room: RoomSave, wallHeight: number): Object3D {
     const centerX = wall.from.x + w / 2 - halfW;
     const centerZ = wall.from.y + d / 2 - halfD;
 
-    const body = box([w - 0.02, wallHeight, d - 0.02], {
+    /*
+     * 墙体比格子**大** 0.01，不是小 0.02（原来那样）。
+     *
+     * 缩进去是想躲同一条线上相邻段之间的 z-fighting，但相邻段本来就是
+     * 首尾相接、不重叠，缩了只会留缝：两道隔断拐角相交时（洗手间的东墙
+     * 和南墙）那条缝**从地板通到天花板**，屋里看过去是一条竖着的亮线。
+     * 涨出去一点点让它们真的叠上，缝就没了；重叠 1 厘米不会 z-fighting，
+     * 因为叠的是实体不是共面。
+     */
+    const body = box([w + 0.01, wallHeight, d + 0.01], {
       color: PALETTE.wall,
       position: [centerX, wallHeight / 2, centerZ],
     });
     body.receiveShadow = true;
 
-    // 内墙也要有踢脚和长押（两面都要）：外墙的木构架语言
-    // 不延续到隔断上，隔断就是一块突兀的白板
+    /*
+     * 内墙的饰条（两面都要）：外墙的木构架语言不延续到隔断上，隔断就是
+     * 一块突兀的白板。
+     *
+     * 高度**从 wallHeight 推**，不写死。上一版长押钉在 3.1——那是照
+     * 2LDK 的 3.2 墙高配的，女巫小屋墙高 3，于是长押整条穿出墙顶插进
+     * 天花板里（用户截图里洗手间上方那两道横梁就是它）。
+     *
+     * 两条饰条各有各的活：踢脚压住墙和地板的接缝；上面那条按外壳分
+     * 两种做法——和风那栋是**长押**（贴着墙顶的一道横木），女巫小屋是
+     * **护墙板压顶**（chair rail，齐腰 0.95），下面再补一块深木护墙板。
+     * 石头小屋里整面白墙到顶会显得像毛坯，下面包一圈木裙才是装修过的
+     * 房间；这也是"洗手间像茅坑"里"墙"那一半的答案。
+     */
     const trims = new Object3D();
-    const NAGESHI_Y = 3.1;
-    for (const side of [-1, 1]) {
-      if (wall.axis === "x") {
-        trims.add(box([w - 0.02, 0.12, 0.06], {
-          color: PALETTE.wallTrim,
-          position: [centerX, 0.06, centerZ + side * 0.52],
-        }));
-        trims.add(box([w - 0.02, 0.14, 0.06], {
-          color: PALETTE.wallTrim,
-          position: [centerX, NAGESHI_Y, centerZ + side * 0.52],
-        }));
-      } else {
-        trims.add(box([0.06, 0.12, d - 0.02], {
-          color: PALETTE.wallTrim,
-          position: [centerX + side * 0.52, 0.06, centerZ],
-        }));
-        trims.add(box([0.06, 0.14, d - 0.02], {
-          color: PALETTE.wallTrim,
-          position: [centerX + side * 0.52, NAGESHI_Y, centerZ],
-        }));
-      }
+    const witch = room.shell === "witch_cottage";
+    /**
+     * 上饰条中心高：和风贴墙顶（长押），女巫小屋齐腰（护墙板压顶条）。
+     *
+     * 齐腰那个高度**必须是 1.0**：外墙内面的墙裙是照墙格刷的，一格 =
+     * 1 米，所以交界就在 y=1。差 5 厘米，木裙走到墙角就错一条缝。
+     *
+     * 上一版这里写死 3.1——那是照 2LDK 的 3.2 墙高配的长押高度，女巫
+     * 小屋墙高 3，于是整条长押穿出墙顶插进天花板里（用户截图里洗手间
+     * 上方那两道横梁就是它）。高度必须从 wallHeight 推。
+     */
+    const railY = witch ? 1 : wallHeight - 0.12;
+
+    /*
+     * 饰条是**套在整段墙外面的壳**，不是贴在两个长面上的两片板。
+     *
+     * 贴片的做法漏掉**端面**：隔断收头的那一格（洗手间东墙伸进屋里的
+     * 那头）三面见光，只有两个长面有木裙，端头是一块从地板白到天花板
+     * 的板子。套壳自动把四个面一起包了，代码还短一半。
+     * 壳比墙体大 0.03，门洞两侧的门框（深 1.04）盖得住它。
+     */
+    const sleeve = (
+      height: number,
+      centerY: number,
+      grow: number,
+      color: string,
+    ): void => {
+      trims.add(
+        box([w + 0.01 + grow, height, d + 0.01 + grow], {
+          color,
+          position: [centerX, centerY, centerZ],
+        }),
+      );
+    };
+    // 踢脚
+    sleeve(0.12, 0.06, 0.05, PALETTE.wallTrim);
+    // 上饰条（长押 / 护墙板压顶）
+    sleeve(0.14, railY, 0.05, PALETTE.wallTrim);
+    if (witch) {
+      // 护墙板本体：比压顶条薄一圈，压顶因此有个"挑出"的边
+      const top = railY - 0.05;
+      sleeve(top - 0.12, (0.12 + top) / 2, 0.03, PALETTE.woodLight);
     }
 
     const group = groupForLine(wall.axis, wall.axis === "x" ? wall.from.y : wall.from.x);
@@ -600,7 +682,15 @@ function buildInteriorWalls(room: RoomSave, wallHeight: number): Object3D {
       const mid = gapStart + gap / 2;
       const center = line + 0.5;
 
-      const [lw, ld] = extent(axis, gap - 0.02, 0.98);
+      /*
+       * 门楣比洞口**宽** 0.03、厚度和墙段一致（1.01）。
+       *
+       * 原来是 `gap − 0.02, 0.98`：比洞口窄、比墙薄，于是门楣两头和墙段
+       * 之间各留 5 毫米的缝——屋里看过去是门两侧各一条从门顶通到天花板
+       * 的细白线（2026-08-22 用户截图里那两条）。饰面构件宁可叠上也不能
+       * 留缝，缝是会发光的（后面是亮的房间）。
+       */
+      const [lw, ld] = extent(axis, gap + 0.03, 1.01);
       const [lx, lz] = place(axis, mid, center);
       const lintel = box([lw, wallHeight - DOOR_HEIGHT, ld], {
         color: PALETTE.wall,

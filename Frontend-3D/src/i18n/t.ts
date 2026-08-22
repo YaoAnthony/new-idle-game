@@ -94,6 +94,7 @@ const ZH: Record<string, string> = {
   // 场景道具。**只剩这几条**——家具并进物品之后名字统一走 "item.*"，
   // 这里留下的是三件玩家拿不到、也没有物品条目的房子自带道具
   "furniture.stove": "灶台",
+  "furniture.well": "石井",
   "furniture.stove.burner": "灶眼",
   "furniture.cardboard_box": "纸箱",
   "furniture.cardboard_stack": "纸箱堆",

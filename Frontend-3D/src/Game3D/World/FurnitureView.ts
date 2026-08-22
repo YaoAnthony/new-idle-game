@@ -6,6 +6,7 @@ import {
   faceYaw,
   wallFaceOf,
   type PlacedFurniture,
+  type RoomSave,
 } from "core";
 import {
   furnitureCenterWorld,
@@ -15,7 +16,7 @@ import {
 import { hostGeometryOf, surfaceChildPose } from "./SurfacePlacement.js";
 import { Object3D } from "three";
 import { on } from "../../Game/EventBus";
-import { getDefinition, getWorld, groundHeightAt } from "../../Game/State/worldRuntime";
+import { getDefinition, getRoom, getWorld, groundHeightAt } from "../../Game/State/worldRuntime";
 import { clearFade, stepFade } from "../Engine/Fade.js";
 import { addOutline, setOutlineVisible } from "../Engine/Outline.js";
 import { buildItemVisual } from "../Visual/VisualRegistry.js";
@@ -136,6 +137,19 @@ export {
   furnitureCenterWorld,
   slotWorldPosition,
 } from "./furnitureMath.js";
+
+/**
+ * 这件家具**摆在哪个房间**。
+ *
+ * 从 `placement.roomId` 查，查不到才退回主房间。以前这里（和 spawn 里）
+ * 一律取 `getWorld().room`——院子在期 1 变成一个真房间之后，摆在院子里
+ * 的东西就全部按**房子的锚点**换算了：井摆在院子格 (27,25)（世界
+ * −12.5, −1.5），画出来在 (−29, −9)，差着房子锚点那一次旋转加平移。
+ * 一直没暴露是因为开局摆设从来没往院子里放过东西。
+ */
+function roomOfPlaced(placed: PlacedFurniture): RoomSave {
+  return getRoom(placed.placement.roomId) ?? getWorld().room;
+}
 
 /**
  * 订阅 world_changed，把 placedFurniture 同步成场景图。
@@ -327,7 +341,7 @@ export class FurnitureView {
         geometry,
         placed.placement,
         childFootprint,
-        getWorld().room,
+        roomOfPlaced(placed),
       );
       visual.position.set(pose.x, pose.y, pose.z);
       visual.rotation.y = pose.rotationY;
@@ -339,12 +353,12 @@ export class FurnitureView {
         placed.placement.gridPosition,
         definition.placement.footprint,
       );
-      const host = wallFaceOf(getWorld().room, wallId)?.hostGroup;
+      const host = wallFaceOf(roomOfPlaced(placed), wallId)?.hostGroup;
       if (host) this.hostGroupByInstance.set(placed.instanceId, host);
       else this.hostGroupByInstance.delete(placed.instanceId);
     } else {
       const { facing } = placed.placement;
-      const room = getWorld().room;
+      const room = roomOfPlaced(placed);
       // 占地中心经房屋锚点入世界（宽高互换在 furnitureCenterWorld 里做）
       const center = furnitureCenterWorld(
         placed.placement,

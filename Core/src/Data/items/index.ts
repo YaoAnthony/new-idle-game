@@ -1167,8 +1167,13 @@ export const itemDefinitions = [
     ingredient: { tags: ["dish"] },
   },
 
-  // ---- 场景道具：不进背包，但和家具走同一套定义 ----
+  // ---- 大件家具 ----
   {
+    /*
+     * 独立灶台 2×1。原来是"场景道具"（房子自带、不进背包），2026-08-22
+     * 起是**开局工具箱里的那件厨具**：9×12 的小屋放不下 6×4 的 L 形橱柜。
+     * 没有水槽，所以不挂 WaterSource——水在院子里那口井（`well`）。
+     */
     id: "stove",
     localizationKey: "furniture.stove",
     category: ItemCategory.Furniture,
@@ -1203,6 +1208,37 @@ export const itemDefinitions = [
           offset: [0.5, 0.95, 0],
         },
       ],
+    },
+  },
+  {
+    /*
+     * 石井（2026-08-22）。**院子里的水源**。
+     *
+     * 以前全游戏唯一的水源是 L 形橱柜台面短边的水槽（`WaterSource`），
+     * 而橱柜从开局纸箱里挪走之后（换成 2×1 的独立灶台），宠物渴了就
+     * 没地方喝了——`petAgent.trySeekWater` 会一直找不到目标。
+     *
+     * 水源搬到院子里是对的：屋里那口"水槽"本来就是个凑数的水源，而这栋
+     * 是森林里的女巫小屋，没有自来水。井还顺带解释了这块地为什么有人住。
+     * 锁定格里那口废井（`landmark_old_well`）从此有了正主——那是"外面
+     * 还有一口"，不是孤零零的布景。
+     *
+     * `fixed`（由开局摆设写进 state）：井挖在地里，拿不走。
+     */
+    id: "well",
+    localizationKey: "furniture.well",
+    category: ItemCategory.Furniture,
+    stackLimit: 1,
+    rarity: Rarity.Common,
+    visual: { id: "well_stone" },
+    placement: {
+      surface: PlacementSurface.Floor,
+      footprint: { width: 2, height: 2 },
+      capabilities: [FurnitureCapability.WaterSource],
+      floorLayer: FloorLayer.Object,
+      blocksMovement: true,
+      /** 井台面。宠物凑到边上喝，不需要爬上去 */
+      surfaceHeight: 0.9,
     },
   },
   {

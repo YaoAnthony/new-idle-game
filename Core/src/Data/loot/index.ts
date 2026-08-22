@@ -27,15 +27,24 @@ export const lootTableDefinitions: LootTableDefinition[] = [
   /**
    * 搬家第一天的两个纸箱（2026-07-30 定稿：开局只留这两个）。
    *
-   * 拆成"工具"和"家什"两箱是有讲究的：玩家开第一箱拿到工作台和炒锅，
+   * 拆成"工具"和"家什"两箱是有讲究的：玩家开第一箱拿到灶台和工作台，
    * 立刻就能做饭做东西；第二箱是桌椅，是"把家布置起来"的开始。
    * 一箱全给的话，32 格背包一次性塞满，玩家反而不知道先干嘛。
+   *
+   * **开局给的是 2×1 的独立灶台，不是 L 形整体橱柜**（2026-08-22）：
+   * 橱柜占地 6×4，摆进 9×12 的小屋要吃掉近三分之一的地板——那是
+   * 装修好的家该有的东西，不是搬家第一天从纸箱里拿出来的。橱柜留在
+   * 注册表里，以后走合成/购买那条线。
+   *
+   * 橱柜同时是全游戏唯一的水源（台面短边的水槽），换掉之后宠物没地方
+   * 喝水了——水源改成院子里那口井（`well`，见 Data/items），森林小屋
+   * 本来也不该有自来水。
    */
   {
     id: "moving_tools",
     localizationKey: "loot.moving_tools",
     entries: [
-      { itemId: "furniture_kitchen_counter", quantity: 1 },
+      { itemId: "stove", quantity: 1 },
       { itemId: "furniture_workbench", quantity: 1 },
       { itemId: "wok", quantity: 1 },
       { itemId: "plate", quantity: 1 },

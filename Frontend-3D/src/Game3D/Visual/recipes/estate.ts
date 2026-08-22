@@ -103,3 +103,74 @@ export function buildStreetLamp(): Object3D {
 
   return lamp;
 }
+
+/**
+ * 石井（2×2）。院子里的水源——宠物渴了会走过来喝（`FurnitureCapability.WaterSource`）。
+ *
+ * 形体照 TerritoryView 里那口废井（`landmark_old_well`）的语言来：八边的
+ * 石筒 + 两根立柱 + 一道横梁，远看就知道是井不是块石头。**但不共用代码**：
+ * 那口在锁定格里、是纯布景（不注册占用、不可交互），这口是真家具，
+ * 走物品注册表和占用图。两者共用的是"读起来是同一个世界里的东西"，
+ * 不是同一个函数——布景那口要是哪天改成半塌的，这口不该跟着塌。
+ *
+ * 井口的水面用一片深色圆盘压在筒底往下 0.35 的位置：低多边形里"深"
+ * 靠遮挡不靠透视，圆盘沉一点、颜色暗一档就读成"下面有水"。
+ */
+export function buildWell(): Object3D {
+  const well = new Object3D();
+  well.name = "well";
+  const rim = 0.9;
+
+  well.add(
+    // 石筒：上小下大一点点，坐得住
+    cylinder(rim, rim + 0.08, 0.86, 8, {
+      color: PALETTE.baseStoneMoss,
+      position: [0, 0.43, 0],
+    }),
+    // 井沿压顶石
+    cylinder(rim + 0.06, rim + 0.06, 0.12, 8, {
+      color: PALETTE.baseStoneDark,
+      position: [0, 0.92, 0],
+    }),
+    // 水面：沉在井口下面，暗一档
+    cylinder(rim - 0.16, rim - 0.16, 0.04, 8, {
+      color: "#2f4750",
+      position: [0, 0.55, 0],
+      castShadow: false,
+    }),
+  );
+
+  // 木架：两根立柱 + 横梁 + 吊桶。桶挂在梁下，井才"在用"
+  for (const x of [-0.78, 0.78]) {
+    well.add(
+      box([0.13, 1.7, 0.13], {
+        color: PALETTE.woodDark,
+        position: [x, 1.55, 0],
+      }),
+    );
+  }
+  well.add(
+    box([1.86, 0.13, 0.13], {
+      color: PALETTE.woodMid,
+      position: [0, 2.36, 0],
+    }),
+    // 绳
+    cylinder(0.02, 0.02, 0.5, 5, {
+      color: PALETTE.deckPlank,
+      position: [0, 2.05, 0],
+      castShadow: false,
+    }),
+    // 吊桶
+    cylinder(0.19, 0.16, 0.28, 8, {
+      color: PALETTE.deckPlank,
+      position: [0, 1.66, 0],
+    }),
+    box([0.4, 0.03, 0.03], {
+      color: PALETTE.ironDark,
+      position: [0, 1.81, 0],
+      castShadow: false,
+    }),
+  );
+
+  return well;
+}

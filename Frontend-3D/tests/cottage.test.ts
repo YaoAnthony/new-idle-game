@@ -1,7 +1,11 @@
 import { beforeEach, expect, test } from "vitest";
 import {
   DEFAULT_MAP_ID,
+  FurnitureCapability,
   WallOpeningKind,
+  findDoorDefinition,
+  findLootTable,
+  findPlaceableItem,
   findDoors,
   isHouseStowed,
   roomCellToWorld,
@@ -151,4 +155,86 @@ test("目标本身站得住：终点用真实坐标，不吸到格心", async ()
   // 屋里两点（headless 没有场景，院子的通行规则没注册，只能在屋里测）
   const route = findRoute({ x: -5.5, z: 12 }, { x: -6.2, z: 10.3 });
   expect(route![route!.length - 1]).toEqual([-6.2, 10.3]);
+});
+
+// ---- 开局给什么（2026-08-22：橱柜换灶台、院子里加井）----
+
+test("洗手间是 1 格宽的单开门，不是 2 格的对开门", () => {
+  const room = generateCottageL1({ roomId: "living", style: roomStyleDefinitions[0] });
+  const bath = room.interiorDoorways!.find((d) => d.doorwayId === "doorway-bath")!;
+  expect(bath.span).toBe(1);
+  // 单开由注册表的 leaves 决定，门洞宽度和门板扇数必须是一套
+  expect(bath.doorId).toBe("room_door_single");
+  expect(findDoorDefinition(bath.doorId)!.leaves).toBe(1);
+});
+
+test("开局工具箱给 2×1 的独立灶台，不给 6×4 的 L 形橱柜", () => {
+  const table = findLootTable("moving_tools")!;
+  const ids = table.entries.map((e) => e.itemId);
+  expect(ids).toContain("stove");
+  expect(ids).not.toContain("furniture_kitchen_counter");
+  // 换的理由是占地：橱柜的外接矩形比小屋地板的四分之一还大
+  const stove = findPlaceableItem("stove")!.placement.footprint;
+  expect(stove.width * stove.height).toBe(2);
+});
+
+test("院子里有口井，是全游戏的水源，而且不挡大门口那条路", async () => {
+  const { seedInitialFurniture, clearAllFurniture } = await import(
+    "../src/Game/State/world/furniture"
+  );
+  const { invalidateNavGrid, findRoute } = await import("../src/Game/Systems/navigation");
+
+  // Arrange
+  clearAllFurniture();
+  seedInitialFurniture();
+  invalidateNavGrid();
+
+  // Act / Assert：井进的是院子那张占用图，不是屋里那张
+  const yardId = getCurrentMap().outdoorRoomId;
+  const well = getWorld().placedFurniture.find((p) => p.furnitureId === "well");
+  expect(well, "开局没摆井").toBeTruthy();
+  expect(well!.placement.roomId).toBe(yardId);
+  expect(well!.state.fixed, "井该是拿不走的").toBe(true);
+
+  // 它得真是水源——宠物渴了找的就是这个能力（petAgent.trySeekWater）
+  const caps = findPlaceableItem("well")!.placement.capabilities;
+  expect(caps).toContain(FurnitureCapability.WaterSource);
+  /*
+   * 而且是**开局唯一**的水源。橱柜（也带水槽）还在注册表里，以后走
+   * 合成/购买那条线——所以判据不是"全世界只有一个水源"，是"开局能
+   * 拿到的东西里只有这一个"：纸箱里没有，摆出来的只有井。
+   */
+  const isSource = (id: string): boolean =>
+    findPlaceableItem(id)?.placement.capabilities?.includes(
+      FurnitureCapability.WaterSource,
+    ) ?? false;
+  const fromBoxes = ["moving_tools", "moving_furniture"].flatMap(
+    (id) => findLootTable(id)!.entries.map((e) => e.itemId),
+  );
+  expect(fromBoxes.filter(isSource), "开局纸箱里不该再有水源").toEqual([]);
+  expect(
+    getWorld().placedFurniture.map((p) => p.furnitureId).filter(isSource),
+  ).toEqual(["well"]);
+
+  /*
+   * 井的**世界坐标**要落在家院里、又不能压到房子。
+   *
+   * 格号是照院子那张网格写的（院子是自己的房间，锚点在领地中心），
+   * 而渲染层曾经一律拿主房间的锚点换算——井因此画到 (−29, −9) 去了，
+   * 差着房子锚点那一次旋转加平移。这条从格号正着算一遍世界坐标，
+   * 格号写错、或者院子网格挪了，都会在这里断。
+   */
+  const yard = getRoom(yardId)!;
+  const at = roomCellToWorld(yard, well!.placement.gridPosition.x + 0.5, well!.placement.gridPosition.y + 0.5);
+  const home = getCurrentMap().territory!.plots.find((p) => p.initial)!.rect;
+  expect(at.x).toBeGreaterThan(home.minX);
+  expect(at.x).toBeLessThan(home.maxX);
+  expect(at.z).toBeGreaterThan(home.minZ);
+  expect(at.z).toBeLessThan(home.maxZ);
+  // 房子占 x −10..−1 / z 5..17：井不能落在里面
+  expect(at.x < -10 || at.x > -1 || at.z < 5 || at.z > 17, `井 (${at.x}, ${at.z}) 压到房子了`).toBe(true);
+
+  // 也不能挡住大门那条路：从门口往北走得通
+  const route = findRoute({ x: -5.5, z: 4.5 }, { x: -5.5, z: -4 });
+  expect(route, "井把大门前的路堵了").not.toBeNull();
 });

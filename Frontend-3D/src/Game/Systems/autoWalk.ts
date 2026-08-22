@@ -2,6 +2,7 @@ import { emit, on } from "../EventBus";
 import { listDoors } from "../State/doorsRuntime";
 import { getCurrentMapId } from "../State/worldRuntime";
 import { findRoute } from "./navigation";
+import { unlockablePlotIds } from "../State/territory";
 import { findDestination, planRoute, type Destination, type RouteLeg } from "./travelPlan";
 
 /**
@@ -91,7 +92,18 @@ function driveCurrentLeg(): void {
   const from = walker.position();
   const points = findRoute(from, { x: leg.target.x, z: leg.target.z });
   if (!points) {
-    emit("auto_walk_ended", { label: plan.destination.label, reason: "failed" });
+    /*
+     * 走不过去。**领地没扩到那边**是今天最常见的原因，值得单独说一句
+     * ——通用的"找不到路"会让玩家以为是 bug，而这是玩法（决策 T1：
+     * 领地外不能走）。判据是"这张图有领地、而且还有地能开"：真到了
+     * 全开还走不过去，那才是别的问题，不该甩锅给领地。
+     */
+    const hint = unlockablePlotIds().length > 0 ? "territory" : undefined;
+    emit("auto_walk_ended", {
+      label: plan.destination.label,
+      reason: "failed",
+      hint,
+    });
     plan = null;
     return;
   }

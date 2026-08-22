@@ -92,6 +92,7 @@ import {
   unlockPlotById,
   unlockablePlotIds,
 } from "../Game/State/territory";
+import { pushSystemMessage } from "../Game/State/chatLog";
 import { placeHouse, stowHouse } from "../Game/Systems/house";
 import { travelTo } from "../Game/Systems/mapTravel";
 import { autoWalkTo, initAutoWalk } from "../Game/Systems/autoWalk";
@@ -880,6 +881,24 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
 
   // 换图：状态层切完发 map_changed，这里只负责把场景纪元 +1
   useEffect(() => on("map_changed", () => setMapEpoch((epoch) => epoch + 1)), []);
+
+  /*
+   * 自动跑腿失败要说人话。**"领地还没扩展到那边"和"找不到路"是两件事**：
+   * 前者是玩法（决策 T1：领地外不能走），后者才是问题。都报同一句的话，
+   * 玩家会把设计当成 bug——而这个游戏里"走不过去"恰恰是最常见的一句。
+   */
+  useEffect(
+    () =>
+      on("auto_walk_ended", ({ label, reason, hint }) => {
+        if (reason !== "failed") return;
+        pushSystemMessage(
+          hint === "territory"
+            ? `去不了${label}——领地还没扩展到那边`
+            : `找不到去${label}的路`,
+        );
+      }),
+    [],
+  );
 
   /**
    * 场景的生命周期（①B 从大 effect 拆出来）。跟着 mapEpoch 走：

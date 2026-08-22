@@ -1,3 +1,6 @@
+import type { FeatureId } from "../types/base.js";
+import type { TerritoryDefinition } from "../types/territory.js";
+import { rectInsideTerritory } from "./territory.js";
 import type { MapDefinition, RoomAnchor, RoomSave } from "../types/map.js";
 import { sampleHeightfield } from "./groundMap.js";
 import { anchorRectToWorld } from "./roomAnchor.js";
@@ -36,7 +39,9 @@ export type HousePlacementIssue =
   | { kind: "blocked_by_wall"; rect: DeckRect }
   | { kind: "blocked_by_fixture"; surfaceId: string }
   | { kind: "blocked_by_portal"; portalId: string }
-  | { kind: "occupied_cell"; cell: string };
+  | { kind: "occupied_cell"; cell: string }
+  /** 占地伸出了已开的领地（期 1）。只有传了 territory 选项才可能出现 */
+  | { kind: "outside_territory" };
 
 export type HousePlacementCheck =
   | { ok: true }
@@ -92,6 +97,17 @@ export function checkHousePlacement(
   options: {
     /** 院子放置面上已被占的世界格（`"x,z"`，整数格角键）。见文件头 */
     occupiedCells?: ReadonlySet<string>;
+    /**
+     * 领地（期 1）。给了就要求**整个占地都在已开的地里**。
+     *
+     * 走可选参数而不是让这个函数自己去查：领地是**地图层**的概念，
+     * 而这里是"房子放不放得下"的几何规则。没有领地的图（小镇、店铺）
+     * 不传，一行判断都不用付。
+     */
+    territory?: {
+      definition: TerritoryDefinition;
+      unlocked: ReadonlySet<FeatureId>;
+    };
   } = {},
 ): HousePlacementCheck {
   const issues: HousePlacementIssue[] = [];
@@ -106,6 +122,18 @@ export function checkHousePlacement(
     footprint.maxZ > bounds.maxZ
   ) {
     issues.push({ kind: "out_of_bounds" });
+  }
+
+  // ---- 整个占地都在已开的领地里 ----
+  if (
+    options.territory &&
+    !rectInsideTerritory(
+      options.territory.definition,
+      options.territory.unlocked,
+      footprint,
+    )
+  ) {
+    issues.push({ kind: "outside_territory" });
   }
 
   // ---- 地够平（贴着"这个锚点标高下院子该有的地面"）----

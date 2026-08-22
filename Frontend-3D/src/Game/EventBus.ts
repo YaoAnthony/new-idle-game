@@ -23,8 +23,18 @@ export type StationCapability =
 export type GameEvents = {
   /** 世界数据变化（家具增删等），渲染层据此同步场景图 */
   world_changed: { reason: string };
-  /** 自动跑腿结束：到了 / 玩家接管 / 找不到路 */
-  auto_walk_ended: { label: string; reason: "player" | "done" | "failed" };
+  /**
+   * 自动跑腿结束：到了 / 玩家接管 / 找不到路。
+   *
+   * `hint` 说的是**为什么**走不过去，只在 failed 时可能有值。今天只有
+   * 一种：`"territory"` = 领地还没扩到那边。通用的"找不到路"会让玩家
+   * 以为是 bug，而这是玩法。
+   */
+  auto_walk_ended: {
+    label: string;
+    reason: "player" | "done" | "failed";
+    hint?: "territory";
+  };
 
   /**
    * 换了箱庭地图（箱庭①B）。**状态层已经切完**（实体上架/取下、

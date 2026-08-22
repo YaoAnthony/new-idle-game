@@ -77,11 +77,21 @@ function roomToMapIndex(maps: Record<string, MapSave>): Map<string, string> {
       index.set(roomId, mapId);
     }
   }
+  /*
+   * 定义兜底。**volatile 图的几何不进存档**（snapshotWorld 只留键不留
+   * 几何），所以它们的房间只能从注册表反查——上面那个循环对它们扫到的
+   * 是一个空 rooms。
+   *
+   * primaryRoomId 原来漏了，这是同一个洞的第三个口：店铺的主房间、
+   * 镇广场都是它。漏掉的后果是在广场上扔一件东西，读档时那件东西的
+   * roomId 查不到归属，跟着掉进"不知道属于哪张图"的分支。
+   */
   for (const definition of mapDefinitions) {
-    if (!index.has(definition.outdoorRoomId)) {
-      index.set(definition.outdoorRoomId, definition.mapId);
-    }
-    for (const roomId of definition.extraRoomIds ?? []) {
+    for (const roomId of [
+      definition.primaryRoomId,
+      definition.outdoorRoomId,
+      ...(definition.extraRoomIds ?? []),
+    ]) {
       if (!index.has(roomId)) index.set(roomId, definition.mapId);
     }
   }

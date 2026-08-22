@@ -10,6 +10,7 @@ import {
 } from "core";
 import { emit } from "../../EventBus";
 import { syncIdCounters } from "../ids";
+import { findMapDefinition } from "../../../Maps/index.js";
 import { worldState } from "./state.js";
 
 /**
@@ -123,14 +124,37 @@ export function snapshotWorld(): {
      * 全量 maps：当前地图的所有房间 + 搁置保管的其他地图。
      * serialize 原来只塞主房间一张（那条注释自称"会到期的假设"），
      * V0.13 到期兑现——从这里出去的就是完整的 Record，往返不丢。
+     *
+     * **但 volatileRooms 的图（小镇、六家店）只留键不留几何。**
+     * 那个标志的含义就是"每次进图按定义现生成，存档里那份直接忽略"，
+     * 读档侧本来就是这么做的（restoreWorld / switchMapState 各有一句），
+     * 写档侧却从没看过它——实测 73% 的几何字节是写进去从没被读过的
+     * （家 2726 B，小镇加六家店 7305 B），而且随内容线性增长。
+     *
+     * **键必须留下，不能连键一起去掉。** 读档侧有两处拿"存档里有没有
+     * 当前图的键"来决定哪张图是活跃图：loadWorldEntities 的 activeKey
+     * 和 restoreWorld 的 current，都是 `saved.maps[当前图] ?? 第一张`。
+     * 人在店里存档时如果店的键没了，活跃图会退回 base，于是家里的家具
+     * 被判成"当前图的"灌进店铺场景，而 base 没被上架，回家时房子的
+     * 锚点和收放状态一起丢。留键的代价是每图约 30 字节。
+     *
+     * 被否：连键一起删 + 改写那两处兜底。触及 3 个文件 4 处逻辑，而且
+     * 那两处兜底还服务于"老存档的键不一定叫 base"的兼容路径，动它要
+     * 回归更多老档用例。留键是零风险的那条路。
      */
-    maps: {
-      ...worldState.shelvedMaps,
-      [worldState.map.mapId]: {
-        mapId: worldState.map.mapId,
-        rooms: worldState.rooms,
-      },
-    },
+    maps: Object.fromEntries(
+      Object.entries<MapSave>({
+        ...worldState.shelvedMaps,
+        [worldState.map.mapId]: {
+          mapId: worldState.map.mapId,
+          rooms: worldState.rooms,
+        },
+      }).map(([mapId, mapSave]): [string, MapSave] =>
+        findMapDefinition(mapId)?.volatileRooms
+          ? [mapId, { mapId, rooms: {} }]
+          : [mapId, mapSave],
+      ),
+    ),
     room: worldState.room,
     placedFurniture: worldState.placedFurniture.map((item) => ({ ...item })),
   };

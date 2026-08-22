@@ -190,6 +190,7 @@ import {
   type BuiltHouse,
 } from "./House/index.js";
 import { OutdoorScene } from "./OutdoorScene.js";
+import { BuildingsView } from "./BuildingsView.js";
 import { TerritoryView } from "./TerritoryView.js";
 
 /**
@@ -267,6 +268,8 @@ export class RoomScene {
    * 空转——`hasTerritory()` 为假时一个网格都不建。
    */
   private readonly territoryView: TerritoryView;
+  /** 玩家在领地里建的建筑。小镇六家店由 OutdoorScene 建，不走这里 */
+  private readonly buildingsView: BuildingsView;
   private readonly fogField: FogField;
   /** 联机时房间里其他人的形象。单机时名册是空的，它每帧空转一圈 */
   private readonly remotePlayers: RemotePlayersView;
@@ -429,6 +432,7 @@ export class RoomScene {
     // 领地：绳索围栏 + 锁定格的杂草和地标。它自己听 world_changed
     // reason "territory" 重建，不需要场景转发
     this.territoryView = new TerritoryView(this.scene);
+    this.buildingsView = new BuildingsView(this.scene);
 
     /*
      * 清晰度场（大雾天灯和房子驱雾用的 tile 网格 + 雾毯）。
@@ -2568,6 +2572,7 @@ export class RoomScene {
     this.furnitureView.dispose();
     this.outdoor.dispose();
     this.territoryView.dispose();
+    this.buildingsView.dispose();
     this.fogField.dispose();
     this.cookwareView.dispose();
     this.heldItemView.dispose();

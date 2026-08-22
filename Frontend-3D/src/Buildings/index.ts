@@ -1,4 +1,8 @@
 import { arcane } from "./arcane.js";
+import { farmPlot } from "./farmPlot.js";
+import { goldJar } from "./goldJar.js";
+import { house } from "./house.js";
+import { landCabin } from "./landCabin.js";
 import { bookstore } from "./bookstore.js";
 import { cafe } from "./cafe.js";
 import { convenience } from "./convenience.js";
@@ -22,6 +26,12 @@ import type {
  * 里，想改书店的角楼得先在文件里找它。
  */
 export const buildingDefinitions: BuildingDefinition[] = [
+  // 领地上玩家自己建的（期 2）
+  goldJar,
+  farmPlot,
+  landCabin,
+  house,
+  // 小镇的六家店：地图内容，不建不移不升
   bookstore,
   arcane,
   convenience,

@@ -93,6 +93,26 @@ import {
   unlockablePlotIds,
 } from "../Game/State/territory";
 import { pushSystemMessage } from "../Game/State/chatLog";
+import {
+  findPlacement,
+  listBuildings,
+  removeBuilding,
+  upgradeBuilding,
+  upgradeOptions,
+} from "../Game/State/buildings";
+import {
+  FACINGS,
+  buildableIds,
+  goldInJar,
+  moveBuildingToCell,
+  parseYardCell,
+  placeBuildingAtCell,
+  resolveBuilding,
+  whyBuild,
+  toFacing,
+  worldToYardCell,
+} from "../Game/State/buildingCommands";
+import { findBuildingLevel } from "../Buildings/index";
 import { placeHouse, stowHouse } from "../Game/Systems/house";
 import { travelTo } from "../Game/Systems/mapTravel";
 import { autoWalkTo, initAutoWalk } from "../Game/Systems/autoWalk";
@@ -548,6 +568,128 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
           // 门口挤不下大家伙，直接放到屋子中部空地
           debugPlacePet(petId, 0, 4);
           return ok(`${definition.id} 来了`);
+        },
+      }),
+      registerCommand({
+        name: "build",
+        arguments: [
+          { name: "型号", suggest: () => asSuggestions(buildableIds()) },
+          { name: "格X" },
+          { name: "格Y" },
+          { name: "朝向", suggest: () => asSuggestions(["north", "east", "south", "west"]) },
+        ],
+        usage: "build <buildingId> <gx> <gy> [facing]",
+        description: "在领地里盖一栋。坐标是**院子格号**，给的是占地左上角",
+        handler: (args) => {
+          const spot = parseYardCell(args[1], args[2]);
+          if (!spot) return fail("用法：build <型号> <格X> <格Y> [朝向]");
+          const facing = toFacing(parseEnum(args[3] ?? "north", FACINGS, "朝向"));
+          const result = placeBuildingAtCell(args[0] ?? "", spot, facing);
+          if (result.ok !== false) return ok(`盖好了：${result.instanceId}`);
+          return fail(whyBuild(result.reason));
+        },
+      }),
+      registerCommand({
+        name: "movebuilding",
+        arguments: [
+          { name: "实例或型号", suggest: () => asSuggestions(listBuildings().map((b) => b.instanceId)) },
+          { name: "格X" },
+          { name: "格Y" },
+          { name: "朝向", suggest: () => asSuggestions(["north", "east", "south", "west"]) },
+        ],
+        usage: "movebuilding <instanceId|型号> <gx> <gy> [facing]",
+        description: "挪一栋。校验时排除自己——不然原地微调会判成压到自己",
+        handler: (args) => {
+          // `=== false` 收窄：tsconfig 没开 strict，真值收窄在判别式联合上不生效
+          const target = resolveBuilding(args[0] ?? "");
+          if (target.ok === false) return fail(target.message);
+          const spot = parseYardCell(args[1], args[2]);
+          if (!spot) return fail("用法：movebuilding <实例> <格X> <格Y> [朝向]");
+          const facing = args[3] ? toFacing(parseEnum(args[3], FACINGS, "朝向")) : undefined;
+          const result = moveBuildingToCell(target.instanceId, spot, facing);
+          if (result.ok !== false) return ok("挪好了");
+          return fail(whyBuild(result.reason));
+        },
+      }),
+      registerCommand({
+        name: "upgradebuilding",
+        arguments: [
+          { name: "实例或型号", suggest: () => asSuggestions(listBuildings().map((b) => b.instanceId)) },
+          { name: "目标等级" },
+        ],
+        usage: "upgradebuilding <instanceId|型号> [levelId]",
+        description: "升级。**分叉时不替你选**——不给目标就把选项列出来停下",
+        handler: (args) => {
+          // `=== false` 收窄：tsconfig 没开 strict，真值收窄在判别式联合上不生效
+          const target = resolveBuilding(args[0] ?? "");
+          if (target.ok === false) return fail(target.message);
+
+          const options = upgradeOptions(target.instanceId);
+          if (options.length === 0) return fail("已满级");
+          /*
+           * 分叉时必须让玩家选（B7）。悄悄挑第一个的后果是房子变成了他
+           * 没挑的那一栋，而升级是单向的——回退要谈材料返还，那是经济
+           * 系统的事。
+           */
+          if (!args[1] && options.length > 1) {
+            return ok(`可以升到：${options.join(" / ")}——用 upgradebuilding ${args[0]} <等级> 选一个`);
+          }
+
+          const result = upgradeBuilding(target.instanceId, args[1]);
+          if (result.ok !== false) {
+            const placement = findPlacement(target.instanceId)!;
+            const level = findBuildingLevel(placement.buildingId, placement.levelId);
+            return ok(`升到了 ${t(level?.localizationKey ?? "")}（${placement.levelId}）`);
+          }
+          const why: Record<string, string> = {
+            max_level: "已满级",
+            unknown_target: "没有这个等级",
+            not_a_successor: "不能跳级——只能从当前等级往下一级升",
+            missing_materials: "材料不够",
+            requires_unmet: "前置条件没满足",
+            not_empty: `屋里还有 ${result.itemCount} 件家具，先收进背包再升级`,
+          };
+          return fail(why[result.reason] ?? "升不了");
+        },
+      }),
+      registerCommand({
+        name: "removebuilding",
+        arguments: [
+          { name: "实例或型号", suggest: () => asSuggestions(listBuildings().map((b) => b.instanceId)) },
+        ],
+        usage: "removebuilding <instanceId|型号>",
+        description: "拆一栋。**非空不给拆**——屋里有家具 / 罐里有钱就拒绝",
+        handler: (args) => {
+          // `=== false` 收窄：tsconfig 没开 strict，真值收窄在判别式联合上不生效
+          const target = resolveBuilding(args[0] ?? "");
+          if (target.ok === false) return fail(target.message);
+          const result = removeBuilding(target.instanceId, {
+            gold: goldInJar(target.instanceId),
+          });
+          if (result.ok !== false) return ok("拆了");
+          const { furniture, gold } = result.detail;
+          if (gold) return fail(`罐里还有 ${gold} 金币，先取出来`);
+          return fail(`屋里还有 ${furniture} 件家具，先收进背包`);
+        },
+      }),
+      registerCommand({
+        name: "buildings",
+        usage: "buildings",
+        description: "列出领地上的建筑：等级、位置（格号 + 世界坐标）、能升到哪几级",
+        handler: () => {
+          const list = listBuildings();
+          if (list.length === 0) return ok("领地上还没有建筑");
+          return ok(
+            list
+              .map((placement) => {
+                const level = findBuildingLevel(placement.buildingId, placement.levelId);
+                const cell = worldToYardCell(placement);
+                const next = upgradeOptions(placement.instanceId);
+                // 格号和世界坐标**都打**：调试时不用心算
+                return `${placement.instanceId} ${t(level?.localizationKey ?? "")}(${placement.levelId}) 格(${cell.x},${cell.y}) 世界(${placement.x},${placement.z}) ${next.length ? "可升→" + next.join("/") : "满级"}`;
+              })
+              .join(" · "),
+          );
         },
       }),
       registerCommand({

@@ -7,7 +7,15 @@ import App from './App.tsx'
 import { initAuth } from './Features/Auth/authBridge.ts'
 import { initCloudSync } from './Features/CloudSave/syncController.ts'
 import { persistor, store } from './Redux/store.ts'
-import { auditAvatarContent, auditDoorContent, auditStoryContent } from 'core'
+import {
+  auditAvatarContent,
+  auditBuildings,
+  auditDoorContent,
+  auditStoryContent,
+  auditTerritory,
+} from 'core'
+import { buildingDefinitions } from './Buildings/index.ts'
+import { baseMapDefinition } from './Maps/base/index.ts'
 import { auditItemVisuals } from './Game3D/Visual/VisualRegistry.ts'
 import { hasLocalizationKey } from './i18n/t.ts'
 
@@ -43,6 +51,53 @@ if (import.meta.env.DEV) {
   if (doorProblems.length > 0) {
     console.warn(
       `[door] 门注册表有 ${doorProblems.length} 处对不上：\n  ${doorProblems.join('\n  ')}`,
+    )
+  }
+
+  /*
+   * 建筑型号：**图的校验比链多两条**——环（升级变成死循环）和孤岛
+   * （永远升不到的死内容）。两者都不炸编译，都要玩到那一级才发现。
+   *
+   * 这不是假想的风险：金币罐第一版就漏了 l1 的 nextLevelIds，l2/l3 直接
+   * 成了孤岛，而型号文件看起来完全正常（三级都写齐了）。
+   */
+  const buildingProblems = auditBuildings(
+    buildingDefinitions.map((definition) => ({
+      buildingId: definition.buildingId,
+      levels: definition.levels.map((level) => ({
+        levelId: level.levelId,
+        footprint: level.footprint,
+        nextLevelIds: level.nextLevelIds,
+        upgradeCost: level.upgradeCost,
+        requires: level.requires,
+      })),
+    })),
+    {
+      hasBuilding: (id) => buildingDefinitions.some((d) => d.buildingId === id),
+      hasLevel: (id, levelId) =>
+        buildingDefinitions
+          .find((d) => d.buildingId === id)
+          ?.levels.some((l) => l.levelId === levelId) ?? false,
+    },
+  )
+  if (buildingProblems.length > 0) {
+    console.warn(
+      `[buildings] 建筑注册表有 ${buildingProblems.length} 处对不上：`,
+      buildingProblems,
+    )
+  }
+
+  // 领地格盘：出生点落在锁定格里的话，开新档人会站着走不动——
+  // 那看起来像"寻路坏了"，而不像"格盘配错了"
+  const territoryProblems = baseMapDefinition.territory
+    ? auditTerritory(baseMapDefinition.territory, {
+        spawn: { x: baseMapDefinition.spawn.x, z: baseMapDefinition.spawn.y },
+      })
+    : []
+  if (territoryProblems.length > 0) {
+    console.warn(
+      `[territory] 领地格盘有 ${territoryProblems.length} 处对不上：`,
+      territoryProblems,
     )
   }
 }

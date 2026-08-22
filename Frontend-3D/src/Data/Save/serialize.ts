@@ -30,6 +30,10 @@ import {
   snapshotGramophones,
 } from "../../Game/State/gramophones";
 import {
+  restoreBuildings,
+  snapshotBuildings,
+} from "../../Game/State/buildings";
+import {
   pruneOrphanStorages,
   restoreStorages,
   snapshotStorages,
@@ -170,6 +174,9 @@ export function serializeGameSave(previous?: GameSave): GameSave {
       chatLog: snapshotChatLog(),
       inventories: snapshotStorages(),
       gramophones: snapshotGramophones(),
+      // 玩家在领地里建的建筑（期 2 起进存档）。小镇六家店不在这里——
+      // 它们是地图内容，每次进图从定义生成
+      buildings: snapshotBuildings(),
       // 每日任务的**共享进度**属于这个家，不属于哪台机器（V0.11）
       dailyBoard: snapshotDailyBoard(),
 
@@ -233,6 +240,7 @@ export function hydrateGameSave(save: GameSave): void {
   // 所以喂的仍是存档全量
   restoreStorages(save.ownWorld.inventories);
   restoreGramophones(save.ownWorld.gramophones);
+  restoreBuildings(save.ownWorld.buildings);
   restoreDroppedItems(active.droppedItems);
   // 消息记录要在时钟之后恢复——裁剪按"今天是哪天"算
   restoreChatLog(save.ownWorld.chatLog);

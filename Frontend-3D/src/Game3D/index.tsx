@@ -112,7 +112,7 @@ import {
   toFacing,
   worldToYardCell,
 } from "../Game/State/buildingCommands";
-import { findBuildingLevel } from "../Buildings/index";
+import { findBuilding, findBuildingLevel } from "../Buildings/index";
 import {
   depositGoldTo,
   getGold,
@@ -141,6 +141,7 @@ import { startMusicDirector } from "./Engine/MusicDirector";
 import { startBathSystem } from "../Game/Systems/bath";
 import { RoomScene } from "./World/RoomScene";
 import { ChestOverlay } from "../Components/ChestOverlay/ChestOverlay";
+import { BuildingPlacePanel } from "../Components/BuildingPlacePanel/BuildingPlacePanel";
 
 /** /signal 的可选值。和 Core 的 StorySignalKind 一一对应 */
 const STORY_SIGNALS = [
@@ -754,6 +755,60 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
         },
       }),
       registerCommand({
+        name: "site",
+        arguments: [
+          { name: "模式", suggest: () => asSuggestions(["build", "move", "upgrade"]) },
+          { name: "型号或实例", suggest: () => asSuggestions([...buildableIds(), ...listBuildings().map((b) => b.instanceId)]) },
+          { name: "目标等级" },
+        ],
+        usage: "site <build|move|upgrade> <型号|实例> [levelId]",
+        description: "进入选址：虚影跟鼠标 → 点一下选定 → 按确认才动工",
+        handler: (args) => {
+          const mode = parseEnum(args[0] ?? "build", ["build", "move", "upgrade"] as const, "模式");
+          const scene = sceneRef.current;
+          if (!scene) return fail("场景还没就绪");
+
+          if (mode === "build") {
+            const buildingId = args[1] ?? "";
+            if (!findBuilding(buildingId)) return fail(`没有这种建筑：${buildingId}`);
+            return scene.beginBuildingSiting({ mode, buildingId })
+              ? ok("选个位置——点一下选定，再按确认")
+              : fail("进不了选址");
+          }
+
+          const target = resolveBuilding(args[1] ?? "");
+          if (target.ok === false) return fail(target.message);
+          const placement = findPlacement(target.instanceId)!;
+
+          if (mode === "move") {
+            return scene.beginBuildingSiting({
+              mode,
+              buildingId: placement.buildingId,
+              levelId: placement.levelId,
+              instanceId: target.instanceId,
+            })
+              ? ok("挪到哪儿？虚影默认在原位——原地合法就直接确认")
+              : fail("进不了选址");
+          }
+
+          // 升级：**必须先选目标等级**（分叉时不替玩家选）
+          const options = upgradeOptions(target.instanceId);
+          if (options.length === 0) return fail("已满级");
+          const levelId = args[2] ?? (options.length === 1 ? options[0] : undefined);
+          if (!levelId) return ok(`先挑一级：${options.join(" / ")}`);
+          if (!options.includes(levelId)) return fail(`${levelId} 不是当前等级的后继`);
+
+          return scene.beginBuildingSiting({
+            mode,
+            buildingId: placement.buildingId,
+            levelId,
+            instanceId: target.instanceId,
+          })
+            ? ok("升级后的占地会变——虚影默认在原位，压到东西就挪一挪")
+            : fail("进不了选址");
+        },
+      }),
+      registerCommand({
         name: "territory",
         arguments: [
           { name: "动作", suggest: () => asSuggestions(["list", "unlock", "reset"]) },
@@ -1187,6 +1242,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       <SleepOverlay />
       <RewardPanel />
       <ChestOverlay />
+      {/* 建筑选址的确认条（B17）。没在选址时它自己 null */}
+      <BuildingPlacePanel />
       <HudTopCenter />
       <FocusVignette />
       {/* 消息面板挂在游戏里而不是 App 里：消息记录属于**这个世界**，

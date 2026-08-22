@@ -33,6 +33,24 @@ export type GameEvents = {
   /** 余额或上限变了（存钱、花钱、建罐、升罐、拆罐） */
   gold_changed: { gold: number; capacity: number };
   /**
+   * 建筑选址的状态（虚影跟鼠标 / 已选定 / 合不合法）。确认条听它。
+   *
+   * `committed` 是这条设计的关键位：选定之后虚影**不消失**，玩家能走开
+   * 绕一圈再决定——UI 要靠它区分"还在挑"和"挑好了等你点确认"。
+   */
+  building_placement_changed: {
+    active: boolean;
+    mode?: "build" | "move" | "upgrade";
+    buildingId?: string;
+    levelId?: string;
+    valid?: boolean;
+    reason?: string;
+    committed?: boolean;
+    label?: string;
+  };
+  /** 确认条按了什么。UI 只发意图，动手的是场景里的控制器 */
+  building_placement_action: { action: "confirm" | "reselect" | "cancel" };
+  /**
    * 自动跑腿结束：到了 / 玩家接管 / 找不到路。
    *
    * `hint` 说的是**为什么**走不过去，只在 failed 时可能有值。今天只有

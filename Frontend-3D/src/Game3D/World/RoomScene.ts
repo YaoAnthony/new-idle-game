@@ -192,6 +192,7 @@ import {
   type BuiltHouse,
 } from "./House/index.js";
 import { OutdoorScene } from "./OutdoorScene.js";
+import { BuildingPlacementController } from "../Interaction/BuildingPlacementController.js";
 import { BuildingsView } from "./BuildingsView.js";
 import { TerritoryView } from "./TerritoryView.js";
 
@@ -264,6 +265,8 @@ export class RoomScene {
   private readonly territoryView: TerritoryView;
   /** 玩家在领地里建的建筑。小镇六家店由 OutdoorScene 建，不走这里 */
   private readonly buildingsView: BuildingsView;
+  /** 建筑选址（虚影 + 两步确认）。和家具那套并存 */
+  private readonly buildingPlacement: BuildingPlacementController;
   private readonly fogField: FogField;
   /** 联机时房间里其他人的形象。单机时名册是空的，它每帧空转一圈 */
   private readonly remotePlayers: RemotePlayersView;
@@ -701,6 +704,24 @@ export class RoomScene {
       () => this.furnitureView.findSurfaceHostViews(),
     );
 
+    /*
+     * 建筑选址。和家具那套并存、各管各的——两者的落点判据和确认流程都
+     * 不同（家具点一下就落地，建筑要两步确认），共用一个控制器只会让
+     * 两条流程绞在一起。
+     */
+    this.buildingPlacement = new BuildingPlacementController(
+      this.scene,
+      this.rig.camera,
+      this.renderer.renderer.domElement,
+    );
+    this.offEventListeners.push(
+      on("building_placement_action", ({ action }) => {
+        if (action === "confirm") this.buildingPlacement.confirm();
+        else if (action === "reselect") this.buildingPlacement.uncommit();
+        else this.buildingPlacement.cancel();
+      }),
+    );
+
     this.detachInput = this.attachInput();
 
     /*
@@ -753,7 +774,11 @@ export class RoomScene {
       if (isMoveKey && isAutoWalking()) cancelAutoWalk("player");
 
       // Q/E 转向已退役：镜头改成鼠标左键拖拽（标准第三人称）
-      if (matchesAction(event, "rotatePlacement")) this.placement.rotate();
+      if (matchesAction(event, "rotatePlacement")) {
+        this.placement.rotate();
+        // 升级选址时朝向也能改：借升级的机会把房子转个方向是刻意允许的
+        this.buildingPlacement.rotate();
+      }
 
       // 布置模式：方向键逐格微调（鼠标在低俯角下够不到远处的格子）
       if (this.placement.active) {
@@ -924,6 +949,7 @@ export class RoomScene {
       }
 
       this.placement.onPointerMove(event);
+      this.buildingPlacement.onPointerMove(event);
     };
 
     const onPointerUp = (event: PointerEvent) => {
@@ -953,7 +979,11 @@ export class RoomScene {
       }
 
       // 拖过就不是点击了
-      if (dragDistance <= DRAG_THRESHOLD_PIXELS) this.placement.onClick();
+      if (dragDistance <= DRAG_THRESHOLD_PIXELS) {
+        this.placement.onClick();
+        // 建筑选址里点一下是**选定**，不是落地——落地要再按一次确认
+        this.buildingPlacement.commit();
+      }
       dragPointerId = null;
     };
 
@@ -2541,6 +2571,21 @@ export class RoomScene {
     return standing;
   }
 
+  /**
+   * 进入建筑选址。指令和以后的建造菜单都走它。
+   *
+   * 返回 false = 这个型号/等级不存在。**不抛**——选址是玩家动作，
+   * 参数不对该是"没反应"，不是整个场景崩掉。
+   */
+  beginBuildingSiting(options: {
+    mode: "build" | "move" | "upgrade";
+    buildingId: string;
+    levelId?: string;
+    instanceId?: string;
+  }): boolean {
+    return this.buildingPlacement.begin(options);
+  }
+
   /** 调试传送（/tp 命令用）。走 controller 的 teleport，位置同步进 participants */
   debugTeleport(x: number, z: number): void {
     this.controller.teleport(x, z);
@@ -2593,6 +2638,7 @@ export class RoomScene {
     this.outdoor.dispose();
     this.territoryView.dispose();
     this.buildingsView.dispose();
+    this.buildingPlacement.cancel();
     this.fogField.dispose();
     this.cookwareView.dispose();
     this.heldItemView.dispose();

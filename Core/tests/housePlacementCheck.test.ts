@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { Facing } from "../src/types/base.js";
+import { GroundKind } from "../src/types/ground.js";
 import type { GroundHeightfield } from "../src/types/ground.js";
 import type { RoomAnchor } from "../src/types/map.js";
 import {
@@ -32,7 +33,11 @@ function fieldWithRiver(): GroundHeightfield {
   const columns = 101;
   const rows = 101;
   const spacing = 2;
-  const heights = new Float32Array(columns * rows);
+  // 用 number[] 不用 Float32Array：GroundHeightfield.heights 的契约就是
+  // number[]，而这份 fixture 的职责是**长得像真数据**。今天仓库里还没有
+  // 任何一张图真的带高度场（全仓只有这一处构造），fixture 一旦跑偏，
+  // 第一张真图就会照着它写歪
+  const heights: number[] = new Array<number>(columns * rows);
   for (let r = 0; r < rows; r += 1) {
     for (let c = 0; c < columns; c += 1) {
       const x = -100 + c * spacing;
@@ -89,7 +94,10 @@ test("压围墙 / 压桥面 / 压出入口触发带，各报各的", () => {
     groundFixtures: [
       {
         surfaceId: "bridge:east",
-        kind: "fixture",
+        // 照真桥来：base 的 BRIDGE_SURFACES 用的就是 Platform（terrain.ts）。
+        // 原来写的 "fixture" 根本不在 GroundKind 里——checkHousePlacement 只读
+        // rect 和 surfaceId，不看 kind，所以这个编不过的值一直没露馅
+        kind: GroundKind.Platform,
         roomId: "yard",
         floorIndex: 0,
         rect: { minX: 14, maxX: 30, minZ: -2, maxZ: 2 },

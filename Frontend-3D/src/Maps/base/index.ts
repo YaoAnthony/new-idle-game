@@ -47,6 +47,14 @@ export const baseMapDefinition: MapDefinition = {
    */
   yardMargins: { north: 14, south: 37, east: 33, west: 24 },
 
+  /**
+   * 可走范围**写死成世界矩形**（2026-08-22）。这四个数就是上面的边距
+   * 按 24×20 的老房子展开的结果——值一个没变，只是把"据点多大"从
+   * 房子身上摘下来变成地图自己的数。默认的家换成 9×12 的小屋之后，
+   * 按房子推会让东桥走不到头、A 列领地出界。
+   */
+  walkableRect: { minX: -36, maxX: 45, minZ: -24, maxZ: 47 },
+
   floorLevel: FLOOR_LEVEL,
 
   /**

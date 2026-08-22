@@ -142,3 +142,16 @@ test("yardBoundsOf 是唯一入口，所以缺哪向都要退回统一边距", (
     assert.ok(Number.isFinite(value), "边界出现了 NaN，围墙会画到虚空里");
   }
 });
+
+test("yardBoundsOf：地图声明了 walkableRect 就原样用它，不再按房子推", () => {
+  const rect = { minX: -36, maxX: 45, minZ: -24, maxZ: 47 };
+  const declared = yardBoundsOf(
+    { yardMargin: 12, yardMargins: { north: 14, south: 37, east: 33, west: 24 }, walkableRect: rect },
+    { width: 9, height: 12 },
+  );
+  assert.deepEqual(declared, rect);
+
+  // 没声明的图仍按房子推（小镇、店铺走这条）
+  const derived = yardBoundsOf({ yardMargin: 12 }, { width: 24, height: 20 });
+  assert.deepEqual(derived, { minX: -24, maxX: 24, minZ: -22, maxZ: 22 });
+});

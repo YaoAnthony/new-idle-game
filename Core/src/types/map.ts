@@ -364,6 +364,16 @@ export type MapDefinition = {
   yardMargins?: { north: number; south: number; east: number; west: number };
 
   /**
+   * **可走范围的世界矩形**。给了就用它，上面两个按房子推的边距不再参与。
+   *
+   * 据点用这个：它的可走范围是地理（领地 + 两岸 + 桥），和主屋多大无关。
+   * 原来从房子宽深 + 边距推，房子一缩可走范围跟着缩——东桥走不到头、
+   * 领地西边出界。没声明的图（小镇、店铺）仍按房子推，那些图的房间
+   * 本来就是整张图。
+   */
+  walkableRect?: { minX: number; maxX: number; minZ: number; maxZ: number };
+
+  /**
    * **室内地板比院子地面高多少**（世界单位）。和式住宅的"床高"。
    *
    * 坐标系约定：**世界 y=0 就是室内地板**，院子在 `-floorLevel`。

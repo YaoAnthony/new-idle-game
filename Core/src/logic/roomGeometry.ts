@@ -120,9 +120,17 @@ export function outdoorDeckRect(
  * 房子挪到边上导致"离边界很近"是选址校验的事，不该反过来让边界跟房跑。
  */
 export function yardBoundsOf(
-  map: Pick<MapDefinition, "yardMargin" | "yardMargins">,
+  map: Pick<MapDefinition, "yardMargin" | "yardMargins" | "walkableRect">,
   floorGrid: { width: number; height: number },
 ): DeckRect {
+  /*
+   * 地图自己声明了可走范围就直接用它。**"据点多大"是地理，不该跟房子
+   * 尺寸走**——按房子推的那套在房子从 24×20 换成 9×12 那天当场露馅：
+   * 东界从 45 缩到 37.5，东桥走不到头；西界从 −36 缩到 −28.5，A 列领地
+   * 出界。老算法留给没声明的图（小镇、店铺），它们的房间就是整张图。
+   */
+  if (map.walkableRect) return map.walkableRect;
+
   const halfW = floorGrid.width / 2;
   const halfD = floorGrid.height / 2;
   const margins = map.yardMargins;

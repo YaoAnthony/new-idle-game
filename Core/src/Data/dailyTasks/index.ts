@@ -36,7 +36,17 @@ export const dailyBoardDefinition: DailyBoardDefinition = {
    * （`findLootTable`）、按天数/人数变化，都在这一处扩展——
    * `RewardDefinition` 已经支持 `item` 和 `unlock` 两种形状。
    */
-  rewards: [{ type: "item", itemId: "tomato", quantity: 1 }],
+  /*
+   * 一份实物 + 一份金币。金币**直接进罐**不吐成地上的东西——罐就是钱包，
+   * 吐成实物的话玩家能捡起来揣着，"容量就是持有上限"当场作废。
+   *
+   * 12 是占位值：真正的数等交易和建造代价定下来再调（期 2 的 upgradeCost
+   * 还全是空数组）。
+   */
+  rewards: [
+    { type: "item", itemId: "tomato", quantity: 1 },
+    { type: "gold", amount: 12 },
+  ],
 
   hintLocalizationKey: "hint.daily_board_first_placed",
 };

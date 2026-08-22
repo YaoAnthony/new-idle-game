@@ -9,6 +9,7 @@ import {
 } from "../State/dailyBoard";
 import { markDone, rerollTask } from "../State/dailyTasks";
 import { throwItem } from "../State/droppedItems";
+import { depositGoldTo } from "../State/gold";
 import { getLocalTransform } from "../State/participants";
 import { getDefinition, getWorld, roomIdAt } from "../State/worldRuntime";
 
@@ -63,6 +64,15 @@ export function tryClaimReward(): boolean {
 
   for (let share = 0; share < shares; share += 1) {
     for (const reward of definition.rewards) {
+      /*
+       * 金币不吐成地上的东西，**直接进罐**——罐就是钱包，罐满了多的
+       * 部分会溢出丢失（并给一句明话）。这正是"溢出只发生在你主动做
+       * 任务的那一刻"：损失是"这一笔本来能拿多少"，不是"放着放着就没了"。
+       */
+      if (reward.type === "gold") {
+        depositGoldTo(reward.amount);
+        continue;
+      }
       if (reward.type !== "item") continue;
       for (let n = 0; n < reward.quantity; n += 1) {
         throwItem({

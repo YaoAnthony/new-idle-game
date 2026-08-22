@@ -28,6 +28,15 @@ export type RewardDefinition =
   | {
       type: "unlock";
       featureId: FeatureId;
+    }
+  | {
+      /**
+       * 金币。**不吐成地上的东西**——金币直接进罐（罐就是钱包），
+       * 而罐满了多的部分会溢出丢失。吐成实物的话玩家能捡起来揣着，
+       * 那"容量就是持有上限"这条规则当场作废。
+       */
+      type: "gold";
+      amount: number;
     };
 
 export type EventDefinition = {

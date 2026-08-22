@@ -4,17 +4,38 @@
 纯本地小工具，不进版本库的正式产物——按需重跑即可。
 """
 import io
+import os
 import re
 import markdown
 
 BASE = r"C:/my folder/游戏项目/new-idle-game/Frontend-3D/gpt设计稿/金币与商店"
 OUT = BASE + "/HTML/index.html"
 
-DOCS = [
-    ("01-期0-清场", "期0 · 清场"),
-    ("02-期1-领地扩展", "期1 · 领地扩展"),
-    ("03-期2-建筑与升级", "期2 · 建筑与升级"),
-]
+# 文档清单**自动发现**，不写死。
+#
+# 原来这里是一份手写的三项列表，加了 04（女巫小屋）和 05（石傀儡）之后
+# 没人记得回来登记——于是重跑 build.py 生成的 HTML 里始终只有前三份，
+# 而且不报错、不缺页，只是少了两章，看的人根本不知道。
+#
+# 侧边导航的标题从文件名推：`03-期2-建筑与升级` → `期2 · 建筑与升级`。
+# 排序按文件名前缀的两位数字，所以新文档只要按 `NN-标题` 命名就自动进来。
+def discover():
+    names = sorted(
+        n[:-3] for n in os.listdir(BASE)
+        if re.match(r"^\d\d-.+\.md$", n)
+    )
+    out = []
+    for slug in names:
+        # 去掉 "NN-" 前缀，把剩下的第一个 "-" 换成 " · " 当分隔
+        title = slug.split("-", 1)[1]
+        parts = title.split("-", 1)
+        out.append((slug, " · ".join(parts) if len(parts) > 1 else title))
+    return out
+
+
+DOCS = discover()
+if not DOCS:
+    raise SystemExit("没有找到任何 NN-*.md，检查 BASE 路径：" + BASE)
 
 md = markdown.Markdown(extensions=["tables", "fenced_code", "sane_lists"])
 

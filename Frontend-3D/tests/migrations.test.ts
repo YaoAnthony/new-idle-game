@@ -25,7 +25,7 @@ function currentSave(): GameSave {
     player: {
       name: "旅人",
       avatar: { slots: {}, palettes: {} } as never,
-      missions: { daily: [], primary: [] },
+      actionChains: [],
       character: {
         inventory: [],
         needs: { hunger: 80, fatigue: 70 },

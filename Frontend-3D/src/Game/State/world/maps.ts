@@ -37,6 +37,26 @@ export function getWorld(): WorldRuntime {
 }
 
 /**
+ * 当前图上的某个房间（含它自己的 RoomAnchor）。查不到返回 undefined。
+ *
+ * 家具、门、掉落物都带 `roomId`，把它们的房本地坐标转成世界坐标必须用
+ * **自己那个房间**的锚点。今天到处拿 `getWorld().room`（主房间）去转，
+ * 是"一图一主屋"公理的另一份拷贝——它只在"这张图恰好只有一间屋"时
+ * 才碰巧正确，第二栋房子盖起来那天，里面的家具会被算到主屋的位置上。
+ *
+ * `MapDefinition.generateRooms` 本来就返回 `Record<roomId, RoomSave>`，
+ * 数据层天然容得下多间；缺的一直是这个按 id 取的入口。
+ */
+export function getRoom(roomId: string): RoomSave | undefined {
+  return worldState.rooms[roomId];
+}
+
+/** 当前图上的全部房间。只读——几何的写入口是 setRoomStowed / restoreWorld */
+export function getRooms(): Readonly<Record<string, RoomSave>> {
+  return worldState.rooms;
+}
+
+/**
  * 某张图的主房间几何（含 RoomAnchor）。出生点是房本地坐标
  * （spawnWorldOf 要拿房间锚点世界化），跨图取房间的唯一入口在这——
  * 当前图直接给活跃房间，别的图从搁置堆里翻。没访问过的图（还没生成

@@ -1,5 +1,5 @@
 import { BodyPosture, DayPhaseId, Facing, FurnitureCapability, WeatherKind, anchorOf, anchorRectToWorld, findItemDefinition, findPath, findPetDefinition, roomCellToWorld, worldToRoomCell, worldToRoomLocal, type DeckRect, type WeatherDefinition, yardBoundsOf } from "core";
-import type { InteractHint } from "core";
+import type { InteractHint, PlacedFurniture, RoomSave } from "core";
 import {
   PointLight,
   Raycaster,
@@ -95,6 +95,7 @@ import {
   getCurrentMap,
   getCurrentMapId,
   getDefinition,
+  getRoom,
   getRoomStyle,
   getWorld,
   groundHeightAt,
@@ -189,6 +190,44 @@ import {
 } from "./House/index.js";
 import { OutdoorScene } from "./OutdoorScene.js";
 
+/**
+ * 一栋**站着的**房子在镜头眼里的样子。
+ *
+ * 没有 `stowed` 字段是刻意的：收起来的房子根本不进这个列表
+ * （standingHouses 过滤掉），所以拿到一份 HouseFootprint 就意味着
+ * "这栋房子此刻真的立在世界上"——判据少一个分支，也少一处漏判。
+ *
+ * 带 `roomId` 而不只是一个矩形，是因为镜头要答的问题变了：
+ * 从"人在屋里吗"变成"人在**哪一栋**里"。领地上会同时站两栋以上
+ * 可进的建筑（房子、陆地小屋），一个布尔答不了后一个问题。
+ */
+type HouseFootprint = {
+  roomId: string;
+  rect: DeckRect;
+  /** 屋内地板的世界 Y（= 这栋房子锚点的 elevation），屋内盒的下沿 */
+  floorY: number;
+  wallHeight: number;
+  ridgeHeight: number;
+};
+
+/**
+ * 点到矩形的**有符号**距离：正 = 在外面多远（按最深越界的那根轴），
+ * 负 = 在里面多深，0 = 正好压线。
+ *
+ * 要的是连续量不是布尔——0.25 的滞回靠它：站在门槛上反复横跳时，
+ * 两套镜头盒子才不会来回切。四向旋转下矩形转完还是轴对齐矩形，
+ * 所以 AABB 不丢精度；哪天房子不再是矩形（L 形、别馆），这里要改成
+ * 按承托面判，滞回另想办法。
+ */
+function outsideDistance(rect: DeckRect, at: { x: number; z: number }): number {
+  return Math.max(
+    rect.minX - at.x,
+    at.x - rect.maxX,
+    rect.minZ - at.z,
+    at.z - rect.maxZ,
+  );
+}
+
 export type SceneDebugState = {
   phase: DayPhaseId;
   weather: WeatherKind;
@@ -206,6 +245,19 @@ export class RoomScene {
   private readonly renderer: RendererHandle;
   private readonly lighting: Lighting;
   private readonly built: BuiltHouse;
+  /**
+   * 这张图上**每一栋有内景的建筑**：房间几何 + 它建出来的那副躯壳。
+   *
+   * 今天长度恒为 1（主屋），但镜头从第一天就按列表算。理由不是"将来
+   * 可能有第二栋"，而是**已经定了会有**：房子和陆地小屋都是同图走进去的，
+   * 领地上会同时站两栋以上可进的建筑。等到第二栋盖起来那天再改，
+   * 就是把刚收口的判据再拆一遍——今天做和那时做工作量相同，
+   * 区别只是那时要在更大的改动里夹带它。
+   *
+   * `built` 单数保留不删：门、窗、陈设、外景尺寸、光照仍只认主屋，
+   * 那些是**地理基准**（据点多大、樱花树离北墙多远），不该跟第二栋走。
+   */
+  private readonly houses: Array<{ room: RoomSave; built: BuiltHouse }> = [];
   private readonly windowViews: WindowView[] = [];
   private readonly outdoor: OutdoorScene;
   private readonly fogField: FogField;
@@ -264,8 +316,15 @@ export class RoomScene {
   /** 坐下之前站在哪，起身时退回去 */
   private restingReturnTo: { x: number; z: number } | null = null;
 
-  /** 镜头当前用的是不是院子边界盒（玩家在屋外）。滞回用 */
-  private cameraOutdoors = false;
+  /**
+   * 镜头此刻锁在**哪一栋**房子的屋内盒里；`null` = 用院子的盒子。滞回用。
+   *
+   * 原来这里是一个布尔 `cameraOutdoors`。布尔答得了"在不在屋里"，
+   * 答不了"在哪一栋里"——两栋紧挨着时，中间那条缝上"离开 A"和
+   * "进入 B"会同一帧成立，一个布尔在两套盒子之间抽搐，答案取决于
+   * 谁先算。存 roomId 之后滞回按栋问，缝里也不抖。
+   */
+  private cameraInsideRoomId: string | null = null;
 
   /** 换图后置真：这个场景在等 React 拆，update 全跳过（防踩落点的竞态） */
   private travelFrozen = false;
@@ -311,6 +370,12 @@ export class RoomScene {
       getCurrentMap().openAir ?? false,
     );
     this.scene.add(this.built.root);
+    /*
+     * 登记进"有内景的建筑"列表。今天只有这一条——地图定义里 base 只
+     * generateRooms 出一间 living。第二栋（陆地小屋、以后的仓库工坊）
+     * 是多 push 一条，不是改判据。
+     */
+    this.houses.push({ room, built: this.built });
 
     // 长在房上的陈设（门前广场、储物角…）：挂 root 底下随锚点走，
     // 坐标是房本地系（见 Maps/index 的 houseDressingOf）。
@@ -387,24 +452,35 @@ export class RoomScene {
        * 着色器按每条视线穿过盒子的长度扣雾——屋里看屋里 0 雾，屋里看
        * 窗外只算窗外那段，屋外看窗里也是清的。
        *
-       * 几何和镜头那三处**真的**同一份了（houseRectWorld）。这条注释
+       * 几何和镜头那几处**真的**同一份了（standingHouses）。这条注释
        * 原来就写着"别各写一套"，可它自己就是第二套：`±size.width / 2`
        * 那份拷贝既不认锚点也不认收起，于是房子挪走之后雾在原点那片
        * 空气里被挖掉一块，房子收起来之后站在旧址上大雾天照样是晴的。
        *
        * 没有房子就没有庇护：露天图（openAir）和收起来的房子都给 null。
+       *
+       * **已知边界：着色器今天只收一个盒子**，所以这里取 standingHouses()[0]
+       * ——第二栋的屋里会照样起雾。要修得改 Engine/fogShelter，把 uniform
+       * 换成数组 + GLSL 里循环。这条不藏在 TODO 里，写在它生效的地方。
+       *
+       * 刻意取 [0] 而不是把几栋合并成一个大包围盒：两栋之间的院子会被
+       * 合进去，那片露天地方就成了"雾进不去的空地"，比第二栋屋里有雾
+       * 更难看也更难解释。
+       *
+       * 变量叫 shelterHouse 不叫 shelter：上面那个 shelter 是**雾毯**的
+       * 庇护矩形（地图声明的 map.shelter），两者同名会读成一回事。
        */
-      const houseRect = this.houseRectWorld();
-      if (map.openAir || !houseRect) {
+      const shelterHouse = this.standingHouses()[0];
+      if (map.openAir || !shelterHouse) {
         setFogShelter(null);
       } else {
         setFogShelter({
-          minX: houseRect.minX,
-          maxX: houseRect.maxX,
+          minX: shelterHouse.rect.minX,
+          maxX: shelterHouse.rect.maxX,
           minY: -map.floorLevel,
-          maxY: this.built.ridgeHeight,
-          minZ: houseRect.minZ,
-          maxZ: houseRect.maxZ,
+          maxY: shelterHouse.ridgeHeight,
+          minZ: shelterHouse.rect.minZ,
+          maxZ: shelterHouse.rect.maxZ,
         });
       }
     }
@@ -1100,15 +1176,7 @@ export class RoomScene {
       }
       return;
     }
-    const { placedFurniture, room } = getWorld();
-    const { width, depth } = this.built.size;
-    /*
-     * 玩家位置转进**房本地系**再和占地比：家具的 gridPosition 是房本地
-     * 格坐标，拿它直接减 width/2 当世界坐标用（原来那样），是"房子中心=
-     * 世界原点"公理在交互扫描里的一份拷贝——房子一挪，站在灶台前也锁
-     * 不上目标。距离在刚体变换下不变，所以换到本地系算出来的数一模一样。
-     */
-    const here = worldToRoomLocal(room, this.controller.x, this.controller.z);
+    const { placedFurniture } = getWorld();
 
     let best:
       | {
@@ -1158,7 +1226,7 @@ export class RoomScene {
       const center = furnitureWorldCenter(
         placed,
         definition.placement,
-        getWorld().room,
+        this.roomOfFurniture(placed),
       );
       const distance = Math.hypot(
         center.x - this.controller.x,
@@ -1298,9 +1366,20 @@ export class RoomScene {
        * L 形橱柜占 6×4，中心离灶眼就有 2.35 米，玩家贴着灶台站着
        * 也锁不上交互目标，"灶台上放不了东西"就是这么来的。
        * 按最近边算，家具多大都能正常交互。
+       *
+       * 玩家位置转进**这件家具自己房间**的本地系再比：gridPosition 是
+       * 房本地格坐标，减的半宽半深必须是**那个房间**的 floorGrid，
+       * 用的锚点也必须是那个房间的。距离在刚体变换下不变，所以换到
+       * 本地系算出来的数和世界系一模一样。
        */
-      const minX = gridPosition.x - width / 2;
-      const minZ = gridPosition.y - depth / 2;
+      const furnitureRoom = this.roomOfFurniture(placed);
+      const here = worldToRoomLocal(
+        furnitureRoom,
+        this.controller.x,
+        this.controller.z,
+      );
+      const minX = gridPosition.x - furnitureRoom.floorGrid.width / 2;
+      const minZ = gridPosition.y - furnitureRoom.floorGrid.height / 2;
       const distance = Math.hypot(
         Math.max(minX - here.x, 0, here.x - (minX + w)),
         Math.max(minZ - here.z, 0, here.z - (minZ + h)),
@@ -2231,52 +2310,69 @@ export class RoomScene {
     this.rig.exitOverview();
     // 边界盒是进出屋时才切的（syncCameraBounds 有滞回），全景期间没走过
     // 那条路；回来直接按当前所在重设一次，免得第一帧还用着旧盒子。
-    // 原来靠"先把 cameraOutdoors 取反"骗过早退——那在状态本来就正确时
-    // 会先切成错的再切回来，force 参数把这个手法换成明说
+    // 原来靠"先把 cameraOutdoors 那个布尔取反"骗过早退——那在状态本来
+    // 就正确时会先切成错的再切回来，force 参数把这个手法换成明说
+    // （布尔换成 cameraInsideRoomId 之后，取反这招连写都写不出来了）
     this.syncCameraBounds(true);
     this.rig.snapBehind(this.controller.heading);
   }
 
   /**
-   * 玩家进出屋子时切镜头边界盒。
+   * 玩家走进 / 走出**某一栋**房子时切镜头边界盒。
    *
-   * 屋内是房子的内壁盒（弹簧臂贴墙收臂那套）；屋外换成整个院子，
-   * **同时把房子设成禁入盒**——不切的话人一出门，镜头目标还被夹在
-   * 房子里，人越走越远直到出画。
+   * 屋内是那一栋的内壁盒（弹簧臂贴墙收臂那套）；屋外换成整个院子，
+   * **同时把每栋站着的房子都设成禁入盒**——不切的话人一出门，镜头目标
+   * 还被夹在房子里，人越走越远直到出画。
    *
-   * 判据按房子占地的**四条边**判（V0.13 修复：原来只看西墙一条线
+   * 问的问题是"人在**哪一栋**里"而不是"人在不在屋里"。后者是个布尔，
+   * 只在"一图恰好一栋房"时够用；房子和陆地小屋都是同图走进去的，
+   * 领地上会同时站两栋以上可进的建筑，布尔到那天答不了。
+   *
+   * 判据按每栋占地的**四条边**判（V0.13 修复：原来只看西墙一条线
    * `x < -width/2`，人绕到北/东/南面时系统仍认为在屋内，把镜头枢轴
    * 硬夹回屋内边界盒——"贴着外墙走镜头被吸进屋"的病根就是这一行）。
    * 几何和 worldRuntime 的 isIndoors 同一份，这里多了 0.25 的滞回：
    * 站在门槛上反复横跳时两套盒子来回切，滞回把抖动吃掉。
    *
-   * 屋外的禁入盒罩到屋脊：房子现在有外墙皮和屋顶（阶段 B），镜头
+   * 屋外的禁入盒罩到**各自的**屋脊：房子有外墙皮和屋顶（阶段 B），镜头
    * 缩进去会在近平面切出闪烁的碎片。房子挡住视线但没挡到弹簧臂的
    * 情况走遮挡淡出（refreshOccluders 的三组墙体），不归这里管。
    */
   private syncCameraBounds(force = false): void {
-    const { width, depth } = this.built.size;
-    const house = this.houseRectWorld();
+    const standing = this.standingHouses();
+    const at = { x: this.controller.x, z: this.controller.z };
 
     /*
-     * 正值 = 在房子占地外多远（按最深越界的轴算）。房子不在场时是
-     * +Infinity——收起来的据点整片都是室外，没有"进屋"这回事。
+     * **两个问题分开问**，别合成一个布尔：
+     *   1. 还在原来锁着的那一栋里吗——离开要越出 0.25
+     *   2. 进了哪一栋——进入要深入 0.25
+     *
+     * 合成一个布尔的话，两栋紧挨着时中间那条缝会抽搐："离开 A"和
+     * "进入 B"同一帧成立，答案取决于谁先算。按栋各问一次就不会。
+     * 一栋房子都没站着（全收起来了）时两问都答 null，整片是室外——
+     * 那正是收起来的据点该有的样子。
      */
-    const outside = house
-      ? Math.max(
-          house.minX - this.controller.x,
-          this.controller.x - house.maxX,
-          house.minZ - this.controller.z,
-          this.controller.z - house.maxZ,
-        )
-      : Infinity;
-    const next = this.cameraOutdoors ? outside > -0.25 : outside > 0.25;
-    if (next === this.cameraOutdoors && !force) return;
-    this.cameraOutdoors = next;
+    const current = this.cameraInsideRoomId
+      ? standing.find((house) => house.roomId === this.cameraInsideRoomId)
+      : undefined;
+    const next =
+      current && outsideDistance(current.rect, at) <= 0.25
+        ? current
+        : (standing.find((house) => outsideDistance(house.rect, at) < -0.25) ??
+          null);
+
+    const nextRoomId = next?.roomId ?? null;
+    if (nextRoomId === this.cameraInsideRoomId && !force) return;
+    this.cameraInsideRoomId = nextRoomId;
     // 雾不在这里切：屋里屋外由 fogShelter 在着色器里按射线算，进出屋不用通知谁
 
-    if (next) {
+    if (!next) {
       const map = getCurrentMap();
+      /*
+       * 院子的取景范围按**主屋**算，不按站着的房子并集算：这是**地理**
+       * （据点多大），不是"现在有几栋楼"。房子收起来据点也不该缩水一圈。
+       */
+      const { width, depth } = this.built.size;
       const bounds = yardBoundsOf(map, { width, height: depth });
       this.rig.setBoundsRect(
         bounds.minX,
@@ -2289,22 +2385,21 @@ export class RoomScene {
         -map.floorLevel,
       );
       this.rig.setObstacleBoxes([
-        // 房子的禁入盒。收起来时**没有这一条**（house 为 null）：
-        // 那片空地上什么都没有，还留着盒子就是一堵看不见的墙推着镜头
-        ...(house
-          ? [
-              {
-                minX: house.minX - 0.3,
-                maxX: house.maxX + 0.3,
-                // 房子架空之后底面在院子地面上，禁入盒要跟着下探——
-                // 不然镜头能从基礎底下的那条缝钻进屋里
-                minY: -map.floorLevel,
-                maxY: this.built.ridgeHeight + 0.1,
-                minZ: house.minZ - 0.3,
-                maxZ: house.maxZ + 0.3,
-              },
-            ]
-          : []),
+        // 每栋站着的房子一个禁入盒。收起来的房子**没有这一条**
+        // （它不在 standing 里）：那片空地上什么都没有，还留着盒子
+        // 就是一堵看不见的墙推着镜头
+        ...standing.map((house) => ({
+          minX: house.rect.minX - 0.3,
+          maxX: house.rect.maxX + 0.3,
+          // 房子架空之后底面在院子地面上，禁入盒要跟着下探——
+          // 不然镜头能从基礎底下的那条缝钻进屋里
+          minY: -map.floorLevel,
+          // 各按自己的屋脊：小屋矮、塔屋挑高，用主屋那份会把矮屋顶
+          // 上方一大片空气也划成禁区
+          maxY: house.ridgeHeight + 0.1,
+          minZ: house.rect.minZ - 0.3,
+          maxZ: house.rect.maxZ + 0.3,
+        })),
         /*
          * 室外的实心建筑（小镇那六家店）也要挡镜头。它们和挡人用的
          * 是**同一份 outdoorBlockers**——挡得住人却挡不住镜头的话，
@@ -2323,57 +2418,81 @@ export class RoomScene {
         })),
       ]);
     } else {
-      // 屋内盒 = 房子的占地，**从锚点推**。走到这一支说明 house 非 null
-      // （outside 有限才可能判成室内），但类型上兜一下底
-      const rect = house ?? {
-        minX: -width / 2,
-        maxX: width / 2,
-        minZ: -depth / 2,
-        maxZ: depth / 2,
-      };
-      const floorY = anchorOf(getWorld().room).elevation;
+      /*
+       * 屋内盒 = **人正待着的那一栋**的占地，矩形、地板标高、墙高
+       * 全取自它自己。原来这里读主房间的锚点，那在只有一栋时碰巧
+       * 对——人走进第二栋，镜头会锁进主屋的盒子里，从屋顶上方俯视
+       * 穿进去看。
+       *
+       * 不再需要"house 为 null 时兜底一个以原点为中心的矩形"：
+       * 走到这一支就有 next，类型上也是非空的。那份兜底本身就是
+       * 「房子中心=世界原点」公理的残留。
+       */
       this.rig.setBoundsRect(
-        rect.minX,
-        rect.maxX,
-        rect.minZ,
-        rect.maxZ,
-        floorY + this.ceilingClearance(),
+        next.rect.minX,
+        next.rect.maxX,
+        next.rect.minZ,
+        next.rect.maxZ,
+        next.floorY + this.ceilingClearanceOf(next),
         undefined,
-        floorY,
+        next.floorY,
       );
       this.rig.setObstacleBoxes([]);
     }
   }
 
   /**
-   * 房子在世界里的占地矩形；**收起来时没有**（null）。
+   * 此刻**立在世界上的每一栋**房子的占地矩形和竖向尺寸。收起来的不在里面。
    *
-   * 镜头的三处判据（进没进屋、屋内盒、屋外禁入盒）全从这一个矩形推。
+   * 镜头的三处判据（在哪一栋里、屋内盒、屋外禁入盒）全从这一个列表推。
    * 原来那三处各自写着 `±built.size.width / 2`——那是"房子中心=世界
    * 原点、且轴对齐"这条公理最后一份没被扫掉的拷贝（躲过上一轮是因为
-   * 它写的是 built.size 不是 floorGrid，grep 没命中）。后果有两个：
-   * 房子挪走之后镜头还锁在原点那片空气上；房子收起来之后走进旧址，
-   * 镜头被夹进一个不存在的盒子，当场抖一下。
+   * 它写的是 built.size 不是 floorGrid，grep 没命中）。0a 把它们收进了
+   * 一个 `houseRectWorld()`，但那个函数是**单数**的：它没写"只有一栋"，
+   * 结构上却只容得下一栋——和"房子中心=原点"是同一类隐含公理。
+   *
+   * 每栋按**自己的**锚点算世界矩形、取**自己的**墙高屋脊标高，
+   * 不共用主屋那份：第二栋的墙高和主屋不一样是常态（小屋矮、塔屋挑高）。
    *
    * 矩形和 GroundMap 的室内地板面是**同一个**（同一份 floorGrid、
-   * 同一个锚点、同样在收起时消失），所以"outside <= 0"和 worldRuntime
-   * 的 isIndoors 永远同答——那句"几何和 isIndoors 同一份"的注释
-   * 到这里才重新成立。
-   *
-   * 用世界 AABB 而不是承托面查询，是为了拿到**连续的**越界距离：
-   * 0.25 的滞回要靠它，站在门槛上反复横跳才不会来回切盒子。四向旋转
-   * 下矩形转完还是轴对齐矩形，所以 AABB 不丢精度；哪天房子不再是
-   * 矩形（L 形、别馆），这里要改成按承托面判，滞回另想办法。
+   * 同一个锚点、同样在收起时消失），所以"outsideDistance <= 0"和
+   * worldRuntime 的 isIndoors 永远同答。
    */
-  private houseRectWorld(): DeckRect | null {
-    if (this.built.stowed) return null;
-    const { width, depth } = this.built.size;
-    return anchorRectToWorld(anchorOf(getWorld().room), {
-      minX: -width / 2,
-      maxX: width / 2,
-      minZ: -depth / 2,
-      maxZ: depth / 2,
-    });
+  /**
+   * 这件家具**属于哪个房间**的几何。
+   *
+   * 家具的 `gridPosition` 是它自己房间的本地格坐标，转世界坐标必须用
+   * 那个房间的锚点和 floorGrid。原来一律拿 `getWorld().room`（主房间）
+   * 去转，是"一图一主屋"公理在交互扫描里的一份拷贝——第二栋房子里的
+   * 家具会被算到主屋的位置上去，走到跟前也锁不上。
+   *
+   * 查不到（几何还没生成的图）退回主房间：至少不指到天外，
+   * 和 furnitureWorldCenter 对孤儿台面件报宿主原点是同一种兜底态度。
+   */
+  private roomOfFurniture(placed: PlacedFurniture): RoomSave {
+    return getRoom(placed.placement.roomId) ?? getWorld().room;
+  }
+
+  private standingHouses(): HouseFootprint[] {
+    const standing: HouseFootprint[] = [];
+    for (const { room, built } of this.houses) {
+      if (built.stowed) continue;
+      const anchor = anchorOf(room);
+      const { width, depth } = built.size;
+      standing.push({
+        roomId: room.roomId,
+        rect: anchorRectToWorld(anchor, {
+          minX: -width / 2,
+          maxX: width / 2,
+          minZ: -depth / 2,
+          maxZ: depth / 2,
+        }),
+        floorY: anchor.elevation,
+        wallHeight: built.wallHeight,
+        ridgeHeight: built.ridgeHeight,
+      });
+    }
+    return standing;
   }
 
   /** 调试传送（/tp 命令用）。走 controller 的 teleport，位置同步进 participants */
@@ -2407,13 +2526,14 @@ export class RoomScene {
 
 
   /**
-   * 镜头竖向上限。有屋顶就按墙高锁住（动森式的"镜头在屋里"），
-   * 露天场地和**收起来的房子**头顶没东西，给一个够高的数放开。
+   * 镜头在**这一栋**里的竖向上限。有屋顶就按这栋自己的墙高锁住
+   * （动森式的"镜头在屋里"），露天场地头顶没东西，给一个够高的数放开。
+   *
+   * 不再判 `stowed`：收起来的房子进不了 standingHouses，能拿到一份
+   * HouseFootprint 就说明这栋立着。少一个分支，也少一处能漏判的地方。
    */
-  private ceilingClearance(): number {
-    return getCurrentMap().openAir || this.built.stowed
-      ? 10
-      : this.built.wallHeight;
+  private ceilingClearanceOf(house: HouseFootprint): number {
+    return getCurrentMap().openAir ? 10 : house.wallHeight;
   }
 
   dispose(): void {

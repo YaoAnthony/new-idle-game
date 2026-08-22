@@ -1,7 +1,7 @@
 import { Facing, type BuildingPlacement } from "core";
 import { Object3D } from "three";
 import { FACING_ROTATION, FACING_VECTOR } from "../Game3D/World/furnitureMath.js";
-import { findBuilding } from "./index.js";
+import { findBuilding, findBuildingLevel } from "./index.js";
 import type { BuildingDefinition } from "./types.js";
 
 /**
@@ -24,9 +24,10 @@ export function buildingRect(placement: BuildingPlacement): {
   minZ: number;
   maxZ: number;
 } {
-  const definition = findBuilding(placement.buildingId);
-  const w = definition?.footprint.width ?? 1;
-  const d = definition?.footprint.height ?? 1;
+  // 占地挂在**等级**上：升级会变大（房子 8×6 → 10×8 → 12×10）
+  const level = findBuildingLevel(placement.buildingId, placement.levelId);
+  const w = level?.footprint.width ?? 1;
+  const d = level?.footprint.height ?? 1;
   const rotated =
     placement.facing === Facing.East || placement.facing === Facing.West;
   const halfW = (rotated ? d : w) / 2;
@@ -53,7 +54,8 @@ function toWorld(placement: BuildingPlacement, lx: number, lz: number): { x: num
 /** 店门中心的世界坐标 */
 export function buildingDoorAt(placement: BuildingPlacement): { x: number; z: number } {
   const definition = findBuilding(placement.buildingId);
-  const depth = definition?.footprint.height ?? 1;
+  // 进深挂在等级上（升级会变大），门偏移挂在型号上（门相对正面的位置不随级变）
+  const depth = findBuildingLevel(placement.buildingId, placement.levelId)?.footprint.height ?? 1;
   return toWorld(placement, definition?.doorOffset ?? 0, depth / 2);
 }
 
@@ -63,7 +65,7 @@ export function buildingDoorOutward(
   distance: number,
 ): { x: number; z: number } {
   const definition = findBuilding(placement.buildingId);
-  const depth = definition?.footprint.height ?? 1;
+  const depth = findBuildingLevel(placement.buildingId, placement.levelId)?.footprint.height ?? 1;
   return toWorld(placement, definition?.doorOffset ?? 0, depth / 2 + distance);
 }
 
@@ -96,9 +98,10 @@ export function buildingEntranceZone(
 
 /** 按摆放把一栋楼建出来（位置 + 台地标高 + 朝向） */
 export function buildPlacedBuilding(placement: BuildingPlacement): Object3D | null {
-  const definition = findBuilding(placement.buildingId);
-  if (!definition) return null;
-  const node = definition.build();
+  // 模型挂在**等级**上：升级换模型是这套设计的重点之一
+  const level = findBuildingLevel(placement.buildingId, placement.levelId);
+  if (!level) return null;
+  const node = level.build();
   node.name = `building-${placement.instanceId}`;
   node.position.set(placement.x, placement.elevation, placement.z);
   node.rotation.y = FACING_ROTATION[placement.facing];

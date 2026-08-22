@@ -1,3 +1,4 @@
+import type { BuildingPlacement } from "./building.js";
 import type { ChatMessage } from "./chat.js";
 import type { DailyBoardSave } from "./dailyTasks.js";
 import type { DoorSave } from "./doors.js";
@@ -69,6 +70,21 @@ export type DroppedItem = {
  * 生成出不一样的房间。
  */
 export type WorldSave = {
+  /**
+   * 玩家在领地里**建的**建筑。
+   *
+   * 小镇那六家不在这里——它们是地图内容（`MapDefinition.buildings`），
+   * 每次进图从定义生成，和 volatileRooms 同一条纪律。两种建筑的分工：
+   *
+   * |          | 小镇六家店 | 领地里玩家建的 |
+   * |---|---|---|
+   * | 数据在哪 | MapDefinition（内容） | 这里（状态） |
+   * | 谁创建   | 地图定义 | 玩家 |
+   * | 能移动升级 | 不能 | 能 |
+   * | 进不进存档 | 不进 | 进 |
+   */
+  buildings?: BuildingPlacement[];
+
   worldId: WorldId;
   seed: number;
   house: HouseSave;

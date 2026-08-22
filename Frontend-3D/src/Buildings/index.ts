@@ -4,7 +4,11 @@ import { cafe } from "./cafe.js";
 import { convenience } from "./convenience.js";
 import { market } from "./market.js";
 import { restaurant } from "./restaurant.js";
-import type { BuildingDefinition } from "./types.js";
+import type {
+  BuildingDefinition,
+  BuildingLevel,
+  BuildingLevelId,
+} from "./types.js";
 
 /**
  * 建筑型号注册表。
@@ -30,12 +34,36 @@ export function findBuilding(buildingId: string): BuildingDefinition | undefined
   return buildingDefinitions.find((d) => d.buildingId === buildingId);
 }
 
+/**
+ * 某个型号的某一级。**不给 levelId 就取初始等级**（levels[0]）。
+ *
+ * 读到存档里一个**没见过的 levelId** 时退回初始等级并告警，不抛——
+ * 照 `findPlaceableItem` 丢弃未知家具的先例：内容删过一级之后，
+ * 老存档里那个 id 不该让整个世界读不出来。
+ */
+export function findBuildingLevel(
+  buildingId: string,
+  levelId?: string,
+): BuildingLevel | undefined {
+  const definition = findBuilding(buildingId);
+  if (!definition) return undefined;
+  if (!levelId) return definition.levels[0];
+  const level = definition.levels.find((item) => item.levelId === levelId);
+  if (level) return level;
+  if (import.meta.env.DEV) {
+    console.warn(
+      `[buildings] ${buildingId} 没有等级 ${levelId}，退回初始等级 ${definition.levels[0]?.levelId}`,
+    );
+  }
+  return definition.levels[0];
+}
+
 /** 这个型号进去是哪张图（店铺内部地图注册表按它生成） */
 export function buildingInteriorMapId(buildingId: string): string | undefined {
   return findBuilding(buildingId)?.interiorMapId;
 }
 
-export type { BuildingDefinition };
+export type { BuildingDefinition, BuildingLevel, BuildingLevelId };
 export {
   buildingBlockers,
   buildingDoorAt,

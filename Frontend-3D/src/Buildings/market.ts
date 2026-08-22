@@ -12,41 +12,56 @@ import type { BuildingDefinition } from "./types.js";
 export const market: BuildingDefinition = {
   buildingId: "market",
   localizationKey: "map.shop_market",
-  footprint: { width: 11.5, height: 9.5 },
   doorOffset: 0,
   interiorMapId: "shop-market",
-  build: () => {
-    const house = buildTownhouse({
-      sign: "超市",
+  /*
+   * 小镇的店只有一级、不能升。包成 levels 是**一次机械改动**：型号从此
+   * 统一有等级维度，领地上的建筑才能升级，而这六家的行为一个字没变
+   * （没有 nextLevelIds = 已满级）。
+   *
+   * interiorMapId 留在型号上不动——那是换图进店，和领地建筑的同图内景
+   * 是两回事，两个字段并存各管各的。
+   */
+  levels: [
+    {
+      levelId: "l1",
+      localizationKey: "map.shop_market",
+      descriptionKey: "map.shop_market.desc",
       footprint: { width: 11.5, height: 9.5 },
-      jetty: 0.25,
-      palette: {
-        roof: "#3f7a5c",
-        roofDark: "#31614a",
-        wall: "#f2ead6",
-        timber: "#6b4a30",
-        accent: "#e8e0cc",
-        board: "#cfe0cf",
-      },
-    });
-    const { node, front, halfW } = house;
-    addAwning(node, 11.5 - 1.6, front, house.palette.accent, true, house.palette.timber);
+    build: () => {
+      const house = buildTownhouse({
+        sign: "超市",
+        footprint: { width: 11.5, height: 9.5 },
+        jetty: 0.25,
+        palette: {
+          roof: "#3f7a5c",
+          roofDark: "#31614a",
+          wall: "#f2ead6",
+          timber: "#6b4a30",
+          accent: "#e8e0cc",
+          board: "#cfe0cf",
+        },
+      });
+      const { node, front, halfW } = house;
+      addAwning(node, 11.5 - 1.6, front, house.palette.accent, true, house.palette.timber);
 
-    // 门口的果蔬箱：木箱码着，里面各一堆彩色球
-    const produce = ["#c0392b", "#e8b23c", "#7d9c5b"];
-    for (let i = 0; i < 3; i += 1) {
-      const bx = halfW - 1.4 - i * 1.5;
-      node.add(box([1.25, 0.6, 1.0], { color: PALETTE.woodMid, position: [bx, 0.3, front + 1.5] }));
-      for (let k = 0; k < 4; k += 1) {
-        node.add(
-          blob(0.19, 0, {
-            color: produce[i],
-            position: [bx - 0.35 + (k % 2) * 0.65, 0.72, front + 1.3 + Math.floor(k / 2) * 0.42],
-            castShadow: false,
-          }),
-        );
+      // 门口的果蔬箱：木箱码着，里面各一堆彩色球
+      const produce = ["#c0392b", "#e8b23c", "#7d9c5b"];
+      for (let i = 0; i < 3; i += 1) {
+        const bx = halfW - 1.4 - i * 1.5;
+        node.add(box([1.25, 0.6, 1.0], { color: PALETTE.woodMid, position: [bx, 0.3, front + 1.5] }));
+        for (let k = 0; k < 4; k += 1) {
+          node.add(
+            blob(0.19, 0, {
+              color: produce[i],
+              position: [bx - 0.35 + (k % 2) * 0.65, 0.72, front + 1.3 + Math.floor(k / 2) * 0.42],
+              castShadow: false,
+            }),
+          );
+        }
       }
-    }
-    return node as Object3D;
-  },
+      return node as Object3D;
+    },
+    },
+  ],
 };

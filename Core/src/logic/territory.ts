@@ -136,10 +136,15 @@ export function isInsideTerritory(
 }
 
 /**
- * 整个矩形都在领地里吗（家具占地、房子脚印用）。
+ * 整个矩形都落在**已开的地**上吗（家具占地、建筑脚印用）。
  *
- * 逐格问而不是只问四个角：领地是矩形拼出来的 L 形、凹形都有可能，
- * 四角全在里面中间却缺一块的情况真实存在。矩形边长以格为单位（整数格），
+ * 判据是每一格都 `owned`，**`outside` 不算数**——这一条比点判定
+ * `isInsideTerritory` 严。占一块地的东西和站在一个点上的人不一样：
+ * 人可以站到桥上（那是地理），但一栋半只脚踩在桥上、半只脚在自己院里的
+ * 房子是荒唐的。东西要占地，就得整个占在自己的地上。
+ *
+ * 逐格问而不是只问四个角：领地是矩形拼出来的，L 形、凹形都可能，
+ * 四角全在里面中间却缺一块的情况真实存在。矩形边长以格为单位，
  * 格数有限，逐格问的代价可以忽略。
  */
 export function rectInsideTerritory(
@@ -150,7 +155,7 @@ export function rectInsideTerritory(
   // 取格心问：整数边的矩形，格心是 x+0.5，永远落在某一格内部而不是边线上
   for (let x = Math.floor(rect.minX); x < Math.ceil(rect.maxX); x += 1) {
     for (let z = Math.floor(rect.minZ); z < Math.ceil(rect.maxZ); z += 1) {
-      if (!isInsideTerritory(definition, unlocked, x + 0.5, z + 0.5)) {
+      if (territoryStandingAt(definition, unlocked, x + 0.5, z + 0.5) !== "owned") {
         return false;
       }
     }

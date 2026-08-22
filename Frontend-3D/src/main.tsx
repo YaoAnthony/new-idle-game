@@ -16,6 +16,7 @@ import {
 } from 'core'
 import { buildingDefinitions } from './Buildings/index.ts'
 import { baseMapDefinition } from './Maps/base/index.ts'
+import { TERRITORY_RECT } from './Maps/base/layout.ts'
 import { spawnPosition } from './Game/State/participants.ts'
 import { auditItemVisuals } from './Game3D/Visual/VisualRegistry.ts'
 import { hasLocalizationKey } from './i18n/t.ts'
@@ -96,6 +97,10 @@ if (import.meta.env.DEV) {
   const territoryProblems = baseMapDefinition.territory
     ? auditTerritory(baseMapDefinition.territory, {
         spawn: { x: spawnWorld.x, z: spawnWorld.y },
+        hasLocalizationKey,
+        // 地块表是手写的（不再是公式生成的均匀网格），少一块、边界写错
+        // 都没有编译期信号，只能靠这条把它和院子网格对齐
+        expectedHull: TERRITORY_RECT,
       })
     : []
   if (territoryProblems.length > 0) {

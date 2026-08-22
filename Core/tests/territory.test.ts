@@ -144,6 +144,21 @@ test("audit：正常格盘通过", () => {
   assert.deepEqual(auditTerritory(territory, { spawn: { x: -2, z: 10 } }), []);
 });
 
+test("audit：地块表整体缩了一圈，expectedHull 要报出来", () => {
+  // 手写地块表最容易出的错：少写一块、或者边界数字打错，整张表照样
+  // "不重叠 + 是一整块矩形"，只是那块矩形不是院子网格该有的那块
+  const hull = { minX: -40, maxX: 20, minZ: -27, maxZ: 18 };
+  assert.deepEqual(
+    auditTerritory(territory, { spawn: { x: -2, z: 10 }, expectedHull: hull }),
+    [],
+  );
+
+  const shrunk = { ...hull, maxX: 5 };
+  const problems = auditTerritory(territory, { expectedHull: shrunk });
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /和院子网格.*对不上/);
+});
+
 test("audit：出生点落在 initial 格外要报错（开新档人会走不动）", () => {
   // (-8.5, -6) 是老出生点，在 B2 不在 C3
   const problems = auditTerritory(territory, { spawn: { x: -8.5, z: -6 } });

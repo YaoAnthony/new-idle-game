@@ -27,7 +27,19 @@ beforeEach(() => {
   if (getCurrentMapId() !== DEFAULT_MAP_ID) travelTo(DEFAULT_MAP_ID);
 });
 
-test("9×12、墙高 3、一扇大门在南墙、两扇房门", () => {
+/** 大门门心的世界坐标（从墙格推，不写死） */
+function room_doorWorld(living: ReturnType<typeof getRoom>): { x: number; z: number } {
+  const wall = living!.walls.south;
+  const door = wall.openings.find((o) => o.kind === WallOpeningKind.Door)!;
+  // 南墙沿 +x 从西端数；门心在墙格 x + 宽/2，贴着南边线 y = 深度
+  return roomCellToWorld(
+    living!,
+    door.gridPosition.x + door.size.width / 2 - 0.5,
+    living!.floorGrid.height - 0.5,
+  );
+}
+
+test("9×12、墙高 3、一扇大门在南墙、只剩洗手间一扇房门", () => {
   const room = generateCottageL1({ roomId: "living", style: roomStyleDefinitions[0] });
   expect(room.floorGrid).toEqual(COTTAGE_SIZE);
   expect(room.walls.south.grid.height).toBe(3);
@@ -37,12 +49,16 @@ test("9×12、墙高 3、一扇大门在南墙、两扇房门", () => {
   expect(doors[0].openingId).toBe("south-door");
   expect(room.walls.south.openings.some((o) => o.openingId === "south-door")).toBe(true);
 
-  expect(room.interiorDoorways?.map((d) => d.doorwayId).sort()).toEqual([
-    "doorway-bath",
-    "doorway-bedroom",
-  ]);
-  // 有墙必有门：每道内墙线上都对应着门洞（两段墙之间留了口子）
-  expect(room.interiorWalls?.length).toBeGreaterThanOrEqual(4);
+  /*
+   * 卧室的墙拆了（2026-08-22）：屋里只剩洗手间一间关得上门的房间。
+   * 剩下的内墙是洗手间的东墙（列 x=3）和南墙（行 y=3，减掉门洞）。
+   */
+  expect(room.interiorDoorways?.map((d) => d.doorwayId)).toEqual(["doorway-bath"]);
+  expect(room.interiorWalls?.length).toBeGreaterThanOrEqual(2);
+  // 卧室那两道墙一段都不许留下
+  for (const wall of room.interiorWalls ?? []) {
+    expect(wall.from.y, `内墙 ${JSON.stringify(wall)} 探到了洗手间以南`).toBeLessThanOrEqual(3);
+  }
 });
 
 test("开局房子就立着，不再收起（期 1 的 T9 作废）", () => {
@@ -53,7 +69,7 @@ test("开局房子就立着，不再收起（期 1 的 T9 作废）", () => {
   expect(defaultPlacementRoom()).toBe("living");
 });
 
-test("小屋整个落在开局格 C3 里", () => {
+test("小屋整个落在开局格家院里", () => {
   const living = getRoom("living")!;
   const def = getCurrentMap().territory!;
   const none = new Set<string>();
@@ -63,7 +79,7 @@ test("小屋整个落在开局格 C3 里", () => {
   }
 });
 
-test("出生点在玄关里、在 C3 内、面朝大门", () => {
+test("出生点在玄关里、在开局格内、面朝大门", () => {
   const living = getRoom("living")!;
   const spawn = spawnWorldOf(baseMapDefinition.spawn, living);
   // 在屋里：世界点反算回房本地格要落在玄关分区 x1..2 / y10..11
@@ -74,8 +90,15 @@ test("出生点在玄关里、在 C3 内、面朝大门", () => {
   expect(cell.y).toBeLessThanOrEqual(11);
   // 在开局格内（territoryAudit 校验的正是这条）
   expect(territoryStandingAt(getCurrentMap().territory!, new Set(), spawn.x, spawn.y)).toBe("owned");
-  // 门在南墙，出生朝南（+z）
-  expect(Math.abs(spawn.heading)).toBeLessThan(1e-9);
+  /*
+   * 面朝大门。**不写死角度**：房子转了 180 度之后 heading 从 0 变成 π，
+   * 写死就等于每转一次房子改一次测试。判据换成"朝向和'从人到门'同向"
+   * ——那才是这条要钉的东西，而且下次再转房子它照样成立。
+   */
+  const door = room_doorWorld(living);
+  const dir = { x: Math.sin(spawn.heading), z: Math.cos(spawn.heading) };
+  const toDoor = { x: door.x - spawn.x, z: door.z - spawn.y };
+  expect(dir.x * toDoor.x + dir.z * toDoor.z, `朝向 ${spawn.heading} 没对着门`).toBeGreaterThan(0);
 });
 
 test("主屋脚印 108 格盖进院子的占用图", () => {
@@ -98,13 +121,17 @@ test("洗手间有瓷砖分区、卧室有分区、玄关贴着门", () => {
 
 // ---- 寻路：目标站不住的时候路的终点在哪 ----
 
-test("目标在北墙外的锁定格里：路在屋里贴墙那格停下，不穿墙去目标点", async () => {
+test("目标落在屋外站不住的地方：路在屋里停下，不穿墙去目标点", async () => {
   const { findRoute, invalidateNavGrid } = await import("../src/Game/Systems/navigation");
   const { isWalkable } = await import("../src/Game/State/worldRuntime");
   invalidateNavGrid();
-  // Arrange：灶台旁（LDK 里）→ 北墙外半米。北墙外是 C2，开局锁着，站不住
-  const from = { x: -0.5, z: 9.5 };
-  const to = { x: -2.5, z: 2.5 };
+  /*
+   * Arrange：屋里 → 屋外。headless 没有场景，院子的通行规则（outdoorPass）
+   * 没注册，所以屋外一律站不住——正好是这条要的"目标站不住"。
+   * 房子占 x −10..−1 / z 5..17，(−5.5, 12) 在屋里，(−5.5, 22) 在屋外。
+   */
+  const from = { x: -5.5, z: 12 };
+  const to = { x: -5.5, z: 22 };
   expect(isWalkable(to.x, to.z, 0.3)).toBe(false);
 
   // Act
@@ -115,13 +142,13 @@ test("目标在北墙外的锁定格里：路在屋里贴墙那格停下，不�
   const end = route![route!.length - 1];
   expect(end).not.toEqual([to.x, to.z]);
   for (const [x, z] of route!) expect(isWalkable(x, z, 0.3), `路点 (${x}, ${z}) 站不住`).toBe(true);
-  // 终点还在屋里（z ≥ 3 是北墙），没有穿出去
-  expect(end[1]).toBeGreaterThanOrEqual(3);
+  // 终点还在屋里（南墙在 z=17），没有穿出去
+  expect(end[1]).toBeLessThanOrEqual(17);
 });
 
 test("目标本身站得住：终点用真实坐标，不吸到格心", async () => {
   const { findRoute } = await import("../src/Game/Systems/navigation");
   // 屋里两点（headless 没有场景，院子的通行规则没注册，只能在屋里测）
-  const route = findRoute({ x: -0.5, z: 9.5 }, { x: 0.3, z: 11.7 });
-  expect(route![route!.length - 1]).toEqual([0.3, 11.7]);
+  const route = findRoute({ x: -5.5, z: 12 }, { x: -6.2, z: 10.3 });
+  expect(route![route!.length - 1]).toEqual([-6.2, 10.3]);
 });

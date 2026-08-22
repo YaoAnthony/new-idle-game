@@ -41,13 +41,17 @@ beforeEach(() => {
 });
 
 /**
- * C3（开局格）里的空地：世界 (3.5, 16.5)，东南角那条 3 格宽的带子。
- * 默认的家（女巫小屋 9×12）占着 x −7..2 / z 3..15，C3 中央已经是它的脚印。
- * 小件（罐 2×2、田 3×2、小屋 3×3）放得下；8×6 的房子放不下，要先开 C2。
+ * 家院（开局格 x −15..5 / z −5..18）里的空地：世界 (3.5, 16.5)，
+ * 房子东边那条带子。默认的家（女巫小屋 9×12）占着 x −10..−1 / z 5..17。
+ * 小件（罐 2×2、田 3×2、小屋 3×3）放得下。
  */
 const HOME = { x: 3.5, z: 16.5 };
-/** C2 里的空地（房子型号要用）。用之前先 unlockPlotById("C2") */
-const C2 = { x: -2, z: -3 };
+/**
+ * 门前那片院子（房子北面，z −5..5）：8×6 的房子型号要这么大的空地才放得下。
+ * 家院变成 20×23 之后**不用再开第二块地**就摆得开——这正是把开局格
+ * 从 15×15 换成 20×23 的目的（2026-08-22）。
+ */
+const FRONT_YARD = { x: -2, z: -1 };
 
 test("在自己地里盖一栋：进列表、拿到初始等级", () => {
   const result = placeBuilding("gold_jar", HOME.x, HOME.z, Facing.North);
@@ -60,13 +64,13 @@ test("在自己地里盖一栋：进列表、拿到初始等级", () => {
 });
 
 test("往锁定格里盖被拒，理由是这块地还没开", () => {
-  // (0,0) 在 C2，开局锁着
-  const result = placeBuilding("gold_jar", 0, 0, Facing.North);
+  // (−20, 0) 在西边草地，开局锁着
+  const result = placeBuilding("gold_jar", -20, 0, Facing.North);
   expect(result).toEqual({ ok: false, reason: "outside_territory" });
 
-  // 开了 C2 之后同一处盖得下——证明拦的确实是领地
-  unlockPlotById("C2");
-  expect(placeBuilding("gold_jar", 0, 0, Facing.North).ok).toBe(true);
+  // 开了那块之后同一处盖得下——证明拦的确实是领地
+  unlockPlotById("west_meadow");
+  expect(placeBuilding("gold_jar", -20, 0, Facing.North).ok).toBe(true);
 });
 
 test("压到别的建筑要拒绝", () => {
@@ -77,9 +81,8 @@ test("压到别的建筑要拒绝", () => {
 });
 
 test("实例上限：房子只能有一栋，罐不限", () => {
-  unlockPlotById("C2");
-  expect(placeBuilding("house", C2.x, C2.z, Facing.North).ok).toBe(true);
-  const second = placeBuilding("house", C2.x, C2.z - 7, Facing.North);
+  expect(placeBuilding("house", FRONT_YARD.x, FRONT_YARD.z, Facing.North).ok).toBe(true);
+  const second = placeBuilding("house", FRONT_YARD.x, FRONT_YARD.z - 3, Facing.North);
   expect(second).toEqual({ ok: false, reason: "max_instances" });
 
   // 罐可以多建（容量相加是它的玩法）
@@ -108,8 +111,7 @@ test("升级不换 instanceId——升级是同一栋楼换了个等级", () => 
 });
 
 test("分叉：房子 l2 有两个后继，不给目标就不升", () => {
-  unlockPlotById("C2");
-  const built = placeBuilding("house", C2.x, C2.z, Facing.North);
+  const built = placeBuilding("house", FRONT_YARD.x, FRONT_YARD.z, Facing.North);
   const id = built.ok ? built.instanceId : "";
 
   // l1 只有一个后继 → 直接升
@@ -148,7 +150,9 @@ test("serialize 往返：建筑和等级都还在", () => {
 });
 
 test("格号换算能原路回读——同一个格号永远指同一个位置", () => {
-  const cell = { x: 30, y: 36 };
+  // 院子格 (38, 26) = 世界 (−1.5, −0.5)，门前那片院子里的空地
+  // （格号 = 世界坐标 − 领地西北角 (−40, −27)）
+  const cell = { x: 38, y: 26 };
   const built = placeBuildingAtCell("gold_jar", cell, Facing.North);
   expect(built.ok, JSON.stringify(built)).toBe(true);
 
@@ -160,7 +164,6 @@ test("格号换算能原路回读——同一个格号永远指同一个位置",
    * 就是最大的，领地扩展只改"哪些格可用"——格号不随开地移位，否则
    * 已放置的东西会集体错位。
    */
-  unlockPlotById("C2");
   expect(worldToYardCell(listBuildings()[0])).toEqual(cell);
 });
 
@@ -254,8 +257,7 @@ test("挪走一栋楼，内景锚点跟着走——走进去还是那间屋", ()
 });
 
 test("升级换的是几何不是身份：roomId 不变，内景尺寸变了", () => {
-  unlockPlotById("C2");
-  const built = placeBuilding("house", C2.x, C2.z, Facing.North);
+  const built = placeBuilding("house", FRONT_YARD.x, FRONT_YARD.z, Facing.North);
   const id = built.ok ? built.instanceId : "";
   const roomId = `house:${id}`;
 
@@ -278,8 +280,7 @@ test("拆掉一栋楼，它的内景房间跟着消失", () => {
 });
 
 test("塔屋（l3b）的内景墙高比 l3a 高——挑高是它和 3a 的分别", () => {
-  unlockPlotById("C2");
-  const built = placeBuilding("house", C2.x, C2.z, Facing.North);
+  const built = placeBuilding("house", FRONT_YARD.x, FRONT_YARD.z, Facing.North);
   const id = built.ok ? built.instanceId : "";
   upgradeBuilding(id); // l2
   upgradeBuilding(id, "l3b");

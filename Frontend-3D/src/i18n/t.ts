@@ -54,19 +54,15 @@ const ZH: Record<string, string> = {
   "building.house.l3b": "塔屋",
   "building.house.l3b.desc": "占地没变，人往上走：三层塔身顶着一圈观景平台。屋里是挑高的一间。",
 
-  // ---- 领地地块（期 1）----
-  "territory.plot.A1": "A1 区",
-  "territory.plot.A2": "A2 区",
-  "territory.plot.A3": "A3 区",
-  "territory.plot.B1": "B1 区",
-  "territory.plot.B2": "B2 区",
-  "territory.plot.B3": "B3 区",
-  "territory.plot.C1": "C1 区",
-  "territory.plot.C2": "C2 区",
-  "territory.plot.C3": "C3 区",
-  "territory.plot.D1": "D1 区",
-  "territory.plot.D2": "D2 区",
-  "territory.plot.D3": "D3 区",
+  // ---- 领地地块（期 1；2026-08-22 从 A1..D3 的均匀格盘换成手写的地块表）----
+  "territory.plot.home": "家院",
+  "territory.plot.west_meadow": "西边草地",
+  "territory.plot.south_bank": "西南滩地",
+  "territory.plot.northwest_wood": "西北林子",
+  "territory.plot.north_yard": "北面老宅地",
+  "territory.plot.north_grove": "北面小树林",
+  "territory.plot.east_grove": "东边树丛",
+  "territory.plot.east_bridge": "东岸桥头",
 
   "item.egg": "鸡蛋",
   "item.fried_tomato_egg": "番茄炒蛋",

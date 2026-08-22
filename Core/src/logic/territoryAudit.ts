@@ -14,6 +14,16 @@ export type TerritoryAuditOptions = {
   /** 出生点的世界坐标。给了就校验它落在 initial 格内 */
   spawn?: { x: number; z: number };
   hasLocalizationKey?: (key: string) => boolean;
+  /**
+   * 地块合起来**应该**铺满的那圈矩形，一般是院子网格的范围。
+   *
+   * 下面本来就查了"合起来是一整块矩形"，但没查那块矩形**是不是该在的
+   * 那块**：地块表整体缩了一圈照样过审，表现是院子网格外面一圈永远
+   * 走不到（或者反过来，领地探到网格外，那一条谁也管不着）。地块表
+   * 从公式生成改成手写之后这条尤其要紧——手写表少一块地不会有任何
+   * 编译期信号。
+   */
+  expectedHull?: { minX: number; maxX: number; minZ: number; maxZ: number };
 };
 
 export function auditTerritory(
@@ -79,6 +89,20 @@ export function auditTerritory(
       sum + (plot.rect.maxX - plot.rect.minX) * (plot.rect.maxZ - plot.rect.minZ),
     0,
   );
+  const expected = options.expectedHull;
+  if (
+    expected &&
+    (hull.minX !== expected.minX ||
+      hull.maxX !== expected.maxX ||
+      hull.minZ !== expected.minZ ||
+      hull.maxZ !== expected.maxZ)
+  ) {
+    problems.push(
+      `地块合起来的范围 x ${hull.minX}..${hull.maxX} / z ${hull.minZ}..${hull.maxZ}` +
+        ` 和院子网格 x ${expected.minX}..${expected.maxX} / z ${expected.minZ}..${expected.maxZ} 对不上`,
+    );
+  }
+
   if (hullArea !== sumArea) {
     // 不重叠已经单独查过，所以面积对不上只可能是"中间缺了一块"。
     // 缺口的表现是那片地永远开不了，而玩家看到的是一圈围栏里破了个洞

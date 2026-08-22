@@ -34,42 +34,50 @@ function yardCell(x: number, z: number): { x: number; y: number } {
   return worldToRoomCell(yard, x, z);
 }
 
-test("开局只有 C3，可开的是 C2 / B3 / D3", () => {
-  expect(ownedPlotIds()).toEqual(["C3"]);
-  expect(unlockablePlotIds().sort()).toEqual(["B3", "C2", "D3"]);
+test("开局只有家院，能开的是和它共边的五块", () => {
+  expect(ownedPlotIds()).toEqual(["home"]);
+  // 东岸桥头和西北林子都不和家院共边——那正是"扩两次才看得到桥"的由来
+  expect(unlockablePlotIds().sort()).toEqual([
+    "east_grove",
+    "north_grove",
+    "north_yard",
+    "south_bank",
+    "west_meadow",
+  ]);
 });
 
 test("开一块地写进 progression，serialize 往返之后还在", () => {
-  expect(unlockPlotById("C2")).toEqual({ ok: true });
-  expect(ownedPlotIds().sort()).toEqual(["C2", "C3"]);
+  expect(unlockPlotById("west_meadow")).toEqual({ ok: true });
+  expect(ownedPlotIds().sort()).toEqual(["home", "west_meadow"]);
 
   const save = serializeGameSave();
-  expect(save.ownWorld.progression.unlockedFeatureIds).toContain("plot.C2");
+  expect(save.ownWorld.progression.unlockedFeatureIds).toContain("plot.west_meadow");
   // initial 的那块**不写进存档**——它不该是可以被误删的数据
-  expect(save.ownWorld.progression.unlockedFeatureIds).not.toContain("plot.C3");
+  expect(save.ownWorld.progression.unlockedFeatureIds).not.toContain("plot.home");
 
   hydrateGameSave(save);
-  expect(ownedPlotIds().sort()).toEqual(["C2", "C3"]);
+  expect(ownedPlotIds().sort()).toEqual(["home", "west_meadow"]);
 });
 
-test("开局开不了隔着两格的 A1；已经拥有的报 owned；不存在的报 unknown", () => {
-  expect(unlockPlotById("A1")).toEqual({ ok: false, reason: "not_adjacent" });
-  expect(unlockPlotById("C3")).toEqual({ ok: false, reason: "owned" });
+test("开局开不了隔着一块的东岸；已经拥有的报 owned；不存在的报 unknown", () => {
+  expect(unlockPlotById("east_bridge")).toEqual({ ok: false, reason: "not_adjacent" });
+  expect(unlockPlotById("home")).toEqual({ ok: false, reason: "owned" });
   expect(unlockPlotById("Z9")).toEqual({ ok: false, reason: "unknown" });
 });
 
 test("领地判定：开局格内为真、锁定格为假、格外（桥）为真", () => {
-  expect(isInsideTerritory(-2, 10)).toBe(true); // C3
-  expect(isInsideTerritory(0, 0)).toBe(false); // C2，锁着
-  expect(isInsideTerritory(30, -4)).toBe(true); // 东桥，不属于任何格
-  unlockPlotById("C2");
-  expect(isInsideTerritory(0, 0)).toBe(true);
+  expect(isInsideTerritory(0, 0)).toBe(true); // 家院，房子北面的院子
+  expect(isInsideTerritory(-20, 0)).toBe(false); // 西边草地，锁着
+  expect(isInsideTerritory(30, -4)).toBe(true); // 东桥，在格盘外面，谁也不管
+  unlockPlotById("west_meadow");
+  expect(isInsideTerritory(-20, 0)).toBe(true);
 });
 
 test("矩形跨到锁定格就不算在领地内", () => {
-  // C3 是 x −10..5 / z 3..18
-  expect(rectInsideTerritory({ minX: -8, maxX: -6, minZ: 5, maxZ: 7 })).toBe(true);
-  expect(rectInsideTerritory({ minX: -8, maxX: -6, minZ: 1, maxZ: 5 })).toBe(false);
+  // 家院是 x −15..5 / z −5..18
+  expect(rectInsideTerritory({ minX: 0, maxX: 3, minZ: 0, maxZ: 3 })).toBe(true);
+  // 跨过西边线 x=−15 就踩进锁着的西边草地
+  expect(rectInsideTerritory({ minX: -17, maxX: -13, minZ: 0, maxZ: 3 })).toBe(false);
 });
 
 test("小镇没有领地，整图能走能建", () => {
@@ -93,7 +101,7 @@ test("院子有自己的占用图，和屋里那张不是同一张", () => {
 
 test("在院子里放一把椅子：进院子那张占用图，不进屋里那张", () => {
   const yardId = getCurrentMap().outdoorRoomId;
-  const cell = yardCell(3.5, 16.5); // C3 东南角的空地（小屋占着 x −7..2 / z 3..15）
+  const cell = yardCell(3.5, 16.5); // 家院东南角的空地（小屋占着 x −10..−1 / z 5..17）
   const check = placeFurniture("furniture_chair", cell, Facing.North, yardId);
   expect(check.ok, `摆椅子失败：${JSON.stringify(check)}`).toBe(true);
 
@@ -106,22 +114,22 @@ test("在院子里放一把椅子：进院子那张占用图，不进屋里那�
 });
 
 test("往锁定格里放东西被拒，理由是 outside_territory", () => {
-  // (0,0) 在 C2，开局锁着
+  // (−20, 0) 在西边草地，开局锁着
   const yardId = getCurrentMap().outdoorRoomId;
-  const check = placeFurniture("furniture_chair", yardCell(0, 0), Facing.North, yardId);
+  const check = placeFurniture("furniture_chair", yardCell(-20, 0), Facing.North, yardId);
   expect(check).toEqual({ ok: false, reason: "outside_territory" });
 
-  // 开了 C2 之后同一格放得下——这条证明拒绝的确实是领地，不是别的东西
-  unlockPlotById("C2");
-  expect(placeFurniture("furniture_chair", yardCell(0, 0), Facing.North, yardId).ok).toBe(true);
+  // 开了那块之后同一格放得下——这条证明拒绝的确实是领地，不是别的东西
+  unlockPlotById("west_meadow");
+  expect(placeFurniture("furniture_chair", yardCell(-20, 0), Facing.North, yardId).ok).toBe(true);
 });
 
 test("默认的家开局就立着：主屋脚印盖进院子的占用图", () => {
   const yardId = getCurrentMap().outdoorRoomId;
-  // 小屋锚点 (−2.5, 9)，占地 x −7..2 / z 3..15：中心那格该被挡住
-  const inside = yardCell(-2.5, 9);
+  // 小屋锚点 (−5.5, 11)，占地 x −10..−1 / z 5..17：中心那格该被挡住
+  const inside = yardCell(-5.5, 11);
   expect(getWorld().occupancyOf(yardId).blocked.has(`${inside.x},${inside.y}`)).toBe(true);
-  // 占地外一格（门口南边）是空的
-  const outside = yardCell(-2.5, 16.5);
+  // 占地外一格（门口北边的院子）是空的
+  const outside = yardCell(-5.5, 0);
   expect(getWorld().occupancyOf(yardId).blocked.has(`${outside.x},${outside.y}`)).toBe(false);
 });

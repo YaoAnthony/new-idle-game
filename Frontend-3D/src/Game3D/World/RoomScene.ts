@@ -1,4 +1,4 @@
-import { BodyPosture, DayPhaseId, Facing, FurnitureCapability, WeatherKind, anchorOf, anchorRectToWorld, findItemDefinition, findPath, findPetDefinition, roomCellToWorld, worldToRoomCell, worldToRoomLocal, type DeckRect, type WeatherDefinition, yardBoundsOf } from "core";
+import { BodyPosture, DayPhaseId, Facing, FurnitureCapability, WeatherKind, anchorOf, anchorRectToWorld, findItemDefinition, findPetDefinition, roomCellToWorld, worldToRoomLocal, type DeckRect, type WeatherDefinition, yardBoundsOf } from "core";
 import type { InteractHint, PlacedFurniture, RoomSave } from "core";
 import {
   PointLight,
@@ -102,6 +102,7 @@ import {
   roomIdAt,
   seedInitialFurniture,
 } from "../../Game/State/worldRuntime";
+import { findRoute } from "../../Game/Systems/navigation";
 import { houseDressingOf, outdoorTerrainOf } from "../../Maps/index";
 import { buildGroundFixtures } from "./groundFixtures.js";
 import { getActiveAction } from "../../Game/Systems/actions";
@@ -1066,21 +1067,32 @@ export class RoomScene {
       candidates.push({ x: gridPosition.x + w, y: gridPosition.y + dy });
     }
 
-    const start = worldToRoomCell(room, this.controller.x, this.controller.z);
+    /*
+     * 走**统一的室内外导航**（Systems/navigation 的 findRoute），不走屋内 A*。
+     *
+     * 屋内 A* 只认房子那一张格：人站在院子里时起点就越界，每个候选格都
+     * 返回 null，最后掉进下面"找不到路就原地进入专注"的兜底——那就是
+     * 用户报的"在外面开始任务，人不去找桌子，原地不动"。
+     *
+     * 不是寻路不支持院子：navigation 的导航网格盖着整个可走范围（注释
+     * 原话"室内房间本来就在它里面"），采样时当没锁的门都开着，`/goto town`
+     * 从客厅走到镇上靠的就是它。beginFocusSequence 是房间还等于整个世界
+     * 那个年代的代码，navigation 是后来为 /goto 做的，行动走位从没迁过去。
+     *
+     * **兜底语义不动**：屋里桌子被家具围死时"原地进入专注"仍是想要的
+     * 行为（至少不阻塞行动）。换掉的只是找路那一套。
+     */
+    const from = { x: this.controller.x, z: this.controller.z };
 
     this.controller.enabled = false;
 
     for (const cell of candidates) {
       if (occupancy.blocked.has(`${cell.x},${cell.y}`)) continue;
-      const path = findPath(room.floorGrid, occupancy, start, cell, {
-        allowBlockedGoal: false,
-      });
-      if (!path) continue;
+      const goal = roomCellToWorld(room, cell.x, cell.y);
+      // findRoute 出来的路点已经拉直（视线测试去掉锯齿），walkAlong 照走
+      const points = findRoute(from, goal);
+      if (!points) continue;
 
-      const points = path.map((p): [number, number] => {
-        const world = roomCellToWorld(room, p.x, p.y);
-        return [world.x, world.z];
-      });
       this.controller.walkAlong(points, () => {
         this.enterFocusPose(centerX, centerZ);
       });

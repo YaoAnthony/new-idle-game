@@ -1,4 +1,5 @@
 import { BodyPosture, DayPhaseId, Facing, FurnitureCapability, WeatherKind, anchorOf, anchorRectToWorld, findItemDefinition, findPetDefinition, roomCellToWorld, worldToRoomLocal, type DeckRect, type WeatherDefinition, yardBoundsOf } from "core";
+import { isHouseStowed } from "core";
 import type { InteractHint, PlacedFurniture, RoomSave } from "core";
 import {
   PointLight,
@@ -97,6 +98,7 @@ import {
   getDefinition,
   getRoom,
   getRoomStyle,
+  getRooms,
   getWorld,
   groundHeightAt,
   roomIdAt,
@@ -193,6 +195,11 @@ import { OutdoorScene } from "./OutdoorScene.js";
 import { BuildingsView } from "./BuildingsView.js";
 import { TerritoryView } from "./TerritoryView.js";
 
+/** 内景房间没写墙高时的兜底（和主屋户型同一个数） */
+const DEFAULT_INTERIOR_WALL_HEIGHT = 4;
+/** 屋脊比墙高出多少（估值，只用来定屋外禁入盒的顶，宁高勿低） */
+const RIDGE_OVER_WALL = 2.5;
+
 /**
  * 一栋**站着的**房子在镜头眼里的样子。
  *
@@ -248,19 +255,6 @@ export class RoomScene {
   private readonly renderer: RendererHandle;
   private readonly lighting: Lighting;
   private readonly built: BuiltHouse;
-  /**
-   * 这张图上**每一栋有内景的建筑**：房间几何 + 它建出来的那副躯壳。
-   *
-   * 今天长度恒为 1（主屋），但镜头从第一天就按列表算。理由不是"将来
-   * 可能有第二栋"，而是**已经定了会有**：房子和陆地小屋都是同图走进去的，
-   * 领地上会同时站两栋以上可进的建筑。等到第二栋盖起来那天再改，
-   * 就是把刚收口的判据再拆一遍——今天做和那时做工作量相同，
-   * 区别只是那时要在更大的改动里夹带它。
-   *
-   * `built` 单数保留不删：门、窗、陈设、外景尺寸、光照仍只认主屋，
-   * 那些是**地理基准**（据点多大、樱花树离北墙多远），不该跟第二栋走。
-   */
-  private readonly houses: Array<{ room: RoomSave; built: BuiltHouse }> = [];
   private readonly windowViews: WindowView[] = [];
   private readonly outdoor: OutdoorScene;
   /**
@@ -380,12 +374,6 @@ export class RoomScene {
       getCurrentMap().openAir ?? false,
     );
     this.scene.add(this.built.root);
-    /*
-     * 登记进"有内景的建筑"列表。今天只有这一条——地图定义里 base 只
-     * generateRooms 出一间 living。第二栋（陆地小屋、以后的仓库工坊）
-     * 是多 push 一条，不是改判据。
-     */
-    this.houses.push({ room, built: this.built });
 
     // 长在房上的陈设（门前广场、储物角…）：挂 root 底下随锚点走，
     // 坐标是房本地系（见 Maps/index 的 houseDressingOf）。
@@ -2501,10 +2489,34 @@ export class RoomScene {
 
   private standingHouses(): HouseFootprint[] {
     const standing: HouseFootprint[] = [];
-    for (const { room, built } of this.houses) {
-      if (built.stowed) continue;
+    const outdoorRoomId = getCurrentMap().outdoorRoomId;
+
+    /*
+     * 列表**从房间表推**，不从构造时攒的一份名单取。
+     *
+     * 期 2 起领地上的建筑（陆地小屋、房子）会往 `worldState.rooms` 里加
+     * 房间——建一栋加一间、拆一栋少一间、挪一栋换个锚点。构造时 push
+     * 一份名单的话，这些变化镜头一概不知道：走进新盖的小屋，镜头还锁在
+     * 院子的盒子里，从屋顶上方俯视穿进去看。
+     *
+     * 判据是"有墙的、不是室外分区的房间"：院子没有墙也不该有屋内盒；
+     * 收起来的房子（RoomSave.stowed）不在场，同样跳过。
+     */
+    for (const room of Object.values(getRooms()) as RoomSave[]) {
+      if (room.roomId === outdoorRoomId) continue;
+      if (isHouseStowed(room)) continue;
+      if (Object.keys(room.walls).length === 0) continue;
+
       const anchor = anchorOf(room);
-      const { width, depth } = built.size;
+      const { width, height: depth } = room.floorGrid;
+      /*
+       * 墙高从**墙格**读（`walls.*.grid.height`），不从 BuiltHouse 取：
+       * 建筑的内景没有 BuiltHouse，而墙高本来就是户型数据的一部分。
+       * 塔屋的挑高（墙高 8）能让镜头上限跟着走，靠的正是这一行。
+       */
+      const wallHeight =
+        Object.values(room.walls)[0]?.grid.height ?? DEFAULT_INTERIOR_WALL_HEIGHT;
+
       standing.push({
         roomId: room.roomId,
         rect: anchorRectToWorld(anchor, {
@@ -2514,8 +2526,16 @@ export class RoomScene {
           maxZ: depth / 2,
         }),
         floorY: anchor.elevation,
-        wallHeight: built.wallHeight,
-        ridgeHeight: built.ridgeHeight,
+        wallHeight,
+        /*
+         * 屋脊：主屋有真几何就用它的，别的房间按墙高加一个坡的估值。
+         * 这个数只用来定**屋外禁入盒的顶**，宁高勿低——低了镜头会从
+         * 屋顶上方钻进去。
+         */
+        ridgeHeight:
+          room.roomId === getCurrentMap().primaryRoomId
+            ? this.built.ridgeHeight
+            : wallHeight + RIDGE_OVER_WALL,
       });
     }
     return standing;

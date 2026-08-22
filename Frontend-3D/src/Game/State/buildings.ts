@@ -12,6 +12,7 @@ import {
   type DeckRect,
   type LevelShape,
   type RemoveCheck,
+  type RoomSave,
   type UpgradeCheck,
 } from "core";
 
@@ -20,7 +21,14 @@ import { guardWorldMutation } from "../Multiplayer/worldLock";
 import { nextObjectId, syncIdCounters } from "./ids";
 import { findBuilding, findBuildingLevel } from "../../Buildings/index";
 import { getUnlockedFeatures } from "../Systems/events";
-import { getCurrentMap, getRoom, getWorld } from "./worldRuntime";
+import {
+  getCurrentMap,
+  getRoom,
+  getRoomStyle,
+  getRooms,
+  getWorld,
+  replaceRooms,
+} from "./worldRuntime";
 
 /**
  * 玩家在领地里建的建筑：**唯一的读写口**。
@@ -166,6 +174,7 @@ export function placeBuilding(
     levelId: definition.levels[0].levelId,
   };
   placements = [...placements, placement];
+  syncBuildingInteriors();
   emit("world_changed", { reason: "buildings" });
   return { ok: true, instanceId: placement.instanceId };
 }
@@ -196,6 +205,8 @@ export function moveBuilding(
   placements = placements.map((item) =>
     item.instanceId === instanceId ? { ...item, x, z, facing: nextFacing } : item,
   );
+  // 内景锚点跟着走——走进去还是那间屋，家具还在原来的格上
+  syncBuildingInteriors();
   emit("world_changed", { reason: "buildings" });
   return { ok: true, instanceId };
 }
@@ -270,6 +281,8 @@ export function upgradeBuilding(
     // 位置全保留。这正是"升级 = 同一建筑的多个等级"那条决策的落点
     item.instanceId === instanceId ? { ...item, levelId: target } : item,
   );
+  // 升级换的是几何：roomId 不变，内景重新生成
+  syncBuildingInteriors();
   emit("world_changed", { reason: "buildings" });
   return { ok: true };
 }
@@ -289,8 +302,55 @@ export function removeBuilding(
   if (check.ok === false) return check;
 
   placements = placements.filter((item) => item.instanceId !== instanceId);
+  syncBuildingInteriors();
   emit("world_changed", { reason: "buildings" });
   return { ok: true };
+}
+
+
+/**
+ * 把**有内景的建筑**的房间同步进 `worldState.rooms`。
+ *
+ * 这是"同图走进去"那条架构的落点：小屋和房子的内景不是另一张图，
+ * 而是 base 图上多出来的几个房间——各有自己的 `floorGrid`、自己的墙、
+ * 自己的占用图，锚点就是那栋楼摆在哪。于是它们**自动**拿到了：
+ * 地板承托面（`buildGroundMap` 收全部房间）、镜头的屋内盒
+ * （`standingHouses` 遍历列表）、门、放置面。一条都不用特判。
+ *
+ * 每次建造 / 移动 / 升级 / 读档之后整份重算——**建筑变化是稀有事件**，
+ * 增量维护"哪个房间要改锚点、哪个要换几何"的复杂度换不来任何东西。
+ *
+ * 地图自带的房间（`living`、`yard`）不动：它们不属于任何建筑实例。
+ */
+export function syncBuildingInteriors(): void {
+  const style = getRoomStyle();
+  const owned = new Set(placements.map((item) => interiorRoomId(item)));
+
+  const next: Record<string, RoomSave> = {};
+  for (const [roomId, room] of Object.entries(getRooms())) {
+    // 留下地图自带的房间；上一轮建筑留下的内景房间按新名单重建
+    if (!roomId.includes(":")) next[roomId] = room;
+  }
+
+  for (const placement of placements) {
+    const level = findBuildingLevel(placement.buildingId, placement.levelId);
+    if (!level?.interior) continue;
+    const roomId = interiorRoomId(placement);
+    next[roomId] = {
+      ...level.interior(style),
+      roomId,
+      // 锚点 = 建筑的位置和朝向。房子挪走内景跟着走，一个字都不用另记
+      anchor: {
+        x: placement.x,
+        z: placement.z,
+        elevation: placement.elevation,
+        facing: placement.facing,
+      },
+    };
+  }
+
+  void owned;
+  replaceRooms(next);
 }
 
 // ---- 金币罐的总账（罐就是钱包）----
@@ -322,5 +382,6 @@ export function restoreBuildings(saved: BuildingPlacement[] | undefined): void {
    */
   placements = (saved ?? []).filter((item) => findBuilding(item.buildingId));
   syncIdCounters(placements.map((item) => item.instanceId));
+  syncBuildingInteriors();
   emit("world_changed", { reason: "buildings" });
 }

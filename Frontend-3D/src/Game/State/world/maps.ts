@@ -59,9 +59,19 @@ export function getRoom(roomId: string): RoomSave | undefined {
   return worldState.rooms[roomId];
 }
 
-/** 当前图上的全部房间。只读——几何的写入口是 setRoomStowed / restoreWorld */
+/** 当前图上的全部房间。只读——几何的写入口是下面那三个 */
 export function getRooms(): Readonly<Record<string, RoomSave>> {
   return worldState.rooms;
+}
+
+/**
+ * 整份换掉这张图的房间。**建筑的内景走这条**（`syncBuildingInteriors`）。
+ *
+ * 主房间的选取交给 `replaceRooms` 自己（它按 `map.primaryRoomId` 找）——
+ * 调用方不该知道"哪一间是主的"，那是地图定义的事。
+ */
+export function replaceRooms(next: Record<string, RoomSave>): void {
+  worldState.replaceRooms(next);
 }
 
 /**

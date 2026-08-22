@@ -19,7 +19,12 @@ import {
 } from "../src/Game/State/buildingCommands";
 import { resetTerritory, unlockPlotById } from "../src/Game/State/territory";
 import { clearAllFurniture } from "../src/Game/State/world/furniture";
-import { getCurrentMapId } from "../src/Game/State/worldRuntime";
+import {
+  getCurrentMap,
+  getCurrentMapId,
+  getRoom,
+  getWorld,
+} from "../src/Game/State/worldRuntime";
 import { travelTo } from "../src/Game/Systems/mapTravel";
 
 /**
@@ -200,4 +205,75 @@ test("读档丢弃未知型号的实例，但保留未知等级的那栋", () =>
   ]);
   expect(listBuildings()).toHaveLength(1);
   expect(listBuildings()[0].buildingId).toBe("gold_jar");
+});
+
+/*
+ * ---- 同图内景（2A-0 的核心）----
+ *
+ * 小屋和房子的内景不是另一张图，而是 base 图上多出来的房间。这条一成立，
+ * 它们自动拿到地板承托面、镜头屋内盒、门、放置面——一条都不用特判。
+ */
+
+test("盖一栋有内景的楼：这张图上多出一个房间，锚点就是楼的位置", () => {
+  const built = placeBuilding("land_cabin", HOME.x, HOME.z, Facing.North);
+  expect(built.ok, JSON.stringify(built)).toBe(true);
+  const id = built.ok ? built.instanceId : "";
+
+  const roomId = `land_cabin:${id}`;
+  const room = getRoom(roomId);
+  expect(room, `没有生成内景房间 ${roomId}`).toBeTruthy();
+  expect(room!.anchor?.x).toBe(HOME.x);
+  expect(room!.anchor?.z).toBe(HOME.z);
+  // 有墙必有门：南墙上那扇
+  expect(room!.walls.south.openings.some((o) => o.kind === "door")).toBe(true);
+
+  // 它有自己的占用图，和院子那张不是同一张
+  expect(getWorld().occupancyOf(roomId)).not.toBe(
+    getWorld().occupancyOf(getCurrentMap().outdoorRoomId),
+  );
+});
+
+test("挪走一栋楼，内景锚点跟着走——走进去还是那间屋", () => {
+  const built = placeBuilding("land_cabin", HOME.x, HOME.z, Facing.North);
+  const id = built.ok ? built.instanceId : "";
+  const roomId = `land_cabin:${id}`;
+
+  expect(moveBuilding(id, HOME.x + 5, HOME.z + 4).ok).toBe(true);
+  const room = getRoom(roomId);
+  expect(room!.anchor?.x).toBe(HOME.x + 5);
+  expect(room!.anchor?.z).toBe(HOME.z + 4);
+});
+
+test("升级换的是几何不是身份：roomId 不变，内景尺寸变了", () => {
+  const built = placeBuilding("house", HOME.x, HOME.z, Facing.North);
+  const id = built.ok ? built.instanceId : "";
+  const roomId = `house:${id}`;
+
+  const before = getRoom(roomId)!.floorGrid;
+  expect(upgradeBuilding(id).ok).toBe(true); // l1 → l2
+
+  const after = getRoom(roomId)!.floorGrid;
+  expect(getRoom(roomId), "roomId 不该随等级变").toBeTruthy();
+  expect(after.width).toBeGreaterThan(before.width);
+});
+
+test("拆掉一栋楼，它的内景房间跟着消失", () => {
+  const built = placeBuilding("land_cabin", HOME.x, HOME.z, Facing.North);
+  const id = built.ok ? built.instanceId : "";
+  const roomId = `land_cabin:${id}`;
+  expect(getRoom(roomId)).toBeTruthy();
+
+  expect(removeBuilding(id).ok).toBe(true);
+  expect(getRoom(roomId)).toBeUndefined();
+});
+
+test("塔屋（l3b）的内景墙高比 l3a 高——挑高是它和 3a 的分别", () => {
+  const built = placeBuilding("house", HOME.x, HOME.z, Facing.North);
+  const id = built.ok ? built.instanceId : "";
+  upgradeBuilding(id); // l2
+  upgradeBuilding(id, "l3b");
+
+  const room = getRoom(`house:${id}`)!;
+  // 墙格的 height 就是墙高；buildInterior 的 wallHeight 走这里
+  expect(room.walls.south.grid.height).toBe(8);
 });

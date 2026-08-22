@@ -238,11 +238,29 @@ export function isWalkable(
   if (!isStandable(currentGround(), x, z)) return false;
 
   /*
-   * 房子收起来了：没有屋内可言，整张图都走室外通道判定。
-   * 不加这一条的话，下面按**蓝图尺寸**算出来的那个矩形会变成一圈
-   * 看不见的墙——人走到房子原来的位置上会被挡住，而那儿明明是草地。
+   * **这个点属于哪间屋。**
+   *
+   * 从承托面推（`roomIdAt` 问的是脚下那块面的 roomId），不从
+   * "玩家在哪儿"推——`isWalkable` 被问的是任意一个点，寻路一帧要问
+   * 上千个，其中绝大多数不是玩家脚下那间。
+   *
+   * 期 2 起领地上会同时站几栋可进的建筑，每栋一间屋、各有自己的
+   * floorGrid 和占用图。原来这里写死 `worldState.room`（主房间），
+   * 那是"一图一主屋"公理在通行判定里的最后一份拷贝：走进新盖的小屋，
+   * 判定拿主屋的矩形去比，人当场被挡在自己家门口。
    */
-  if (isHouseStowed(worldState.room)) {
+  const here = roomIdAt(x, z);
+  const room =
+    here === worldState.map.outdoorRoomId ? undefined : worldState.rooms[here];
+
+  /*
+   * 脚下不是任何一间屋的地板（院子、桥、河岸），或者那间屋收起来了：
+   * 走室外通道判定。
+   *
+   * 收起来的房子必须走这条——不然按**蓝图尺寸**算出来的矩形会变成
+   * 一圈看不见的墙，人走到房子原来的位置上被挡住，而那儿明明是草地。
+   */
+  if (!room || isHouseStowed(room)) {
     return outdoorPass?.(x, z, radius) ?? false;
   }
 
@@ -251,9 +269,9 @@ export function isWalkable(
    * 还是圆、格还是轴对齐格，世界系里做的话旋转后的房间格就斜了。
    * 半径不用变换——旋转平移都不改长度。
    */
-  const local = worldToRoomLocal(worldState.room, x, z);
-  const halfW = worldState.room.floorGrid.width / 2;
-  const halfD = worldState.room.floorGrid.height / 2;
+  const local = worldToRoomLocal(room, x, z);
+  const halfW = room.floorGrid.width / 2;
+  const halfD = room.floorGrid.height / 2;
 
   if (
     local.x - radius < -halfW ||
@@ -277,7 +295,8 @@ export function isWalkable(
 
   for (let gy = minGY; gy <= maxGY; gy += 1) {
     for (let gx = minGX; gx <= maxGX; gx += 1) {
-      if (worldState.occupancy.blocked.has(`${gx},${gy}`)) return false;
+      // **那间屋自己的**占用图。屋里的家具不该被院子的占用挡住，反之亦然
+      if (worldState.occupancyOf(room.roomId).blocked.has(`${gx},${gy}`)) return false;
       // 关着的门占的格子。不进 occupancy：开合是高频状态，塞进去每次都要重建占用图
       if (!assumeDoorsOpen && doorBlocker?.(gx, gy)) return false;
     }

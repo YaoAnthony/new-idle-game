@@ -22,6 +22,9 @@ import {
   setOutdoorPass,
 } from "./worldRuntime";
 import { territoryStandingAt } from "./territory";
+import { listBuildings, rectOf } from "./buildings";
+import { findBuildingLevel } from "../../Buildings/index";
+import { buildingDoorAt } from "../../Buildings/placement";
 
 /**
  * 门的集合管理（和 petsRuntime 同一套摆法：Agent 类管一扇门怎么动，
@@ -230,13 +233,54 @@ export function initDoors(): void {
     if (standing === "outside" && !onDeclaredSurface(map, x, z)) return false;
 
     /*
+     * **领地上玩家建的建筑**：碰撞圆压到就不许过，除非正对着门。
+     *
+     * 两类建筑都走这一条：
+     * - 没有内景的（金币罐、农田）——纯实心，门那一段也不放行；
+     * - 有内景的（小屋、房子）——**只有门口那一段是口子**。少了这条，
+     *   人能从任意一面墙走进屋：`roomIdAt` 在屋里返回那间屋，通行判定
+     *   走屋内分支，而屋内分支只看地板边界不看墙。这正是主屋那条
+     *   "穿墙只能走门"规矩的推广。
+     */
+    let insideBuilding = false;
+    for (const placement of listBuildings()) {
+      const rect = rectOf(placement);
+      const overlaps =
+        x + radius > rect.minX &&
+        x - radius < rect.maxX &&
+        z + radius > rect.minZ &&
+        z - radius < rect.maxZ;
+      if (!overlaps) continue;
+      insideBuilding = true;
+
+      const level = findBuildingLevel(placement.buildingId, placement.levelId);
+      if (!level?.interior) return false; // 实心的，没有门
+
+      // 门心一格半之内算"正对着门"。和主屋那条一样，宽松一点——
+      // 门口卡住比穿墙更让人恼火
+      const door = buildingDoorAt(placement);
+      if (Math.hypot(x - door.x, z - door.z) > 1.5) return false;
+    }
+
+
+    /*
      * 院子网格内的点：问**院子那张占用图**（院里的家具、房子脚印）。
      * 网格外（桥、河、镇）不问——那些地方本来就没有格子。
      *
      * 围墙阻挡盒本期**不**并进占用图：它们还要给镜头当禁入盒，两处
      * 各读各的。合并是以后的收口，现在合了会让镜头那边少一份数据。
      */
-    const yard = getRoom(map.outdoorRoomId);
+    /*
+     * **人已经在某栋楼的占地里了就别再问院子那张图。**
+     *
+     * 楼的脚印同时进了院子的占用图（挡放置、挡从外面穿墙）和上面那条
+     * "只能走门"的规则。两处都拦的话，**门槛那一圈正好死在中间**：
+     * 门那条规则放行了，脚印又挡了一次，于是屋里和门口在导航网格上
+     * 是两个不连通的岛（实测：门格连通、屋内不连通，中间整整一行全黑）。
+     *
+     * 谁负责哪一段分清楚：进出楼由门那条规则管，院子的占用图只管院子。
+     */
+    const yard = insideBuilding ? undefined : getRoom(map.outdoorRoomId);
     if (yard) {
       const cell = worldToRoomCell(yard, x, z);
       if (

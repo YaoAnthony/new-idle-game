@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 import { describe, expect, test } from "vitest";
 
 /**
@@ -41,8 +41,23 @@ function stripComments(text: string): string {
   return text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
 }
 
+/**
+ * `path` 一律用 `/` 分隔。
+ *
+ * `relative()` 在 Windows 上吐 `Api\game\websocket\connection.ts`，而下面每一处
+ * 判据写的都是 `/`——`startsWith("Api/")` 恒 false，于是 `Api/` 自己没被排除，
+ * connection.ts 里那句合法的 `socket.io-client` 被当成违规报出来；
+ * `find(f => f.path === "Api/game/websocket/index.ts")` 恒 undefined，
+ * `startsWith("Game/Multiplayer/")` 恒 `[]`。
+ *
+ * 后果不只是误报，更要命的是**瞎**：Multiplayer 那组扫到 0 个文件，
+ * 真有人把 socket.emit 泄进 Game/ 也拓不到。这道门神在 Windows 上从来没真过。
+ *
+ * 归一化放在这一处而不是每个判据里各 replace 一次：`path` 是这份用例对外
+ * 的唯一坐标，它的形状只该被定义一次。
+ */
 const files = walk(SRC).map((full) => ({
-  path: relative(SRC, full),
+  path: relative(SRC, full).split(sep).join("/"),
   text: readFileSync(full, "utf8"),
   code: stripComments(readFileSync(full, "utf8")),
 }));

@@ -93,8 +93,8 @@ test("院子有自己的占用图，和屋里那张不是同一张", () => {
 
 test("在院子里放一把椅子：进院子那张占用图，不进屋里那张", () => {
   const yardId = getCurrentMap().outdoorRoomId;
-  const cell = yardCell(-2, 10); // C3 中央
-  const check = placeFurniture("furniture_chair", cell, Facing.North);
+  const cell = yardCell(3.5, 16.5); // C3 东南角的空地（小屋占着 x −7..2 / z 3..15）
+  const check = placeFurniture("furniture_chair", cell, Facing.North, yardId);
   expect(check.ok, `摆椅子失败：${JSON.stringify(check)}`).toBe(true);
 
   const placed = getWorld().placedFurniture.find(
@@ -107,17 +107,21 @@ test("在院子里放一把椅子：进院子那张占用图，不进屋里那�
 
 test("往锁定格里放东西被拒，理由是 outside_territory", () => {
   // (0,0) 在 C2，开局锁着
-  const check = placeFurniture("furniture_chair", yardCell(0, 0), Facing.North);
+  const yardId = getCurrentMap().outdoorRoomId;
+  const check = placeFurniture("furniture_chair", yardCell(0, 0), Facing.North, yardId);
   expect(check).toEqual({ ok: false, reason: "outside_territory" });
 
   // 开了 C2 之后同一格放得下——这条证明拒绝的确实是领地，不是别的东西
   unlockPlotById("C2");
-  expect(placeFurniture("furniture_chair", yardCell(0, 0), Facing.North).ok).toBe(true);
+  expect(placeFurniture("furniture_chair", yardCell(0, 0), Facing.North, yardId).ok).toBe(true);
 });
 
-test("房子默认收起，所以院子里没有主屋脚印那块阻挡", () => {
+test("默认的家开局就立着：主屋脚印盖进院子的占用图", () => {
   const yardId = getCurrentMap().outdoorRoomId;
-  // 老房子中心在 (0,0)，收起来时那格该是空的
-  const center = yardCell(0, 0);
-  expect(getWorld().occupancyOf(yardId).blocked.has(`${center.x},${center.y}`)).toBe(false);
+  // 小屋锚点 (−2.5, 9)，占地 x −7..2 / z 3..15：中心那格该被挡住
+  const inside = yardCell(-2.5, 9);
+  expect(getWorld().occupancyOf(yardId).blocked.has(`${inside.x},${inside.y}`)).toBe(true);
+  // 占地外一格（门口南边）是空的
+  const outside = yardCell(-2.5, 16.5);
+  expect(getWorld().occupancyOf(yardId).blocked.has(`${outside.x},${outside.y}`)).toBe(false);
 });

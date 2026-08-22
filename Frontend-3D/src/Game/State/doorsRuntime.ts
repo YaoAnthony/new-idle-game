@@ -1,6 +1,9 @@
 import {
+  Facing,
+  WallOpeningKind,
+  anchorOf,
+  anchorRectToWorld,
   findDoorDefinition,
-  findDoors,
   isHouseStowed,
   roomLocalToWorld,
   worldToRoomCell,
@@ -135,36 +138,80 @@ export function initDoors(): void {
   }
 
   // ---- 大门（外墙开口）----
-  /** 大门的穿行通道（**房本地** z 范围——outdoorPass 的判定统一在本地系里做） */
+  /**
+   * 大门的穿行通道，**房本地系**（outdoorPass 的判定统一在本地系里做）。
+   *
+   * 原来这里写死了"大门在西墙"：中心 `-halfW + 0.5`、通道沿 z 排、
+   * 穿墙判 `local.x < -halfW`。2LDK 的门恰好在西墙，所以从没露馅——
+   * 女巫小屋的门开在南墙，这套把它算到了西墙上（实测门心 (−6.5, 5)，
+   * 该是 (−5, 15)）。这是和"房子中心 = 原点""一图一主屋"同一类的隐含
+   * 公理，现在按**墙的朝向**推：沿哪根轴排、在哪条边、往哪个方向穿。
+   */
   let frontDoorRef: string | null = null;
-  let passMinZ = 0;
-  let passMaxZ = 0;
+  let pass: { axis: "x" | "z"; min: number; max: number; edge: number; side: 1 | -1 } | null =
+    null;
   const frontDefinition = findDoorDefinition("front_door");
   if (frontDefinition) {
-    for (const opening of findDoors(room)) {
-      /*
-       * cells 留空——外墙格本来就不可走，不需要它再挡一次；
-       * center 给自动开关和交互扫描用（西墙开口沿 z 轴排布）。
-       * 大门在注册表里也带自动开半径（收得很小），所以 makeDoor
-       * 会给它 RoomDoor：派遣出门的开门仪式就是这一条行为。
-       */
-      const door = makeDoor(
-        opening.openingId,
-        frontDefinition,
-        [],
-        roomLocalToWorld(
-          room,
-          -halfW + 0.5,
-          opening.gridPosition.x - halfD + opening.size.width / 2,
-        ),
-        savedByRef.get(opening.openingId)?.locked,
-      );
-      doors.set(door.refId, door);
-      frontDoorRef = door.refId;
-      passMinZ = opening.gridPosition.x - halfD;
-      passMaxZ = passMinZ + opening.size.width;
+    for (const wall of Object.values(room.walls)) {
+      for (const opening of wall.openings) {
+        if (opening.kind !== WallOpeningKind.Door) continue;
+        const w = opening.size.width;
+        const from = opening.gridPosition.x;
+        /*
+         * 墙格 ↔ 房本地的约定（WallSave.frame 的注释）：北/南墙沿 +x 铺、
+         * 从西端数；东/西墙沿 +z 铺、从北端数。门心贴在墙内侧半格。
+         */
+        let centerLocal: { x: number; z: number };
+        switch (wall.facing) {
+          case Facing.North:
+            centerLocal = { x: from + w / 2 - halfW, z: -halfD + 0.5 };
+            pass = { axis: "x", min: from - halfW, max: from + w - halfW, edge: -halfD, side: -1 };
+            break;
+          case Facing.South:
+            centerLocal = { x: from + w / 2 - halfW, z: halfD - 0.5 };
+            pass = { axis: "x", min: from - halfW, max: from + w - halfW, edge: halfD, side: 1 };
+            break;
+          case Facing.East:
+            centerLocal = { x: halfW - 0.5, z: from + w / 2 - halfD };
+            pass = { axis: "z", min: from - halfD, max: from + w - halfD, edge: halfW, side: 1 };
+            break;
+          default: // West
+            centerLocal = { x: -halfW + 0.5, z: from + w / 2 - halfD };
+            pass = { axis: "z", min: from - halfD, max: from + w - halfD, edge: -halfW, side: -1 };
+        }
+        /*
+         * cells 留空——外墙格本来就不可走，不需要它再挡一次；
+         * center 给自动开关和交互扫描用。大门在注册表里也带自动开半径
+         * （收得很小），所以 makeDoor 会给它 RoomDoor：派遣出门的开门
+         * 仪式就是这一条行为。
+         */
+        const door = makeDoor(
+          opening.openingId,
+          frontDefinition,
+          [],
+          roomLocalToWorld(room, centerLocal.x, centerLocal.z),
+          savedByRef.get(opening.openingId)?.locked,
+        );
+        doors.set(door.refId, door);
+        frontDoorRef = door.refId;
+      }
     }
   }
+
+  /**
+   * 碰撞圆是不是正对着大门、并且在往外（或往里）穿那条边。
+   * 沿墙的那根轴要整个人都在门洞跨度里（挡住"贴着墙外侧蹭"），
+   * 垂直那根轴要压到门所在的那条边而不是对面的边。
+   */
+  const throughFrontDoor = (local: { x: number; z: number }, radius: number): boolean => {
+    if (!pass) return false;
+    const along = pass.axis === "x" ? local.x : local.z;
+    const across = pass.axis === "x" ? local.z : local.x;
+    if (along - radius < pass.min || along + radius > pass.max) return false;
+    return pass.side > 0
+      ? across + radius > pass.edge - 0.01
+      : across - radius < pass.edge + 0.01;
+  };
 
   pendingSaves = null;
   // 基线跟着门一起重建，否则换房间后第一帧会拿旧门的状态比对
@@ -280,7 +327,28 @@ export function initDoors(): void {
      *
      * 谁负责哪一段分清楚：进出楼由门那条规则管，院子的占用图只管院子。
      */
-    const yard = insideBuilding ? undefined : getRoom(map.outdoorRoomId);
+    /*
+     * 主屋的脚印同理——它不在 listBuildings() 里（那是玩家盖的楼），
+     * 但它的占地一样进了院子的占用图。少了这一句，屋里最南一行（门槛
+     * 那一圈）在导航网格上整行全黑：人从屋里贴近南墙时走到这儿，
+     * 院子那张图说"这格是房子"，而房子自己的门规则在后面还没轮到。
+     * 实测就是这么断的：洗手间到大门外找不到路。
+     */
+    const house = getWorld().room;
+    const houseRect = anchorRectToWorld(anchorOf(house), {
+      minX: -house.floorGrid.width / 2,
+      maxX: house.floorGrid.width / 2,
+      minZ: -house.floorGrid.height / 2,
+      maxZ: house.floorGrid.height / 2,
+    });
+    const overlapsPrimary =
+      !isHouseStowed(house) &&
+      x + radius > houseRect.minX &&
+      x - radius < houseRect.maxX &&
+      z + radius > houseRect.minZ &&
+      z - radius < houseRect.maxZ;
+
+    const yard = insideBuilding || overlapsPrimary ? undefined : getRoom(map.outdoorRoomId);
     if (yard) {
       const cell = worldToRoomCell(yard, x, z);
       if (
@@ -350,20 +418,13 @@ export function initDoors(): void {
      * 院子：玩家 /goto town 落在广场正中，四面矮墙，走不出去。
      * （实测踩到过，是这次做寻路时导航网格只连出 660 格才发现的。）
      */
-    if (map.openAir) {
-      return (
-        local.z - radius >= passMinZ &&
-        local.z + radius <= passMaxZ &&
-        local.x - radius < -halfW + 0.01
-      );
-    }
+    if (map.openAir) return throughFrontDoor(local, radius);
 
     const frontDoor = frontDoorRef ? doors.get(frontDoorRef) : undefined;
     // 导航采样时当门开着（走到跟前自动跑腿会开）——见 walkable 的 withDoorsOpen
     const passable = frontDoor?.open || (doorsAssumedOpen() && !frontDoor?.locked);
     if (!passable) return false;
-    if (local.z - radius < passMinZ || local.z + radius > passMaxZ) return false;
-    return local.x - radius < -halfW + 0.01;
+    return throughFrontDoor(local, radius);
   });
 }
 

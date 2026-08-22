@@ -129,9 +129,17 @@ const store = createIndexDbRepository<unknown>("gameSaves");
  * 放置会被 `outside_territory` 拒掉。硬写格号会和格盘一起走散，所以从
  * **世界坐标**反算：(−2, 10) 是 C3 中央，也是新档的出生点。
  */
+/**
+ * 院子的 roomId。**摆进院子要显式说**：默认的家现在开局就立着，
+ * `defaultPlacementRoom()` 会选主屋，而院子格号在 9×12 的屋里是出界的。
+ */
+function yardId(): string {
+  return getCurrentMap().outdoorRoomId;
+}
+
 function homeCell(dx = 0, dy = 0): { x: number; y: number } {
   const yard = getRoom(getCurrentMap().outdoorRoomId)!;
-  const cell = worldToRoomCell(yard, -2, 10);
+  const cell = worldToRoomCell(yard, 3.5, 16.5);
   return { x: cell.x + dx, y: cell.y + dy };
 }
 
@@ -240,7 +248,7 @@ async function readSaveFromDisk(): Promise<GameSave> {
 
 describe("开房（房主）", () => {
   test("房主继续在自己家过日子，世界不换", async () => {
-    placeFurniture("furniture_table", homeCell(), Facing.North);
+    placeFurniture("furniture_table", homeCell(), Facing.North, yardId());
     const before = getWorld().placedFurniture.length;
 
     const code = await hostSession();
@@ -285,7 +293,7 @@ describe("开房（房主）", () => {
 
 describe("做客（房客）", () => {
   test("入房后运行时里是房主的世界", async () => {
-    placeFurniture("furniture_table", homeCell(), Facing.North);
+    placeFurniture("furniture_table", homeCell(), Facing.North, yardId());
     const host = hostWorld();
     fakeApi.replies.set("join", joinReply(host));
 
@@ -314,7 +322,7 @@ describe("做客（房客）", () => {
    */
   test("做客期间落盘：世界侧是自家的，玩家侧是运行时现状", async () => {
     // 自家有一张桌子
-    placeFurniture("furniture_table", homeCell(), Facing.North);
+    placeFurniture("furniture_table", homeCell(), Facing.North, yardId());
     addItem("wood", 5);
 
     fakeApi.replies.set("join", joinReply(hostWorld()));
@@ -361,7 +369,7 @@ describe("做客（房客）", () => {
   });
 
   test("回家：世界换回自己的，做客期间的收获留着", async () => {
-    placeFurniture("furniture_table", homeCell(), Facing.North);
+    placeFurniture("furniture_table", homeCell(), Facing.North, yardId());
     fakeApi.replies.set("join", joinReply(hostWorld()));
     await joinSession("ABC234");
 
@@ -383,7 +391,7 @@ describe("做客（房客）", () => {
     await settle(); // 等回家那一次 void saveNow() 落地，免得它盖掉下面这次
 
     // 现在摆一件家具，它必须能进档（做客期间是进不去的）
-    placeFurniture("furniture_chair", homeCell(3, 3), Facing.North);
+    placeFurniture("furniture_chair", homeCell(0, -3), Facing.North, yardId());
     await saveNow();
 
     const written = await readSaveFromDisk();
@@ -393,7 +401,7 @@ describe("做客（房客）", () => {
   });
 
   test("房主跑了：被动结束也走同一条回家路", async () => {
-    placeFurniture("furniture_table", homeCell(), Facing.North);
+    placeFurniture("furniture_table", homeCell(), Facing.North, yardId());
     fakeApi.replies.set("join", joinReply(hostWorld()));
     await joinSession("ABC234");
     addItem("iron_ingot", 1);
@@ -406,7 +414,7 @@ describe("做客（房客）", () => {
   });
 
   test("回标题：房客先把自家世界灌回去，App 的存盘才不会写错", async () => {
-    placeFurniture("furniture_table", homeCell(), Facing.North);
+    placeFurniture("furniture_table", homeCell(), Facing.North, yardId());
     fakeApi.replies.set("join", joinReply(hostWorld()));
     await joinSession("ABC234");
 
@@ -444,7 +452,7 @@ describe("做客（房客）", () => {
 describe("op 通道", () => {
   test("单机时本地突变不往外发", async () => {
     fakeApi.reset();
-    placeFurniture("furniture_table", homeCell(), Facing.North);
+    placeFurniture("furniture_table", homeCell(), Facing.North, yardId());
 
     expect(fakeApi.outbound.filter((o) => o.kind === "op")).toEqual([]);
   });
@@ -453,7 +461,7 @@ describe("op 通道", () => {
     await hostSession();
     fakeApi.reset();
 
-    placeFurniture("furniture_table", homeCell(), Facing.North);
+    placeFurniture("furniture_table", homeCell(), Facing.North, yardId());
     await Promise.resolve(); // sendOp 走的是 ensureConnected().then
 
     const ops = fakeApi.outbound.filter((o) => o.kind === "op");
@@ -559,7 +567,7 @@ describe("整片刷新", () => {
 
   test("房主自己收到刷新要无视——世界的权威在他这边", async () => {
     await hostSession();
-    placeFurniture("furniture_table", homeCell(), Facing.North);
+    placeFurniture("furniture_table", homeCell(), Facing.North, yardId());
 
     fakeApi.inbound("worldRefresh", {
       revision: 9,

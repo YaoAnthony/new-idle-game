@@ -40,8 +40,14 @@ beforeEach(() => {
   restoreBuildings([]);
 });
 
-/** C3（开局格）里一个够宽敞的落点：世界 (−2, 10) 附近 */
-const HOME = { x: -2, z: 10 };
+/**
+ * C3（开局格）里的空地：世界 (3.5, 16.5)，东南角那条 3 格宽的带子。
+ * 默认的家（女巫小屋 9×12）占着 x −7..2 / z 3..15，C3 中央已经是它的脚印。
+ * 小件（罐 2×2、田 3×2、小屋 3×3）放得下；8×6 的房子放不下，要先开 C2。
+ */
+const HOME = { x: 3.5, z: 16.5 };
+/** C2 里的空地（房子型号要用）。用之前先 unlockPlotById("C2") */
+const C2 = { x: -2, z: -3 };
 
 test("在自己地里盖一栋：进列表、拿到初始等级", () => {
   const result = placeBuilding("gold_jar", HOME.x, HOME.z, Facing.North);
@@ -65,18 +71,20 @@ test("往锁定格里盖被拒，理由是这块地还没开", () => {
 
 test("压到别的建筑要拒绝", () => {
   expect(placeBuilding("gold_jar", HOME.x, HOME.z, Facing.North).ok).toBe(true);
-  const overlap = placeBuilding("gold_jar", HOME.x + 1, HOME.z, Facing.North);
+  // 往北挪一格压着第一只（往东挪会先碰到 C3 的东边线，报的就是 outside_territory 了）
+  const overlap = placeBuilding("gold_jar", HOME.x, HOME.z - 1, Facing.North);
   expect(overlap).toEqual({ ok: false, reason: "overlaps_building" });
 });
 
 test("实例上限：房子只能有一栋，罐不限", () => {
-  expect(placeBuilding("house", HOME.x, HOME.z + 2, Facing.North).ok).toBe(true);
-  const second = placeBuilding("house", HOME.x - 12, HOME.z + 2, Facing.North);
+  unlockPlotById("C2");
+  expect(placeBuilding("house", C2.x, C2.z, Facing.North).ok).toBe(true);
+  const second = placeBuilding("house", C2.x, C2.z - 7, Facing.North);
   expect(second).toEqual({ ok: false, reason: "max_instances" });
 
   // 罐可以多建（容量相加是它的玩法）
-  expect(placeBuilding("gold_jar", HOME.x + 6, HOME.z + 6, Facing.North).ok).toBe(true);
-  expect(placeBuilding("gold_jar", HOME.x + 6, HOME.z + 3, Facing.North).ok).toBe(true);
+  expect(placeBuilding("gold_jar", HOME.x, HOME.z, Facing.North).ok).toBe(true);
+  expect(placeBuilding("gold_jar", HOME.x, HOME.z - 3, Facing.North).ok).toBe(true);
 });
 
 test("移动时排除自己——原地微调不该被判成压到自己", () => {
@@ -100,7 +108,8 @@ test("升级不换 instanceId——升级是同一栋楼换了个等级", () => 
 });
 
 test("分叉：房子 l2 有两个后继，不给目标就不升", () => {
-  const built = placeBuilding("house", HOME.x, HOME.z, Facing.North);
+  unlockPlotById("C2");
+  const built = placeBuilding("house", C2.x, C2.z, Facing.North);
   const id = built.ok ? built.instanceId : "";
 
   // l1 只有一个后继 → 直接升
@@ -162,7 +171,7 @@ test("金币罐的总容量 = 各罐容量之和；没建罐时是 0", () => {
   const one = goldCapacity();
   expect(one).toBeGreaterThan(0);
 
-  placeBuilding("gold_jar", HOME.x + 6, HOME.z + 6, Facing.North);
+  placeBuilding("gold_jar", HOME.x, HOME.z - 3, Facing.North);
   expect(goldCapacity()).toBe(one * 2);
   expect(jarLevelIds()).toEqual(["l1", "l1"]);
 });
@@ -238,14 +247,15 @@ test("挪走一栋楼，内景锚点跟着走——走进去还是那间屋", ()
   const id = built.ok ? built.instanceId : "";
   const roomId = `land_cabin:${id}`;
 
-  expect(moveBuilding(id, HOME.x + 5, HOME.z + 4).ok).toBe(true);
+  expect(moveBuilding(id, HOME.x, HOME.z - 4).ok).toBe(true);
   const room = getRoom(roomId);
-  expect(room!.anchor?.x).toBe(HOME.x + 5);
-  expect(room!.anchor?.z).toBe(HOME.z + 4);
+  expect(room!.anchor?.x).toBe(HOME.x);
+  expect(room!.anchor?.z).toBe(HOME.z - 4);
 });
 
 test("升级换的是几何不是身份：roomId 不变，内景尺寸变了", () => {
-  const built = placeBuilding("house", HOME.x, HOME.z, Facing.North);
+  unlockPlotById("C2");
+  const built = placeBuilding("house", C2.x, C2.z, Facing.North);
   const id = built.ok ? built.instanceId : "";
   const roomId = `house:${id}`;
 
@@ -268,7 +278,8 @@ test("拆掉一栋楼，它的内景房间跟着消失", () => {
 });
 
 test("塔屋（l3b）的内景墙高比 l3a 高——挑高是它和 3a 的分别", () => {
-  const built = placeBuilding("house", HOME.x, HOME.z, Facing.North);
+  unlockPlotById("C2");
+  const built = placeBuilding("house", C2.x, C2.z, Facing.North);
   const id = built.ok ? built.instanceId : "";
   upgradeBuilding(id); // l2
   upgradeBuilding(id, "l3b");

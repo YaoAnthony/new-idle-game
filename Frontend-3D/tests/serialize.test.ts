@@ -65,9 +65,17 @@ beforeEach(() => {
  * 放置会被 `outside_territory` 拒掉。硬写格号会和格盘一起走散，所以从
  * **世界坐标**反算：(−2, 10) 是 C3 中央，也是新档的出生点。
  */
+/**
+ * 院子的 roomId。**摆进院子要显式说**：默认的家现在开局就立着，
+ * `defaultPlacementRoom()` 会选主屋，而院子格号在 9×12 的屋里是出界的。
+ */
+function yardId(): string {
+  return getCurrentMap().outdoorRoomId;
+}
+
 function homeCell(dx = 0, dy = 0): { x: number; y: number } {
   const yard = getRoom(getCurrentMap().outdoorRoomId)!;
-  const cell = worldToRoomCell(yard, -2, 10);
+  const cell = worldToRoomCell(yard, 3.5, 16.5);
   return { x: cell.x + dx, y: cell.y + dy };
 }
 
@@ -80,7 +88,7 @@ function homeCell(dx = 0, dy = 0): { x: number; y: number } {
  */
 function placeChest(): string {
   const before = new Set(allFurnitureInstanceIds());
-  const check = placeFurniture("furniture_storage_chest", homeCell(), Facing.North);
+  const check = placeFurniture("furniture_storage_chest", homeCell(), Facing.North, yardId());
   expect(check.ok, `摆箱子失败：${JSON.stringify(check)}`).toBe(true);
 
   const instanceId = allFurnitureInstanceIds().find((id) => !before.has(id));

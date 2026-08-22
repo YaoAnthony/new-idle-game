@@ -16,6 +16,7 @@ import {
 } from 'core'
 import { buildingDefinitions } from './Buildings/index.ts'
 import { baseMapDefinition } from './Maps/base/index.ts'
+import { spawnPosition } from './Game/State/participants.ts'
 import { auditItemVisuals } from './Game3D/Visual/VisualRegistry.ts'
 import { hasLocalizationKey } from './i18n/t.ts'
 
@@ -89,9 +90,12 @@ if (import.meta.env.DEV) {
 
   // 领地格盘：出生点落在锁定格里的话，开新档人会站着走不动——
   // 那看起来像"寻路坏了"，而不像"格盘配错了"
+  // 出生点是**房本地**坐标，要先经默认房子的锚点世界化再对照格盘——
+  // 直接拿原始数对的话，锚点一挪审计就在说另一个点
+  const spawnWorld = spawnPosition()
   const territoryProblems = baseMapDefinition.territory
     ? auditTerritory(baseMapDefinition.territory, {
-        spawn: { x: baseMapDefinition.spawn.x, z: baseMapDefinition.spawn.y },
+        spawn: { x: spawnWorld.x, z: spawnWorld.y },
       })
     : []
   if (territoryProblems.length > 0) {

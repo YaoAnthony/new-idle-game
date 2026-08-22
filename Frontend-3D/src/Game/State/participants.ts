@@ -1,6 +1,7 @@
 import {
   GestureKind,
   Locomotion,
+  roomStyleDefinitions,
   spawnWorldOf,
   type ActionId,
   type ParticipantAppearance,
@@ -56,17 +57,27 @@ const DEFAULT_POSTURE: PoseId = "stand";
  *
  * heading 存的是弧度（v19 起），见 Core 的 WorldPosition 注释。
  */
-export const SPAWN_POSITION: WorldPosition = {
-  mapId: baseMapDefinition.mapId,
-  /*
-   * spawn 是房本地坐标（RoomAnchor 之后），这里按**缺省锚点**展开
-   * （spawnWorldOf(_, undefined)）而不是查房间几何：这个常量在模块
-   * 加载期求值，世界状态还没 hydrate。它只喂两条路——全新档、
-   * 读档读不到位置——前者必然是缺省锚点；后者在挪房玩法接通时要改成
-   * 读档后按真实锚点补算（那期的清单项，别忘）。
-   */
-  ...spawnWorldOf(baseMapDefinition.spawn, undefined),
-};
+/**
+ * 出生点的世界坐标，**按默认房子的真实锚点**展开。
+ *
+ * 这里原来是一个模块加载期求值的常量，按缺省锚点（原点）展开，注释里
+ * 写着"全新档必然是缺省锚点；挪房接通时要改成按真实锚点补算（别忘）"。
+ * 到期了：默认的家（女巫小屋）从第一天就带锚点 (−2.5, 9)，不在原点。
+ * 按原点展开会把房本地的 (−2.5, 4.5) 直接当世界坐标，人出生在卧室里
+ * 而不是玄关（实测踩到）。
+ *
+ * 锚点从地图定义**现生成**一份几何里读：`generateRooms` 是确定性的，
+ * 锚点不依赖风格，拿第一个风格生成即可。不查运行时的 worldState——
+ * 这个函数在 hydrate 之前也要能答（全新档那条路）。
+ */
+export function spawnPosition(): WorldPosition {
+  const rooms = baseMapDefinition.generateRooms(roomStyleDefinitions[0]);
+  const primary = rooms[baseMapDefinition.primaryRoomId];
+  return {
+    mapId: baseMapDefinition.mapId,
+    ...spawnWorldOf(baseMapDefinition.spawn, primary),
+  };
+}
 
 const participants = new Map<PlayerId, ParticipantState>();
 
@@ -74,7 +85,7 @@ function freshState(playerId: PlayerId): ParticipantState {
   return {
     playerId,
     transform: {
-      ...SPAWN_POSITION,
+      ...spawnPosition(),
       locomotion: Locomotion.Idle,
       liftHeight: 0,
     },
@@ -232,7 +243,7 @@ export function snapshotLocalPosition(): WorldPosition {
 export function restoreLocalPosition(saved: WorldPosition | undefined): void {
   participants.clear();
   const state = ensure(LOCAL_PLAYER_ID);
-  Object.assign(state.transform, saved ?? SPAWN_POSITION);
+  Object.assign(state.transform, saved ?? spawnPosition());
   state.transform.locomotion = Locomotion.Idle;
   state.transform.liftHeight = 0;
 }

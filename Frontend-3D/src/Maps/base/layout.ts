@@ -281,6 +281,150 @@ function wallLineSegments(
   return segments;
 }
 
+// ---- LV1 · 女巫小屋 ----------------------------------------------------------
+
+/**
+ * 默认的家：**女巫小屋**，9 宽 × 12 深（2026-08-22 用户定，长宽比 3:4）。
+ *
+ * 上面那个 2LDK 从此是 **LV3**——房屋升级那条线（期 2）的终点。两者产出
+ * 同一种 RoomSave，走同一个 HouseBuilder；差别只在户型数据和外皮风格
+ * （`RoomStyleDefinition.visual.shell`），不是两套渲染器。
+ *
+ * ```
+ *       x0  1   2   3   4   5   6   7   8
+ *  y0  ┌───────────┬───┬───────────────────┐  北墙
+ *  y1  │  洗手间   │墙 │    卧室 5×5       │
+ *  y2  │   3×3     │   │                   │
+ *  y3  ├───┬门┬───┤   │                   │
+ *  y4  │           │   │                   │
+ *  y5  │           └───┴───┬门┬───────────┤
+ *  y6  │                                   │  东墙外立烟囱，
+ *  y7  │         L D K   （灶台靠东墙）     │  屋里灶台对着它
+ *  y8  │                                   │
+ *  y9  │                                   │
+ *  y10 │   ┌玄关┐                         │
+ *  y11 └───┤ 门 ├─────────────────────────┘  南墙 = 正面山墙
+ * ```
+ *
+ * - 洗手间 3×3 西北、卧室 5×5 东北，**都带门**——"能住的"= 睡觉的地方
+ *   关得上门。两道内墙两扇房门，没有走廊浪费。
+ * - 大门开在**南墙**，面朝 C3 中心和院子：开局格在领地最南排，南面就是
+ *   自己的地。一出门就是院子，不是绳索。
+ * - 墙高 **3**（用户要 3.2；墙格是整数行——逐格建四边形，3.2 会多出一整行
+ *   墙和天花对不上。3 是最近的整数，小屋矮一点也在性格里）。
+ * - 1 格 = 1 世界单位。9×12 = 108 格，是 2LDK（480 格）的不到 1/4。
+ */
+export const COTTAGE_SIZE: GridFootprint = { width: 9, height: 12 };
+export const COTTAGE_WALL_HEIGHT = 3;
+
+export function generateCottageL1(params: {
+  roomId: string;
+  style: RoomStyleDefinition;
+}): RoomSave {
+  const { roomId, style } = params;
+  const size = COTTAGE_SIZE;
+  const h = COTTAGE_WALL_HEIGHT;
+
+  const alongX: GridFootprint = { width: size.width, height: h };
+  const alongY: GridFootprint = { width: size.height, height: h };
+
+  // 菱格小窗一律 1×1、窗台 1 格：参考图上的窗都很小，而且墙只有 3 高，
+  // 2×2 的窗会把一面墙开穿
+  const windowOf = (openingId: string, x: number): WallOpening => ({
+    openingId,
+    kind: WallOpeningKind.Window,
+    gridPosition: { x, y: 1 },
+    size: { width: 1, height: 1 },
+    visualId: style.visual.windowVisualId,
+  });
+
+  const walls: Record<string, WallSave> = {
+    north: {
+      wallId: "north",
+      facing: Facing.North,
+      grid: alongX,
+      origin: { x: 0, y: 0 },
+      // 卧室一扇
+      openings: [windowOf("north-window-bedroom", 6)],
+    },
+    south: {
+      wallId: "south",
+      facing: Facing.South,
+      grid: alongX,
+      origin: { x: 0, y: 0 },
+      /*
+       * **大门在南墙**，墙本地 x=1..2（从西数）。南墙是正面山墙——
+       * 女巫帽的尖在这一面最显眼，门开在帽檐下面。
+       */
+      openings: [
+        {
+          openingId: "south-door",
+          kind: WallOpeningKind.Door,
+          gridPosition: { x: 1, y: 0 },
+          size: { width: 2, height: 2 },
+          visualId: style.visual.doorVisualId,
+        },
+        // 门右边一扇，照参考图矮翼正面的那两扇
+        windowOf("south-window-ldk", 6),
+      ],
+    },
+    west: {
+      wallId: "west",
+      facing: Facing.West,
+      grid: alongY,
+      origin: { x: 0, y: 0 },
+      // LDK 西侧一扇（y 是沿墙从北数）
+      openings: [windowOf("west-window-ldk", 7)],
+    },
+    east: {
+      wallId: "east",
+      facing: Facing.East,
+      grid: alongY,
+      origin: { x: 0, y: 0 },
+      // 灶台两侧各一扇，烟囱立在它们中间（y6..8 那段墙外）
+      openings: [windowOf("east-window-a", 5), windowOf("east-window-b", 9)],
+    },
+  };
+
+  /*
+   * 两扇房门。门洞和墙段由**同一份数据**推（wallLineSegments），
+   * 挪门不会出现"门装在墙里"。
+   */
+  const interiorDoorways: InteriorDoorway[] = [
+    // 洗手间：南墙（行 y=3）上，x1..2
+    { doorwayId: "doorway-bath", cell: { x: 1, y: 3 }, axis: "x", span: 2, doorId: "room_door" },
+    // 卧室：南墙（行 y=5）上，x5..6
+    { doorwayId: "doorway-bedroom", cell: { x: 5, y: 5 }, axis: "x", span: 2, doorId: "room_door" },
+  ];
+
+  const interiorWalls: InteriorWall[] = [
+    // 列 x=3：从北墙到 y=5，隔开洗手间|卧室 和 LDK
+    { from: { x: 3, y: 0 }, axis: "y", length: 6 },
+    // 行 y=3 的 x0..2：洗手间南墙（减门洞）
+    ...wallLineSegments("x", 3, 0, 3, interiorDoorways),
+    // 行 y=5 的 x4..8：卧室南墙（减门洞）
+    ...wallLineSegments("x", 5, 4, 9, interiorDoorways),
+  ];
+
+  const zones: HouseZone[] = [
+    // 顺序即解析优先级：具体分区在前，LDK 兜底
+    { zoneId: "genkan", kind: HouseZoneKind.Genkan, rect: { x: 1, y: 10, width: 2, height: 2 } },
+    { zoneId: "bath", kind: HouseZoneKind.Bath, rect: { x: 0, y: 0, width: 3, height: 3 } },
+    { zoneId: "bedroom", kind: HouseZoneKind.Bedroom, rect: { x: 4, y: 0, width: 5, height: 5 } },
+    { zoneId: "ldk", kind: HouseZoneKind.Ldk, rect: { x: 0, y: 0, width: 9, height: 12 } },
+  ];
+
+  return {
+    roomId,
+    floorGrid: size,
+    walls,
+    interiorWalls,
+    interiorDoorways,
+    zones,
+    floor: 0,
+  };
+}
+
 /**
  * 领地矩形：x −40..20、z −27..18（60×45）。
  *

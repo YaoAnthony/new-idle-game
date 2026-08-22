@@ -123,11 +123,14 @@ export function placeFurniture(
   furnitureId: string,
   gridPosition: GridPosition,
   facing: Facing,
+  /** 摆进哪一间。不给走 defaultPlacementRoom（主屋在场就主屋，收起就院子） */
+  roomId?: string,
 ): LocalPlacementCheck {
   return placeFurnitureAt(furnitureId, {
     kind: PlacementSurface.Floor,
     gridPosition,
     facing,
+    ...(roomId ? { roomId } : {}),
   });
 }
 
@@ -183,85 +186,63 @@ export function replayRemoveFurniture(instanceId: string): void {
 export function seedInitialFurniture(): void {
   if (worldState.placedFurniture.length > 0) return;
 
-  const boxes: Array<{
+  /*
+   * 开局摆设按**女巫小屋**的户型摆（2026-08-22，默认的家换了）。
+   * 格号是 9×12 那张图的，见 Maps/base/layout.ts 的 generateCottageL1。
+   *
+   * 原来这里有 2LDK 的一套：两个纸箱在 (2,3)/(4,4)、浴室南端一只 4×3 的
+   * 日式浴缸、前庭两把长椅两盏路灯。那些坐标在 9×12 里全不成立
+   * （(2,3) 是洗手间的门洞），浴缸塞不进 3×3 的洗手间，前庭随 T12 拆了。
+   * 2LDK 从此是 LV3，它的那套摆设等房屋升级那条线接上时跟着它回来。
+   */
+  const pieces: Array<{
     furnitureId: string;
     gridPosition: GridPosition;
     facing: Facing;
-    lootTableId: string;
+    state?: Record<string, unknown>;
   }> = [
+    // 搬家纸箱：LDK 西侧，别挡门口
     {
       furnitureId: "cardboard_stack",
-      gridPosition: { x: 2, y: 3 },
+      gridPosition: { x: 0, y: 6 },
       facing: Facing.East,
-      lootTableId: "moving_tools",
+      state: { lootTableId: "moving_tools" },
     },
     {
       furnitureId: "cardboard_box",
-      gridPosition: { x: 4, y: 4 },
+      gridPosition: { x: 0, y: 8 },
       facing: Facing.South,
-      lootTableId: "moving_furniture",
+      state: { lootTableId: "moving_furniture" },
+    },
+    /*
+     * 壁炉贴东墙、朝西，正对屋外的烟囱——里外对得上是"这是一栋真房子"
+     * 的细节。**fixed**：它是房子的一部分，拿不走（烟囱可不会跟着走）。
+     */
+    {
+      furnitureId: "furniture_fireplace",
+      gridPosition: { x: 7, y: 7 },
+      facing: Facing.West,
+      state: { fixed: true },
+    },
+    // 床在卧室靠北墙，床头朝北
+    {
+      furnitureId: "furniture_bed",
+      gridPosition: { x: 4, y: 0 },
+      facing: Facing.South,
     },
   ];
 
-  worldState.placedFurniture = boxes.map((box) => ({
-    instanceId: nextInstanceId(box.furnitureId),
-    furnitureId: box.furnitureId,
+  worldState.placedFurniture = pieces.map((piece) => ({
+    instanceId: nextInstanceId(piece.furnitureId),
+    furnitureId: piece.furnitureId,
     placement: {
       kind: PlacementSurface.Floor as const,
       roomId: worldState.room.roomId,
-      gridPosition: box.gridPosition,
-      facing: box.facing,
+      gridPosition: piece.gridPosition,
+      facing: piece.facing,
     },
-    state: { lootTableId: box.lootTableId },
+    state: piece.state ?? {},
   }));
-
-  /*
-   * 据点庭院的固定装置（据点③）：前庭两把长椅夹着"路→玄关"的轴线
-   * 对坐，两盏路灯守在广场西缘的路口。roomId 是室外分区——它们不进
-   * 占用图（室内格专属），坐标沿室内网格线性外推（见 FurnitureView）。
-   * 老存档由迁移 v25 补同一批。
-   */
-  const estate: Array<{
-    furnitureId: string;
-    gridPosition: GridPosition;
-    facing: Facing;
-  }> = [
-    { furnitureId: "furniture_garden_bench", gridPosition: { x: -3, y: -1 }, facing: Facing.South },
-    { furnitureId: "furniture_garden_bench", gridPosition: { x: -3, y: 4 }, facing: Facing.North },
-    { furnitureId: "furniture_street_lamp", gridPosition: { x: -7, y: 4 }, facing: Facing.South },
-    { furnitureId: "furniture_street_lamp", gridPosition: { x: -7, y: -1 }, facing: Facing.South },
-  ];
-  worldState.placedFurniture = [
-    ...worldState.placedFurniture,
-    ...estate.map((piece) => ({
-      instanceId: nextInstanceId(piece.furnitureId),
-      furnitureId: piece.furnitureId,
-      placement: {
-        kind: PlacementSurface.Floor as const,
-        roomId: worldState.map.outdoorRoomId,
-        gridPosition: piece.gridPosition,
-        facing: piece.facing,
-      },
-      state: {},
-    })),
-  ];
-
-  /*
-   * 浴室自带的日式浴缸（2026-08-19）：占满浴室南端 x11..14 × y17..19，
-   * 踏步朝北（facing North，踏步在本地 −Z = 房间侧）。**fixed**：房子的
-   * 一部分，拿不走；物品本身仍可获得，另买的能搬。老存档由迁移 v27 补。
-   */
-  worldState.placedFurniture.push({
-    instanceId: nextInstanceId("furniture_ofuro"),
-    furnitureId: "furniture_ofuro",
-    placement: {
-      kind: PlacementSurface.Floor,
-      roomId: worldState.room.roomId,
-      gridPosition: { x: 11, y: 17 },
-      facing: Facing.North,
-    },
-    state: { fixed: true },
-  });
 
   emit("world_changed", { reason: "seeded" });
 }

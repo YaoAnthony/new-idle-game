@@ -1,5 +1,5 @@
-import { DEFAULT_MAP_ID, type MapDefinition } from "core";
-import { YARD_MARGIN, generateHouse, generateYard } from "./layout.js";
+import { DEFAULT_MAP_ID, Facing, type MapDefinition } from "core";
+import { YARD_MARGIN, generateCottageL1, generateYard } from "./layout.js";
 import { baseTerritory } from "./territory.js";
 import { basePortals } from "./portals.js";
 import {
@@ -85,28 +85,32 @@ export const baseMapDefinition: MapDefinition = {
   groundFixtures: BRIDGE_SURFACES,
 
   /**
-   * 开局站在 **C3 格**（x −10..5 / z 3..18）中间偏北的一块空地上。
+   * 出生在**玄关内侧、面朝大门**（2026-08-22，默认的家换成女巫小屋）。
    *
-   * 旧出生点是玄关内侧 (−8.5, −6)——那在 B2 格里，而开局只拥有 C3。
-   * 房子默认收起来（T9）之后玄关根本不存在，人一进游戏就站在锁定格里
-   * 走不动。`territoryAudit` 校验的正是这一条：出生点必须在 initial 格内，
-   * 改错了启动就报。
+   * **房本地坐标**：小屋 9×12，中心为原点，玄关在南门里面 x1..2 / y10..11
+   * 那两格——本地 x = 2 − 4.5 = −2.5（门心），z = 10.5 − 6 = +4.5（玄关
+   * 格心）。heading 0 是朝 +z，即朝南、朝门。消费方经 spawnWorldOf 按
+   * 房子锚点世界化：锚点 (−2.5, 9) → 世界 (−5, 13.5)，在 C3 里。
    *
-   * heading = π/2 是朝东（+X）。
+   * 期 1 的 T9（房子默认收起）同时作废：出生点曾经因此挪到院子里的空地，
+   * 现在房子在场，人回到屋里。`territoryAudit` 仍校验世界化之后的点落在
+   * initial 格内。
    */
-  spawn: { x: -2, y: 10, heading: Math.PI / 2 },
+  spawn: { x: -2.5, y: 4.5, heading: 0 },
 
   /**
    * 缘侧走**北面 + 东面转角**（2026-08-08 定，随宅迁入不动）。
    * 据点里河改在东墙外——东缘侧隔墙看河，墙高压在坐姿视线以下
    * （0.9 墙 vs ≈1.1 视线），是把 home 的名场面搬来的关键一笔。
    */
-  // 缘侧贴着外墙长在房上：from/to 是**房本地**坐标（OutdoorDeck 注释），
-  // 房子挪走缘侧跟着走——groundMap 和 HouseBuilder 各自在出口处复合锚点
-  outdoorDecks: [
-    { deckId: "engawa-north", side: "north", from: -12, to: 14, depth: 2 },
-    { deckId: "engawa-east", side: "east", from: -10, to: 10, depth: 2 },
-  ],
+  /*
+   * **没有缘侧**（2026-08-22）。缘侧是和风 2LDK 那栋的东西——它现在是 LV3，
+   * 默认的家是女巫小屋，石墙木瓦，缘侧挂上去是两种语言打架。
+   * 原来那两条 from/to 也是按 24 宽写的房本地坐标，9 宽的房子上根本对不上。
+   * LV3 接上时缘侧跟着它回来（缘侧是地图定义不是存档，老档读进来就没了，
+   * 这是预期）。
+   */
+  outdoorDecks: [],
 
   /*
    * 南院石阶高台（承托面③的样板）随 home 一起退役：它的历史使命
@@ -120,12 +124,20 @@ export const baseMapDefinition: MapDefinition = {
 
   generateRooms: (style) => {
     /*
-     * **房子默认收起**（决策 T9）。24×20 装不进 15×15 的格，而房屋升级
-     * 是期 2 的事——收起来之后"跨格"这个问题直接消失：收起的房子不建
-     * 几何、不占格、不进占用图，开局就是一块空地 + 出生点，正合
-     * "一开始位置很小"。想看房子照常 `/house place`（调试用）。
+     * 默认的家 = **女巫小屋**（LV1，2026-08-22 用户定），**开局就立着**。
+     *
+     * 期 1 的 T9「房子默认收起」到此作废：那条是因为 24×20 的 2LDK 装不进
+     * 15×15 的格才定的。9×12 装得进（四周各留 1.5～3 格），收起的理由没了。
+     * 2LDK 从此是 LV3，等房屋升级那条线接上。
+     *
+     * 锚点 (−2.5, 9)：占地 x −7..2 / z 3..15，整个落在 C3（x −10..5 /
+     * z 3..18）里，南面留 3 格给门廊和门口。9 是奇数宽所以中心在 .5 上——
+     * 格边仍是整数，放置面和占用图对得齐。
      */
-    const living = { ...generateHouse({ roomId: "living", style }), stowed: true };
+    const living = {
+      ...generateCottageL1({ roomId: "living", style }),
+      anchor: { x: -2.5, z: 9, elevation: 0, facing: Facing.North },
+    };
     /*
      * 院子现在是**一个房间**：有网格所以能放家具，没有墙所以哪儿都通。
      * roomId 必须等于 outdoorRoomId，buildGroundMap 靠它判"地板就是地形"。

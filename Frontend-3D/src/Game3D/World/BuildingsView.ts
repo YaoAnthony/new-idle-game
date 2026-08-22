@@ -3,6 +3,7 @@ import { Object3D, type Scene } from "three";
 import { on } from "../../Game/EventBus";
 import { listBuildings } from "../../Game/State/buildings";
 import { groundHeightAt } from "../../Game/State/worldRuntime";
+import { GOLD_STAGES } from "../../Buildings/goldJar";
 import { buildPlacedBuilding } from "../../Buildings/placement";
 import { disposeTree } from "../Visual/primitives";
 
@@ -86,29 +87,24 @@ export class BuildingsView {
 function applyState(node: Object3D, state: Record<string, unknown> | undefined): void {
   if (!state) return;
 
-  // ---- 金币罐的液面 ----
+  // ---- 金币罐的币堆：按存了多少分六档（空箱 + 五档）----
   const fill = typeof state.fill === "number" ? state.fill : undefined;
   if (fill !== undefined) {
+    /*
+     * `fill` 是 `stored / capacity`，由状态层算好——那是**平衡数值**。
+     * "这个比例该显示第几档"是**表现**，所以换算在视图这边：
+     * 一分钱没有 → 空箱；只要有钱就至少摆一枚；满档留给"快满了"。
+     *
+     * 上一版是一片连续上下走的液面。分档看得清得多：空箱和满箱一眼分得
+     * 出，中间几档也各有各的形状；连续液面在 12% 和 18% 之间是看不出来的。
+     */
+    const stage =
+      fill <= 0.001
+        ? 0
+        : Math.min(GOLD_STAGES, Math.max(1, Math.ceil(fill * GOLD_STAGES)));
     node.traverse((child) => {
-      if (child.name !== "gold-surface") return;
-      /*
-       * 液面在罐口内上下走。`fill` 是 0..1 的比例，由状态层按
-       * `stored / capacity` 算好——视图不碰平衡数值，只负责把一个比例
-       * 变成一个高度。
-       */
-      const top = child.userData.topY as number | undefined;
-      const bottom = child.userData.bottomY as number | undefined;
-      if (top === undefined || bottom === undefined) {
-        // 第一次见到这个液面：把它建模时的 y 记成"满"的位置，
-        // 底按罐身高度往下推。记进 userData 而不是重算——重建之后
-        // 模型是新的，但这两个数是从模型自己的几何来的
-        child.userData.topY = child.position.y;
-        child.userData.bottomY = child.position.y - 1.0;
-      }
-      const t = child.userData.topY as number;
-      const b = child.userData.bottomY as number;
-      child.position.y = b + (t - b) * Math.max(0, Math.min(1, fill));
-      child.visible = fill > 0.001;
+      if (!child.name.startsWith("gold-stage-")) return;
+      child.visible = child.name === `gold-stage-${stage}`;
     });
   }
 

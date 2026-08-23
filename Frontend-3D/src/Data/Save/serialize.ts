@@ -38,6 +38,7 @@ import {
   restoreBuildings,
   snapshotBuildings,
 } from "../../Game/State/buildings";
+import { restoreBaseGold, snapshotBaseGold } from "../../Game/State/gold";
 import {
   pruneOrphanStorages,
   restoreStorages,
@@ -184,6 +185,8 @@ export function serializeGameSave(previous?: GameSave): GameSave {
       // 玩家在领地里建的建筑（期 2 起进存档）。小镇六家店不在这里——
       // 它们是地图内容，每次进图从定义生成
       buildings: snapshotBuildings(),
+      // 钱匣：没建罐也存得下的那 10 枚。罐里的钱跟着 buildings 走
+      baseGold: snapshotBaseGold(),
       // 每日任务的**共享进度**属于这个家，不属于哪台机器（V0.11）
       dailyBoard: snapshotDailyBoard(),
 
@@ -249,6 +252,7 @@ export function hydrateGameSave(save: GameSave): void {
   restoreGramophones(save.ownWorld.gramophones);
   restoreLamps(save.ownWorld.lamps);
   restoreBuildings(save.ownWorld.buildings);
+  restoreBaseGold(save.ownWorld.baseGold);
   restoreDroppedItems(active.droppedItems);
   // 消息记录要在时钟之后恢复——裁剪按"今天是哪天"算
   restoreChatLog(save.ownWorld.chatLog);

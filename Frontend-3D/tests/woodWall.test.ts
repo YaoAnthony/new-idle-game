@@ -9,7 +9,11 @@ import {
   restoreBuildings,
   upgradeBuilding,
 } from "../src/Game/State/buildings";
-import { depositGoldTo, getGold } from "../src/Game/State/gold";
+import {
+  depositGoldTo,
+  getGold,
+  restoreBaseGold,
+} from "../src/Game/State/gold";
 import { replaceCounts } from "../src/Game/State/inventory";
 import { resetTerritory } from "../src/Game/State/territory";
 import { getCurrentMapId } from "../src/Game/State/worldRuntime";
@@ -37,6 +41,7 @@ beforeEach(() => {
   resetTerritory();
   restoreBuildings([]);
   replaceCounts({});
+  restoreBaseGold(0);
 });
 
 test("孤零零一格：四邻皆空（『只有一个就不变』）", () => {

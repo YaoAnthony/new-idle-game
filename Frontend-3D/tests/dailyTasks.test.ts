@@ -34,7 +34,11 @@ import {
 } from "../src/Game/Systems/dailyTasks";
 import { debugAdvanceHours, getClock } from "../src/Game/State/clock";
 import { restoreDroppedItems, snapshotDroppedItems } from "../src/Game/State/droppedItems";
-import { getGold, getGoldCapacity } from "../src/Game/State/gold";
+import {
+  getGold,
+  getGoldCapacity,
+  restoreBaseGold,
+} from "../src/Game/State/gold";
 import { restoreBuildings } from "../src/Game/State/buildings";
 import { on } from "../src/Game/EventBus";
 
@@ -60,6 +64,8 @@ beforeEach(() => {
   restoreDailyBoard(undefined);
   restoreDroppedItems([]);
   setDailyRewardShareCounter(() => 1);
+  // 钱匣不挂在任何建筑上，谁都清不掉它——漏了这行用例之间会串钱
+  restoreBaseGold(0);
 });
 
 /**

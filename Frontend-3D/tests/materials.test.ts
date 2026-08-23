@@ -3,7 +3,11 @@ import { Facing, itemDefinitions, missingMaterials } from "core";
 
 import { buildingDefinitions, findBuildingLevel } from "../src/Buildings/index";
 import { placeBuilding, restoreBuildings } from "../src/Game/State/buildings";
-import { depositGoldTo, getGold } from "../src/Game/State/gold";
+import {
+  depositGoldTo,
+  getGold,
+  restoreBaseGold,
+} from "../src/Game/State/gold";
 import { addItem, getCount, replaceCounts } from "../src/Game/State/inventory";
 import {
   auditMaterials,
@@ -26,6 +30,8 @@ beforeEach(() => {
   resetTerritory();
   restoreBuildings([]);
   replaceCounts({});
+  // 钱匣不挂在任何建筑上，restoreBuildings 清不掉它——漏了这行用例之间会串钱
+  restoreBaseGold(0);
 });
 
 test("保留材料 id 不能和真物品撞名", () => {
@@ -33,7 +39,8 @@ test("保留材料 id 不能和真物品撞名", () => {
 });
 
 test("金币算作一种材料，从罐里读，不从背包读", () => {
-  // 没罐 = 没容量 = 一分钱也存不住
+  // 一分钱没有 —— 注意判据是"余额为 0"不是"容量为 0"：
+  // 钱匣（BASE_GOLD_CAPACITY）让没建罐时也有 10 的上限，见 baseGold.test.ts
   expect(materialCounts().get("gold")).toBe(0);
 
   // 家院里盖一只罐再存钱。l1 只装 10，所以存 30 会溢出——这里存 8

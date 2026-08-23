@@ -1,6 +1,7 @@
 export * from "./actions/index.js";
 export * from "./audio/index.js";
 export * from "./buildings/index.js";
+export * from "./territory/index.js";
 export * from "./avatars/index.js";
 export * from "./chat/index.js";
 export * from "./cooking/index.js";

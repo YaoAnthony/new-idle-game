@@ -7,6 +7,7 @@ import {
   plotFeatureId,
   rectInsideTerritory as coreRectInside,
   unlockablePlots as coreUnlockable,
+  territoryTuning,
   type PlotDefinition,
   type PlotId,
 } from "core";
@@ -18,6 +19,8 @@ import {
   replaceUnlockedFeatures,
   unlockFeature,
 } from "../Systems/events";
+import { spendMaterials } from "../Systems/materials";
+import { depositGoldTo } from "./gold";
 import { getCurrentMap } from "./worldRuntime";
 
 /**
@@ -100,9 +103,15 @@ export function ownedBoundaryEdges(): Array<{
   return coreBoundaryEdges(definition, unlockedSet());
 }
 
-export type UnlockResult =
-  | { ok: true }
-  | { ok: false; reason: "no_territory" | "unknown" | "owned" | "not_adjacent" | "busy" };
+/** 开不了的理由。抽成具名的，`buyPlot` 要在它上面再加一档"买不起" */
+export type UnlockReason =
+  | "no_territory"
+  | "unknown"
+  | "owned"
+  | "not_adjacent"
+  | "busy";
+
+export type UnlockResult = { ok: true } | { ok: false; reason: UnlockReason };
 
 /**
  * **唯一的扩展入口。**
@@ -138,6 +147,81 @@ export function unlockPlotById(plotId: PlotId): UnlockResult {
    */
   emit("world_changed", { reason: "territory" });
   return { ok: true };
+}
+
+/** 买不起单列一档：其余几档都是"这块地本来就开不了"，和钱无关 */
+export type BuyPlotResult =
+  | { ok: true }
+  | { ok: false; reason: UnlockReason | "too_poor" };
+
+/**
+ * **花钱开一块地**——石傀儡那边按 F 开的面板点下来就走这里。
+ *
+ * 为什么钱在这一层扣、不在面板里扣：`unlockPlotById` 是唯一的扩展入口，
+ * 但它**不该知道价钱**（剧情送地、天数解锁走的也是它，那些不花钱）。
+ * 把"付费"这一层单独包一圈，两种驱动就都能各走各的，而"先付钱还是先开地"
+ * 这个顺序问题只在这一个函数里有答案。
+ *
+ * 顺序是**先校验、再扣钱、最后开地**：`unlockPlotById` 的失败分支不少
+ * （不相邻、已拥有、做客时锁着），扣完钱才发现开不了就是白扣。所以先
+ * 空跑一遍校验——代价是重复问一次，换的是"扣了钱没拿到地"永远不会发生。
+ */
+export function buyPlot(plotId: PlotId): BuyPlotResult {
+  // 1. 先问能不能开（不花钱的那些判据）
+  const blocked = checkUnlockable(plotId);
+  if (blocked) return { ok: false, reason: blocked };
+
+  // 2. 再问买不买得起
+  if (!spendMaterials(territoryTuning.unlockCost)) {
+    return { ok: false, reason: "too_poor" };
+  }
+
+  // 3. 钱已经扣了，这一步理论上不会失败——真失败了钱要退回去
+  const result = unlockPlotById(plotId);
+  if (!result.ok) {
+    refundPlotCost();
+    return result;
+  }
+  return { ok: true };
+}
+
+/** 开地的价钱。面板拿它渲染"够/不够" */
+export function plotCost() {
+  return territoryTuning.unlockCost;
+}
+
+/**
+ * `unlockPlotById` 里那串**不花钱**的判据，单拎出来空跑一遍。
+ *
+ * 和它重复是刻意的：那边是真正的入口不能松，这边只是为了在扣钱之前
+ * 知道结果。返回 undefined = 没拦住。
+ */
+function checkUnlockable(plotId: PlotId): UnlockReason | undefined {
+  const definition = territoryOf();
+  if (!definition) return "no_territory";
+  if (guardWorldMutation()) return "busy";
+
+  const plot = definition.plots.find((item) => item.plotId === plotId);
+  if (!plot) return "unknown";
+
+  const unlocked = unlockedSet();
+  if (plot.initial || unlocked.has(plotFeatureId(plotId))) return "owned";
+  if (!coreUnlockable(definition, unlocked).some((item) => item.plotId === plotId)) {
+    return "not_adjacent";
+  }
+  return undefined;
+}
+
+/**
+ * 退钱。**存回去可能会溢出**（罐子在这期间被拆小了就装不下），
+ * 那时候钱是真丢了——但这条路只在"校验通过却开地失败"时才走到，
+ * 而那意味着两次校验之间世界变了，本来就是异常。宁可丢钱也不能
+ * 凭空多出来。
+ */
+function refundPlotCost(): void {
+  for (const need of territoryTuning.unlockCost) {
+    if (need.itemId === "gold") depositGoldTo(need.quantity);
+  }
 }
 
 /**

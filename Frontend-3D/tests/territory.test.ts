@@ -6,13 +6,27 @@ import { clearAllFurniture, placeFurniture } from "../src/Game/State/world/furni
 import { getCurrentMap, getCurrentMapId, getRoom, getWorld } from "../src/Game/State/worldRuntime";
 import { travelTo } from "../src/Game/Systems/mapTravel";
 import {
+  buyPlot,
   isInsideTerritory,
   ownedPlotIds,
+  plotCost,
   rectInsideTerritory,
   resetTerritory,
   unlockPlotById,
   unlockablePlotIds,
 } from "../src/Game/State/territory";
+import {
+  finishSite,
+  listBuildings,
+  placeBuilding,
+  restoreBuildings,
+  upgradeBuilding,
+} from "../src/Game/State/buildings";
+import {
+  depositGoldTo,
+  getGold,
+  restoreBaseGold,
+} from "../src/Game/State/gold";
 
 /**
  * 领地的运行时口（期 1）。规则本身在 Core 有一整份用例，这里只钉三件
@@ -132,4 +146,76 @@ test("默认的家开局就立着：主屋脚印盖进院子的占用图", () =>
   // 占地外一格（门口北边的院子）是空的
   const outside = yardCell(-5.5, 0);
   expect(getWorld().occupancyOf(yardId).blocked.has(`${outside.x},${outside.y}`)).toBe(false);
+});
+
+/**
+ * 花钱开地（2026-08-23）。石傀儡那块面板点下来走的就是 `buyPlot`。
+ *
+ * 钉的是**钱和地必须同生共死**：扣了钱没拿到地是丢钱，拿到地没扣钱是白送。
+ * 中间那些"开不了"的分支（不相邻、已拥有）最容易在这上面出岔子——
+ * 它们必须在扣钱**之前**拦住。
+ */
+test("买得起就扣钱开地，余额正好少一份价钱", () => {
+  restoreBuildings([]);
+  restoreBaseGold(0);
+  expect(placeBuilding("gold_jar", 3.5, 16.5, Facing.North).ok).toBe(true);
+  // 升级要走工地：l2 的容量得等 finishSite 才算数
+  const jarId = listBuildings()[0].instanceId;
+  upgradeBuilding(jarId, "l2");
+  finishSite(jarId);
+
+  const price = plotCost().find((need) => need.itemId === "gold")!.quantity;
+  depositGoldTo(price + 3);
+
+  expect(buyPlot("west_meadow")).toEqual({ ok: true });
+  expect(ownedPlotIds().sort()).toEqual(["home", "west_meadow"]);
+  expect(getGold()).toBe(3);
+});
+
+test("买不起就一分钱不动，地也不给", () => {
+  restoreBuildings([]);
+  restoreBaseGold(0);
+  depositGoldTo(1);
+
+  expect(buyPlot("west_meadow")).toEqual({ ok: false, reason: "too_poor" });
+  expect(ownedPlotIds()).toEqual(["home"]);
+  expect(getGold()).toBe(1);
+});
+
+test("开不了的地在扣钱之前就被拦住——不相邻、已拥有都不许扣钱", () => {
+  restoreBuildings([]);
+  restoreBaseGold(0);
+  expect(placeBuilding("gold_jar", 3.5, 16.5, Facing.North).ok).toBe(true);
+  // 升级要走工地：l2 的容量得等 finishSite 才算数
+  const jarId = listBuildings()[0].instanceId;
+  upgradeBuilding(jarId, "l2");
+  finishSite(jarId);
+
+  const price = plotCost().find((need) => need.itemId === "gold")!.quantity;
+  depositGoldTo(price);
+
+  // 东岸桥头不和家院共边（"扩两次才看得到桥"）
+  expect(buyPlot("east_bridge")).toEqual({ ok: false, reason: "not_adjacent" });
+  // 家院本来就是你的
+  expect(buyPlot("home")).toEqual({ ok: false, reason: "owned" });
+
+  // 两次都没成，钱必须还在
+  expect(getGold()).toBe(price);
+  expect(ownedPlotIds()).toEqual(["home"]);
+});
+
+test("价钱够不到光靠钱匣——扩地天然排在升罐之后", () => {
+  restoreBuildings([]);
+  restoreBaseGold(0);
+  const price = plotCost().find((need) => need.itemId === "gold")!.quantity;
+
+  // 一只罐都没有：钱匣装满也不够
+  depositGoldTo(999);
+  expect(getGold()).toBeLessThan(price);
+  expect(buyPlot("west_meadow")).toEqual({ ok: false, reason: "too_poor" });
+
+  // 建一只 l1 罐仍然不够（钱匣 10 + l1 10 = 20 < 50）
+  expect(placeBuilding("gold_jar", 3.5, 16.5, Facing.North).ok).toBe(true);
+  depositGoldTo(999);
+  expect(getGold()).toBeLessThan(price);
 });

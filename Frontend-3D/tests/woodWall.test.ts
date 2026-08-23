@@ -187,3 +187,54 @@ test("装着钱的罐拆不掉，也就不该退图纸", async () => {
   expect(getCount("blueprint_gold_jar"), "被拒了还是把图纸发出去了").toBe(0);
   expect(listBuildings()).toHaveLength(1);
 });
+
+/**
+ * 木墙不立工地（用户定，2026-08-23："木墙不需要傀儡过来建设，直接就会建好"）。
+ *
+ * 判据不是"便宜"也不是"小"，是**一次会摆很多段**：围一圈院子是十几二十段，
+ * 每段都排队等石傀儡走过去，那不是施工演出是罚站。部落冲突也正是这么切的
+ * ——城墙是全场唯一不占建筑工人的建筑。
+ */
+test("确认下去当场就是成品，不留工地给石傀儡", () => {
+  const placed = placeBuilding("wood_wall", 2.5, 9.5, Facing.North, {
+    asSite: true,
+  });
+  expect(placed.ok).toBe(true);
+
+  const wall = listBuildings().find((item) => item.buildingId === "wood_wall");
+  // 关键：**明明传了 asSite** 也不该有 construction
+  expect(wall?.construction).toBeUndefined();
+  expect(wall?.levelId).toBe("l1");
+});
+
+test("升级也当场换级——建得瞬间却要等人来升，那是两套规矩", () => {
+  const placed = placeBuilding("wood_wall", 2.5, 9.5, Facing.North, {
+    asSite: true,
+  });
+  expect(placed.ok).toBe(true);
+  const id = listBuildings().find((item) => item.buildingId === "wood_wall")!
+    .instanceId;
+
+  // l1→l2 要 10 金币。罐子装不下就升不动，先把钱备够
+  expect(placeBuilding("gold_jar", 3.5, 16.5, Facing.North).ok).toBe(true);
+  depositGoldTo(20);
+
+  expect(upgradeBuilding(id, "l2").ok).toBe(true);
+  const wall = listBuildings().find((item) => item.instanceId === id);
+  // 没有 finishSite 这一步，等级已经落下去了
+  expect(wall?.construction).toBeUndefined();
+  expect(wall?.levelId).toBe("l2");
+});
+
+test("不立工地是型号的性质，不是某个下单入口的规矩", () => {
+  /*
+   * 金币罐照旧立工地。两者对比才说明这道门开在建筑定义上——
+   * 哪天有人在别处新开一个下单入口，木墙照样不立工地、罐子照样立。
+   */
+  const jar = placeBuilding("gold_jar", 3.5, 16.5, Facing.North, {
+    asSite: true,
+  });
+  expect(jar.ok).toBe(true);
+  const built = listBuildings().find((item) => item.buildingId === "gold_jar");
+  expect(built?.construction).toBeDefined();
+});

@@ -128,10 +128,14 @@ test("test_worker_takes_sites_in_order_placed_not_nearest_first", () => {
    * 而定下的是**先下单先建**——下单次序是玩家自己的计划，寻路的方便
    * 不该把它打乱。
    */
-  const far = placeBuilding("wood_wall", 4.5, 16.5, Facing.North, {
+  /*
+   * 道具用金币罐不用木墙：木墙 `skipsSite`（当场建好，石傀儡不用来），
+   * 拿它下单根本不会产生工地，这条就测了个空。
+   */
+  const far = placeBuilding("gold_jar", 3.5, 16.5, Facing.North, {
     asSite: true,
   });
-  const near = placeBuilding("wood_wall", 2.5, 9.5, Facing.North, {
+  const near = placeBuilding("gold_jar", 2.5, 9.5, Facing.North, {
     asSite: true,
   });
   expect(far.ok && near.ok, JSON.stringify([far, near])).toBe(true);
@@ -140,7 +144,7 @@ test("test_worker_takes_sites_in_order_placed_not_nearest_first", () => {
   expect(
     Math.hypot(2.5 - big.x, 9.5 - big.z),
     "近的那块得真的更近，不然这条测了个寂寞",
-  ).toBeLessThan(Math.hypot(4.5 - big.x, 16.5 - big.z));
+  ).toBeLessThan(Math.hypot(3.5 - big.x, 16.5 - big.z));
 
   // Act
   for (let i = 0; i < 900; i += 1) big.tick(1 / 30, { x: 0, z: 0 });

@@ -43,6 +43,17 @@ export const dailyBoardDefinition: DailyBoardDefinition = {
    * 12 是占位值：真正的数等交易和建造代价定下来再调（期 2 的 upgradeCost
    * 还全是空数组）。
    */
+  /*
+   * 打一个勾当场 5 金币。即时反馈——你在现实里做完一件事，机器立刻有回应，
+   * 不用等四条全打完。
+   *
+   * 4 条 × 5 = 20，加上满格那 12 就是一天 32；而 l1 罐只装 10，
+   * **第二个勾之后就开始溢出**。这是故意的（用户 2026-08-23 定）：
+   * 第一天就让玩家撞上"罐太小"，逼着去升罐/多建罐——容量是关卡这件事
+   * 靠说明书讲不明白，靠漏掉几个金币一次就懂。溢出有明话提示，不是默默吞。
+   */
+  perTaskRewards: [{ type: "gold", amount: 5 }],
+
   rewards: [
     { type: "item", itemId: "tomato", quantity: 1 },
     { type: "gold", amount: 12 },

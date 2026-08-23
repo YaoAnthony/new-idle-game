@@ -1,4 +1,4 @@
-import { dailyBoardDefinition, FurnitureCapability, roomCellToWorld } from "core";
+import { dailyBoardDefinition, FurnitureCapability, roomCellToWorld, type RewardDefinition } from "core";
 import { emit } from "../EventBus";
 import {
   claimBoard,
@@ -33,6 +33,18 @@ const definition = dailyBoardDefinition;
 export function completeDailyTask(taskId: string): boolean {
   if (!markDone(taskId)) return false;
 
+  /*
+   * 单条奖励：打一个勾当场给（今天是 5 金币）。
+   *
+   * 放在 `markDone` 之后——那个函数返回的是"这次真的从未完成变成完成"，
+   * 重复点击拿不到第二份。放在 `tickBoard` 之前只是为了让因果顺序读起来
+   * 顺：先给你的，再推大家的。
+   *
+   * **只发一份**（shares = 1），不像满格奖励那样在场每人各一份：
+   * 单条是谁做的谁得。
+   */
+  grantRewards(definition.perTaskRewards, 1, "daily-task");
+
   const progress = tickBoard();
   if (progress !== null) {
     // 联机广播由 Net 层订阅这条事件转发（阶段 5）。State 不认识网络
@@ -59,11 +71,29 @@ export function rerollDailyTask(taskId: string): boolean {
 export function tryClaimReward(): boolean {
   if (!claimBoard()) return false;
 
+  grantRewards(definition.rewards, rewardShares(), "daily");
+
+  emit("daily_board_claimed_locally", {});
+  return true;
+}
+
+/**
+ * 吐一批奖励。单条奖励和满格奖励共用这一份——两处各写一遍的话，
+ * 迟早出现"满格的金币进罐、单条的金币吐成实物"这种自己跟自己打架。
+ *
+ * `shares` 是发几份（满格时在场每人各一整份；单条只给打勾的人，恒为 1）。
+ * `tag` 只进 stackId，方便调试时看出这堆东西是哪来的。
+ */
+function grantRewards(
+  rewards: readonly RewardDefinition[],
+  shares: number,
+  tag: string,
+): void {
+  if (rewards.length === 0) return;
   const spout = findSpout();
-  const shares = rewardShares();
 
   for (let share = 0; share < shares; share += 1) {
-    for (const reward of definition.rewards) {
+    for (const reward of rewards) {
       /*
        * 金币不吐成地上的东西，**直接进罐**——罐就是钱包，罐满了多的
        * 部分会溢出丢失（并给一句明话）。这正是"溢出只发生在你主动做
@@ -78,7 +108,7 @@ export function tryClaimReward(): boolean {
         throwItem({
           roomId: roomIdAt(spout.x, spout.z),
           stack: {
-            stackId: `daily:${reward.itemId}`,
+            stackId: `${tag}:${reward.itemId}`,
             itemId: reward.itemId,
             quantity: 1,
           },
@@ -89,9 +119,6 @@ export function tryClaimReward(): boolean {
       }
     }
   }
-
-  emit("daily_board_claimed_locally", {});
-  return true;
 }
 
 /**

@@ -112,6 +112,18 @@ export type DailyBoardDefinition = {
   rerollPerDay: number;
 
   /**
+   * **打一个勾就给**的即时奖励。空数组 = 不给。
+   *
+   * 和 `rewards`（满格）分两层是刻意的：单条是即时反馈——你刚做完一件
+   * 现实里的事，机器当场有反应；满格那份是"全做完"的额外犒赏。
+   * Habitica 也是这么分的（每条勾自己给经验，party quest 另算）。
+   *
+   * **只给打勾的那个人**，不像满格奖励那样在场每人各一份：单条是
+   * 谁做的谁得，分给旁观者的话，"这件事是我做的"就没有了。
+   */
+  perTaskRewards: RewardDefinition[];
+
+  /**
    * 满格奖励。**每个在场的人各得一整份**，不是分掉——
    * Habitica 的 party quest 就是这样：所有参与者拿到完全相同的奖励。
    */

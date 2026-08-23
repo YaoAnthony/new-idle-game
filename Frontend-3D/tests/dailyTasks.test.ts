@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { dailyBoardDefinition } from "core";
+import { dailyBoardDefinition, Facing } from "core";
 
 import {
   addTask,
@@ -34,6 +34,8 @@ import {
 } from "../src/Game/Systems/dailyTasks";
 import { debugAdvanceHours, getClock } from "../src/Game/State/clock";
 import { restoreDroppedItems, snapshotDroppedItems } from "../src/Game/State/droppedItems";
+import { getGold, getGoldCapacity } from "../src/Game/State/gold";
+import { restoreBuildings } from "../src/Game/State/buildings";
 import { on } from "../src/Game/EventBus";
 
 /**
@@ -408,5 +410,80 @@ describe("存档", () => {
     restoreDailyBoard({ worldDayId: getClock().worldDayId, progress: -3, claimed: true } as never);
     expect(getBoard().progress).toBe(0);
     expect(getBoard().claimed).toBe(true);
+  });
+});
+
+/**
+ * 单条奖励（2026-08-23）：打一个勾当场给金币。
+ *
+ * 和满格奖励分两层——单条是即时反馈（你刚做完一件现实里的事，机器当场
+ * 有反应），满格是"全做完"的额外犒赏。三条要害：
+ * 1. **重复点击不重复给**：和进度条同一条纪律，靠 `markDone` 的返回值挡；
+ * 2. **只给打勾的人一份**，不像满格那样在场每人各一份；
+ * 3. **金币进罐不吐实物**——罐就是钱包，吐成实物玩家能揣着走，
+ *    "容量就是持有上限"当场作废。
+ */
+describe("单条任务奖励", () => {
+  /** 造一只金币罐（余额活在建筑实例里，没有罐就无处可存） */
+  function seedJar(): void {
+    restoreBuildings([
+      {
+        instanceId: "jar-test",
+        buildingId: "gold_jar",
+        levelId: "l1",
+        x: 0,
+        z: 0,
+        elevation: 0,
+        facing: Facing.North,
+        state: { stored: 0 },
+      },
+    ]);
+  }
+
+  /** 定义里配的单条金币数。**从数据读不写死**——调平衡时用例不该变红 */
+  const perTaskGold = dailyBoardDefinition.perTaskRewards
+    .filter((r) => r.type === "gold")
+    .reduce((sum, r) => sum + (r.type === "gold" ? r.amount : 0), 0);
+
+  test("打一个勾就进账，金额等于定义里配的", () => {
+    seedJar();
+    const ids = seedPool(GOAL);
+    const before = getGold();
+
+    completeDailyTask(ids[0]);
+
+    expect(getGold()).toBe(before + perTaskGold);
+  });
+
+  test("重复点同一条不重复给", () => {
+    seedJar();
+    const ids = seedPool(GOAL);
+
+    completeDailyTask(ids[0]);
+    const afterFirst = getGold();
+    completeDailyTask(ids[0]);
+
+    expect(getGold()).toBe(afterFirst);
+  });
+
+  test("金币进罐，不吐成地上的实物", () => {
+    seedJar();
+    const ids = seedPool(GOAL);
+
+    completeDailyTask(ids[0]);
+
+    expect(snapshotDroppedItems()).toHaveLength(0);
+  });
+
+  test("罐满了就溢出——这是逼玩家升罐的教学，不是 bug", () => {
+    seedJar();
+    const capacity = getGoldCapacity();
+    const ids = seedPool(GOAL);
+
+    // 打满一整板：4 条单条 + 满格那份，总额远超 l1 罐的容量
+    for (const id of ids) completeDailyTask(id);
+
+    // 余额封顶在容量上，多的丢掉（明话提示在 depositGoldTo 里发）
+    expect(getGold()).toBe(capacity);
   });
 });

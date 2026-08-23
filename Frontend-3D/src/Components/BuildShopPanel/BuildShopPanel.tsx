@@ -328,7 +328,14 @@ function buildCards(
     const definition = buildingDefinitions.find((b) => b.buildingId === buildingId);
     if (!definition) continue;
 
-    // 造价挂在**初始等级**上——"从无到有"就是盖出第一级
+    /*
+     * **架上永远是初始等级**（用户 2026-08-23 定："石傀儡里面能建的都是
+     * LV1 的，lv2 啥的就是升级界面里面能看到的"）。
+     *
+     * 所以造价和图都取 `levels[0]`：造价本来就挂在初始等级上——"从无到有"
+     * 就是盖出第一级；图跟着同一个等级走，卡片上那张脸和你按下去会立起来
+     * 的东西才对得上。二级以上的图归升级界面，不在这块面板的职责里。
+     */
     const first = definition.levels[0];
     const level = findBuildingLevel(buildingId, first.levelId);
     const cost = [...(level?.buildCost ?? [])];
@@ -336,7 +343,6 @@ function buildCards(
       key: buildingId,
       nameKey: definition.localizationKey,
       descKey: definition.descriptionKey,
-      // 商店卖的是"从无到有"，所以拿**初始等级**那张图
       icon: buildingIcon(buildingId, first.levelId),
       cost,
       actionKey: "ui.build_shop.buy",

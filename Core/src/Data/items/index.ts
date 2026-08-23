@@ -1212,6 +1212,19 @@ export const itemDefinitions = [
   },
   {
     /**
+     * 木墙的图纸。**成批买的东西**：`stackLimit` 给到 20，一次买够
+     * 围一圈的量，不用来回开面板。放置时一张一张消耗。
+     */
+    id: "blueprint_wood_wall",
+    localizationKey: "item.blueprint_wood_wall",
+    category: ItemCategory.Material,
+    stackLimit: 20,
+    rarity: Rarity.Common,
+    visual: { id: "blueprint" },
+    blueprint: { buildingId: "wood_wall" },
+  },
+  {
+    /**
      * 储金罐的图纸（2026-08-22）。
      *
      * **一种建筑一张图纸**，不是一张通用图纸带参数：背包的堆叠只按

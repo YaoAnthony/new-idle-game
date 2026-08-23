@@ -1,5 +1,6 @@
 import { arcane } from "./arcane.js";
 import { farmPlot } from "./farmPlot.js";
+import { woodWall } from "./woodWall.js";
 import { goldJar } from "./goldJar.js";
 import { house } from "./house.js";
 import { landCabin } from "./landCabin.js";
@@ -26,6 +27,7 @@ import type {
  * 里，想改书店的角楼得先在文件里找它。
  */
 export const buildingDefinitions: BuildingDefinition[] = [
+  woodWall,
   // 领地上玩家自己建的（期 2）
   goldJar,
   farmPlot,

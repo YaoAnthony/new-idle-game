@@ -56,8 +56,13 @@ export class BuildingsView {
   private rebuild(): void {
     this.clear();
 
-    for (const placement of listBuildings()) {
-      const node = buildPlacedBuilding(placement);
+    /*
+     * 全场传进去：围墙要按四邻决定自己长什么样。整组重建本来就在做，
+     * 所以放一堵墙、拆一堵墙，旁边那几堵会跟着换形状，不用额外接线。
+     */
+    const all = listBuildings();
+    for (const placement of all) {
+      const node = buildPlacedBuilding(placement, all);
       if (!node) continue;
       /*
        * 踩地形高度，不是一律 y=0。领地里有起伏，一排等高的建筑在坡上

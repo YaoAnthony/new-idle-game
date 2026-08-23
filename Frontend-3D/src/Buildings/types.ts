@@ -1,4 +1,4 @@
-import type { GridFootprint, ItemId, RoomSave, RoomStyleDefinition } from "core";
+import type { GridFootprint, ItemId, RoomSave, RoomStyleDefinition, WallSides } from "core";
 import type { Object3D } from "three";
 
 /**
@@ -23,6 +23,12 @@ export type BuildingLevelId = string;
  * （金币罐 L1 一只小罐、L3 一组三罐；房子 3a 摊开、3b 长高）。
  * 放型号上表达不了。
  */
+/** 建模时能看到的处境。不看的建筑忽略它即可 */
+export type BuildContext = {
+  /** 四邻有没有同型号的建筑（围墙用）*/
+  sides?: WallSides;
+};
+
 export type BuildingLevel = {
   levelId: BuildingLevelId;
   /** 这一级的名字（"木屋 · 加建"）。型号名不带等级，在 BuildingDefinition 上 */
@@ -36,7 +42,18 @@ export type BuildingLevel = {
   footprint: GridFootprint;
 
   /** 建出本地坐标的模型：正面朝 +z，地面 y=0，中心在原点 */
-  build: () => Object3D;
+  /**
+   * 建出这一级的模型。
+   *
+   * `context` 是**这一栋在场上的处境**（现在只有"四邻有没有同类"）。
+   * 绝大多数建筑不看它——一只金币罐长什么样和邻居没关系。围墙看：
+   * I / L / T / 十 全靠它长出来。
+   *
+   * 传上下文而不是让 build 自己去查全局：这个函数是**纯的**，
+   * 给同样的输入必须画出同样的东西，否则同一栋楼在预览（虚影）和
+   * 落地后会长得不一样。
+   */
+  build: (context?: BuildContext) => Object3D;
 
   /**
    * **同图内景**：这一级走进去是什么样的房间。给一个户型生成器，

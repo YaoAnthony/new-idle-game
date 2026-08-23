@@ -1,4 +1,4 @@
-import { Facing, type BuildingPlacement } from "core";
+import { Facing, wallConnections, type BuildingPlacement } from "core";
 import { Object3D } from "three";
 import { FACING_ROTATION, FACING_VECTOR } from "../Game3D/World/furnitureMath.js";
 import { findBuilding, findBuildingLevel } from "./index.js";
@@ -97,11 +97,18 @@ export function buildingEntranceZone(
 }
 
 /** 按摆放把一栋楼建出来（位置 + 台地标高 + 朝向） */
-export function buildPlacedBuilding(placement: BuildingPlacement): Object3D | null {
+/**
+ * `others`：场上别的建筑。只有**要看邻居的建筑**（围墙）用得上——
+ * 不传就是"当它孤零零一个"，虚影预览走的正是这一条。
+ */
+export function buildPlacedBuilding(
+  placement: BuildingPlacement,
+  others: readonly BuildingPlacement[] = [],
+): Object3D | null {
   // 模型挂在**等级**上：升级换模型是这套设计的重点之一
   const level = findBuildingLevel(placement.buildingId, placement.levelId);
   if (!level) return null;
-  const node = level.build();
+  const node = level.build({ sides: wallConnections(placement, others) });
   node.name = `building-${placement.instanceId}`;
   node.position.set(placement.x, placement.elevation, placement.z);
   node.rotation.y = FACING_ROTATION[placement.facing];

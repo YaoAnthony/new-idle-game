@@ -52,6 +52,66 @@ export type BuildCostCheck =
   | { ok: true }
   | { ok: false; reason: "missing_materials"; missing: Array<{ itemId: ItemId; quantity: number }> };
 
+// ---- 连成一片的建筑（围墙）----
+
+/** 四个世界方向上有没有同类邻居 */
+export type WallSides = {
+  north: boolean;
+  east: boolean;
+  south: boolean;
+  west: boolean;
+};
+
+type WallCell = Pick<BuildingPlacement, "x" | "z" | "buildingId" | "instanceId">;
+
+/**
+ * 这一格围墙的**四邻**。木墙靠它决定自己长什么样：孤零零一根柱子，
+ * 还是一段直墙、一个拐角、一个丁字口。
+ *
+ * ## 判据是"同型号 + 正好隔一格"
+ *
+ * 同型号：木墙不该和金币罐连起来。正好一格：围墙是 1×1 的，中心之间
+ * 差 1 就是贴着。用 `EPSILON` 兜浮点——坐标落在半格上（奇偶宽的吸附
+ * 规则），差值算出来是 0.9999999 这种数。
+ *
+ * ## 为什么返回四个布尔而不是一个"形状名"
+ *
+ * 返回 `"L" | "T" | "I"` 的话，表现层还得知道 L 是哪两个方向的 L，
+ * 于是又要一个旋转角——形状名加旋转角是同一份信息的两次编码，迟早
+ * 有一处写反。四个布尔直接就是"哪几边要伸出去"，模型照着长胳膊就行，
+ * I/L/T/十 全都是这一条规则的结果，不用枚举。
+ */
+export function wallConnections(
+  self: WallCell,
+  others: readonly WallCell[],
+): WallSides {
+  const EPSILON = 0.05;
+  const sides: WallSides = {
+    north: false,
+    east: false,
+    south: false,
+    west: false,
+  };
+
+  for (const other of others) {
+    if (other.instanceId === self.instanceId) continue;
+    if (other.buildingId !== self.buildingId) continue;
+
+    const dx = other.x - self.x;
+    const dz = other.z - self.z;
+    if (Math.abs(dz) < EPSILON && Math.abs(Math.abs(dx) - 1) < EPSILON) {
+      if (dx > 0) sides.east = true;
+      else sides.west = true;
+    } else if (Math.abs(dx) < EPSILON && Math.abs(Math.abs(dz) - 1) < EPSILON) {
+      // 世界的 +z 是南（和 Facing 那套一致）
+      if (dz > 0) sides.south = true;
+      else sides.north = true;
+    }
+  }
+
+  return sides;
+}
+
 // ---- 施工 ----
 
 /**

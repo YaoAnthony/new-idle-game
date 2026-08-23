@@ -383,3 +383,29 @@ export function buildCurtain(): Object3D {
     ...ties,
   ]);
 }
+
+
+/**
+ * 图纸：一卷纸 + 一道系绳。
+ *
+ * 做成**卷起来的**而不是摊开的一张：摊开的纸从上方俯视是一个白矩形，
+ * 掉在地上和拿在手上都读不出是什么；卷成筒有两个端面的圆，一眼是"一卷东西"。
+ */
+export function buildBlueprint(): Object3D {
+  const roll = cylinder(0.08, 0.08, 0.42, 8, {
+    color: "#dfe6ef",
+    rotation: [0, 0, Math.PI / 2],
+    position: [0, 0.08, 0],
+  });
+  roll.name = "blueprint-roll";
+  return group("blueprint", [
+    roll,
+    // 系绳：一圈深色的带子箍在中段
+    cylinder(0.085, 0.085, 0.06, 8, {
+      color: "#6b4a30",
+      rotation: [0, 0, Math.PI / 2],
+      position: [0.06, 0.08, 0],
+      castShadow: false,
+    }),
+  ]);
+}

@@ -97,6 +97,8 @@ export const petDefinitions = [
       /** 干活的不打盹。开场那段休眠是剧情摆的，不是它自己困了 */
       sleepiness: 0,
       napSeconds: [60, 120],
+      /** 在自己那块地方转悠，不满院子跑。等接了工地再让他走远 */
+      wanderRadius: 5,
     },
     /** 比舒舒宽一圈：它是一堵会走路的墙 */
     collisionRadius: 1.1,

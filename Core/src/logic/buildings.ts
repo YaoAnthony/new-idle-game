@@ -15,13 +15,52 @@ import { rectInsideTerritory } from "./territory.js";
  * 就这些，多要一点就把渲染拖进来了。
  */
 
+export type MaterialCost = ReadonlyArray<{ itemId: ItemId; quantity: number }>;
+
 export type LevelShape = {
   levelId: string;
   footprint: GridFootprint;
   nextLevelIds?: string[];
+  /**
+   * **从无到有盖起来**要什么（只有初始等级用得上）。
+   *
+   * 和 `upgradeCost` 分成两个字段而不是塞进同一张表：建造的代价挂在
+   * "第一级"上，升级的代价挂在"从这一级到那一级"上，键的含义根本不同。
+   * 硬合成一张表就得约定一个"从无到有"的假 levelId。
+   */
+  buildCost?: MaterialCost;
   upgradeCost?: Record<string, Array<{ itemId: ItemId; quantity: number }>>;
   requires?: Record<string, Array<{ buildingId: string; minLevelId: string }>>;
 };
+
+/**
+ * 材料够不够。建造和升级共用——两处各写一份判断迟早走散。
+ *
+ * `materials` 是**"玩家现在有多少"**的清单，调用方怎么凑出来是它的事：
+ * Frontend 那边是"背包各物品的数量 + 金币"，金币用保留 id `"gold"` 混在
+ * 同一张表里（它不是背包里的物品，但对这条规则来说和木板没有分别）。
+ * 这一层不知道也不该知道钱存在罐子里这回事。
+ */
+export function missingMaterials(
+  cost: MaterialCost,
+  materials?: ReadonlyMap<ItemId, number>,
+): Array<{ itemId: ItemId; quantity: number }> {
+  return cost.filter((need) => (materials?.get(need.itemId) ?? 0) < need.quantity);
+}
+
+export type BuildCostCheck =
+  | { ok: true }
+  | { ok: false; reason: "missing_materials"; missing: Array<{ itemId: ItemId; quantity: number }> };
+
+/** 盖得起吗（只管材料；能不能放在那儿是 `checkBuildingPlacement` 的事） */
+export function checkBuildAfford(options: {
+  level: Pick<LevelShape, "buildCost">;
+  materials?: ReadonlyMap<ItemId, number>;
+}): BuildCostCheck {
+  const missing = missingMaterials(options.level.buildCost ?? [], options.materials);
+  if (missing.length > 0) return { ok: false, reason: "missing_materials", missing };
+  return { ok: true };
+}
 
 /**
  * 这栋楼在世界里的占地矩形。
@@ -227,10 +266,7 @@ export function checkUpgrade(options: {
   });
   if (unmet.length > 0) return { ok: false, reason: "requires_unmet", unmet };
 
-  const cost = level.upgradeCost?.[targetLevelId] ?? [];
-  const missing = cost.filter(
-    (need) => (materials?.get(need.itemId) ?? 0) < need.quantity,
-  );
+  const missing = missingMaterials(level.upgradeCost?.[targetLevelId] ?? [], materials);
   if (missing.length > 0) return { ok: false, reason: "missing_materials", missing };
 
   return { ok: true };

@@ -104,6 +104,15 @@ export type ItemDefinition = {
   golemPart?: "head";
 
   /**
+   * **一张图纸**：拿在手上按 F 就进入选址，落下去开工。
+   *
+   * 和 placement / seed / golemPart 同一个路数：能力块而不是新类型。
+   * 建筑 id 写在这里而不是靠物品 id 猜（`blueprint_gold_jar` → `gold_jar`
+   * 这种字符串裁剪是最容易在改名时静默失效的东西）。
+   */
+  blueprint?: { buildingId: string };
+
+  /**
    * **一包种子**：种下去长出什么、多久熟。有这一块的物品能在农田上播种。
    *
    * 和"家具是带 placement 块的物品"同一个路数：**能力块而不是新类型**。

@@ -103,6 +103,13 @@ export type GameEvents = {
   ui_panel_requested: { panel: "backpack" | "actions" | "settings" | "chat" };
   /** ESC 菜单请求回到标题界面（存盘之后） */
   ui_return_to_title: Record<string, never>;
+  /**
+   * 玩家按 F 请求打开**建造面板**（对着醒着的石傀儡）。
+   *
+   * 没有对话这一步：用户定的"不用说话，点开就是面板"。石傀儡是工头
+   * 不是村民，走过去就该直接看到能盖什么。
+   */
+  build_shop_open_requested: Record<string, never>;
   /** 玩家按 F 请求打开工作站界面。灶台不走这条——菜是真的在锅里做的 */
   station_open_requested: {
     instanceId: string;

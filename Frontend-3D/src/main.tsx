@@ -18,6 +18,7 @@ import { buildingDefinitions } from './Buildings/index.ts'
 import { baseMapDefinition } from './Maps/base/index.ts'
 import { TERRITORY_RECT } from './Maps/base/layout.ts'
 import { spawnPosition } from './Game/State/participants.ts'
+import { auditMaterials } from './Game/Systems/materials.ts'
 import { auditItemVisuals } from './Game3D/Visual/VisualRegistry.ts'
 import { hasLocalizationKey } from './i18n/t.ts'
 
@@ -93,6 +94,12 @@ if (import.meta.env.DEV) {
   // 那看起来像"寻路坏了"，而不像"格盘配错了"
   // 出生点是**房本地**坐标，要先经默认房子的锚点世界化再对照格盘——
   // 直接拿原始数对的话，锚点一挪审计就在说另一个点
+  // 保留材料 id（"gold"）不能和真物品撞名，撞了扣费会走错分支
+  const materialProblems = auditMaterials()
+  if (materialProblems.length > 0) {
+    console.warn(`[materials] ${materialProblems.length} 处对不上：`, materialProblems)
+  }
+
   const spawnWorld = spawnPosition()
   const territoryProblems = baseMapDefinition.territory
     ? auditTerritory(baseMapDefinition.territory, {

@@ -33,6 +33,7 @@ import { SleepOverlay } from "../Components/SleepOverlay/SleepOverlay";
 import { HudColumn } from "../Components/Hud/HudColumn";
 import { HudTopCenter } from "../Components/Hud/HudTopCenter";
 import { FocusVignette } from "../Components/ActionHub/FocusCard";
+import { BuildShopPanel } from "../Components/BuildShopPanel/BuildShopPanel";
 import { StationPanel } from "../Components/StationPanel/StationPanel";
 import { StoragePanel } from "../Components/StoragePanel/StoragePanel";
 import {
@@ -1222,6 +1223,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       {/* 家具从背包也能直接进布置模式了——原来只有快捷栏能进，
           得先把家具拖到快捷栏才摆得了，白绕一步 */}
       <Backpack />
+      <BuildShopPanel />
       <StationPanel />
       <DailyBoardPanel />
       <StoragePanel />

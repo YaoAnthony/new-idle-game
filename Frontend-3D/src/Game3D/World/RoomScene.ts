@@ -1,4 +1,4 @@
-import { BodyPosture, DayPhaseId, Facing, FurnitureCapability, WeatherKind, anchorOf, anchorRectToWorld, findItemDefinition, findPetDefinition, roomCellToWorld, worldToRoomLocal, type DeckRect, type WeatherDefinition, yardBoundsOf } from "core";
+import { BodyPosture, CreatureRole, DayPhaseId, Facing, FurnitureCapability, WeatherKind, anchorOf, anchorRectToWorld, findItemDefinition, findPetDefinition, roomCellToWorld, worldToRoomLocal, type DeckRect, type WeatherDefinition, yardBoundsOf } from "core";
 import { isHouseStowed } from "core";
 import type { InteractHint, PlacedFurniture, RoomSave } from "core";
 import {
@@ -1718,6 +1718,16 @@ export class RoomScene {
             kind: ChatMessageKind.System,
             text: t("golem.awakened"),
           });
+          return;
+        }
+
+        /*
+         * 醒着的干活生物：**F 直接开建造面板**，没有对话这一步
+         * （用户定："不用说话，点开就是面板"）。他是工头不是村民，
+         * 走过去就该看到能盖什么。
+         */
+        if (pet && pet.role === CreatureRole.Worker && !pet.dormant) {
+          emit("build_shop_open_requested", {});
           return;
         }
 

@@ -25,6 +25,7 @@ import {
 } from "./recipes/creatures.js";
 import { buildShuShu } from "./recipes/shushu.js";
 import {
+  buildBlueprint,
   buildCurtain,
   buildLuckyBamboo,
   buildPictureFrame,
@@ -122,6 +123,7 @@ const REGISTRY: Record<string, VisualEntry> = {
   stove_default: { kind: "procedural", build: buildStove },
   stone_golem: { kind: "procedural", build: buildStoneGolem },
   golem_head: { kind: "procedural", build: buildGolemHead },
+  blueprint: { kind: "procedural", build: buildBlueprint },
   well_stone: { kind: "procedural", build: buildWell },
   kitchen_counter_l: { kind: "procedural", build: buildKitchenCounter },
   cardboard_box: { kind: "procedural", build: buildCardboardBox },

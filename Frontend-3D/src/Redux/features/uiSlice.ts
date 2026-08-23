@@ -26,6 +26,7 @@ export type PanelId =
   | "settings"
   | "daily"
   | "station"
+  | "buildShop"
   | "storage"
   | "reward"
   | "chest"

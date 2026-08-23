@@ -1212,6 +1212,25 @@ export const itemDefinitions = [
   },
   {
     /**
+     * 储金罐的图纸（2026-08-22）。
+     *
+     * **一种建筑一张图纸**，不是一张通用图纸带参数：背包的堆叠只按
+     * `itemId` 合并，一张通用图纸装不下"这张是哪栋"。多几个注册表项
+     * 比给背包加一套按状态分堆的机制便宜得多。
+     *
+     * 建筑 id 写在 `blueprint` 块里，不靠从物品 id 裁字符串猜——
+     * 那种约定在改名时会静默失效。
+     */
+    id: "blueprint_gold_jar",
+    localizationKey: "item.blueprint_gold_jar",
+    category: ItemCategory.Material,
+    stackLimit: 9,
+    rarity: Rarity.Common,
+    visual: { id: "blueprint" },
+    blueprint: { buildingId: "gold_jar" },
+  },
+  {
+    /**
      * 石傀儡的头（2026-08-22）。**开场唯一的谜题道具**。
      *
      * 它是件**家具**不是掉落物：掉落物走的是"踩上去自动捡"（半径 0.6），

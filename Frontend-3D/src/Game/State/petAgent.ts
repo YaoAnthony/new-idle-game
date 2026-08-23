@@ -15,6 +15,8 @@ import {
   worldToRoomCell,
   type GridPosition,
   type PetSave,
+  type RoomOccupancy,
+  type RoomSave,
 } from "core";
 import { emit } from "../EventBus";
 import {
@@ -25,8 +27,11 @@ import {
 import {
   creatureBlockedAt,
   getCurrentMapId,
+  getRoom,
   getWorld,
+  isWalkable,
   removeCreatureObstacle,
+  roomIdAt,
   setCreatureObstacle,
 } from "./worldRuntime";
 
@@ -79,14 +84,14 @@ const DEFAULT_THIRST_PER_HOUR = 12;
 /** 睡觉时代谢放缓的倍率 */
 const SLEEP_METABOLISM = 0.35;
 
-function gridToWorldXZ(cell: GridPosition): [number, number] {
+function gridToWorldXZ(room: RoomSave, cell: GridPosition): [number, number] {
   // 官方换算（RoomAnchor 感知），不再手写平移半间房
-  const p = roomCellToWorld(getWorld().room, cell.x, cell.y);
+  const p = roomCellToWorld(room, cell.x, cell.y);
   return [p.x, p.z];
 }
 
-function worldToGrid(x: number, z: number): GridPosition {
-  return worldToRoomCell(getWorld().room, x, z);
+function worldToGrid(room: RoomSave, x: number, z: number): GridPosition {
+  return worldToRoomCell(room, x, z);
 }
 
 export class PetAgent {
@@ -112,6 +117,15 @@ export class PetAgent {
   /** 碰撞半径。0 = 不挡路的小团子 */
   readonly radius: number;
   readonly speed: number;
+  /**
+   * 驻地：出生（或读档落位）的地方。乱走以它为圆心，不超过 `wanderRadius`。
+   *
+   * 屋里的宠物不受影响（不填半径 = 不限，房间本身就是围栏）；院子是一整块
+   * 60×45 的房间，不给半径的话石傀儡会一路溜达到据点另一头。
+   */
+  homeX: number;
+  homeZ: number;
+  private readonly wanderRadius: number;
 
   // ---- 行为状态机（运行时，不进存档） ----
   state: PetActivity = "idle";
@@ -159,6 +173,10 @@ export class PetAgent {
     this.sleepiness = definition?.behavior?.sleepiness ?? 0;
     this.napSeconds = definition?.behavior?.napSeconds ?? [60, 120];
     this.role = definition?.role ?? CreatureRole.Pet;
+    this.homeX = at.x;
+    this.homeZ = at.z;
+    this.wanderRadius =
+      definition?.behavior?.wanderRadius ?? Number.POSITIVE_INFINITY;
     this.hungerPerHour =
       definition?.behavior?.hungerPerHour ?? DEFAULT_HUNGER_PER_HOUR;
     this.thirstPerHour =
@@ -168,6 +186,23 @@ export class PetAgent {
     if (this.radius > 0) {
       setCreatureObstacle(this.petId, this.x, this.z, this.radius);
     }
+  }
+
+  /**
+   * 这只生物**脚下那个房间**的几何和占用图。
+   *
+   * 原来这些一律取 `getWorld().room`（主房间）——那是"一图一屋"公理在
+   * 生物行为里最后一份拷贝。院子在期 1 变成一个真房间之后，站在院子里的
+   * 生物做任何事都会被算到**房子的网格**上：格号换算越界、随机目标点落在
+   * 屋里、A* 在屋子的占用图上找路。表现是它站着一动不动，因为每次算路
+   * 都失败。石傀儡坐在院子里，是第一只踩到这条的。
+   *
+   * 查不到（几何还没生成）退回主房间，和 RoomScene 的 `roomOfFurniture`
+   * 是同一种兜底态度：至少不指到天外。
+   */
+  private space(): { room: RoomSave; occupancy: RoomOccupancy } {
+    const room = getRoom(roomIdAt(this.x, this.z)) ?? getWorld().room;
+    return { room, occupancy: getWorld().occupancyOf(room.roomId) };
   }
 
   // ---- 生命周期 ----
@@ -340,7 +375,10 @@ export class PetAgent {
       !nearPlayer &&
       Math.random() < 0.45;
 
-    if (wantsApproach && this.startPath(worldToGrid(player.x, player.z))) {
+    if (
+      wantsApproach &&
+      this.startPath(worldToGrid(this.space().room, player.x, player.z))
+    ) {
       this.state = "approach";
       this.idleTimer = 4 + Math.random() * 4;
       return;
@@ -402,8 +440,10 @@ export class PetAgent {
       );
       let sumX = 0;
       let sumZ = 0;
+      // 家具的格号属于**它自己那个房间**，不是这只生物脚下的那个
+      const furnitureRoom = getRoom(placed.placement.roomId) ?? getWorld().room;
       for (const cell of cells) {
-        const [wx, wz] = gridToWorldXZ(cell);
+        const [wx, wz] = gridToWorldXZ(furnitureRoom, cell);
         sumX += wx;
         sumZ += wz;
       }
@@ -509,25 +549,65 @@ export class PetAgent {
   }
 
   private randomFreeCell(): GridPosition | null {
-    const { room, occupancy } = getWorld();
+    const { room, occupancy } = this.space();
+
+    /*
+     * 抽样范围要**先收到驻地附近**，不能全房间均匀抽再筛。
+     *
+     * 院子是 60×45 = 2700 格，5 米半径的圆只占 79 格——均匀抽的命中率
+     * 不到 3%，抽 24 次有一半的机会一个都中不了。表现是石傀儡走一段
+     * 就呆站十几秒，看着像卡住了。屋里的宠物不受影响（不限半径时
+     * 范围就是整个房间，和以前一模一样）。
+     */
+    const grid = room.floorGrid;
+    let minX = 1;
+    let maxX = grid.width - 2;
+    let minY = 1;
+    let maxY = grid.height - 2;
+    if (Number.isFinite(this.wanderRadius)) {
+      const homeCell = worldToGrid(room, this.homeX, this.homeZ);
+      const span = Math.ceil(this.wanderRadius);
+      minX = Math.max(minX, homeCell.x - span);
+      maxX = Math.min(maxX, homeCell.x + span);
+      minY = Math.max(minY, homeCell.y - span);
+      maxY = Math.min(maxY, homeCell.y + span);
+      if (maxX < minX || maxY < minY) return null;
+    }
+
     for (let attempt = 0; attempt < 24; attempt += 1) {
       const cell = {
-        x: 1 + Math.floor(Math.random() * (room.floorGrid.width - 2)),
-        y: 1 + Math.floor(Math.random() * (room.floorGrid.height - 2)),
+        x: minX + Math.floor(Math.random() * (maxX - minX + 1)),
+        y: minY + Math.floor(Math.random() * (maxY - minY + 1)),
       };
-      if (cellHasClearance(room.floorGrid, occupancy, cell, this.radius)) {
-        return cell;
+      if (!cellHasClearance(grid, occupancy, cell, this.radius)) {
+        continue;
       }
+
+      const [wx, wz] = gridToWorldXZ(room, cell);
+      // 驻地半径（上面收的是方框，这里才是真的圆）
+      if (Math.hypot(wx - this.homeX, wz - this.homeZ) > this.wanderRadius) {
+        continue;
+      }
+      /*
+       * 还要过**真正的可走判定**。`cellHasClearance` 只看这个房间的占用图
+       * （家具、房子脚印），它不知道领地——院子里一大半是没解锁的地，
+       * 光看占用图的话石傀儡会径直走进围栏外面去。`isWalkable` 是玩家
+       * 走路用的同一条规则（领地三态、地形、建筑），生物和玩家该受同样的
+       * 约束。传自己的 id，免得被自己的碰撞体挡住。
+       */
+      if (!isWalkable(wx, wz, this.radius, this.petId)) continue;
+
+      return cell;
     }
     return null;
   }
 
   private startPath(goal: GridPosition): boolean {
-    const { room, occupancy } = getWorld();
+    const { room, occupancy } = this.space();
     const path = findPath(
       room.floorGrid,
       occupancy,
-      worldToGrid(this.x, this.z),
+      worldToGrid(room, this.x, this.z),
       goal,
       // A* 按这只的体型算路：大家伙不会被规划进挤不过去的缝
       { clearanceRadius: this.radius },
@@ -544,13 +624,13 @@ export class PetAgent {
    * 大家伙够不到目标格本身（比如水槽在阻挡格里），reach 半径表达"凑近就行"。
    */
   private seekNear(targetX: number, targetZ: number, reach: number): boolean {
-    const { room, occupancy } = getWorld();
+    const { room, occupancy } = this.space();
 
     const candidates: Array<{ cell: GridPosition; distance: number }> = [];
     for (let gy = 1; gy < room.floorGrid.height - 1; gy += 1) {
       for (let gx = 1; gx < room.floorGrid.width - 1; gx += 1) {
         const cell = { x: gx, y: gy };
-        const [wx, wz] = gridToWorldXZ(cell);
+        const [wx, wz] = gridToWorldXZ(room, cell);
         const distance = Math.hypot(wx - targetX, wz - targetZ);
         if (distance > reach) continue;
         if (!cellHasClearance(room.floorGrid, occupancy, cell, this.radius)) {
@@ -569,7 +649,7 @@ export class PetAgent {
   }
 
   private tickMove(deltaSeconds: number): void {
-    const [tx, tz] = gridToWorldXZ(this.path[this.pathIndex]);
+    const [tx, tz] = gridToWorldXZ(this.space().room, this.path[this.pathIndex]);
     const dx = tx - this.x;
     const dz = tz - this.z;
     const distance = Math.hypot(dx, dz);
@@ -653,6 +733,7 @@ export class PetAgent {
       mood: this.mood,
       nickname: this.nickname,
       lastGiftWorldDayId: this.lastGiftWorldDayId,
+      home: { x: this.homeX, z: this.homeZ },
       // undefined 而不是 false：醒着是默认态，别往每份存档里写一排 false
       sleeping: this.state === "sleeping" ? true : undefined,
       // 同理：没有零件概念的物种不写这个字段
@@ -667,6 +748,12 @@ export class PetAgent {
       z: entry.position.y,
       heading: entry.position.heading,
     });
+
+    // 驻地：老存档没有就用读档位置兜底
+    if (entry.home) {
+      agent.homeX = entry.home.x;
+      agent.homeZ = entry.home.z;
+    }
 
     agent.affectionStage = entry.affectionStage;
     agent.nickname = entry.nickname;

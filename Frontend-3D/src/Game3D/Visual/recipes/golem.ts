@@ -63,12 +63,26 @@ export function buildStoneGolem(): Object3D {
   root.name = "stone-golem";
 
   /*
+   * `rig` 是**整个人**：走路时的上下颠簸动它，不动 `root`。
+   *
+   * 这条是踩过的坑：第一版走路的颠簸写成 `root.position.y = ...`，而
+   * `root.position` 是 `PetView` 每帧用来把生物放到**地面高度**上的
+   * （`groundHeightAt`）。动它等于把地面高度覆盖掉——院子地面在 −0.45，
+   * 于是石傀儡整个浮在空中 0.45 米。
+   * PetView 的约定写得很清楚："内部只动自己的子节点，root 的位置朝向
+   * 仍归这里管"。多一个中间节点就守住了这条。
+   */
+  const rig = new Object3D();
+  rig.name = "rig";
+  root.add(rig);
+
+  /*
    * `body` 管整体的坐/站。腿不挂在它下面——坐下时躯干往下沉，腿却要
    * 留在地上折起来，两者的动法不一样。
    */
   const body = new Object3D();
   body.name = "body";
-  root.add(body);
+  rig.add(body);
 
   /*
    * 躯干：**宽肩窄腰**。
@@ -163,7 +177,7 @@ export function buildStoneGolem(): Object3D {
       rock([0.52, 0.22, 0.64], [0, -0.42, 0.08], side < 0 ? 23 : 24),
     );
     legs.push(pivot);
-    root.add(pivot);
+    rig.add(pivot);
   }
 
   // ---- 装/摘头 ----
@@ -245,11 +259,12 @@ export function buildStoneGolem(): Object3D {
       walkPhase += deltaSeconds * 3.4;
       // 躯干左右晃，重心从一条腿倒到另一条
       body.rotation.z = Math.sin(walkPhase) * 0.05;
-      root.position.y = Math.abs(Math.sin(walkPhase)) * 0.04;
+      // 动 rig 不动 root：root 的 y 是 PetView 给的地面高度
+      rig.position.y = Math.abs(Math.sin(walkPhase)) * 0.04;
     } else {
       walkPhase = 0;
       body.rotation.z = 0;
-      root.position.y = 0;
+      rig.position.y = 0;
       /*
        * 站着不动时极慢地起伏一点。石头不喘气，但**完全不动就是雕像**——
        * 这一下起伏是"里面还有东西在运转"的唯一证据。没头的时候不给，

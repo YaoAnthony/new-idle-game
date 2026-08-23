@@ -230,6 +230,15 @@ export const goldJar: BuildingDefinition = {
       descriptionKey: "building.gold_jar.l1.desc",
       footprint: { width: 2, height: 2 },
       nextLevelIds: ["l2"],
+      /*
+       * 从无到有盖一只要多少。**0 枚金币**是刻意的（用户定，测试期）：
+       * 也是 Core 早就写下的硬约束——`logic/goldJar.ts` 注释里那条
+       * "第一只罐的建造代价必须为 0，否则玩家永远攒不出建罐的钱，死锁"。
+       *
+       * 写成 `[{ gold, 0 }]` 而不是空数组：面板要显示"0 金币"这一行。
+       * 空数组的意思是"不要任何材料"，那是另一件事。
+       */
+      buildCost: [{ itemId: "gold", quantity: 0 }],
       upgradeCost: { l2: [] },
       build: () => group("gold-jar-l1", [crate(1, { studs: false, seed: 3 })]),
     },

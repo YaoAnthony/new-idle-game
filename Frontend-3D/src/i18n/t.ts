@@ -120,8 +120,13 @@ const ZH: Record<string, string> = {
   "ui.build_shop.free": "不要材料",
   "ui.build_shop.empty": "他现在什么也盖不了。",
   "ui.build_shop.hint": "拿上图纸，走到想盖的地方按 F。",
+  // 左边分类栏那两格。**是名词不是动词**——它标的是"这一格里是什么"，
+  // 按下去不发生任何事，只是换一架货
+  "ui.build_shop.tab.build": "建筑",
+  "ui.build_shop.tab.terrain": "地形",
   // 扩地也在石傀儡这儿办：他是这块地上唯一会动土的
   "ui.build_shop.territory": "开一块新地",
+  "ui.build_shop.territory.hint": "挑一块挨着的地，石头这就去推界桩。",
   "ui.build_shop.territory.buy": "叫他去敲",
   "ui.build_shop.territory.none": "挨着的地都是你的了。",
   // t() 不支持插值，地名在代码里拼在前面："西边草地那边的界桩倒了……"

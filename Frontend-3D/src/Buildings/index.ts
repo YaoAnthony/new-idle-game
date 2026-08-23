@@ -84,3 +84,31 @@ export {
   buildingRect,
   buildPlacedBuilding,
 } from "./placement.js";
+
+/**
+ * 这一级在界面上那张图。商店卡片、升级界面共用一个口。
+ *
+ * **不填的等级退回前一个有图的等级**（一路退到初始等级）。理由是美术
+ * 是一级一级补的：金库现在只画了 lv1，`treasury/lv2.png` 还不存在——
+ * 让 lv2 顶着 lv1 的图，总好过卡片上开个洞。等 lv2 的图画好了，
+ * 往那一级上加一行 `icon` 就自动生效，这里一个字不用改。
+ *
+ * 全都没有 → undefined，由调用方退化成画名字。
+ */
+export function buildingIcon(
+  buildingId: string,
+  levelId?: string,
+): string | undefined {
+  const definition = findBuilding(buildingId);
+  if (!definition) return undefined;
+
+  const index = levelId
+    ? definition.levels.findIndex((item) => item.levelId === levelId)
+    : 0;
+  // 认不出的等级当成初始等级，和 findBuildingLevel 的容错一致
+  for (let i = index < 0 ? 0 : index; i >= 0; i -= 1) {
+    const icon = definition.levels[i]?.icon;
+    if (icon) return icon;
+  }
+  return undefined;
+}

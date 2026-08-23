@@ -12,22 +12,37 @@ import {
 import {
   canAfford,
   materialCounts,
+  materialIconUrl,
   materialNameKey,
   spendMaterials,
   type MaterialNeed,
 } from "../../Game/Systems/materials";
-import { buildingDefinitions, findBuildingLevel } from "../../Buildings/index";
+import {
+  buildingDefinitions,
+  buildingIcon,
+  findBuildingLevel,
+} from "../../Buildings/index";
 import { itemDefinitions } from "core";
 import { t } from "../../i18n/t";
 import { usePanel } from "../PanelStack/usePanel";
 
 /**
- * 建造面板：对着醒着的石傀儡按 F 打开。**没有对话这一步**
+ * 石傀儡的铺子：对着醒着的他按 F 打开。**没有对话这一步**
  * （用户定："不用说话，点开就是面板"）。
  *
- * 一行一种可盖的建筑：名字 / 说明 / 造价（材料**逐条**列出，够的绿不够的红）。
- * 点击 = 扣材料 + 拿到一张图纸；图纸怎么变成工地是选址那一步的事，
- * 这块面板不碰世界。
+ * ## 一张卡一件东西，左边竖着分类
+ *
+ * 改版前是一列长条，建筑和地块混在一串里往下滚，用户的评价是"太丑"。
+ * 现在照他给的参考（部落冲突的商店）重排：**左侧分类栏 + 右侧卡片网格**，
+ * 一张卡就是一件能买的东西——图、名字、价钱，整块能按。
+ *
+ * 借的是**版式**不是画风（用户明确说的："不用参考木头棕，我只是让你参考
+ * UIUX 的架构"）。配色仍是全局那套奶油马卡龙；套一层部落冲突的木纹会和
+ * 背包、每日板、行动面板全部打架。
+ *
+ * **分类栏竖着放而不是横着**：横屏（基准 iPhone SE 667×375）里稀缺的是
+ * **纵向**空间，一条横标签要吃掉一整行的高度；竖栏吃的是横向，而横向是
+ * 宽的那一边。参考图里也是竖的。
  *
  * ## 能盖什么 = 有没有图纸物品
  *
@@ -35,168 +50,68 @@ import { usePanel } from "../PanelStack/usePanel";
  * 指向它的物品**，它就上架。加一种可盖的建筑 = 加一件图纸物品，
  * 这块面板一行不用改；反过来也不会出现"面板上有但买了没用"的条目。
  *
- * ## 扩地也在这块面板里（2026-08-23）
+ * ## 扩地也在这块面板里
  *
- * "开一块新地"没有另开一个面板，也没有另找一个 NPC：**石傀儡是这块地上
- * 唯一会动土的**，盖房子和推界桩本来就是同一双手。分成两个入口的话，
- * 玩家得记住"盖东西找石头、扩地找别处"，而那条分界在故事里不存在。
- *
- * 两段共用一套渲染（名字 / 说明 / 逐条代价 / 够不够变色），
- * 因为它们对玩家是同一件事：**花掉手上的东西，换一样立得起来的**。
+ * "开一块新地"是这里的第二个分类，没有另开面板、也没有另找 NPC：
+ * **石傀儡是这块地上唯一会动土的**，盖房子和推界桩本来就是同一双手。
+ * 拆成两个入口的话，玩家得记住"盖东西找石头、扩地找别处"，
+ * 而那条分界在故事里不存在。
  */
 
-type Row = {
-  buildingId: string;
-  blueprintItemId: string;
+/** 面板上一件能买的东西。建筑和地块都摊成它，于是共用一套卡片 */
+type Card = {
+  key: string;
   nameKey: string;
   descKey?: string;
+  icon?: string;
   cost: MaterialNeed[];
-};
-
-/** 上架清单：从图纸物品反查建筑，不另立一张表 */
-function shopRows(): Row[] {
-  const rows: Row[] = [];
-  for (const item of itemDefinitions) {
-    const buildingId = item.blueprint?.buildingId;
-    if (!buildingId) continue;
-
-    const definition = buildingDefinitions.find((b) => b.buildingId === buildingId);
-    if (!definition) continue;
-
-    // 造价挂在**初始等级**上——"从无到有"就是盖出第一级
-    const first = definition.levels[0];
-    const level = findBuildingLevel(buildingId, first.levelId);
-    rows.push({
-      buildingId,
-      blueprintItemId: item.id,
-      nameKey: definition.localizationKey,
-      descKey: definition.descriptionKey,
-      cost: [...(level?.buildCost ?? [])],
-    });
-  }
-  return rows;
-}
-
-/**
- * 一行的样子：名字 / 说明 / 逐条代价 / 一个按钮。
- *
- * 抽出来是因为"盖建筑"和"开地"要长得一模一样——它们对玩家是同一件事
- * （花掉手上的东西换一样立得起来的），长得不一样反而要解释。
- */
-function ShopRow({
-  nameKey,
-  descKey,
-  cost,
-  have,
-  actionKey,
-  onAction,
-}: {
-  nameKey: string;
-  descKey?: string;
-  cost: MaterialNeed[];
-  have: Map<string, number>;
+  /**
+   * 卡片底下那个动词。**不能省**：建筑那格点下去拿到的是一张**图纸**，
+   * 不是一堵墙——不写清楚的话玩家点完会去地上找墙，找不到就当是 bug。
+   * 地块那格是当场生效，动词也就不一样。
+   */
   actionKey: string;
   onAction: () => void;
-}) {
-  const affordable = canAfford(cost);
-  return (
-    <div className="flex shrink-0 items-center gap-3 rounded-xl border-2 border-[#b09468] bg-[#f4ead0] px-4 py-3">
-      <div className="min-w-0 flex-1">
-        <div className="text-[14px] font-bold text-[#4a3520]">{t(nameKey)}</div>
-        {descKey && (
-          <div className="mt-0.5 text-[11px] leading-snug text-[#8a6a48]">
-            {t(descKey)}
-          </div>
-        )}
-        {/* 材料逐条列出：够的绿、不够的红。数组就是数组，不合并成一句话 */}
-        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
-          {cost.length === 0 && (
-            <span className="text-[11px] text-[#8a6a48]">
-              {t("ui.build_shop.free")}
-            </span>
-          )}
-          {cost.map((need) => {
-            const owned = have.get(need.itemId) ?? 0;
-            const enough = owned >= need.quantity;
-            return (
-              <span
-                key={need.itemId}
-                className={[
-                  "text-[11px] font-semibold",
-                  enough ? "text-[#3f7d3f]" : "text-[#b4432e]",
-                ].join(" ")}
-              >
-                {t(materialNameKey(need.itemId))} {need.quantity}
-                <span className="ml-1 opacity-70">({owned})</span>
-              </span>
-            );
-          })}
-        </div>
-      </div>
-      <button
-        type="button"
-        disabled={!affordable}
-        onClick={onAction}
-        className={[
-          "ui-wood-btn shrink-0 px-4 py-2 text-[12px] font-bold",
-          affordable ? "" : "cursor-not-allowed opacity-50",
-        ].join(" ")}
-      >
-        {t(actionKey)}
-      </button>
-    </div>
-  );
-}
+};
 
-/** 段落小标题。两段之间要有一条明显的界，不然读起来像一张长清单 */
-function SectionLabel({ labelKey }: { labelKey: string }) {
-  return (
-    <div className="mt-1 flex shrink-0 items-center gap-2">
-      <span className="h-px flex-1 bg-[#b09468]" />
-      <span className="text-[11px] font-bold tracking-[0.2em] text-[#8a6a48]">
-        {t(labelKey)}
-      </span>
-      <span className="h-px flex-1 bg-[#b09468]" />
-    </div>
-  );
-}
-
-/** 面板上的一块地：能开的才列出来（不相邻的不列，列了也点不动） */
-type PlotRow = { plotId: string; nameKey: string };
-
-function plotRows(): PlotRow[] {
-  const byId = new Map(allPlots().map((plot) => [plot.plotId, plot]));
-  return unlockablePlotIds().map((plotId) => ({
-    plotId,
-    nameKey: byId.get(plotId)?.localizationKey ?? plotId,
-  }));
-}
+type Category = {
+  id: string;
+  labelKey: string;
+  emptyKey: string;
+  hintKey: string;
+  cards: Card[];
+};
 
 export function BuildShopPanel() {
   const [open, setOpen] = usePanel("buildShop");
-  const [rows, setRows] = useState<Row[]>([]);
-  const [plots, setPlots] = useState<PlotRow[]>([]);
+  const [tab, setTab] = useState("build");
   // 手上有多少材料。开着的时候要跟着背包/金币变，不然扣完还显示旧数
   const [have, setHave] = useState<Map<string, number>>(new Map());
+  /*
+   * 世界变了要重算的那部分（买完地之后邻居名单会变）。存一个计数当刷新
+   * 信号，而不是把卡片列表存进 state：列表是从注册表和领地现状**推**出来
+   * 的，存一份就有了第二个真相，第一次忘记同步就是"买过的地还留在架上"。
+   */
+  const [revision, setRevision] = useState(0);
+  const bump = () => setRevision((n) => n + 1);
 
   useEffect(() => {
     const refresh = () => setHave(materialCounts());
     const offOpen = on("build_shop_open_requested", () => {
-      setRows(shopRows());
-      setPlots(plotRows());
       refresh();
+      bump();
       setOpen(true);
     });
     const offInventory = on("inventory_changed", refresh);
     const offGold = on("gold_changed", refresh);
     /*
-     * 开完一块地要把清单重算：刚买下的那块从"能开"变成"已有"，
-     * 而它的邻居们这时候才第一次变得可开。不重算的话面板上还留着
-     * 一行已经买过的地，再点一次会拿到 owned。
+     * 开完一块地要重算：刚买下的那块从"能开"变成"已有"，而它的邻居们
+     * 这时候才第一次变得可开。不重算的话架上还留着一张已经买过的地，
+     * 再点一次会拿到 owned。
      */
     const offWorld = on("world_changed", () => {
-      setPlots(plotRows());
       refresh();
+      bump();
     });
     return () => {
       offOpen();
@@ -208,76 +123,242 @@ export function BuildShopPanel() {
 
   if (!open) return null;
 
-  const buy = (row: Row) => {
-    if (!spendMaterials(row.cost)) return;
-    addItem(row.blueprintItemId, 1);
+  const buyBlueprint = (blueprintItemId: string, cost: MaterialNeed[]) => {
+    if (!spendMaterials(cost)) return;
+    addItem(blueprintItemId, 1);
     setHave(materialCounts());
   };
 
   /*
-   * 开地和拿图纸不一样：**当场就生效**，没有"拿着图纸去选址"这一步。
+   * 开地和拿图纸不一样：**当场就生效**，没有"拿着图纸去选址"那一步。
    * 一块地的位置是它自己定死的（`PlotDefinition.rect`），没什么可选的。
    */
-  const unlock = (row: PlotRow) => {
-    if (!buyPlot(row.plotId).ok) return;
-    pushSystemMessage(
-      `${t(row.nameKey)}${t("ui.build_shop.territory.done")}`,
-    );
+  const unlock = (plotId: string, nameKey: string) => {
+    if (!buyPlot(plotId).ok) return;
+    pushSystemMessage(`${t(nameKey)}${t("ui.build_shop.territory.done")}`);
     // world_changed 那条订阅会把清单和余额一起刷了
   };
 
+  // 读一下 revision：它存在的意义就是让下面这两个列表跟着世界变化重算
+  void revision;
+
+  const categories: Category[] = [
+    {
+      id: "build",
+      labelKey: "ui.build_shop.tab.build",
+      emptyKey: "ui.build_shop.empty",
+      hintKey: "ui.build_shop.hint",
+      cards: buildCards(buyBlueprint),
+    },
+    {
+      id: "terrain",
+      labelKey: "ui.build_shop.tab.terrain",
+      emptyKey: "ui.build_shop.territory.none",
+      hintKey: "ui.build_shop.territory.hint",
+      cards: terrainCards(unlock),
+    },
+  ];
+  const active = categories.find((item) => item.id === tab) ?? categories[0];
+
   return (
-    <div className="ui-book absolute left-1/2 top-1/2 z-30 w-[min(720px,92vw)] -translate-x-1/2 -translate-y-1/2">
-      <div className="absolute left-1/2 top-[8%] -translate-x-1/2 text-[19px] font-bold tracking-[0.3em] text-[#f4e6c0] [text-shadow:0_2px_2px_rgb(0_0_0_/_0.75)]">
-        {t("ui.build_shop")}
-      </div>
-      <button
-        type="button"
-        className="ui-wood-btn absolute right-[7.5%] top-[10%] z-10 grid h-10 w-10 place-items-center text-[16px] font-bold"
-        onClick={() => setOpen(false)}
+    <div
+      className="absolute inset-0 z-40 grid min-h-0 place-items-center bg-black/45 px-6 py-7"
+      onPointerDown={(event) => {
+        if (event.target === event.currentTarget) setOpen(false);
+      }}
+    >
+      <div
+        className="ui-action-panel relative flex max-h-full min-h-0 flex-col px-6 pb-5 pt-9"
+        style={{ width: "min(1040px,94vw)" }}
       >
-        ×
-      </button>
+        <div className="ui-plaque absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 px-9 py-2">
+          <span className="text-[20px] font-bold tracking-[0.25em] text-[#7a5a1d]">
+            {t("ui.build_shop")}
+          </span>
+        </div>
+        <button
+          type="button"
+          className="ui-wood-btn absolute right-5 top-5 grid h-9 w-9 place-items-center text-[16px]"
+          aria-label={t("ui.close")}
+          onClick={() => setOpen(false)}
+        >
+          ✕
+        </button>
 
-      <div className="ui-scroll absolute left-[10%] top-[21%] flex h-[58%] w-[80%] flex-col gap-2 overflow-y-auto pr-1">
-        {rows.length === 0 && (
-          <div className="py-6 text-center text-[12px] text-[#8a6a48]">
-            {t("ui.build_shop.empty")}
+        <div className="mt-1 flex min-h-0 gap-3">
+          {/* ---- 左：分类栏 ---- */}
+          <nav className="flex w-[86px] shrink-0 flex-col gap-1.5 pt-0.5 sm:w-[104px]">
+            {categories.map((category) => (
+              <button
+                key={category.id}
+                type="button"
+                onClick={() => setTab(category.id)}
+                className={[
+                  "ui-tab px-2 py-2 text-[12px] font-bold sm:text-[13px]",
+                  category.id === active.id ? "ui-tab--active" : "",
+                ].join(" ")}
+              >
+                {t(category.labelKey)}
+              </button>
+            ))}
+          </nav>
+
+          {/* ---- 右：卡片货架 ---- */}
+          <div className="ui-shop-shelf ui-scroll min-h-[196px] flex-1 overflow-y-auto p-3">
+            {active.cards.length === 0 ? (
+              <div className="grid h-full min-h-[172px] place-items-center px-6 text-center text-[13px] leading-relaxed text-[var(--ink-soft)]">
+                {t(active.emptyKey)}
+              </div>
+            ) : (
+              // 列数不写死：列宽和图框都从 --shop-art 推，见 index.css
+              <div className="ui-shop-grid">
+                {active.cards.map((card) => (
+                  <ShopCard key={card.key} card={card} have={have} />
+                ))}
+              </div>
+            )}
           </div>
-        )}
-        {rows.map((row) => (
-          <ShopRow
-            key={row.buildingId}
-            nameKey={row.nameKey}
-            descKey={row.descKey}
-            cost={row.cost}
-            have={have}
-            actionKey="ui.build_shop.buy"
-            onAction={() => buy(row)}
-          />
-        ))}
+        </div>
 
-        <SectionLabel labelKey="ui.build_shop.territory" />
-        {plots.length === 0 && (
-          <div className="shrink-0 py-3 text-center text-[12px] text-[#8a6a48]">
-            {t("ui.build_shop.territory.none")}
-          </div>
-        )}
-        {plots.map((row) => (
-          <ShopRow
-            key={row.plotId}
-            nameKey={row.nameKey}
-            cost={[...plotCost()]}
-            have={have}
-            actionKey="ui.build_shop.territory.buy"
-            onAction={() => unlock(row)}
-          />
-        ))}
-      </div>
-
-      <div className="absolute bottom-[9%] left-1/2 w-[80%] -translate-x-1/2 text-center text-[11px] leading-snug text-[#8a6a48]">
-        {t("ui.build_shop.hint")}
+        <div className="mt-2.5 text-center text-[11px] leading-snug text-[var(--ink-soft)]">
+          {t(active.hintKey)}
+        </div>
       </div>
     </div>
   );
+}
+
+/**
+ * 一张卡：名字在上，图在中间，价钱在下，**整块可按**。
+ *
+ * 整块可按而不是角上挂一个小按钮：横屏基准是 iPhone SE，一根手指去够
+ * 44px 的按钮本来就勉强；而卡片本身就是那件东西，按它是最自然的动作。
+ */
+function ShopCard({ card, have }: { card: Card; have: Map<string, number> }) {
+  const affordable = canAfford(card.cost);
+  return (
+    <button
+      type="button"
+      disabled={!affordable}
+      onClick={card.onAction}
+      title={card.descKey ? t(card.descKey) : undefined}
+      className={[
+        "ui-shop-card flex flex-col items-center gap-1 px-2 pb-2 pt-2",
+        affordable ? "" : "ui-shop-card--broke",
+      ].join(" ")}
+    >
+      <span
+        className="w-full truncate text-center font-bold text-[var(--ink)]"
+        style={{ fontSize: "clamp(12px, 1.7vmin, 16px)" }}
+      >
+        {t(card.nameKey)}
+      </span>
+
+      {/* 尺寸在 CSS 里（--shop-art），跟视口走：小屏收住，大屏放开 */}
+      <span className="ui-shop-card__art grid place-items-center">
+        {card.icon ? (
+          <img src={card.icon} alt="" className="h-[88%] w-[88%] object-contain" />
+        ) : (
+          // 没配图的先画名字，不留一个空洞——图是慢慢补的，功能不等图
+          <span className="px-1.5 text-center text-[11px] leading-tight text-[var(--ink-soft)]">
+            {t(card.nameKey)}
+          </span>
+        )}
+      </span>
+
+      {/* 价钱逐项列出：够的绿、不够的红。数组就是数组，不合并成一句话 */}
+      <span className="flex flex-wrap items-center justify-center gap-1">
+        {card.cost.length === 0 && (
+          <span className="ui-shop-price ui-shop-price--ok text-[11px] font-bold">
+            {t("ui.build_shop.free")}
+          </span>
+        )}
+        {card.cost.map((need) => (
+          <PricePill
+            key={need.itemId}
+            need={need}
+            owned={have.get(need.itemId) ?? 0}
+          />
+        ))}
+      </span>
+
+      <span className="text-[10px] font-bold tracking-wide text-[var(--ink-soft)]">
+        {t(card.actionKey)}
+      </span>
+    </button>
+  );
+}
+
+/**
+ * 一项代价：图标 + 数量。**图标优先于名字**——价钱是要一眼扫过去的，
+ * 三个字的材料名在 120px 宽的卡片上会换行，把卡片撑成参差不齐的高度。
+ * 没有图的材料才退回文字。
+ */
+function PricePill({ need, owned }: { need: MaterialNeed; owned: number }) {
+  const enough = owned >= need.quantity;
+  const icon = materialIconUrl(need.itemId);
+  return (
+    <span
+      className={[
+        "ui-shop-price inline-flex items-center gap-0.5 text-[11px] font-bold",
+        enough ? "ui-shop-price--ok" : "ui-shop-price--short",
+      ].join(" ")}
+      // 图标看不出是什么的时候，指上去还有名字和"手上有多少"
+      title={`${t(materialNameKey(need.itemId))} ${need.quantity}（${owned}）`}
+    >
+      {icon ? (
+        <img src={icon} alt="" className="h-[13px] w-[13px] object-contain" />
+      ) : (
+        <span>{t(materialNameKey(need.itemId))}</span>
+      )}
+      {need.quantity}
+    </span>
+  );
+}
+
+/** 上架清单：从图纸物品反查建筑，不另立一张表 */
+function buildCards(
+  buy: (blueprintItemId: string, cost: MaterialNeed[]) => void,
+): Card[] {
+  const cards: Card[] = [];
+  for (const item of itemDefinitions) {
+    const buildingId = item.blueprint?.buildingId;
+    if (!buildingId) continue;
+
+    const definition = buildingDefinitions.find((b) => b.buildingId === buildingId);
+    if (!definition) continue;
+
+    // 造价挂在**初始等级**上——"从无到有"就是盖出第一级
+    const first = definition.levels[0];
+    const level = findBuildingLevel(buildingId, first.levelId);
+    const cost = [...(level?.buildCost ?? [])];
+    cards.push({
+      key: buildingId,
+      nameKey: definition.localizationKey,
+      descKey: definition.descriptionKey,
+      // 商店卖的是"从无到有"，所以拿**初始等级**那张图
+      icon: buildingIcon(buildingId, first.levelId),
+      cost,
+      actionKey: "ui.build_shop.buy",
+      onAction: () => buy(item.id, cost),
+    });
+  }
+  return cards;
+}
+
+/** 能开的地块。不相邻的不列——列了也点不动，那是给玩家看一堵墙 */
+function terrainCards(unlock: (plotId: string, nameKey: string) => void): Card[] {
+  const byId = new Map(allPlots().map((plot) => [plot.plotId, plot]));
+  return unlockablePlotIds().map((plotId) => {
+    const nameKey = byId.get(plotId)?.localizationKey ?? plotId;
+    return {
+      key: plotId,
+      nameKey,
+      // 图由地块表说了算（`PlotDefinition.icon`），这块面板不认识任何文件名
+      icon: byId.get(plotId)?.icon,
+      cost: [...plotCost()],
+      actionKey: "ui.build_shop.territory.buy",
+      onAction: () => unlock(plotId, nameKey),
+    };
+  });
 }

@@ -86,6 +86,26 @@ export function materialNameKey(itemId: ItemId): string {
   return findItemDefinition(itemId)?.localizationKey ?? itemId;
 }
 
+/** 保留资源的图标。真物品走 `/icons/<id>.png` 那条老约定，不列在这里 */
+const RESERVED_ICONS: Record<string, string> = {
+  gold: "/icons/gold_icon.png",
+};
+
+/**
+ * 材料的图标地址。**没有就返回 undefined**，由调用方决定退化成什么
+ * （商店卡片退化成名字，不留空洞）。
+ *
+ * 金币不在 `/icons/gold_icon.png` 这条约定上是因为它压根不是物品：
+ * `findItemDefinition("gold")` 是空的，按 id 拼路径拼出来的
+ * `/icons/gold.png` 也不存在。保留资源各自指一张图，和
+ * `materialNameKey` 各自指一句文案是同一个路数。
+ */
+export function materialIconUrl(itemId: ItemId): string | undefined {
+  const reserved = RESERVED_ICONS[itemId];
+  if (reserved) return reserved;
+  return findItemDefinition(itemId) ? `/icons/${itemId}.png` : undefined;
+}
+
 /** 开机自检：保留 id 不能和真物品撞名 */
 export function auditMaterials(): string[] {
   return Object.keys(RESERVED_MATERIALS)

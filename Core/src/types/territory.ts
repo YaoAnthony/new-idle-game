@@ -27,6 +27,14 @@ export type PlotDefinition = {
    */
   rect: { minX: number; maxX: number; minZ: number; maxZ: number };
 
+  /**
+   * 界面上那张图（`public/` 下的路径）。不填 = 画名字。
+   *
+   * 是**地貌**的图不是这一块地的肖像：八块地共用一套地貌图
+   * （林地/草地/滩地…），谁是什么地貌由地块表说了算。
+   */
+  icon?: string;
+
   /** 开局就拥有。恰好一块（territoryAudit 会拦） */
   initial?: boolean;
 

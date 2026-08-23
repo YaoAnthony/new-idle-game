@@ -226,6 +226,7 @@ export const goldJar: BuildingDefinition = {
   levels: [
     {
       levelId: "l1",
+      icon: "/icons/treasury/lv1.png",
       localizationKey: "building.gold_jar.l1",
       descriptionKey: "building.gold_jar.l1.desc",
       footprint: { width: 2, height: 2 },

@@ -1144,3 +1144,107 @@ input {
     opacity: 1;
   }
 }
+
+/*
+ * 石傀儡铺子的货架和卡片（2026-08-23）。
+ *
+ * 版式抄的是部落冲突的商店（用户给的参考），**画风一点没抄**——他明确
+ * 说了"不用参考木头棕，我只是让你参考 UIUX 的架构"。所以这里一根木纹
+ * 都没有，用的还是上面那套奶油马卡龙变量。
+ *
+ * 没有复用 .ui-paper：那是横格信纸底纹，衬任务清单对，衬一格一格的卡片
+ * 会和卡片边框搅在一起。货架要的是"凹进去一块"，让卡片浮在上面。
+ */
+
+.ui-shop-shelf {
+  /*
+   * 卡片大小的**唯一来源**。列宽和图框都从它推，所以调一个数两边一起动，
+   * 不会出现"图变大了但列还是窄的"这种错位。
+   *
+   * 跟 vmin 走而不是 vw：横屏里高度才是稀缺的那一边（基准 iPhone SE
+   * 667×375），跟着宽度长的话大屏没问题、矮屏会把卡片顶出货架。
+   * 两头都夹住——小屏不缩到看不清图，大屏不摊成海报。
+   */
+  --shop-art: clamp(72px, 17vmin, 168px);
+
+  background: linear-gradient(180deg, var(--cream-2) 0%, var(--cream-3) 100%);
+  border: 2px solid var(--line-deep);
+  border-radius: 18px;
+  /* 内阴影 = 凹进去。卡片靠外阴影浮起来，一凹一凸才有层次 */
+  box-shadow: inset 0 3px 10px rgb(227 174 144 / 0.35);
+}
+
+/* 货架的排布：列宽 = 图框 + 左右留白，列数由可用宽度自己决定 */
+.ui-shop-grid {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(calc(var(--shop-art) + 30px), 1fr)
+  );
+  gap: 10px;
+}
+
+.ui-shop-card {
+  background: linear-gradient(180deg, #fffdf8 0%, var(--cream-2) 100%);
+  border: 2px solid var(--line-deep);
+  border-radius: 16px;
+  box-shadow:
+    0 3px 0 var(--line-deep),
+    inset 0 2px 0 rgb(255 255 255 / 0.9);
+  transition: transform 90ms ease-out, box-shadow 90ms ease-out,
+    filter 90ms ease-out;
+}
+
+.ui-shop-card:not(:disabled):hover {
+  filter: brightness(1.03);
+  transform: translateY(-2px);
+  box-shadow:
+    0 5px 0 var(--line-deep),
+    inset 0 2px 0 rgb(255 255 255 / 0.9);
+}
+
+/* 按下去要“踩实”：位移吃掉那 3px 立体边，手感上等于把卡片压到底 */
+.ui-shop-card:not(:disabled):active {
+  transform: translateY(3px);
+  box-shadow: inset 0 2px 6px rgb(227 174 144 / 0.5);
+}
+
+/*
+ * 买不起的样子。**不用 opacity 直接调透明**：那会把卡片连同底下的货架
+ * 一起洗淡，读起来像"这张卡没加载出来"。抽掉颜色 + 压暗一点，
+ * 是"东西在那儿，只是你还买不起"。
+ */
+.ui-shop-card--broke {
+  cursor: not-allowed;
+  filter: saturate(0.35) brightness(0.98);
+  box-shadow: 0 3px 0 var(--line);
+}
+
+/* 图的底托：一小块浅色圆角，让不同画风的图标看起来是同一套 */
+.ui-shop-card__art {
+  width: 100%;
+  max-width: var(--shop-art);
+  aspect-ratio: 1;
+  background: radial-gradient(
+    circle at 50% 45%,
+    rgb(255 255 255 / 0.95) 0%,
+    var(--cream-3) 100%
+  );
+  border-radius: 12px;
+}
+
+.ui-shop-price {
+  border-radius: 999px;
+  padding: 1px 7px;
+  line-height: 1.5;
+}
+
+.ui-shop-price--ok {
+  background: var(--mint);
+  color: #1f5a49;
+}
+
+.ui-shop-price--short {
+  background: #ffd2c6;
+  color: #a3392a;
+}

@@ -137,6 +137,7 @@ export const woodWall: BuildingDefinition = {
   levels: [
     {
       levelId: "l1",
+      icon: "/icons/wooden_fence.png",
       localizationKey: "building.wood_wall.l1",
       descriptionKey: "building.wood_wall.l1.desc",
       footprint: { width: 1, height: 1 },

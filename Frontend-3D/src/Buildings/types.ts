@@ -36,6 +36,22 @@ export type BuildingLevel = {
   descriptionKey: string;
 
   /**
+   * 这一级在界面上那张图（`public/` 下的路径，如 `/icons/treasury/lv1.png`）。
+   * 不填 = 退回上一有图的等级（见 `buildingIcon`）；一张都没有就画名字。
+   *
+   * **挂在等级上不是挂在型号上**：升级会换模型，图当然也得跟着换——
+   * 金库 lv1 是围栏里一只箱子，lv3 是另一副样子，升级界面要能各画各的。
+   * 用户 2026-08-23 定的目录就是这个形状（`treasury/lv1|lv2|lv3.png`）。
+   *
+   * **写全路径而不是按 id 约定拼**（物品图标那套是 `/icons/${itemId}.png`）：
+   * 图是画师给的，文件名跟着画的**东西**走，id 跟着**代码**走，两个命名
+   * 空间由不同的人在不同时候定——金币罐的 `buildingId` 是 `gold_jar`，
+   * 目录叫 `treasury`；`levelId` 是 `l1`，文件叫 `lv1.png`。逼任何一边
+   * 改名都是让工具的方便凌驾在人的方便之上，显式一行最省事。
+   */
+  icon?: string;
+
+  /**
    * 占地（未旋转时）。`height` 是**进深**——沿用 GridFootprint 的既有
    * 语义（家具用了两年的那套），不另造一个类型。
    */

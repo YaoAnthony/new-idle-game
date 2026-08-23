@@ -60,6 +60,17 @@ type Row = {
   rect: { minX: number; maxX: number; minZ: number; maxZ: number };
   initial?: boolean;
   lockedVisual?: { landmarkId: string; at: { x: number; z: number } };
+  /**
+   * 这块地是什么地貌 → `/icons/terrain/<terrain>.png`（商店卡片上那张图）。
+   *
+   * 写地貌名不写整条路径，和上面 `localizationKey` 由 plotId 拼出来是同一个
+   * 路数——这张表是**内容表**，读的人关心的是"这块是林子还是滩地"，
+   * 不是文件放在哪个目录。
+   *
+   * 现在 `terrain/` 下只有 `forest.png` 一张，所以八块暂时都写 forest。
+   * 草地、滩地的图画好之后，改的是这一列上的一个词。
+   */
+  terrain?: string;
 };
 
 /**
@@ -72,33 +83,57 @@ const ROWS: Row[] = [
    * 院子是房子的三倍多，才叫"能走来走去"。深度往北要：南边 z=18 是
    * 河岸线，扩不动；房子因此贴南缘站、门朝北，正对着以后要扩的方向。
    */
-  { plotId: "home", rect: { minX: -15, maxX: 5, minZ: -5, maxZ: 18 }, initial: true },
+  {
+    plotId: "home",
+    rect: { minX: -15, maxX: 5, minZ: -5, maxZ: 18 },
+    initial: true,
+    terrain: "forest",
+  },
 
   // 西边草地。废井在这块：西边最远的地标，给一个"那儿有点东西"的理由
   {
     plotId: "west_meadow",
     rect: { minX: -40, maxX: -15, minZ: -10, maxZ: 5 },
+    terrain: "forest",
     lockedVisual: { landmarkId: "landmark_old_well", at: { x: -32, z: -5 } },
   },
   // 西南滩地，贴着南边的河岸线
-  { plotId: "south_bank", rect: { minX: -40, maxX: -15, minZ: 5, maxZ: 18 } },
+  {
+    plotId: "south_bank",
+    rect: { minX: -40, maxX: -15, minZ: 5, maxZ: 18 },
+    terrain: "forest",
+  },
   // 西北林子。半塌的石碑在这块，暗示这块地有故事
   {
     plotId: "northwest_wood",
     rect: { minX: -40, maxX: -15, minZ: -27, maxZ: -10 },
+    terrain: "forest",
     lockedVisual: { landmarkId: "landmark_broken_stele", at: { x: -18, z: -20 } },
   },
 
   // 北面老宅地：上一版那栋 24×20 的和风老房子就立在这一片（中心 (0,0)）
-  { plotId: "north_yard", rect: { minX: -15, maxX: 0, minZ: -27, maxZ: -5 } },
+  {
+    plotId: "north_yard",
+    rect: { minX: -15, maxX: 0, minZ: -27, maxZ: -5 },
+    terrain: "forest",
+  },
   // 北面小树林
-  { plotId: "north_grove", rect: { minX: 0, maxX: 12, minZ: -27, maxZ: -5 } },
+  {
+    plotId: "north_grove",
+    rect: { minX: 0, maxX: 12, minZ: -27, maxZ: -5 },
+    terrain: "forest",
+  },
   // 东边树丛：家院和桥头之间的缓冲，7 宽的一条
-  { plotId: "east_grove", rect: { minX: 5, maxX: 12, minZ: -5, maxZ: 18 } },
+  {
+    plotId: "east_grove",
+    rect: { minX: 5, maxX: 12, minZ: -5, maxZ: 18 },
+    terrain: "forest",
+  },
   // 东岸：旧桥头灯柱在这里，看得见通往小镇的路在那边
   {
     plotId: "east_bridge",
     rect: { minX: 12, maxX: 20, minZ: -27, maxZ: 18 },
+    terrain: "forest",
     lockedVisual: { landmarkId: "landmark_bridge_lamp", at: { x: 15, z: -4 } },
   },
 ];
@@ -108,6 +143,7 @@ export const baseTerritory: TerritoryDefinition = {
     plotId: row.plotId,
     localizationKey: `territory.plot.${row.plotId}`,
     rect: row.rect,
+    icon: row.terrain ? `/icons/terrain/${row.terrain}.png` : undefined,
     initial: row.initial,
     lockedVisual: row.lockedVisual,
   })),

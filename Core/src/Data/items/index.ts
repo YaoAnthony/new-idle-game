@@ -661,10 +661,15 @@ export const itemDefinitions = [
     placement: {
       surface: PlacementSurface.Floor,
       footprint: { width: 1, height: 1 },
-      capabilities: [FurnitureCapability.Ambience],
+      capabilities: [FurnitureCapability.Ambience, FurnitureCapability.Lighting],
       floorLayer: FloorLayer.Object,
       blocksMovement: false,
       surfaceFootprint: { width: 1, height: 1 },
+      interactHint: {
+        localizationKey: "hint.moon_lamp_off",
+        action: "interact",
+        anchorHeight: 0.62,
+      },
     },
   },
   {
@@ -677,10 +682,15 @@ export const itemDefinitions = [
     placement: {
       surface: PlacementSurface.Floor,
       footprint: { width: 1, height: 1 },
-      capabilities: [FurnitureCapability.Ambience],
+      capabilities: [FurnitureCapability.Ambience, FurnitureCapability.Lighting],
       floorLayer: FloorLayer.Object,
       blocksMovement: false,
       surfaceFootprint: { width: 1, height: 1 },
+      interactHint: {
+        localizationKey: "hint.mushroom_lamp_off",
+        action: "interact",
+        anchorHeight: 0.55,
+      },
     },
   },
   {
@@ -693,10 +703,15 @@ export const itemDefinitions = [
     placement: {
       surface: PlacementSurface.Floor,
       footprint: { width: 1, height: 1 },
-      capabilities: [FurnitureCapability.Ambience],
+      capabilities: [FurnitureCapability.Ambience, FurnitureCapability.Lighting],
       floorLayer: FloorLayer.Object,
       blocksMovement: false,
       surfaceFootprint: { width: 1, height: 1 },
+      interactHint: {
+        localizationKey: "hint.cloud_lamp_off",
+        action: "interact",
+        anchorHeight: 0.6,
+      },
     },
   },
   {

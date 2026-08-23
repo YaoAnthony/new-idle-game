@@ -53,6 +53,22 @@ export enum FurnitureCapability {
   Sleep = "sleep",
   Sitting = "sitting",
   Ambience = "ambience",
+
+  /**
+   * 有开关的灯具：按 F 开 / 关，状态进世界存档（`WorldSave.lamps`）。
+   *
+   * 和 `Ambience` 分开是因为它们回答的是两个问题。Ambience 说的是
+   * "这东西为屋子添气氛"（壁炉、以后的香薰、鱼缸都算）；Lighting 说的是
+   * "它身上有一个玩家能拉的开关"。壁炉两者都沾边但只挂 Ambience——
+   * 熄火要连火苗网格一起藏，那是另一件事，不是把点光压到 0 就完了。
+   *
+   * 这不是被删掉的 FurnitureCategory 借尸还魂（见文件顶部）：那是**分类**，
+   * 一件家具只能属于一个，所以才会有"落地灯算灯还是算家具"的伪问题；
+   * 能力是**标签**，一件家具想带几个带几个，落地灯就是既 Ambience 又 Lighting。
+   *
+   * 谁带这个标签谁就有开关，加一盏新灯零代码。
+   */
+  Lighting = "lighting",
   /**
    * 有水可喝。宠物渴了会走过来喝（水槽、以后的饮水碗）。
    * 是能力不是物种逻辑：谁带这个标签谁就是水源，加一件新家具零代码。

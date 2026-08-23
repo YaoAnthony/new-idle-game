@@ -9,6 +9,7 @@ import {
   replayThrownItem,
 } from "../State/droppedItems";
 import { replayGramophoneRecord } from "../State/gramophones";
+import { replayLampSwitch } from "../State/lamps";
 import { replayStorageBox } from "../State/storage";
 import {
   replayBathWater,
@@ -65,6 +66,10 @@ export function applyWorldOp(op: WorldOp): void {
       // 只置位不吐东西：奖励本体是发起方的若干次 throwItem，
       // 那些走 item_thrown 自己会到（联机那一轮已经打通）
       applyRemoteClaimed(op.worldDayId);
+      return;
+    case "lamp_switched":
+      // 发的是绝对状态不是"切一下"，所以重复/乱序的包也收敛到同一档
+      replayLampSwitch(op.instanceId, op.on);
       return;
     case "bath_water_set":
       // 只记转折点：本地的 tickBath 从这个水位按同一速率接着涨/放

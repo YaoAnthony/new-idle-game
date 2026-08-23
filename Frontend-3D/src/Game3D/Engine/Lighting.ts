@@ -157,6 +157,8 @@ export class Lighting {
   private readonly hemi: HemisphereLight;
   private readonly ambient: AmbientLight;
   private windowFills: PointLight[] | null = null;
+  /** 上一次 apply 算出来的灯具强度。拉开关时要用它，见 refreshLamps */
+  private lampIntensity = 0;
 
   constructor(private readonly scene: Scene, roomWidth: number, roomDepth: number) {
     this.root = new Object3D();
@@ -293,12 +295,25 @@ export class Lighting {
      * 白天车也开灯；玩法上"放一盏灯驱雾"要是白天体验不到就等于没有。
      * 判的是 Core 的 tag 不是 kind——以后再来一种低能见度天气自动适用。
      */
-    const lampIntensity = weather.tags.includes("low_visibility")
+    this.lampIntensity = weather.tags.includes("low_visibility")
       ? Math.max(LAMP_INTENSITY[phase], LAMP_INTENSITY[DayPhaseId.Night])
       : LAMP_INTENSITY[phase];
+    this.refreshLamps();
+  }
+
+  /**
+   * 只重扫灯具，不动天光。**拉一下开关走这条**——apply 那一整套
+   * （天光、半球光、窗补光、背景色）为一个开关跑一遍太重了。
+   *
+   * `userData.switchedOff` 是玩家拉下来的那个开关（FurnitureView 插的旗）。
+   * 这里的职责是"按现在几点钟该多亮"，开关那一位由那边管：两件事分开
+   * 之后，关掉的灯不会被下一次日落重新点亮，而**开回来的灯不用等到
+   * 下一次天色变化才亮**——这条就是为了后半句才单独存在的。
+   */
+  refreshLamps(): void {
     this.scene.traverse((node) => {
       if (node.name === "lamp-light" && node instanceof PointLight) {
-        node.intensity = lampIntensity;
+        node.intensity = node.userData.switchedOff ? 0 : this.lampIntensity;
       }
     });
   }

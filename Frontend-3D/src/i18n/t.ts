@@ -104,6 +104,7 @@ const ZH: Record<string, string> = {
   "hint.golem_head": "捡起来",
   "golem.hint.attach": "装上头",
   "golem.hint.dormant": "一尊没有头的石像",
+  "golem.hint.build": "看看能盖什么",
   "golem.awakened": "石头缝里亮起一道光。它撑着地站了起来。",
   "item.blueprint_gold_jar": "储金罐图纸",
   "item.blueprint_wood_wall": "木墙图纸",
@@ -250,7 +251,18 @@ const ZH: Record<string, string> = {
   "hint.stool": "坐下歇会儿",
   "hint.cushion": "坐下歇会儿",
   "hint.fireplace": "烤烤火",
-  "hint.floor_lamp": "开灯 / 关灯",
+  // 灯的气泡按开关状态换词（照 door.hint.open/close 的先例）：
+  // _off = 现在是灭的，按 F 会点亮；_on = 现在亮着，按 F 会熄
+  "hint.floor_lamp_off": "开灯",
+  "hint.floor_lamp_on": "关灯",
+  "hint.street_lamp_off": "点亮路灯",
+  "hint.street_lamp_on": "熄灭路灯",
+  "hint.moon_lamp_off": "开灯",
+  "hint.moon_lamp_on": "关灯",
+  "hint.mushroom_lamp_off": "开灯",
+  "hint.mushroom_lamp_on": "关灯",
+  "hint.cloud_lamp_off": "开灯",
+  "hint.cloud_lamp_on": "关灯",
   "hint.potted_plant": "浇点水",
   "ui.pickup_hint": "右键拿起",
   // 触摸操作的无障碍标签（屏幕上是图标，读屏器要读得出来）

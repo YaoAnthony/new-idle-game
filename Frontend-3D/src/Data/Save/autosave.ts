@@ -131,6 +131,17 @@ export function startAutosave(): () => void {
      * 玩家根本猜不到规律。防抖在 schedule 里，刷屏也只写一次。
      */
     on("chat_message", () => schedule()),
+    /*
+     * 灯的开关也是耐久状态。漏了这一条的症状和上面那句话一模一样：
+     * 睡前关了灯、直接关掉游戏，回来灯又亮着——而如果关灯之后顺手扔了
+     * 个东西，那次写盘会把开关一起带走，于是"有时候记得住有时候记不住"。
+     *
+     * 空 instanceId 是读档整表重灌（见 lamps.restoreLamps），照
+     * world_changed 的 "restored" 一样跳过，不然读档自己会触发回写。
+     */
+    on("lamp_changed", ({ instanceId }) => {
+      if (instanceId) schedule();
+    }),
   ];
 
   // 页面进入后台 / 关闭：来不及防抖，直接写

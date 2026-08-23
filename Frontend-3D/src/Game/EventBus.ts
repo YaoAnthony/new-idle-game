@@ -18,7 +18,8 @@ export type StationCapability =
   | "unpack"
   | "daily_board"
   | "music_player"
-  | "bath";
+  | "bath"
+  | "lighting";
 
 export type GameEvents = {
   /** 世界数据变化（家具增删等），渲染层据此同步场景图 */
@@ -246,6 +247,13 @@ export type GameEvents = {
   music_changed: { mode: string; trackLabel: string | null };
   /** 某台唱片机里的唱片换了（本地或远端）。instanceId 为空串 = 整表重灌（读档） */
   gramophone_changed: { instanceId: string };
+  /**
+   * 某盏灯的开关被拉了（本地或远端）。instanceId 为空串 = 整表重灌（读档）。
+   *
+   * 表现层听这条去压那盏灯的点光和自发光。**不复用 world_changed**：
+   * 那条会触发整组家具重建 + 导航网格作废，为拉一下开关做这些太重了。
+   */
+  lamp_changed: { instanceId: string };
   /** 吃下了一份食物。表现层接这条放音效，Game/ 不直接驱动 AudioEngine */
   food_eaten: { itemId: string };
   /** 某个储物家具的内容变了 */

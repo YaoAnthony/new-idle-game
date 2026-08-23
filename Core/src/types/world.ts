@@ -138,6 +138,18 @@ export type WorldSave = {
    */
   gramophones?: Record<string, { recordItemId: string }>;
 
+  /**
+   * 哪几盏灯被手动关掉了，键为家具 instanceId。
+   *
+   * 和唱片机同样是世界状态：一个房间里关了灯，屋里所有人都该变暗——
+   * 灯光是共享的物理事实，不是各人的显示偏好（音量才是那种）。
+   *
+   * **没有条目 = 开着**。出厂即亮，老存档、别人房里的灯不用任何迁移
+   * 就是对的；只有"被人动过手"的那几盏才占一条记录。反过来存
+   * "哪几盏开着"的话，每摆一盏灯就要立刻写一条永不改变的记录。
+   */
+  lamps?: Record<string, { on: boolean }>;
+
   progression: {
     unlockedFeatureIds: FeatureId[];
     events: EventProgressSave;

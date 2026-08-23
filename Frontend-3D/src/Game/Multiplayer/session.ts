@@ -49,6 +49,7 @@ import {
   restoreGramophones,
   snapshotGramophones,
 } from "../State/gramophones";
+import { restoreLamps, snapshotLamps } from "../State/lamps";
 import { restoreWeather, snapshotWeather } from "../State/weather";
 import { getWorld, restoreWorld } from "../State/worldRuntime";
 import { getClock } from "../State/clock";
@@ -402,6 +403,7 @@ function applyWorldRefresh(event: WorldRefreshEvent): void {
   if (slices.droppedItems) reconcileDroppedItems(slices.droppedItems);
   if (slices.inventories) restoreStorages(slices.inventories);
   if (slices.gramophones) restoreGramophones(slices.gramophones);
+  if (slices.lamps) restoreLamps(slices.lamps);
   if (slices.weather) restoreWeather(slices.weather);
   if (slices.clock) restoreClock(slices.clock);
 }
@@ -432,6 +434,7 @@ function startHostRefreshWatch(): void {
       weather: snapshotWeather(),
       clock: snapshotClock(),
       gramophones: snapshotGramophones(),
+      lamps: snapshotLamps(),
     });
   };
 
@@ -453,6 +456,7 @@ function startHostRefreshWatch(): void {
     on("dropped_items_changed", ({ reason }) => reason !== "restored" && schedule()),
     on("storage_changed", () => schedule()),
     on("gramophone_changed", () => schedule()),
+    on("lamp_changed", () => schedule()),
     on("weather_changed", () => schedule()),
     on("kitchen_changed", () => schedule()),
   ];

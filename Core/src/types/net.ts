@@ -44,8 +44,9 @@ import type { DroppedItem, WorldSave } from "./world.js";
  * v3（2026-08-04）：op 通道加每日任务两种（daily_board_ticked / _claimed）。
  * v4（2026-08-05）：加唱片机换唱片（gramophone_record_set）+ gramophones 刷新切片。
  * v5（2026-08-19）：加浴缸水位转折（bath_water_set）。
+ * v6（2026-08-23）：加灯的开关（lamp_switched）+ lamps 刷新切片。
  */
-export const NET_PROTOCOL_VERSION = 5;
+export const NET_PROTOCOL_VERSION = 6;
 
 /** 服务端强制的上限。放在共享类型里，客户端可以在发送前先自查 */
 export const NET_LIMITS = {
@@ -208,6 +209,8 @@ export type WorldRefreshSlices = {
   clock?: WorldClockSave;
   /** 每台唱片机装着哪张唱片（协议 v4）。形状同 WorldSave.gramophones */
   gramophones?: Record<string, { recordItemId: string }>;
+  /** 哪几盏灯被关掉了（协议 v6）。形状同 WorldSave.lamps，缺条目 = 开着 */
+  lamps?: Record<string, { on: boolean }>;
 };
 
 export type WorldRefreshEvent = {
@@ -292,6 +295,18 @@ export type WorldOp =
       kind: "gramophone_record_set";
       instanceId: string;
       recordItemId: string;
+    }
+  | {
+      /**
+       * 有人拉了一盏灯的开关（协议 v6）。
+       *
+       * **发绝对状态不发"切一下"**：op 通道是尽力而为的转发，不保证不
+       * 重复、不保证有序。发"toggle"的话丢一包或重一包，两个人屋里的
+       * 亮度就永久相反了；发 on/off 则重放几次都收敛到同一个结果。
+       */
+      kind: "lamp_switched";
+      instanceId: string;
+      on: boolean;
     }
   | {
       /**

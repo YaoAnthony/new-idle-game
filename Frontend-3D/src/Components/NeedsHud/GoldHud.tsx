@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { on } from "../../Game/EventBus";
 import { getGold, getGoldCapacity } from "../../Game/State/gold";
+import { useCountUp } from "./useCountUp";
 
 /**
  * 金币条：**一根空玻璃管，钱涨上去黄色跟着填满**（2026-08-23）。
@@ -58,6 +59,15 @@ export function GoldHud() {
     state.capacity > 0 ? Math.min(1, state.gold / state.capacity) : 0;
   const full = state.capacity > 0 && state.gold >= state.capacity;
 
+  /*
+   * 数字滚上去，黄液同时往右填。两者**时长接近但不强求一致**：
+   * 数字按变化量定时长（进账 3 和进账 300 该不一样），黄液是固定 600ms
+   * 的 CSS 过渡。硬要同步就得把 width 也交给 rAF 逐帧写，为了一件
+   * 没人看得出差别的事多一条动画管线，不划算。
+   */
+  const goldRef = useCountUp(state.gold, groupDigits);
+  const capRef = useCountUp(state.capacity, groupDigits);
+
   return (
     <div className="relative flex h-[34px] items-center pr-[15px]">
       {/* ---- 玻璃管 ---- */}
@@ -75,7 +85,7 @@ export function GoldHud() {
       >
         {/* 黄液：从左往右填。空的时候宽度 0，管子就是空的 */}
         <div
-          className="absolute inset-y-0 left-0 transition-[width] duration-500 ease-out"
+          className="absolute inset-y-0 left-0 transition-[width] duration-[600ms] ease-out"
           style={{
             width: `${ratio * 100}%`,
             backgroundImage: full
@@ -96,10 +106,16 @@ export function GoldHud() {
           }}
         />
 
-        {/* tabular-nums：数字跳动时管子不跟着一格一格晃 */}
+        {/*
+          * tabular-nums：数字滚动时每一位等宽，管子不会跟着一格一格晃。
+          * 内容由 useCountUp 每帧直接写 textContent（不走 React），
+          * 所以这两个 span 里**不放子节点**。
+          */}
         <span className="relative whitespace-nowrap text-[15px] font-bold leading-none tabular-nums text-[#fffaf0] [text-shadow:0_1px_0_rgb(0_0_0_/_0.7),0_0_3px_rgb(0_0_0_/_0.55)]">
-          {groupDigits(state.gold)}
-          <span className="opacity-80">/{groupDigits(state.capacity)}</span>
+          <span ref={goldRef} />
+          <span className="opacity-80">
+            /<span ref={capRef} />
+          </span>
         </span>
       </div>
 

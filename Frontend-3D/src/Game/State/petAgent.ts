@@ -5,18 +5,15 @@ import {
   FurnitureCapability,
   PlacementSurface,
   GiftTier,
-  cellHasClearance,
   findItemDefinition,
-  findPath,
   findPetDefinition,
   findPetTaste,
   findPlaceableItem,
   footprintCells,
   roomCellToWorld,
-  worldToRoomCell,
+  yardBoundsOf,
   type GridPosition,
   type PetSave,
-  type RoomOccupancy,
   type RoomSave,
 } from "core";
 import { emit } from "../EventBus";
@@ -36,14 +33,15 @@ import { getClock } from "./clock";
 import {
   creatureBlockedAt,
   doorGateBlocks,
+  getCurrentMap,
   getCurrentMapId,
   getRoom,
   getWorld,
   isWalkable,
   removeCreatureObstacle,
-  roomIdAt,
   setCreatureObstacle,
 } from "./worldRuntime";
+import { findRoute } from "../Systems/navigation";
 
 /**
  * 宠物的"父类"：**一只活物的全部基础行为和档案属性都在这一个类里**。
@@ -98,14 +96,10 @@ const DEFAULT_THIRST_PER_HOUR = 12;
 /** 睡觉时代谢放缓的倍率 */
 const SLEEP_METABOLISM = 0.35;
 
+/** 某间屋的格号 → 世界坐标。官方换算（RoomAnchor 感知） */
 function gridToWorldXZ(room: RoomSave, cell: GridPosition): [number, number] {
-  // 官方换算（RoomAnchor 感知），不再手写平移半间房
   const p = roomCellToWorld(room, cell.x, cell.y);
   return [p.x, p.z];
-}
-
-function worldToGrid(room: RoomSave, x: number, z: number): GridPosition {
-  return worldToRoomCell(room, x, z);
 }
 
 export class PetAgent {
@@ -144,7 +138,15 @@ export class PetAgent {
   // ---- 行为状态机（运行时，不进存档） ----
   state: PetActivity = "idle";
   moving = false;
-  path: GridPosition[] = [];
+  /**
+   * 剩下要走的**世界坐标**路点，来自 `findRoute`（拉过直的）。
+   *
+   * 原来存的是房间格坐标，那是"这只生物只在脚下这间屋里活动"的最后
+   * 一份拷贝：格号只有配上具体哪间屋才有意义，于是走到院子和屋子的
+   * 交界就没法接着往下算。世界坐标没有这个问题——进屋、上桥、换图
+   * 都是同一串数。
+   */
+  path: Array<[number, number]> = [];
   pathIndex = 0;
   idleTimer = 2;
   sleepTimer = 0;
@@ -202,30 +204,13 @@ export class PetAgent {
     }
   }
 
-  /**
-   * 这只生物**脚下那个房间**的几何和占用图。
-   *
-   * 原来这些一律取 `getWorld().room`（主房间）——那是"一图一屋"公理在
-   * 生物行为里最后一份拷贝。院子在期 1 变成一个真房间之后，站在院子里的
-   * 生物做任何事都会被算到**房子的网格**上：格号换算越界、随机目标点落在
-   * 屋里、A* 在屋子的占用图上找路。表现是它站着一动不动，因为每次算路
-   * 都失败。石傀儡坐在院子里，是第一只踩到这条的。
-   *
-   * 查不到（几何还没生成）退回主房间，和 RoomScene 的 `roomOfFurniture`
-   * 是同一种兜底态度：至少不指到天外。
-   */
-  private space(): { room: RoomSave; occupancy: RoomOccupancy } {
-    const room = getRoom(roomIdAt(this.x, this.z)) ?? getWorld().room;
-    return { room, occupancy: getWorld().occupancyOf(room.roomId) };
-  }
-
   // ---- 生命周期 ----
 
   /** 从门口走进屋（首次登场过场）。走不进去就原地站着，不硬闯 */
   beginEntering(): void {
     this.state = "entering";
-    const target = this.randomFreeCell() ?? { x: 6, y: 6 };
-    this.startPath(target);
+    const spot = this.randomFreeSpot();
+    if (spot) this.startPathTo(spot[0], spot[1]);
   }
 
   dispose(): void {
@@ -410,17 +395,14 @@ export class PetAgent {
       !nearPlayer &&
       Math.random() < 0.45;
 
-    if (
-      wantsApproach &&
-      this.startPath(worldToGrid(this.space().room, player.x, player.z))
-    ) {
+    if (wantsApproach && this.startPathTo(player.x, player.z)) {
       this.state = "approach";
       this.idleTimer = 4 + Math.random() * 4;
       return;
     }
 
-    const target = this.randomFreeCell();
-    if (target && this.startPath(target)) {
+    const spot = this.randomFreeSpot();
+    if (spot && this.startPathTo(spot[0], spot[1])) {
       this.state = "wander";
     }
     this.idleTimer = 3 + Math.random() * 5;
@@ -443,26 +425,49 @@ export class PetAgent {
     const mine = listSites().find(
       (site) => site.construction?.workerId === this.petId,
     );
-    const target = mine ?? listSites().find((site) => !site.construction?.workerId);
-    if (!target) return false;
+    /*
+     * 候选是**所有**没人认领的工地，按下单顺序试——不是只看第一块。
+     *
+     * 只看第一块的话，一块他去不了的地会把整个队列钉死：体型进寻路
+     * 之后"去不了"从边缘情况变成了常态（石傀儡半径 1.1，门洞 2 米，
+     * 他进不了屋），玩家在屋里下一单，院子里那十堵墙就再也没人建了。
+     *
+     * 去不了的地不认领、也不报错，就跳过。它留在队列里等一个**过得去**
+     * 的工人——将来有小个子工人时那一单自然会被接走，今天则是一直空着。
+     *
+     * 顺序仍是**先下单先建**（用户定的排队语义），不改成"就近先建"：
+     * 玩家下单的次序是他自己的计划，寻路的方便不该把它打乱。跳过的
+     * 只有真去不了的，能去的一块都不越队。
+     */
+    const candidates = mine
+      ? [mine]
+      : listSites().filter((site) => !site.construction?.workerId);
 
-    // 已经站在跟前了 → 直接开工，不用再走
-    const level = findBuildingLevel(
-      target.buildingId,
-      target.construction?.targetLevelId ?? target.levelId,
-    );
-    const reach =
-      this.radius + 0.9 + Math.max(level?.footprint.width ?? 2, level?.footprint.height ?? 2) / 2;
-    if (Math.hypot(target.x - this.x, target.z - this.z) <= reach) {
-      this.beginWork(target.instanceId);
+    for (const target of candidates) {
+      const level = findBuildingLevel(
+        target.buildingId,
+        target.construction?.targetLevelId ?? target.levelId,
+      );
+      const reach =
+        this.radius +
+        0.9 +
+        Math.max(level?.footprint.width ?? 2, level?.footprint.height ?? 2) / 2;
+
+      // 已经站在跟前了 → 直接开工，不用再走
+      if (Math.hypot(target.x - this.x, target.z - this.z) <= reach) {
+        this.beginWork(target.instanceId);
+        return true;
+      }
+
+      // 排不出路 = 这块地他过不去（门太窄、地没解锁）。换下一块
+      if (!this.seekNear(target.x, target.z, reach)) continue;
+
+      this.state = "wander";
+      this.errand = { kind: "build", instanceId: target.instanceId };
+      this.idleTimer = 6;
       return true;
     }
-
-    if (!this.seekNear(target.x, target.z, reach)) return false;
-    this.state = "wander";
-    this.errand = { kind: "build", instanceId: target.instanceId };
-    this.idleTimer = 6;
-    return true;
+    return false;
   }
 
   /** 站定、转向工地、认领它。认领那一刻才开始走进度 */
@@ -676,102 +681,100 @@ export class PetAgent {
     this.moving = false;
   }
 
-  private randomFreeCell(): GridPosition | null {
-    const { room, occupancy } = this.space();
-
-    /*
-     * 抽样范围要**先收到驻地附近**，不能全房间均匀抽再筛。
-     *
-     * 院子是 60×45 = 2700 格，5 米半径的圆只占 79 格——均匀抽的命中率
-     * 不到 3%，抽 24 次有一半的机会一个都中不了。表现是石傀儡走一段
-     * 就呆站十几秒，看着像卡住了。屋里的宠物不受影响（不限半径时
-     * 范围就是整个房间，和以前一模一样）。
-     */
-    const grid = room.floorGrid;
-    let minX = 1;
-    let maxX = grid.width - 2;
-    let minY = 1;
-    let maxY = grid.height - 2;
+  /**
+   * 驻地附近随便挑一个**站得进去**的世界点。
+   *
+   * 抽样范围先收到驻地圆里，不全图均匀抽：院子 60×45，5 米半径的圆
+   * 只占其中不到 3%，均匀抽 24 次有一半机会一个都中不了，表现就是
+   * 石傀儡走一段呆站十几秒。不限驻地半径的（屋里的宠物）退回按整张
+   * 可走边界抽，和以前一样。
+   *
+   * 判据只有 `isWalkable(..., this.radius, this.petId)` 一条——它就是
+   * 玩家走路用的那条（领地、地形、家具、建筑、体型全在里面）。以前这里
+   * 还要先过一遍房间占用图的 `cellHasClearance`，那是两套判定，
+   * 而两套判定迟早会给出两个答案。
+   */
+  private randomFreeSpot(): [number, number] | null {
+    const map = getCurrentMap();
+    const bounds = yardBoundsOf(map, getWorld().room.floorGrid);
+    let minX = bounds.minX + this.radius;
+    let maxX = bounds.maxX - this.radius;
+    let minZ = bounds.minZ + this.radius;
+    let maxZ = bounds.maxZ - this.radius;
     if (Number.isFinite(this.wanderRadius)) {
-      const homeCell = worldToGrid(room, this.homeX, this.homeZ);
-      const span = Math.ceil(this.wanderRadius);
-      minX = Math.max(minX, homeCell.x - span);
-      maxX = Math.min(maxX, homeCell.x + span);
-      minY = Math.max(minY, homeCell.y - span);
-      maxY = Math.min(maxY, homeCell.y + span);
-      if (maxX < minX || maxY < minY) return null;
+      minX = Math.max(minX, this.homeX - this.wanderRadius);
+      maxX = Math.min(maxX, this.homeX + this.wanderRadius);
+      minZ = Math.max(minZ, this.homeZ - this.wanderRadius);
+      maxZ = Math.min(maxZ, this.homeZ + this.wanderRadius);
     }
+    if (maxX <= minX || maxZ <= minZ) return null;
 
     for (let attempt = 0; attempt < 24; attempt += 1) {
-      const cell = {
-        x: minX + Math.floor(Math.random() * (maxX - minX + 1)),
-        y: minY + Math.floor(Math.random() * (maxY - minY + 1)),
-      };
-      if (!cellHasClearance(grid, occupancy, cell, this.radius)) {
-        continue;
-      }
-
-      const [wx, wz] = gridToWorldXZ(room, cell);
-      // 驻地半径（上面收的是方框，这里才是真的圆）
-      if (Math.hypot(wx - this.homeX, wz - this.homeZ) > this.wanderRadius) {
-        continue;
-      }
-      /*
-       * 还要过**真正的可走判定**。`cellHasClearance` 只看这个房间的占用图
-       * （家具、房子脚印），它不知道领地——院子里一大半是没解锁的地，
-       * 光看占用图的话石傀儡会径直走进围栏外面去。`isWalkable` 是玩家
-       * 走路用的同一条规则（领地三态、地形、建筑），生物和玩家该受同样的
-       * 约束。传自己的 id，免得被自己的碰撞体挡住。
-       */
-      if (!isWalkable(wx, wz, this.radius, this.petId)) continue;
-
-      return cell;
+      const x = minX + Math.random() * (maxX - minX);
+      const z = minZ + Math.random() * (maxZ - minZ);
+      // 上面收的是方框，这里才是真的圆
+      if (Math.hypot(x - this.homeX, z - this.homeZ) > this.wanderRadius) continue;
+      if (!isWalkable(x, z, this.radius, this.petId)) continue;
+      return [x, z];
     }
     return null;
   }
 
-  private startPath(goal: GridPosition): boolean {
-    const { room, occupancy } = this.space();
-    const path = findPath(
-      room.floorGrid,
-      occupancy,
-      worldToGrid(room, this.x, this.z),
-      goal,
-      // A* 按这只的体型算路：大家伙不会被规划进挤不过去的缝
-      { clearanceRadius: this.radius },
+  /**
+   * 往一个世界点走。**这是全场唯一的寻路入口**（玩家的自动跑腿走的是
+   * 同一个 `findRoute`，只是半径不同）。
+   *
+   * 体型进参数之后，"太大过不去"就是 `findRoute` 返回 null——路根本
+   * 排不出来，这只生物原地待着，不会走到门口顶着门框磨。调用方拿
+   * false 当"这趟去不了"处理即可。
+   *
+   * `snapRings` 收得很紧（2 环 = 1 米）：给大家伙吸得远，等于把
+   * "屋里那块地他进不去"偷偷改写成"那就走到屋外墙根站着"。
+   */
+  private startPathTo(x: number, z: number): boolean {
+    const route = findRoute(
+      { x: this.x, z: this.z },
+      { x, z },
+      { radius: this.radius, snapRings: 2 },
     );
-    if (!path || path.length < 2) return false;
+    if (!route || route.length < 2) return false;
 
-    this.path = path;
+    this.path = route;
     this.pathIndex = 1;
     return true;
   }
 
   /**
-   * 找一个"离目标点够近、且这只生物真站得进去"的格子并走过去。
-   * 大家伙够不到目标格本身（比如水槽在阻挡格里），reach 半径表达"凑近就行"。
+   * 走到"离目标够近、而且这只生物**真站得进去**"的地方。
+   *
+   * 为什么不直接走目标点：目标往往落在**阻挡格**里（水槽在橱柜上、
+   * 工地中心是要盖房子的地方），谁也站不进去。`reach` 表达的是
+   * "凑到跟前就行"。
+   *
+   * 取样从近到远一圈圈来，每圈八个方位。原来是扫整张房间格表再排序，
+   * 那既绑死了"只在这间屋里"，又在院子那种 2700 格的房间上做无谓的
+   * 全表扫描。环形取样只关心目标附近那一小块，和房间多大无关。
+   *
+   * 每个候选点都要过 `isWalkable(..., this.radius, ...)`：**体型在这里
+   * 第一次起作用**——大家伙够不到的地方直接不是候选。真一个都没有
+   * （比如工地在屋里、他进不去），返回 false，调用方就当这活儿他干不了。
    */
   private seekNear(targetX: number, targetZ: number, reach: number): boolean {
-    const { room, occupancy } = this.space();
-
-    const candidates: Array<{ cell: GridPosition; distance: number }> = [];
-    for (let gy = 1; gy < room.floorGrid.height - 1; gy += 1) {
-      for (let gx = 1; gx < room.floorGrid.width - 1; gx += 1) {
-        const cell = { x: gx, y: gy };
-        const [wx, wz] = gridToWorldXZ(room, cell);
-        const distance = Math.hypot(wx - targetX, wz - targetZ);
-        if (distance > reach) continue;
-        if (!cellHasClearance(room.floorGrid, occupancy, cell, this.radius)) {
-          continue;
-        }
-        candidates.push({ cell, distance });
+    const RINGS = 4;
+    const DIRECTIONS = 8;
+    for (let ring = 0; ring <= RINGS; ring += 1) {
+      const distance = (reach * ring) / RINGS;
+      // 最里圈就是目标点本身，只试一次
+      const spokes = ring === 0 ? 1 : DIRECTIONS;
+      // 每圈错开半个扇区，免得所有圈的候选点排成八条直线
+      const phase = (ring * Math.PI) / DIRECTIONS;
+      for (let spoke = 0; spoke < spokes; spoke += 1) {
+        const angle = phase + (spoke * Math.PI * 2) / spokes;
+        const x = targetX + Math.cos(angle) * distance;
+        const z = targetZ + Math.sin(angle) * distance;
+        if (!isWalkable(x, z, this.radius, this.petId)) continue;
+        if (this.startPathTo(x, z)) return true;
       }
-    }
-
-    candidates.sort((a, b) => a.distance - b.distance);
-    // 只试前几个：目标周围要是整片都不可达，再试也是全图搜索白费
-    for (const candidate of candidates.slice(0, 6)) {
-      if (this.startPath(candidate.cell)) return true;
     }
     return false;
   }
@@ -795,7 +798,7 @@ export class PetAgent {
   }
 
   private tickMove(deltaSeconds: number): void {
-    const [tx, tz] = gridToWorldXZ(this.space().room, this.path[this.pathIndex]);
+    const [tx, tz] = this.path[this.pathIndex];
     const dx = tx - this.x;
     const dz = tz - this.z;
     const distance = Math.hypot(dx, dz);

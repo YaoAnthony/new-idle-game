@@ -21,6 +21,8 @@ import {
 import { getPets, restorePets, seedInitialCreatures } from "../src/Game/State/petsRuntime";
 import { resetTerritory } from "../src/Game/State/territory";
 import { getCurrentMapId } from "../src/Game/State/worldRuntime";
+import { initDoors } from "../src/Game/State/doorsRuntime";
+import { invalidateNavGrid } from "../src/Game/Systems/navigation";
 import { travelTo } from "../src/Game/Systems/mapTravel";
 import { replaceCounts } from "../src/Game/State/inventory";
 
@@ -41,6 +43,13 @@ beforeEach(() => {
   resetTerritory();
   restoreBuildings([]);
   restorePets({});
+  /*
+   * 生物寻路走的是全图导航网格，而院子可不可走由 `initDoors` 注册的
+   * `outdoorPass` 回答——不叫这一句，整个院子都是"不可走"，石傀儡
+   * 一步也迈不出去（真游戏里 RoomScene 构造时就调了）。
+   */
+  initDoors();
+  invalidateNavGrid();
   replaceCounts({});
 });
 

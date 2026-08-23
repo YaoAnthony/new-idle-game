@@ -8,6 +8,7 @@ import {
   isWalkable,
 } from "../State/worldRuntime";
 import { withDoorsOpen } from "../State/world/walkable";
+import { withoutCreatures } from "../State/world/obstacles";
 
 /**
  * 自动寻路的导航层。
@@ -35,8 +36,45 @@ import { withDoorsOpen } from "../State/world/walkable";
  */
 
 const CELL = 0.5;
-/** 走路的家伙的碰撞半径。和 CharacterController 的 RADIUS 一致 */
+/** 玩家的碰撞半径。和 CharacterController 的 RADIUS 一致，也是默认体型 */
 const ACTOR_RADIUS = 0.32;
+
+/**
+ * ## 体型：一套算法管所有人
+ *
+ * 这张网格原来只为玩家烘（半径写死 0.32），宠物另有一套按**房间格**跑的
+ * A*。两套的后果不是"重复"而是**能力不同**：房间格那套只认脚下这一间屋，
+ * 石傀儡站在院子里就只能在院子里转，进屋、过桥、换图一概不会。
+ *
+ * 现在只留这一套，体型进参数。做法照搬业界两个成熟方案的共同点：
+ *
+ * - **Clearance-based Pathfinding / Annotated A\***（Harabor & Botea 2009）：
+ *   给每格算一个"容得下多大的家伙"的余隙值，体型 s 的家伙只走余隙 ≥ s
+ *   的格。窄门的余隙小，大家伙**在图上就没有这条边**。
+ * - **Recast/Detour**：按体型分几档，每档单独烘一张 navmesh，多边形按
+ *   该档半径**内缩**。缩完门洞不够宽，那张网格上门就直接消失了。
+ *
+ * 两条路殊途同归：**先按体型把地图筛一遍，过不去的开口压根不进图**。
+ * 于是"太大挤不过去"表达成**找不到路**，而不是走到门口顶着门框磨——
+ * 这正是"停住了就结束寻路算法"想要的语义，而且一个 `if (是石傀儡)`
+ * 都不用写。
+ *
+ * 我们走 Recast 那条（按档烘图），因为筛选是白送的：`isWalkable(x,z,r)`
+ * 本来就要求整个圆放得下，拿它逐格采样，可走区自动被内缩了 r。
+ * 家门门洞 2 格 = 2 米，半径 1.1 的石傀儡要 2.2 米——他进不了屋，
+ * 这个结论是**算出来的**，不是哪儿写了一条上限。
+ */
+const RADIUS_STEP = 0.25;
+
+/**
+ * 体型归档。**往大了取整**：宁可用一张比实际更严的图（顶多让它多绕
+ * 一点路），也不能用更松的——那会规划出它挤不过去的路，回到卡门框。
+ */
+function sizeClass(radius: number): number {
+  const safe = Math.max(radius, 0);
+  return Math.max(RADIUS_STEP, Math.ceil(safe / RADIUS_STEP) * RADIUS_STEP);
+}
+
 /**
  * 允许往下迈多深——**改从 Core 读**（2026-08-12）。
  *
@@ -60,11 +98,12 @@ export type NavGrid = {
   height: Float32Array;
 };
 
-let cached: { key: unknown; grid: NavGrid } | null = null;
+/** 每档体型一张。档数就是场上不同体型的种类数，今天是 2~3 张 */
+const cached = new Map<number, { key: unknown; grid: NavGrid }>();
 
-/** 缓存作废：门开了、家具动了、换图了，导航都得重来 */
+/** 缓存作废：门开了、家具动了、换图了，导航都得重来（所有档一起） */
 export function invalidateNavGrid(): void {
-  cached = null;
+  cached.clear();
 }
 
 let listening = false;
@@ -77,13 +116,15 @@ function ensureListening(): void {
   on("door_toggled", () => invalidateNavGrid());
 }
 
-/** 当前地图的导航网格（缓存） */
-export function navGrid(): NavGrid {
+/** 当前地图、这一档体型的导航网格（按档缓存） */
+export function navGrid(radius: number = ACTOR_RADIUS): NavGrid {
   ensureListening();
+  const size = sizeClass(radius);
   const map = getCurrentMap();
   const room = getWorld().room;
-  if (cached && cached.key === room && cached.grid.cell === CELL) {
-    return cached.grid;
+  const hit = cached.get(size);
+  if (hit && hit.key === room && hit.grid.cell === CELL) {
+    return hit.grid;
   }
 
   // 覆盖范围 = 可走边界（室内房间本来就在它里面）
@@ -100,20 +141,33 @@ export function navGrid(): NavGrid {
    * 一扇关着的门不是障碍是一个动作——不这么分的话，站在自家客厅
    * 说"去书店"会直接失败（前门关着）。走到门口由自动跑腿开门。
    */
+  /*
+   * 同时**当场上一个活物都没有**（withoutCreatures）。
+   *
+   * 活物是会动的，而这张图是缓存的：把一只路过的猫烘进去，缓存里就多
+   * 一块假墙杵到下次作废为止；更糟的是每个走路的家伙都要一张只属于
+   * 自己的图（"除了我以外的人在哪"人人不同），按档缓存直接失效。
+   *
+   * 这是 Recast/Detour 的分法：navmesh 只描述**静态**世界，活物之间
+   * 的躲让交给上面一层每帧算。我们这儿那一层是 `creatureBlockedAt`，
+   * 生物迈步时查一次、被挡就站着等（见 petAgent.waitBlocked）。
+   */
   withDoorsOpen(() => {
-    for (let r = 0; r < rows; r += 1) {
-      for (let c = 0; c < cols; c += 1) {
-        const x = minX + (c + 0.5) * CELL;
-        const z = minZ + (r + 0.5) * CELL;
-        const i = r * cols + c;
-        walkable[i] = isWalkable(x, z, ACTOR_RADIUS, PLAYER_OBSTACLE_ID) ? 1 : 0;
-        height[i] = groundHeightAt(x, z);
+    withoutCreatures(() => {
+      for (let r = 0; r < rows; r += 1) {
+        for (let c = 0; c < cols; c += 1) {
+          const x = minX + (c + 0.5) * CELL;
+          const z = minZ + (r + 0.5) * CELL;
+          const i = r * cols + c;
+          walkable[i] = isWalkable(x, z, size, PLAYER_OBSTACLE_ID) ? 1 : 0;
+          height[i] = groundHeightAt(x, z);
+        }
       }
-    }
+    });
   });
 
   const grid: NavGrid = { minX, minZ, cols, rows, cell: CELL, walkable, height };
-  cached = { key: room, grid };
+  cached.set(size, { key: room, grid });
   return grid;
 }
 
@@ -131,16 +185,46 @@ function worldOf(grid: NavGrid, index: number): [number, number] {
 }
 
 /**
+ * 吸附时最多往外找几环（一环 = 半格）。20 环 ≈ 10 米，是玩家跑腿的老行为。
+ */
+const DEFAULT_SNAP_RINGS = 20;
+
+export type RouteOptions = {
+  /**
+   * 走路的家伙的碰撞半径。不填 = 玩家体型（老调用点行为不变）。
+   *
+   * 填了之后整条路都按这个体型算：**过不去就返回 null**，不会给出一条
+   * "看起来能走、走到一半卡住"的路。调用方拿 null 当"这活儿他干不了"，
+   * 不用再自己判一遍尺寸。
+   */
+  radius?: number;
+  /**
+   * 起终点站不住时，往外吸附几环才认输。
+   *
+   * 玩家要吸得远（`/go 书店` 的目标点常在店门正中那块站不住的地方，
+   * 差十米也得给条路）。**生物要吸得近**：给大家伙吸得远，等于把
+   * "屋里那块地他进不去"悄悄改成"那就走到屋外墙根站着"——本该是
+   * 一次干脆的"去不了"，变成了一次莫名其妙的散步。
+   */
+  snapRings?: number;
+};
+
+/**
  * 离目标最近的可站格。目标常常落在家具里、墙里、门槛上——
  * 直接判"不可走"就返回失败的话，`/go 书店` 会因为店门正中站不住而失败。
  */
-function nearestWalkable(grid: NavGrid, x: number, z: number): number {
+function nearestWalkable(
+  grid: NavGrid,
+  x: number,
+  z: number,
+  maxRings: number = DEFAULT_SNAP_RINGS,
+): number {
   const start = cellOf(grid, x, z);
   if (start >= 0 && grid.walkable[start]) return start;
 
   const c0 = Math.floor((x - grid.minX) / grid.cell);
   const r0 = Math.floor((z - grid.minZ) / grid.cell);
-  for (let ring = 1; ring <= 20; ring += 1) {
+  for (let ring = 1; ring <= maxRings; ring += 1) {
     for (let dr = -ring; dr <= ring; dr += 1) {
       for (let dc = -ring; dc <= ring; dc += 1) {
         if (Math.max(Math.abs(dr), Math.abs(dc)) !== ring) continue;
@@ -305,10 +389,12 @@ function lineClear(grid: NavGrid, ax: number, az: number, bx: number, bz: number
 export function findRoute(
   from: { x: number; z: number },
   to: { x: number; z: number },
+  options: RouteOptions = {},
 ): Array<[number, number]> | null {
-  const grid = navGrid();
-  const start = nearestWalkable(grid, from.x, from.z);
-  const goal = nearestWalkable(grid, to.x, to.z);
+  const { radius = ACTOR_RADIUS, snapRings = DEFAULT_SNAP_RINGS } = options;
+  const grid = navGrid(radius);
+  const start = nearestWalkable(grid, from.x, from.z, snapRings);
+  const goal = nearestWalkable(grid, to.x, to.z, snapRings);
   if (start < 0 || goal < 0) return null;
   /*
    * 终点：目标自己站得住就用真实坐标（不然总差半格）；站不住（点在墙里、

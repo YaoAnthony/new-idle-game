@@ -42,6 +42,30 @@ export function removeCreatureObstacle(id: string): void {
   creatureObstacles.delete(id);
 }
 
+/**
+ * **当作场上一个活物都没有**。只在烘导航网格时短暂打开。
+ *
+ * 和 walkable 那边的 `withDoorsOpen` 同一条道理，理由却不一样：门是
+ * "到了要开一下"的动作，活物是**根本不该烘进静态图里的东西**。它们每帧
+ * 都在动，烘进去的那一份下一秒就是错的，而导航网格是缓存的——一只猫
+ * 路过一次，缓存里就永久多一块假墙，直到下次作废。
+ *
+ * 业界的分法也是这条线：Recast/Detour 的 navmesh 只描述静态世界，
+ * 活物之间的躲让交给 DetourCrowd 那层每帧去算。我们这儿"那一层"就是
+ * `creatureBlockedAt`——生物逐帧步进时查一次，被挡就站着等。
+ */
+let ignoreCreatures = false;
+
+export function withoutCreatures<T>(fn: () => T): T {
+  const previous = ignoreCreatures;
+  ignoreCreatures = true;
+  try {
+    return fn();
+  } finally {
+    ignoreCreatures = previous;
+  }
+}
+
 /** 这个圆撞没撞上别的活物。ignoreId 是"我自己"，不然谁都被自己挡住 */
 export function hitsCreature(
   x: number,
@@ -49,6 +73,7 @@ export function hitsCreature(
   radius: number,
   ignoreId?: string,
 ): boolean {
+  if (ignoreCreatures) return false;
   for (const [id, obstacle] of creatureObstacles) {
     if (id === ignoreId) continue;
     const gap = radius + obstacle.radius;

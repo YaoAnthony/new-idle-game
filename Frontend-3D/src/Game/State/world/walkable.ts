@@ -131,6 +131,37 @@ export function setDoorBlocker(
   doorBlocker = fn;
 }
 
+let doorGate: ((x: number, z: number, radius: number) => boolean) | null = null;
+
+export function setDoorGate(
+  fn: ((x: number, z: number, radius: number) => boolean) | null,
+): void {
+  doorGate = fn;
+}
+
+/**
+ * "这个体型走到这个点，会一头撞上一扇**还没开的门**吗"。
+ *
+ * 给生物的逐帧步进用，和上面那个格子版 `doorBlocker` 分开是因为问题
+ * 不一样：`doorBlocker` 回答"这格能不能站"（占用图那一路，A* 和玩家
+ * 碰撞在用），这个回答"该不该在门前停一下"。
+ *
+ * 为什么生物的步进不能直接用 `isWalkable`：见 petAgent.tickMove 那段——
+ * A* 已经按体型算过静态障碍，步进再查一遍会在两格心之间的中点误杀。
+ * 但门不是静态的：A* 是在"门都开着"的假设下规划的（withDoorsOpen），
+ * 那个假设本来就欠着一个"到了门口开一下"的动作。把门单独挑出来查，
+ * 既兑现了那个动作，又不碰"静态障碍归 A*"那条纪律。
+ *
+ * 没注册（早期启动、或这张图压根没门）就当路上没门。
+ */
+export function doorGateBlocks(
+  x: number,
+  z: number,
+  radius: number,
+): boolean {
+  return doorGate?.(x, z, radius) ?? false;
+}
+
 /**
  * "这个（至少部分在屋外的）位置可走吗"，同样由 doorsRuntime 注册——
  * 答案取决于大门开没开、门洞在哪、院子多大，全是那边的知识。

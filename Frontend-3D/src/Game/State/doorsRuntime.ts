@@ -22,6 +22,7 @@ import {
   getRoom,
   getWorld,
   setDoorBlocker,
+  setDoorGate,
   setOutdoorPass,
 } from "./worldRuntime";
 import { territoryStandingAt } from "./territory";
@@ -225,6 +226,27 @@ export function initDoors(): void {
   setDoorBlocker((gx, gy) => {
     for (const door of doors.values()) {
       if (door.blocksCell(gx, gy)) return true;
+    }
+    return false;
+  });
+
+  /*
+   * 生物走到门前该停下等门开（见 walkable 的 doorGateBlocks）。
+   *
+   * 停的位置是**身体碰到门板那一刻**：体表距门心 ≤ 0，也就是圆盖住了
+   * 门心。不另设一个"门前 0.4 米"之类的数——那个数每换一种体型就得重调，
+   * 而"碰到门了"本来就是从半径推得出来的。
+   *
+   * 只拿门心当门，不摊开 `cells`：门洞最宽两格，任何过得去的生物它的
+   * 碰撞圆都必然盖过门心。摊开要把房本地格换算回世界系，为一个够用的
+   * 近似值背一整套锚点换算不划算。
+   */
+  setDoorGate((x, z, radius) => {
+    for (const door of doors.values()) {
+      if (door.open) continue;
+      if (Math.hypot(x - door.center.x, z - door.center.z) <= radius) {
+        return true;
+      }
     }
     return false;
   });
@@ -438,7 +460,12 @@ const lastOpen = new Map<string, boolean>();
 /** 每帧驱动自动开关。生物 = 宠物这类非玩家活物；玩家开门永远走 F */
 export function tickDoors(): void {
   if (doors.size === 0) return;
-  const creatures = getPets().map((pet) => ({ x: pet.x, z: pet.z }));
+  // 带上体型：自动开关的距离量到体表，大家伙要早一点开（见 RoomDoor.tick）
+  const creatures = getPets().map((pet) => ({
+    x: pet.x,
+    z: pet.z,
+    radius: pet.radius,
+  }));
   for (const door of doors.values()) {
     door.tick(creatures);
 

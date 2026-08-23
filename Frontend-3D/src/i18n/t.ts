@@ -310,6 +310,15 @@ const ZH: Record<string, string> = {
   "hint.ofuro_full": "泡澡",
   "hint.ofuro_draining": "放水中…",
   "placement.fixed": "这是房子自带的，搬不走。",
+  // ---- 桌灯三件套（2026-08-23）。描述里都点一句"自己亮"，
+  //      因为按 F 对它们没反应——文案是玩家唯一能知道这件事的地方 ----
+  "item.furniture_moon_lamp": "月牙灯",
+  "item.furniture_moon_lamp.desc": "一弯月牙浮在黄铜细杆上，底座边还落着两颗掉下来的星星。天黑了它自己亮。",
+  "item.furniture_mushroom_lamp": "蘑菇灯",
+  "item.furniture_mushroom_lamp.desc": "奶白伞盖点着几粒红斑，光从伞里透出来。摆桌角，像屋里长出来一朵。",
+  "item.furniture_cloud_lamp": "云朵灯",
+  "item.furniture_cloud_lamp.desc": "一朵胖云挂在杆头，底下垂着三滴会发光的雨。写字的时候有云在旁边。",
+
   "item.furniture_lucky_bamboo": "富贵竹",
   "item.furniture_lucky_bamboo.desc": "白瓷盆里插着几根带节的富贵竹，长到半人高。据说能旺家。",
   "item.furniture_picture_frame.desc": "画着远山和落日的小相框，挂在墙上。",

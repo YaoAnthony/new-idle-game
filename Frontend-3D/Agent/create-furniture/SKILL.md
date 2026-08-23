@@ -84,7 +84,7 @@ Crafting / Cooking / Storage / Sleep / Sitting / Ambience / WaterSource / Unpack
 **已有件参考尺寸**（对齐用）：椅 1×1 座高 0.49；凳 1×1 0.565；坐垫 1×1 0.24 不挡路；沙发 3×1 座 0.42（3 锚点 x=−0.92/0/0.92）；
 园林长椅 2×1 座 0.45；床 2×3 床面 0.64；地铺 1×2 0.12 不挡路；桌 2×1 台面 0.83 台面网格 4×2；书桌 2×1 0.805；
 矮几 2×1 0.45；工作台 2×1 0.91；橱柜 6×4 L 形 0.98；箱 1×1 0.76；书架/衣柜 2×1 无台面；
-壁炉 2×1；落地灯 1×1；盆栽 1×1（上桌 2×2 半格）；富贵竹 1×1 高 0.95；地毯 3×2/4×3/3×3/2×1 Covering；相框/挂钟 1×1 墙；窗帘 2×3 墙 coversOpenings（上一格杆子、下 2×2 帘子罩窗）；
+壁炉 2×1；落地灯 1×1；桌灯（月牙/蘑菇/云朵）1×1 不挡路、上桌 1×1 半格、模型 ≤0.36×0.48×0.35；盆栽 1×1（上桌 2×2 半格）；富贵竹 1×1 高 0.95；地毯 3×2/4×3/3×3/2×1 Covering；相框/挂钟 1×1 墙；窗帘 2×3 墙 coversOpenings（上一格杆子、下 2×2 帘子罩窗）；
 日式浴缸 4×3（踏步 0.42、缸沿 0.8、坐台 0.35 = Sit 锚点 y，3 个坐位 x=−1.1/0/1.1，浴室南端 (11,17) 朝北 fixed）。
 
 ### 2.2 外观配方 —— `Frontend-3D/src/Game3D/Visual/recipes/<主题>.ts`
@@ -142,7 +142,20 @@ Crafting / Cooking / Storage / Sleep / Sitting / Ambience / WaterSource / Unpack
   外观已注册 / 坐睡必有锚点 / surfaceGrid 必配 surfaceHeight / 模型不出占地且贴地 / 客厅空地能落）。在 Frontend-3D 目录下：
   `npx esbuild Agent/create-furniture/check-furniture.ts --bundle --platform=node --format=cjs --alias:game=./src --alias:core=../Core/src --alias:three=./node_modules/three "--define:import.meta.env={}" --outfile=<scratchpad>/check-furniture.cjs && node <scratchpad>/check-furniture.cjs furniture_a furniture_b`
   （参数是要查的物品 id，可多个）。有新规则往这个脚本里加，别另起炉灶。
-- 实机：DEV 控制台无 `auditItemVisuals` 警告；`/testroom` 里 `placed` 含新件且 `walkableRegions === 1`；
+  已有规则：定义存在 / 文案 / 外观注册 / 坐睡锚点 / surfaceGrid 配 surfaceHeight /
+  模型不出地面占地且贴地 / 客厅能落 / **模型不出台面半格占地** / **每张有台面的家具都摆得上**。
+  注意：**带贴图的配方建不出来**（唱片封套要 `document`），这个脚本只守程序化家具。
+- **观察台**（看长相用）：`Frontend-3D/Agent/create-furniture/preview.html`。dev 服起着的时候开
+  `/Agent/create-furniture/preview.html?ids=furniture_a,furniture_b&phase=night&view=front`
+  （`phase` day|night、`view` front|angle|top、`table` 桌面高、`spacing` 间距）。
+  每件摆两份——桌面上一份、地板上一份，桌面画了 0.5 米半格线。
+  **不进游戏、不碰存档**（记忆 verify-in-dedicated-page）。它和 Engine/Renderer 一样开了
+  ACESFilmic + 曝光 1.15，不抄这两行会骗人：没有色调映射时夜里发光面全顶成纯白。
+  面板 hidden 时用 `window.__preview.shot()` 取 JPEG（记忆 offscreen-render-when-pane-hidden）。
+  **灯具必须看夜景**：点光装在壳里，壳的外表面拿不到自己的光，夜里只剩冷蓝环境光——
+  emissive 是它唯一的暖色来源，而且 emissive 色要比固有色**更饱和**，否则 ACES 会把它压成白灯。
+- 实机：DEV 控制台无 `auditItemVisuals` 警告（观察台里 `import("/src/Game3D/Visual/VisualRegistry.ts")`
+  再调一次就行，不用进游戏）；`/testroom` 里 `placed` 含新件且 `walkableRegions === 1`；
   面板不显示时按 `offscreen-render-when-pane-hidden` 记忆离屏截图（`window.__scene` 手动 update+render → JPEG POST 本地 5199）。
   截图看：比例/朝向(+Z 正面)/贴地/描边/夜里发光/坐上去人不悬空。
 

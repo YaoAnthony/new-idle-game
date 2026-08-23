@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8" />
+    <title>家具观察台</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #1b1f2a; overflow: hidden; }
+      canvas { display: block; }
+      #hint { position: fixed; left: 8px; top: 6px; color: #cfc6b4; font: 12px/1.5 monospace; }
+    </style>
+  </head>
+  <body>
+    <div id="hint"></div>
+    <!--
+      家具观察台。**不进游戏、不碰存档**，只把配方摆出来看比例和发光。
+      用户定的规矩：视觉零件要在专门的观察台里验，不要 hack 存档进游戏走位截图
+      （见记忆 verify-in-dedicated-page）。
+
+      开法：dev 服起着的时候开
+        /Agent/create-furniture/preview.html?ids=furniture_moon_lamp,furniture_cloud_lamp
+      每件摆两份：**左半边在桌面上（0.83 米，餐桌高），右半边在地板上**——
+      桌灯这类两用件必须两个高度都看一眼，只看地上会漏掉"上桌以后顶到眼睛"。
+      桌面上画了 0.5×0.5 米的半格线，模型出不出格一眼可见。
+
+      窗口里没有画面时（面板 hidden）用 window.__preview 手动推一帧再 toDataURL，
+      见记忆 offscreen-render-when-pane-hidden。
+    -->
+    <script type="module">
+      import {
+        ACESFilmicToneMapping,
+        AmbientLight,
+        Box3,
+        BoxGeometry,
+        Color,
+        DirectionalLight,
+        GridHelper,
+        Mesh,
+        MeshLambertMaterial,
+        PerspectiveCamera,
+        PointLight,
+        Scene,
+        Vector3,
+        WebGLRenderer,
+      } from "three";
+      import { buildItemVisual } from "../../src/Game3D/Visual/VisualRegistry.ts";
+
+      const params = new URLSearchParams(location.search);
+      const ids = (params.get("ids") ?? "furniture_floor_lamp").split(",").filter(Boolean);
+      /** 桌面高度。默认取餐桌的 0.83——桌灯最常见的宿主 */
+      const tableTop = Number(params.get("table") ?? 0.83);
+      const spacing = Number(params.get("spacing") ?? 0.9);
+
+      const renderer = new WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+      // 和 Engine/Renderer.ts 同一套色调映射与曝光。**不抄这两行观察台就会骗人**：
+      // 没有 ACES 的话夜里发光面全部顶到纯白，会误判成"emissive 调太高"
+      renderer.toneMapping = ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.15;
+      renderer.setSize(window.innerWidth, window.innerHeight, false);
+      document.body.appendChild(renderer.domElement);
+
+      const scene = new Scene();
+      const camera = new PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.05, 60);
+
+      // 地板 + 一块桌板。桌板只到 ids 的一半宽，右边留出地板对照
+      const rowWidth = Math.max(ids.length * spacing, spacing);
+      const floor = new Mesh(
+        new BoxGeometry(rowWidth + 2.4, 0.04, 3.2),
+        new MeshLambertMaterial({ color: "#c09a6a", flatShading: true }),
+      );
+      floor.position.set(0, -0.02, 0);
+      scene.add(floor);
+
+      const table = new Mesh(
+        new BoxGeometry(rowWidth + 0.5, 0.09, 1),
+        new MeshLambertMaterial({ color: "#a97c4c", flatShading: true }),
+      );
+      table.position.set(0, tableTop - 0.045, -0.75);
+      scene.add(table);
+
+      // 半格参考线（0.5 米）铺在桌面上：模型压没压过格子边一眼可见
+      const grid = new GridHelper(Math.ceil(rowWidth + 0.5), Math.ceil((rowWidth + 0.5) / 0.5), "#5b4332", "#8a7050");
+      grid.position.set(0, tableTop + 0.002, -0.75);
+      scene.add(grid);
+
+      const built = [];
+      ids.forEach((id, index) => {
+        const x = (index - (ids.length - 1) / 2) * spacing;
+        for (const [z, y] of [[-0.75, tableTop], [0.75, 0]]) {
+          const visual = buildItemVisual(id);
+          if (!visual) {
+            console.error("没有这件家具的配方:", id);
+            return;
+          }
+          visual.position.set(x, y, z);
+          scene.add(visual);
+          built.push(visual);
+        }
+      });
+
+      const ambient = new AmbientLight("#ffffff", 1);
+      scene.add(ambient);
+      const sun = new DirectionalLight("#fff2d8", 1);
+      sun.position.set(2.5, 4, 3);
+      scene.add(sun);
+
+      /** 照 Lighting.ts 的两档：白天灯灭，夜里灯全亮（intensity 18） */
+      function setPhase(phase) {
+        const night = phase === "night";
+        scene.background = new Color(night ? "#252e42" : "#e8ddc6");
+        ambient.color = new Color(night ? "#6b7aa1" : "#ffffff");
+        ambient.intensity = night ? 0.5 : 1;
+        sun.intensity = night ? 0.12 : 1;
+        scene.traverse((node) => {
+          if (node.name === "lamp-light" && node instanceof PointLight) {
+            node.intensity = night ? 18 : 0;
+          }
+        });
+      }
+
+      function frame(view) {
+        const target = new Vector3(0, tableTop * 0.75, -0.1);
+        const positions = {
+          front: new Vector3(0, tableTop + 0.55, rowWidth * 0.55 + 2.3),
+          angle: new Vector3(rowWidth * 0.45 + 1.4, tableTop + 1.05, rowWidth * 0.45 + 2.0),
+          top: new Vector3(0.4, tableTop + 2.4, 1.6),
+        };
+        camera.position.copy(positions[view] ?? positions.angle);
+        camera.lookAt(target);
+        camera.updateProjectionMatrix();
+      }
+
+      function render() {
+        renderer.render(scene, camera);
+      }
+
+      const sizes = built
+        .filter((_, i) => i % 2 === 0)
+        .map((visual, i) => {
+          const box = new Box3().setFromObject(visual);
+          const size = box.getSize(new Vector3());
+          return `${ids[i]} ${size.x.toFixed(2)}×${size.y.toFixed(2)}×${size.z.toFixed(2)}m`;
+        });
+      document.getElementById("hint").textContent = sizes.join("   |   ");
+
+      setPhase(params.get("phase") ?? "day");
+      frame(params.get("view") ?? "angle");
+      render();
+
+      window.__preview = {
+        scene,
+        camera,
+        renderer,
+        setPhase,
+        frame,
+        render,
+        sizes,
+        /** 抓一张 JPEG（面板 hidden 时也能抓，drawing buffer 保留着） */
+        shot(quality = 0.72) {
+          render();
+          return renderer.domElement.toDataURL("image/jpeg", quality);
+        },
+      };
+    </script>
+  </body>
+</html>

@@ -613,14 +613,90 @@ export const itemDefinitions = [
     placement: {
       surface: PlacementSurface.Floor,
       footprint: { width: 1, height: 1 },
-      capabilities: [FurnitureCapability.Ambience],
+      capabilities: [FurnitureCapability.Ambience, FurnitureCapability.Lighting],
       floorLayer: FloorLayer.Object,
       blocksMovement: true,
+      /**
+       * 文案是运行时按开关状态换的（hint.floor_lamp_on / _off，见 RoomScene），
+       * 这里写"开灯"只是兜底——和门一个道理，注册表里那条 key 只在
+       * 状态查不出来时才会露面。
+       */
       interactHint: {
-        localizationKey: "hint.floor_lamp",
+        localizationKey: "hint.floor_lamp_off",
         action: "interact",
         anchorHeight: 1.7,
       },
+    },
+  },
+  /*
+   * ---- 桌灯三件套（2026-08-23，用户定：可爱、暖黄光、**重点是能放桌上**）----
+   *
+   * 三条定义完全同构，只有 id 和外观不同——它们是同一件东西的三个样子。
+   *
+   * `surface: Floor` + `surfaceFootprint` = **两用**：既能摆地上，也能上桌。
+   * 不做成 `PlacementSurface.Surface`（唱片那种只认台面的）是因为地铺、
+   * 窗台边、走廊拐角也该放得下一盏小灯；只认台面等于把它锁死在有台面的家具旁。
+   *
+   * `blocksMovement: false`：一盏 25 厘米宽的小灯挡住整整 1×1 米一格、
+   * 人绕着走，是这个占格粒度必然会出的荒谬。跟哑铃、坐垫一个待遇。
+   * 也因此**不填 surfaceHeight**——不挡路的东西没有"能落东西的台面"这件事。
+   *
+   * `surfaceFootprint: 1×1` 半格 = 桌上占 0.5×0.5 米。给 2×2 的话
+   * 一盏灯就吃掉整张床头柜的顶面（床头柜的台面网格总共就 2×2），
+   * "床头放本书"当场没地方——盆栽占 2×2 是因为它真有那么胖。
+   *
+   * 不挂 `interactHint`：交互链里没有 Ambience（Unpack > DailyBoard >
+   * MusicPlayer > Crafting > Cooking > Storage > Sleep > Sitting），
+   * 按 F 什么都不会发生。落地灯那句"开灯 / 关灯"是句空话，不再抄三遍——
+   * 灯本来就由 Lighting 按昼夜自动亮（黄昏半亮、入夜全亮、雾天全天亮）。
+   * 铁艺路灯就是没有提示的，照它。
+   */
+  {
+    id: "furniture_moon_lamp",
+    localizationKey: "item.furniture_moon_lamp",
+    category: ItemCategory.Furniture,
+    stackLimit: 9,
+    rarity: Rarity.Common,
+    visual: { id: "moon_lamp" },
+    placement: {
+      surface: PlacementSurface.Floor,
+      footprint: { width: 1, height: 1 },
+      capabilities: [FurnitureCapability.Ambience],
+      floorLayer: FloorLayer.Object,
+      blocksMovement: false,
+      surfaceFootprint: { width: 1, height: 1 },
+    },
+  },
+  {
+    id: "furniture_mushroom_lamp",
+    localizationKey: "item.furniture_mushroom_lamp",
+    category: ItemCategory.Furniture,
+    stackLimit: 9,
+    rarity: Rarity.Common,
+    visual: { id: "mushroom_lamp" },
+    placement: {
+      surface: PlacementSurface.Floor,
+      footprint: { width: 1, height: 1 },
+      capabilities: [FurnitureCapability.Ambience],
+      floorLayer: FloorLayer.Object,
+      blocksMovement: false,
+      surfaceFootprint: { width: 1, height: 1 },
+    },
+  },
+  {
+    id: "furniture_cloud_lamp",
+    localizationKey: "item.furniture_cloud_lamp",
+    category: ItemCategory.Furniture,
+    stackLimit: 9,
+    rarity: Rarity.Common,
+    visual: { id: "cloud_lamp" },
+    placement: {
+      surface: PlacementSurface.Floor,
+      footprint: { width: 1, height: 1 },
+      capabilities: [FurnitureCapability.Ambience],
+      floorLayer: FloorLayer.Object,
+      blocksMovement: false,
+      surfaceFootprint: { width: 1, height: 1 },
     },
   },
   {
@@ -830,9 +906,15 @@ export const itemDefinitions = [
     placement: {
       surface: PlacementSurface.Floor,
       footprint: { width: 1, height: 1 },
-      capabilities: [FurnitureCapability.Ambience],
+      capabilities: [FurnitureCapability.Ambience, FurnitureCapability.Lighting],
       floorLayer: FloorLayer.Object,
       blocksMovement: true,
+      /** 灯箱在 2.46m 上，气泡压到 2.2 才不会飘出画面顶（镜头是俯视的） */
+      interactHint: {
+        localizationKey: "hint.street_lamp_off",
+        action: "interact",
+        anchorHeight: 2.2,
+      },
     },
   },
   {
@@ -870,6 +952,13 @@ export const itemDefinitions = [
       blocksMovement: true,
       /** 书桌面 */
       surfaceHeight: 0.805,
+      /*
+       * 台面网格 4×2 半格 = 铺满 2×1 米的桌面（2026-08-23 补）。
+       * 原先只填了 surfaceHeight 没填 surfaceGrid——扔过来的东西会落在
+       * 桌面上，但玩家**主动摆**摆不上去。一张放不了台灯和书的书桌，
+       * 少的不是功能是常识。茶几同理。
+       */
+      surfaceGrid: { width: 4, height: 2 },
     },
   },
   {
@@ -887,6 +976,8 @@ export const itemDefinitions = [
       blocksMovement: true,
       /** 茶几面 */
       surfaceHeight: 0.45,
+      /** 台面网格 4×2 半格 = 铺满 2×1 米的几面（理由见书桌那条） */
+      surfaceGrid: { width: 4, height: 2 },
     },
   },
 

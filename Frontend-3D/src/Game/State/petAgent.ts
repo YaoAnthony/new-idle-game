@@ -35,6 +35,7 @@ import { findBuildingLevel } from "../../Buildings/index";
 import { getClock } from "./clock";
 import {
   creatureBlockedAt,
+  doorGateBlocks,
   getCurrentMapId,
   getRoom,
   getWorld,
@@ -775,6 +776,24 @@ export class PetAgent {
     return false;
   }
 
+  /**
+   * 前面暂时过不去：**原地等**，等太久才放弃重打算。
+   *
+   * 挡路的是活物还是没开的门，处理是一样的——两者都会自己让开
+   * （人走开 / 门推开），所以"等"永远是第一选择，绕路是等不到才做的事。
+   */
+  private waitBlocked(deltaSeconds: number): void {
+    this.moving = false;
+    this.blockedFor += deltaSeconds;
+    if (this.blockedFor > 2.5) {
+      this.blockedFor = 0;
+      this.clearPath();
+      this.errand = null;
+      this.state = "idle";
+      this.idleTimer = 2 + Math.random() * 3;
+    }
+  }
+
   private tickMove(deltaSeconds: number): void {
     const [tx, tz] = gridToWorldXZ(this.space().room, this.path[this.pathIndex]);
     const dx = tx - this.x;
@@ -809,17 +828,28 @@ export class PetAgent {
        * **原地等**：玩家走开自然继续；等太久才放弃重打算。
        * 站着等的猫和绕着你钻的猫，前者才像个大家伙。
        */
+      /*
+       * ---- 门是**唯一**要在步进里查的静态物 ----
+       *
+       * 上面那条"静态障碍归 A*"对墙和家具成立，因为它们在规划和行走
+       * 两个时刻是同一副样子。门不是：A* 是在"所有没锁的门都开着"的
+       * 假设下规划的（withDoorsOpen），那个假设本身没错——一扇关着的
+       * 门是"到了要开一下"的动作，不是障碍——但**没人兑现那个动作**。
+       * 于是石傀儡照着路径径直穿门而过（2026-08-23 用户报的）。
+       *
+       * 兑现的方式是站着等：走到门板跟前停下，自动开门（tickDoors）
+       * 看见有生物贴上来就把门推开，下一帧路就通了。等的这几帧复用
+       * 被活物堵住那套——包括 2.5 秒还不通就放弃重打算，锁着的门
+       * 就是这么脱身的。
+       */
+      if (doorGateBlocks(nextX, nextZ, this.radius)) {
+        this.waitBlocked(deltaSeconds);
+        return;
+      }
+
       const squeeze = this.radius * 0.85;
       if (creatureBlockedAt(nextX, nextZ, squeeze, this.petId)) {
-        this.moving = false;
-        this.blockedFor += deltaSeconds;
-        if (this.blockedFor > 2.5) {
-          this.blockedFor = 0;
-          this.clearPath();
-          this.errand = null;
-          this.state = "idle";
-          this.idleTimer = 2 + Math.random() * 3;
-        }
+        this.waitBlocked(deltaSeconds);
         return;
       }
       this.blockedFor = 0;

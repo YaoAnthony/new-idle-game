@@ -15,6 +15,14 @@ import type { DoorDefinition, DoorRefId, GridPosition } from "core";
 
 export type DoorInteractOutcome = "opened" | "closed" | "locked";
 
+/**
+ * 门看生物只看两件事：站在哪、多大只。
+ *
+ * `radius` 是**体型**，不是可选的装饰——自动开关的距离量到体表而不是
+ * 体心（见 RoomDoor.tick）。省略时按体心算，只有测试里那种质点才该省。
+ */
+export type CreatureProbe = { x: number; z: number; radius?: number };
+
 export class Door {
   readonly refId: DoorRefId;
   readonly definition: DoorDefinition;
@@ -66,7 +74,7 @@ export class Door {
   }
 
   /** 每帧驱动。基类无自主行为，子类覆写 */
-  tick(_creaturePositions: readonly { x: number; z: number }[]): void {}
+  tick(_creatures: readonly CreatureProbe[]): void {}
 
   /** 关着时挡不挡这个格子 */
   blocksCell(gx: number, gy: number): boolean {
@@ -89,19 +97,29 @@ export class RoomDoor extends Door {
     return outcome;
   }
 
-  override tick(creaturePositions: readonly { x: number; z: number }[]): void {
+  override tick(creatures: readonly CreatureProbe[]): void {
     const behavior = this.definition.behavior;
     const openRadius = behavior?.autoOpenRadius;
     // 锁着不自动开：锁的意义就是拦住所有不带钥匙的东西
     if (!openRadius || this.locked) return;
     const closeRadius = behavior.autoCloseRadius ?? openRadius + 0.8;
 
+    /*
+     * 距离量到**体表**，不是体心。
+     *
+     * 注册表里那个半径想说的是"走到门口了"，而到没到门口是**身体**的事。
+     * 按体心量的话这个数对每种体型含义都不一样：猫（半径 0.3）在门外
+     * 0.9 米就开，石傀儡（半径 1.1）要等身子探进门洞 0.1 米才开——门在
+     * 它背后弹开，看起来就是直接穿门而过。（2026-08-23 用户报的就是这个。）
+     *
+     * 减半径之后，1.2 处处是"体表离门心 1.2"，加多大的家伙都不用回来
+     * 重调这张表。
+     */
     let nearest = Infinity;
-    for (const creature of creaturePositions) {
-      const distance = Math.hypot(
-        creature.x - this.center.x,
-        creature.z - this.center.z,
-      );
+    for (const creature of creatures) {
+      const distance =
+        Math.hypot(creature.x - this.center.x, creature.z - this.center.z) -
+        (creature.radius ?? 0);
       if (distance < nearest) nearest = distance;
     }
 

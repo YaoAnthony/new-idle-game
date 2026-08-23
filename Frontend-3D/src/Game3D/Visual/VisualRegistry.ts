@@ -1,8 +1,11 @@
 import { findItemDefinition, getItemTags, itemDefinitions } from "core";
 import { Mesh, Vector3, type MeshLambertMaterial, type Object3D } from "three";
 import {
+  buildCloudLamp,
   buildFireplace,
   buildFloorLamp,
+  buildMoonLamp,
+  buildMushroomLamp,
 } from "./recipes/ambience.js";
 import { buildCushion, buildWoodenBed } from "./recipes/bedroom.js";
 import { buildGolemHead, buildStoneGolem } from "./recipes/golem.js";
@@ -161,6 +164,9 @@ const REGISTRY: Record<string, VisualEntry> = {
   floor_cushion: { kind: "procedural", build: buildCushion },
   fireplace: { kind: "procedural", build: buildFireplace },
   floor_lamp: { kind: "procedural", build: buildFloorLamp },
+  moon_lamp: { kind: "procedural", build: buildMoonLamp },
+  mushroom_lamp: { kind: "procedural", build: buildMushroomLamp },
+  cloud_lamp: { kind: "procedural", build: buildCloudLamp },
   garden_bench: { kind: "procedural", build: buildGardenBench },
   street_lamp: { kind: "procedural", build: buildStreetLamp },
   potted_plant: { kind: "procedural", build: buildPottedPlant },

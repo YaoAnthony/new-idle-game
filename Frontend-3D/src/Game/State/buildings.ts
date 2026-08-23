@@ -2,6 +2,7 @@ import {
   Facing,
   buildingRectWorld,
   checkBuildingPlacement,
+  findBlueprintForBuilding,
   checkRemove,
   checkUpgrade,
   roomCellToWorld,
@@ -21,6 +22,7 @@ import { guardWorldMutation } from "../Multiplayer/worldLock";
 import { nextObjectId, syncIdCounters } from "./ids";
 import { findBuilding, findBuildingLevel } from "../../Buildings/index";
 import { materialCounts, spendMaterials } from "../Systems/materials";
+import { addItem } from "./inventory";
 import { getUnlockedFeatures } from "../Systems/events";
 import {
   getCurrentMap,
@@ -402,6 +404,21 @@ export function upgradeBuilding(
   return { ok: true };
 }
 
+/**
+ * 拆掉一栋之后**图纸回背包**（用户定，2026-08-23："墙拆了，要能回到背包里吧"）。
+ *
+ * 返还的是**图纸**不是材料：图纸就是这栋楼在背包里的形态，买图纸 →
+ * 摆下去 → 拆掉退回图纸，来回不亏。返材料的话还得回答"1 金币退给谁"
+ * （罐满了怎么办、罐拆光了怎么办），而图纸没有容量问题。
+ *
+ * **升级花掉的材料不退**：升级是一次承诺。真想挪位置有"迁移"，那条是
+ * 免费的，不该逼玩家拆了重建。
+ */
+function refundBlueprint(buildingId: string): void {
+  const blueprint = findBlueprintForBuilding(buildingId);
+  if (blueprint) addItem(blueprint.id, 1);
+}
+
 export function removeBuilding(
   instanceId: string,
   contents: { gold?: number } = {},
@@ -417,6 +434,7 @@ export function removeBuilding(
   if (check.ok === false) return check;
 
   placements = placements.filter((item) => item.instanceId !== instanceId);
+  refundBlueprint(placement.buildingId);
   syncBuildingInteriors();
   emit("world_changed", { reason: "buildings" });
   return { ok: true };

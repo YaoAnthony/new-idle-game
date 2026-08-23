@@ -81,6 +81,7 @@ import { buildStove } from "./recipes/stove.js";
 import { buildKitchenCounter } from "./recipes/kitchen.js";
 import {
   buildBedroll,
+  buildNightstand,
   buildRoundRug,
   buildWoodenChair,
   buildWoodenTable,
@@ -129,6 +130,7 @@ const REGISTRY: Record<string, VisualEntry> = {
   cardboard_box: { kind: "procedural", build: buildCardboardBox },
   cardboard_stack: { kind: "procedural", build: buildCardboardStack },
   wooden_table: { kind: "procedural", build: buildWoodenTable },
+  nightstand: { kind: "procedural", build: buildNightstand },
   wooden_chair: { kind: "procedural", build: buildWoodenChair },
   round_rug: { kind: "procedural", build: buildRoundRug },
   ordinary_workbench: { kind: "procedural", build: buildWorkbench },

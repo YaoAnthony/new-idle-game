@@ -106,3 +106,66 @@ export function buildRoundRug(): Object3D {
 
   return group("round-rug", [body, inner]);
 }
+
+/**
+ * 床头柜（1×1）。**纯装饰**，但柜面能放东西——床头柜的全部意义就是
+ * "床边有个能放东西的地方"。
+ *
+ * 三段读法：四条矮腿架空一点（不然是个墩在地上的盒子）、柜体上一道
+ * 抽屉缝加一个把手（一格抽屉比两格更像床头柜）、柜面比柜体宽出一圈
+ * （挑出来的边是"这是一件家具"最省事的信号，纯直筒会读成纸箱）。
+ */
+export function buildNightstand(): Object3D {
+  const bodyW = 0.74;
+  const bodyH = 0.4;
+  const legH = 0.12;
+  const topY = legH + bodyH;
+
+  const parts: Object3D[] = [];
+
+  // 四条矮腿
+  for (const sx of [-1, 1] as const) {
+    for (const sz of [-1, 1] as const) {
+      parts.push(
+        box([0.09, legH, 0.09], {
+          color: PALETTE.woodDark,
+          position: [sx * (bodyW / 2 - 0.08), legH / 2, sz * (bodyW / 2 - 0.08)],
+        }),
+      );
+    }
+  }
+
+  // 柜体
+  parts.push(
+    box([bodyW, bodyH, bodyW], {
+      color: PALETTE.woodMid,
+      position: [0, legH + bodyH / 2, 0],
+    }),
+  );
+
+  // 抽屉面：比柜体略往前凸，四周留一圈缝
+  parts.push(
+    box([bodyW - 0.12, bodyH - 0.12, 0.03], {
+      color: PALETTE.woodLight,
+      position: [0, legH + bodyH / 2, bodyW / 2 + 0.01],
+    }),
+  );
+  // 把手：一根横杆
+  parts.push(
+    box([0.24, 0.045, 0.045], {
+      color: PALETTE.ironDark,
+      position: [0, legH + bodyH / 2, bodyW / 2 + 0.05],
+      castShadow: false,
+    }),
+  );
+
+  // 柜面：挑出一圈
+  parts.push(
+    box([bodyW + 0.1, 0.055, bodyW + 0.1], {
+      color: PALETTE.woodDark,
+      position: [0, topY + 0.027, 0],
+    }),
+  );
+
+  return group("nightstand", parts);
+}

@@ -17,6 +17,7 @@ const ZH: Record<string, string> = {
   "item.notebook": "牛皮本子",
   "item.pencil": "铅笔",
   "item.furniture_kitchen_counter": "整体橱柜",
+  "item.furniture_nightstand": "床头柜",
   "item.furniture_workbench": "普通工作台",
   "item.furniture_table": "木桌",
   "item.furniture_chair": "木椅",

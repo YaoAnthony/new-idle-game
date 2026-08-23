@@ -153,3 +153,32 @@ test("升级真的扣钱，钱不够就升不了", () => {
   expect(result.ok).toBe(false);
   expect(getGold(), "被拒了还是把钱扣了").toBe(2);
 });
+
+// ---- 拆了回背包（2026-08-23，用户定）----
+
+test("拆掉一堵墙，图纸回背包——买图纸摆下去再拆掉，来回不亏", async () => {
+  const { getCount } = await import("../src/Game/State/inventory");
+  const { removeBuilding } = await import("../src/Game/State/buildings");
+
+  const id = wall(A.x, A.z);
+  expect(getCount("blueprint_wood_wall")).toBe(0);
+
+  expect(removeBuilding(id).ok).toBe(true);
+
+  expect(getCount("blueprint_wood_wall"), "拆完图纸没回来").toBe(1);
+  expect(listBuildings()).toHaveLength(0);
+});
+
+test("装着钱的罐拆不掉，也就不该退图纸", async () => {
+  const { getCount } = await import("../src/Game/State/inventory");
+  const { removeBuilding } = await import("../src/Game/State/buildings");
+
+  placeBuilding("gold_jar", 3.5, 16.5, Facing.North);
+  const jar = listBuildings()[0].instanceId;
+  depositGoldTo(5);
+
+  const result = removeBuilding(jar, { gold: 5 });
+  expect(result.ok).toBe(false);
+  expect(getCount("blueprint_gold_jar"), "被拒了还是把图纸发出去了").toBe(0);
+  expect(listBuildings()).toHaveLength(1);
+});

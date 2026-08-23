@@ -141,8 +141,14 @@ import {
 } from "../../Game/Systems/resting";
 import { startSleep } from "../../Game/Systems/sleep";
 import { getClock } from "../../Game/State/clock";
-import { findPlacement, listBuildings, listSites } from "../../Game/State/buildings";
+import {
+  findPlacement,
+  listBuildings,
+  listSites,
+  removeBuilding,
+} from "../../Game/State/buildings";
 import { findBuildingLevel } from "../../Buildings/index";
+import { goldInJar } from "../../Game/State/buildingCommands";
 import { getResting, isResting } from "../../Game/State/posture";
 import { pruneOrphanStorages } from "../../Game/State/storage";
 import { pruneOrphanGramophones } from "../../Game/State/gramophones";
@@ -938,7 +944,7 @@ export class RoomScene {
         const { clientX, clientY } = event;
         longPressTimer = setTimeout(() => {
           longPressTimer = null;
-          if (this.pickFurnitureAt(clientX, clientY)) {
+          if (this.removeAt(clientX, clientY)) {
             // 拿起来了就取消这一次的点击，否则抬手会立刻把它放回去
             dragPointerId = null;
           }
@@ -1031,7 +1037,7 @@ export class RoomScene {
     const onContextMenu = (event: MouseEvent) => {
       event.preventDefault();
       if (this.placement.active) return;
-      this.pickFurnitureAt(event.clientX, event.clientY);
+      this.removeAt(event.clientX, event.clientY);
     };
 
     window.addEventListener("keydown", onKeyDown);
@@ -1056,16 +1062,72 @@ export class RoomScene {
   }
 
   /**
-   * 屏幕坐标处有家具就拿起来，返回拿没拿到。
-   * 鼠标右键和触摸长按共用——两条路要选中同一件东西。
+   * 右键（触摸端长按）：**先试家具，家具没命中再试建筑**。
+   *
+   * 两者的动作不一样，但玩家的意思是同一个——"把这个从这儿拿掉"。
+   * 家具是拿回背包，建筑是拆掉（现在**不返还材料**）。
+   *
+   * 家具优先是因为它更小、更常压在建筑上（罐子上摆个东西），
+   * 而且拿错家具的代价是零（放回去就行）。
    */
-  private pickFurnitureAt(clientX: number, clientY: number): boolean {
+  private removeAt(clientX: number, clientY: number): boolean {
+    if (this.pickFurnitureAt(clientX, clientY)) return true;
+    return this.removeBuildingAt(clientX, clientY);
+  }
+
+  /** 屏幕坐标 → 射线 → NDC。右键那两条路共用 */
+  private aimPick(clientX: number, clientY: number): void {
     const rect = this.renderer.renderer.domElement.getBoundingClientRect();
     this.pickPointer.set(
       ((clientX - rect.left) / rect.width) * 2 - 1,
       -((clientY - rect.top) / rect.height) * 2 + 1,
     );
     this.pickRaycaster.setFromCamera(this.pickPointer, this.rig.camera);
+  }
+
+  /**
+   * 屏幕坐标处有自己盖的建筑就拆掉，返回拆没拆。
+   *
+   * 拆除的规则**一条都不重写**，全走 `removeBuilding` → Core 的
+   * `checkRemove`：罐里有钱不给拆，且说得出剩多少。右键只是又一个入口，
+   * 面板上那个"拆除"按钮走的是同一条路。
+   *
+   * 建筑节点认的是**名字**（`building-<instanceId>`，`buildPlacedBuilding`
+   * 定的），不是 userData——家具那套 userData.instanceId 是家具视图自己的
+   * 约定，两边没必要统一成一种。
+   */
+  private removeBuildingAt(clientX: number, clientY: number): boolean {
+    this.aimPick(clientX, clientY);
+    const hits = this.pickRaycaster.intersectObject(this.buildingsView.root, true);
+
+    for (const hit of hits) {
+      let node: typeof hit.object | null = hit.object;
+      while (node && !node.name.startsWith("building-")) node = node.parent;
+      if (!node) continue;
+
+      const instanceId = node.name.slice("building-".length);
+      const result = removeBuilding(instanceId, { gold: goldInJar(instanceId) });
+      if (result.ok === false) {
+        // 被拒要说话：右键一只装着钱的罐毫无反应，玩家只会以为坏了
+        pushChatMessage({
+          kind: ChatMessageKind.System,
+          text:
+            result.reason === "not_empty"
+              ? t("build.remove.not_empty")
+              : t("build.remove.failed"),
+        });
+      }
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * 屏幕坐标处有家具就拿起来，返回拿没拿到。
+   * 鼠标右键和触摸长按共用——两条路要选中同一件东西。
+   */
+  private pickFurnitureAt(clientX: number, clientY: number): boolean {
+    this.aimPick(clientX, clientY);
 
     const hits = this.pickRaycaster.intersectObject(
       this.furnitureView.root,

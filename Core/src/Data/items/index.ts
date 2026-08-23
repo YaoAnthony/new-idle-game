@@ -240,6 +240,33 @@ export const itemDefinitions = [
     },
   },
   {
+    /**
+     * 床头柜（2026-08-23，用户要的临时家具）。**纯装饰**：不挂任何
+     * `capabilities`，按 F 不会发生任何事。
+     *
+     * 但台面留着（`surfaceGrid` 2×2 半格）：床头柜这件东西的全部意义就是
+     * "床边有个能放东西的地方"，一个放不了东西的床头柜只是个方盒子。
+     * 台面不是"功能"——摆东西是家具系统的通用能力，不是这件家具的特殊玩法。
+     */
+    id: "furniture_nightstand",
+    localizationKey: "item.furniture_nightstand",
+    category: ItemCategory.Furniture,
+    stackLimit: 9,
+    rarity: Rarity.Common,
+    visual: { id: "nightstand" },
+    placement: {
+      surface: PlacementSurface.Floor,
+      footprint: { width: 1, height: 1 },
+      capabilities: [],
+      floorLayer: FloorLayer.Object,
+      blocksMovement: true,
+      /** 柜面。比桌子矮一截——它是给躺着的人伸手够的 */
+      surfaceHeight: 0.56,
+      /** 2×2 半格 = 整个 1×1m 柜面。放得下一盏灯加一本书 */
+      surfaceGrid: { width: 2, height: 2 },
+    },
+  },
+  {
     id: "furniture_chair",
     localizationKey: "item.furniture_chair",
     category: ItemCategory.Furniture,
@@ -1345,6 +1372,19 @@ export const itemDefinitions = [
     },
   },
 ] satisfies ItemDefinition[];
+
+/**
+ * 这个建筑的图纸是哪一件。
+ *
+ * 反查而不是在建筑定义上写一个 `blueprintItemId`：**图纸指向建筑**已经是
+ * 一条边了，反过来再记一条就是同一份关系存两遍，迟早有一头忘了改。
+ * 商店上架清单走的也是这条反查（见 BuildShopPanel）。
+ */
+export function findBlueprintForBuilding(
+  buildingId: string,
+): ItemDefinition | undefined {
+  return itemDefinitions.find((item) => item.blueprint?.buildingId === buildingId);
+}
 
 export function findItemDefinition(itemId: string): ItemDefinition | undefined {
   return itemDefinitions.find((item) => item.id === itemId);

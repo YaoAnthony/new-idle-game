@@ -217,23 +217,17 @@ export function seedInitialFurniture(): void {
       state: { lootTableId: "moving_furniture" },
     },
     /*
-     * 壁炉贴东墙、朝西，正对屋外的烟囱——里外对得上是"这是一栋真房子"
-     * 的细节。**fixed**：它是房子的一部分，拿不走（烟囱可不会跟着走）。
+     * **壁炉和床拿掉了**（2026-08-23，用户定："刚进来的这个小房间里面，
+     * 不要放壁炉和床"）。
+     *
+     * 原来这里摆着一个贴东墙的固定壁炉（正对屋外的烟囱）和一张靠北墙的床。
+     * 拿掉之后屋里只剩两个纸箱——搬家第一天本来就该是空的，家具是玩家
+     * 自己从箱子里拆出来摆的。两件都还在物品注册表里，以后走合成/购买。
+     *
+     * 屋外那根烟囱留着：它是外壳的一部分（`WitchRoof.buildChimney`），
+     * 不是家具。一栋有烟囱没壁炉的房子读起来是"炉子还没搬来"，
+     * 不是穿帮——真要接上，是等玩家自己摆一个壁炉进去。
      */
-    {
-      // 行 6 = LDK 分区的中行：HouseBuilder 的烟囱按同一条规则落在东墙
-      // 这一段的正上方，里外对得上
-      furnitureId: "furniture_fireplace",
-      gridPosition: { x: 7, y: 6 },
-      facing: Facing.West,
-      state: { fixed: true },
-    },
-    // 床在卧室靠北墙，床头朝北
-    {
-      furnitureId: "furniture_bed",
-      gridPosition: { x: 4, y: 0 },
-      facing: Facing.South,
-    },
     /*
      * 院子里的井（2026-08-22）：**全游戏的水源**。宠物渴了走过来喝。
      *

@@ -494,9 +494,28 @@ export function setBuildingState(
 
 /** 场上所有金币罐的等级，按建造顺序 */
 export function jarLevelIds(): string[] {
-  return placements
-    .filter((item) => item.buildingId === "gold_jar")
-    .map((item) => item.levelId ?? "l1");
+  return (
+    placements
+      .filter((item) => item.buildingId === "gold_jar")
+      /*
+       * **还在盖的罐子不算容量**。工地一落地 `levelId` 就是初始等级
+       * （占地校验、迁移、拆除都要它），但那只罐子还没有底——钱不能
+       * 先存进一个正在施工的箱子里。玩家看到的是围栏和进度条，
+       * 左上角却已经涨了容量，那是两句互相矛盾的话。
+       *
+       * **升级中的照算**：l1 升 l2 期间 `levelId` 仍是 l1，那只罐子
+       * 本来就在那儿、装着钱，算 l1 的容量正好（`finishSite` 之后才
+       * 变 l2）。所以判据是"有没有建成过"，不是"有没有在施工"——
+       * 前者看 targetLevelId 是不是初始等级。
+       */
+      .filter((item) => {
+        if (!item.construction) return true;
+        const first = findBuilding(item.buildingId)?.levels[0].levelId;
+        // 目标是初始等级 = 这是**从无到有**的那一单，还没建成过
+        return item.construction.targetLevelId !== first;
+      })
+      .map((item) => item.levelId ?? "l1")
+  );
 }
 
 /** 能持有的金币上限 = 所有罐的容量之和。**没建罐时是 0** */

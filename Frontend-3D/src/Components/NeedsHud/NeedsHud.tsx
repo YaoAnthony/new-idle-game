@@ -3,7 +3,6 @@ import { on } from "../../Game/EventBus";
 import { t } from "../../i18n/t";
 import { getNeeds } from "../../Game/State/needs";
 import { HudPanel } from "../Hud/HudPanel";
-import { GoldHud } from "./GoldHud";
 
 /**
  * 饥饿/疲劳条。定位和外壳都由左上角那一列托管（见 Hud/HudColumn），
@@ -41,8 +40,6 @@ export function NeedsHud() {
     <HudPanel className="flex flex-col gap-1.5">
       {bar(t("ui.needs.hunger"), "🍙", needs.hunger, "#f4b942")}
       {bar(t("ui.needs.fatigue"), "🌿", needs.fatigue, "#63c0a8")}
-      {/* 金币和上面两条同形——它现在也是"一个有上限的量"（期 2 的 B16） */}
-      <GoldHud />
     </HudPanel>
   );
 }

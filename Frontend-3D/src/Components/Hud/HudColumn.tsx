@@ -1,4 +1,5 @@
 import { DebugHud } from "../DebugHud/DebugHud";
+import { GoldHud } from "../NeedsHud/GoldHud";
 import { NeedsHud } from "../NeedsHud/NeedsHud";
 import { NoiseMixer } from "../NoiseMixer/NoiseMixer";
 import { WorldClock } from "../WorldClock/WorldClock";
@@ -30,6 +31,12 @@ export function HudColumn({ touchMode }: { touchMode: boolean }) {
     >
       <WorldClock />
       <NeedsHud />
+      {/*
+       * 金币**不进需求卡**（2026-08-23）：它和饱食/疲劳不是一类读法。
+       * 那两条是会自己往下掉的状态，扫一眼看"还剩多少"；金币是资源，
+       * 要看的是具体数字。混在一叠灰底细杠里数字就读不出来了。
+       */}
+      <GoldHud />
       <NoiseMixer />
       {/* F3 调试面板：关着就 null，不占位（2026-08-18） */}
       <DebugHud />

@@ -186,12 +186,40 @@ test("金币罐的总容量 = 各罐容量之和；没建罐时是 0", () => {
   expect(goldCapacity()).toBe(0);
 
   placeBuilding("gold_jar", HOME.x, HOME.z, Facing.North);
-  const one = goldCapacity();
-  expect(one).toBeGreaterThan(0);
+  // l1 一只装 10（用户定的数，2026-08-23）
+  expect(goldCapacity()).toBe(10);
 
   placeBuilding("gold_jar", HOME.x, HOME.z - 3, Facing.North);
-  expect(goldCapacity()).toBe(one * 2);
+  expect(goldCapacity()).toBe(20);
   expect(jarLevelIds()).toEqual(["l1", "l1"]);
+});
+
+test("还在盖的罐子不算容量——钱不能先存进一个正在施工的箱子", () => {
+  placeBuilding("gold_jar", HOME.x, HOME.z, Facing.North);
+  expect(goldCapacity()).toBe(10);
+
+  // 第二只只下了单（工地），容量不该跟着涨
+  const site = placeBuilding("gold_jar", HOME.x, HOME.z - 3, Facing.North, {
+    asSite: true,
+  });
+  expect(goldCapacity(), "工地也被算进容量了").toBe(10);
+
+  // 建完才算
+  finishSite(site.ok !== false ? site.instanceId : "");
+  expect(goldCapacity()).toBe(20);
+});
+
+test("升级中的罐子照算旧等级的容量——它本来就在那儿装着钱", () => {
+  const built = placeBuilding("gold_jar", HOME.x, HOME.z, Facing.North);
+  const id = built.ok !== false ? built.instanceId : "";
+  expect(goldCapacity()).toBe(10);
+
+  expect(upgradeBuilding(id, "l2").ok).toBe(true);
+  // 在建期间仍是 l1：容量不涨，但也**不清零**
+  expect(goldCapacity()).toBe(10);
+
+  finishSite(id);
+  expect(goldCapacity()).toBe(150);
 });
 
 test("罐里有钱不给拆，取空之后能拆", () => {

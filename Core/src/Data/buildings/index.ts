@@ -6,12 +6,13 @@
 
 export const goldJarTuning = {
   /**
-   * 各级容量。**占位值**——真正的数等任务 / 交易的产出量定下来再调。
+   * 各级容量。**l1 = 10 是用户定的**（2026-08-23）；l2 / l3 仍是占位值，
+   * 等任务 / 交易的产出量定下来再调。
    *
    * 单调递增是硬要求（`buildingAudit` 之外由用例钉住）：升级换来的
    * 必须是"能装更多"，否则升级这个动作没有意义。
    */
-  capacityByLevel: { l1: 50, l2: 150, l3: 400 } as Record<string, number>,
+  capacityByLevel: { l1: 10, l2: 150, l3: 400 } as Record<string, number>,
 };
 
 /** 这一级的容量。认不出的等级给 0——没建罐 = 装不下，是同一条语义 */

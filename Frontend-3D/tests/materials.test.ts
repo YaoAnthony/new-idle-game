@@ -36,12 +36,12 @@ test("金币算作一种材料，从罐里读，不从背包读", () => {
   // 没罐 = 没容量 = 一分钱也存不住
   expect(materialCounts().get("gold")).toBe(0);
 
-  // 家院里盖一只罐再存钱
+  // 家院里盖一只罐再存钱。l1 只装 10，所以存 30 会溢出——这里存 8
   expect(placeBuilding("gold_jar", 3.5, 16.5, Facing.North).ok).toBe(true);
-  depositGoldTo(30);
+  depositGoldTo(8);
 
-  expect(getGold()).toBe(30);
-  expect(materialCounts().get("gold")).toBe(30);
+  expect(getGold()).toBe(8);
+  expect(materialCounts().get("gold")).toBe(8);
   // 而且它**不是**背包物品
   expect(getCount("gold")).toBe(0);
 });

@@ -116,6 +116,17 @@ const OVERVIEW_SKY_SCALE = 3.2;
 const OVERVIEW_FOG_NEAR = 220;
 const OVERVIEW_FOG_FAR = 560;
 
+/**
+ * 雨区的边长。雨滴永远待在**以镜头为心**的这个盒子里，出了边就从
+ * 对面绕回来——于是走到哪儿哪儿下雨，而粒子数不用跟着地图大小涨。
+ *
+ * 70 米是按镜头拉到最远时的视野给的：再小会看见雨的边界，再大就是
+ * 把粒子撒在看不见的地方。
+ */
+const RAIN_SPAN = 70;
+/** 雨从多高开始落 */
+const RAIN_TOP = 20;
+
 /** 雨滴粒子池的上限（各天气档的 rain.count 不得超过它） */
 const RAIN_MAX = 420;
 
@@ -142,6 +153,12 @@ export class OutdoorScene {
 
   private readonly rain: Points;
   private readonly rainVelocities: Float32Array;
+  /**
+   * **天气说现在下不下雨**。和 `rain.visible` 分开记：后者还要吃"人在
+   * 屋里就不下"，直接拿它当真相的话，进一次屋就把雨永久关掉了
+   * （`apply` 只在换天气时才重设 visible，出屋没人把它打开）。
+   */
+  private raining = false;
   private stormWind = false;
   private windy = false;
   /** 当前天气的雾距缩放（全景退出时要按它复原，不是复原到 1） */
@@ -317,11 +334,19 @@ export class OutdoorScene {
     const positions = new Float32Array(RAIN_MAX * 3);
     const velocities = new Float32Array(RAIN_MAX);
 
+    /*
+     * 初始位置随便撒在一个盒子里就行——**第一帧就会被卷到镜头周围**
+     * （见 update 里的环绕）。
+     *
+     * 上一版把这盒子钉死在世界里，而且近界特意退到北墙之外
+     * （"否则有一撮雨会悬在客厅中央下个不停"）。那是镜头还锁在屋里
+     * 往北窗外看的年代：雨只要盖住那扇窗就够了。人能满据点跑之后，
+     * 那个盒子就成了**只有一小片地方在下雨**——用户报的正是这个。
+     */
     for (let i = 0; i < RAIN_MAX; i += 1) {
-      positions[i * 3] = (Math.random() - 0.5) * 70;
-      positions[i * 3 + 1] = Math.random() * 20;
-      // 近界必须退到北墙之外，否则有一撮雨会悬在客厅中央下个不停
-      positions[i * 3 + 2] = this.northZ - 1.5 - Math.random() * 32;
+      positions[i * 3] = (Math.random() - 0.5) * RAIN_SPAN;
+      positions[i * 3 + 1] = Math.random() * RAIN_TOP;
+      positions[i * 3 + 2] = (Math.random() - 0.5) * RAIN_SPAN;
       velocities[i] = 9 + Math.random() * 7;
     }
 
@@ -378,7 +403,7 @@ export class OutdoorScene {
     this.starMaterial.opacity = this.starBaseOpacity;
 
     // 密度分级不能丢：小雨和暴雨的差别主要靠粒子数，只调透明度会让小雨也像暴雨
-    this.rain.visible = look.rain.count > 0;
+    this.raining = look.rain.count > 0;
     this.rain.geometry.setDrawRange(0, Math.min(RAIN_MAX, look.rain.count));
     (this.rain.material as PointsMaterial).opacity = look.rain.opacity;
     // 风：连续量。>0.9 才算暴风（雨丝横着飞），>0.3 算有风（树梢/云动）
@@ -417,7 +442,16 @@ export class OutdoorScene {
     this.celestial.visible = this.celestialDiscMaterial.opacity > 0.02;
   }
 
-  update(deltaSeconds: number): void {
+  /**
+   * `viewer`：镜头此刻在哪、人在不在屋里。雨区跟着它走。
+   *
+   * 不给就退回"以原点为心"——那是旧行为，只有测试和还没接线的调用方
+   * 会走到。
+   */
+  update(
+    deltaSeconds: number,
+    viewer?: { x: number; z: number; indoors: boolean },
+  ): void {
     this.elapsed += deltaSeconds;
 
     for (const cloud of this.clouds) {
@@ -433,18 +467,40 @@ export class OutdoorScene {
     // 地形自己的动画（河的流光、花瓣…）
     this.terrain.update?.(deltaSeconds, this.elapsed, { windy: this.windy });
 
+    /*
+     * **屋里不下雨**。这条替掉了老那句"近界退到北墙外"的 hack：
+     * 与其把雨区挪开躲着房子，不如在人进屋时直接关掉——雨滴是加法混合
+     * 的粒子，落在房间体积里会浮在墙前面，怎么挪都躲不干净。
+     */
+    const inside = viewer?.indoors ?? false;
+    this.rain.visible = this.raining && !inside;
     if (!this.rain.visible) return;
+
+    const centerX = viewer?.x ?? 0;
+    const centerZ = viewer?.z ?? 0;
+    const half = RAIN_SPAN / 2;
 
     const attribute = this.rain.geometry.getAttribute("position") as BufferAttribute;
     const array = attribute.array as Float32Array;
     for (let i = 0; i < RAIN_MAX; i += 1) {
       const index = i * 3 + 1;
       array[index] -= this.rainVelocities[i] * deltaSeconds;
-      if (this.stormWind) {
-        array[i * 3] -= 3.2 * deltaSeconds;
-        if (array[i * 3] < -35) array[i * 3] = 35;
-      }
-      if (array[index] < 0) array[index] = 20;
+      if (this.stormWind) array[i * 3] -= 3.2 * deltaSeconds;
+      // 落到地面以下就回到顶上重来。−1 而不是 0：院子的地面在 −0.45，
+      // 按 0 收的话雨会在离草半米的空中消失
+      if (array[index] < -1) array[index] = RAIN_TOP;
+
+      /*
+       * 环绕：出了以镜头为心的盒子就从对面进来。**一次一格**（不用取模）
+       * ——每帧最多移动几厘米，越不过一整个盒子。
+       */
+      const dx = array[i * 3] - centerX;
+      if (dx > half) array[i * 3] -= RAIN_SPAN;
+      else if (dx < -half) array[i * 3] += RAIN_SPAN;
+
+      const dz = array[i * 3 + 2] - centerZ;
+      if (dz > half) array[i * 3 + 2] -= RAIN_SPAN;
+      else if (dz < -half) array[i * 3 + 2] += RAIN_SPAN;
     }
     attribute.needsUpdate = true;
   }

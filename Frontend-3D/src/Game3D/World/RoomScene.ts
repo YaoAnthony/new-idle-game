@@ -102,6 +102,7 @@ import {
   getRooms,
   getWorld,
   groundHeightAt,
+  isIndoors,
   roomIdAt,
   seedInitialFurniture,
 } from "../../Game/State/worldRuntime";
@@ -2474,7 +2475,16 @@ export class RoomScene {
     }
 
     for (const view of this.windowViews) view.update(deltaSeconds);
-    this.outdoor.update(deltaSeconds);
+    /*
+     * 雨区跟着**镜头**走（不是跟着人）：全景模式下镜头拉得老远，
+     * 跟着人的话画面边上就没雨了。是否在屋里按**人**算——那问的是
+     * "该不该下雨到脸上"，和镜头在哪无关。
+     */
+    this.outdoor.update(deltaSeconds, {
+      x: this.rig.camera.position.x,
+      z: this.rig.camera.position.z,
+      indoors: isIndoors(this.controller.x, this.controller.z),
+    });
     // 清晰度场：每帧插值，100 ms 重算一次。灯就是配方里那些 lamp-light
     // 点光——Lighting 已经在按昼夜/雾天点亮它们，这里只认"此刻亮着的"
     this.fogField.update(deltaSeconds, () => {

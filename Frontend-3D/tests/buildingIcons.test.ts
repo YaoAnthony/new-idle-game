@@ -2,7 +2,10 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "vitest";
 
+import { itemDefinitions } from "core";
+
 import {
+  blueprintIconUrl,
   buildingDefinitions,
   buildingIcon,
   findBuilding,
@@ -16,6 +19,16 @@ import {
  * - `buildingIcon` 按等级取图，缺图的等级退回前一个有图的；
  * - **商店只卖初始等级**（用户 2026-08-23 定："石傀儡里面能建的都是 LV1
  *   的，lv2 啥的就是升级界面里面能看到的"）。
+ *
+ * ## 为什么这份用例读磁盘
+ *
+ * `.claude/rules/test-standards.md` 写着"单元测试不得依赖外部状态（文件
+ * 系统…）"，这一条是**刻意的例外**，理由和 `netBoundary.test.ts`（既有的、
+ * 同样读磁盘的那份架构守卫）一样：`public/` 不是"外部状态"，它和 src 一样
+ * 进版本库，读它跟读源码一样确定、一样快。
+ *
+ * 而且这里**没有磁盘就测不了任何东西**：要钉的正是"这个字符串指向的文件
+ * 真的存在"，把 fs 换成桩之后剩下的只是"字符串等于字符串"。
  */
 
 /** `/icons/a/b.png` → `public/icons/a/b.png`。vitest 从 Frontend-3D 起跑 */
@@ -87,4 +100,41 @@ test("能在铺子里盖的建筑，初始等级都得有图", () => {
   // 房子、小镇店铺这些不在铺子里卖，没图不算问题；这里只点名上架的
   expect(naked).not.toContain("gold_jar");
   expect(naked).not.toContain("wood_wall");
+});
+
+/**
+ * 图纸借用成品的图（用户 2026-08-23："木墙图纸和金库的图纸 ICON，你直接拿
+ * LV1 的图片就好了，不需要重新画"）。
+ *
+ * 这不只是省一次画：图纸和成品**本来就该长一样**——玩家在背包里看见的那张
+ * 脸，就是他摆下去会立起来的东西。
+ */
+test("图纸的图标就是那栋楼初始等级的图", () => {
+  const jarBlueprint = itemDefinitions.find(
+    (item) => item.blueprint?.buildingId === "gold_jar",
+  );
+  expect(jarBlueprint, "金币罐得有图纸物品，否则它在铺子里上不了架").toBeTruthy();
+  expect(blueprintIconUrl(jarBlueprint!.id)).toBe(
+    findBuilding("gold_jar")!.levels[0].icon,
+  );
+
+  const wallBlueprint = itemDefinitions.find(
+    (item) => item.blueprint?.buildingId === "wood_wall",
+  );
+  expect(blueprintIconUrl(wallBlueprint!.id)).toBe(
+    findBuilding("wood_wall")!.levels[0].icon,
+  );
+});
+
+test("不是图纸的物品不借图——番茄不该拿到某栋楼的脸", () => {
+  expect(blueprintIconUrl("tomato")).toBeUndefined();
+  expect(blueprintIconUrl("no_such_item")).toBeUndefined();
+});
+
+test("每一件图纸都借得到图，没有一张是空的", () => {
+  const naked = itemDefinitions
+    .filter((item) => item.blueprint)
+    .filter((item) => !blueprintIconUrl(item.id))
+    .map((item) => item.id);
+  expect(naked).toEqual([]);
 });

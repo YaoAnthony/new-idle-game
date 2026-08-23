@@ -177,7 +177,7 @@ export function placeBuilding(
    * 开工时刻**不在这里写**：那是工人认领时的事（见 `claimSite`）。
    * 下单就按墙钟算的话，玩家去睡一觉回来排队的全建好了。
    *
-   * `skipsSite` 的型号（木墙）**无视 asSite**：当场就是成品。这道门开在
+   * `instantBuild` 的型号（木墙）**无视 asSite**：当场就是成品。这道门开在
    * 这里而不是调用方，是因为"哪些建筑要工地"是建筑自己的性质，不是每个
    * 下单入口各自记着的规矩——摆放控制器、调试指令、以后的任何入口，
    * 都不该有机会把它记错。
@@ -191,7 +191,7 @@ export function placeBuilding(
     facing,
     // 新建出来就是**初始等级**（levels[0]）
     levelId: firstLevel,
-    ...(options.asSite && !definition.skipsSite
+    ...(options.asSite && !definition.instantBuild
       ? { construction: { targetLevelId: firstLevel } }
       : {}),
   };
@@ -400,19 +400,19 @@ export function upgradeBuilding(
    * **instanceId 不变**：升级是同一栋楼换了个等级，里面存的东西、位置
    * 全保留。这正是"升级 = 同一建筑的多个等级"那条决策的落点。
    *
-   * `skipsSite` 的型号例外，当场换级：建得瞬间、升级却要等人跑一趟，
+   * `instantBuild` 的型号例外，当场换级：建得瞬间、升级却要等人跑一趟，
    * 那是同一栋楼上的两套规矩。
    */
   const definition = findBuilding(placement.buildingId);
   placements = placements.map((item) =>
     item.instanceId === instanceId
-      ? definition?.skipsSite
+      ? definition?.instantBuild
         ? { ...item, levelId: target }
         : { ...item, construction: { targetLevelId: target } }
       : item,
   );
   // 换了等级就可能换内景/占地，和 finishSite 走的是同一套善后
-  if (definition?.skipsSite) syncBuildingInteriors();
+  if (definition?.instantBuild) syncBuildingInteriors();
   emit("world_changed", { reason: "buildings" });
   return { ok: true };
 }

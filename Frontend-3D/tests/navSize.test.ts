@@ -129,7 +129,7 @@ test("test_worker_takes_sites_in_order_placed_not_nearest_first", () => {
    * 不该把它打乱。
    */
   /*
-   * 道具用金币罐不用木墙：木墙 `skipsSite`（当场建好，石傀儡不用来），
+   * 道具用金币罐不用木墙：木墙 `instantBuild`（当场建好，石傀儡不用来），
    * 拿它下单根本不会产生工地，这条就测了个空。
    */
   const far = placeBuilding("gold_jar", 3.5, 16.5, Facing.North, {

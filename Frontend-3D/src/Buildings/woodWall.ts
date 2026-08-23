@@ -134,8 +134,9 @@ export const woodWall: BuildingDefinition = {
   descriptionKey: "building.wood_wall.desc",
   doorOffset: 0,
   // 围墙当然要能建很多，不设 maxInstances
-  // 也正因为要建很多，它不立工地：见 BuildingDefinition.skipsSite
-  skipsSite: true,
+  // 也正因为要建很多，它不走施工那一套：不弹确认框、不立工地
+  // 见 BuildingDefinition.instantBuild
+  instantBuild: true,
   levels: [
     {
       levelId: "l1",
@@ -147,15 +148,15 @@ export const woodWall: BuildingDefinition = {
       buildCost: [{ itemId: "gold", quantity: 1 }],
       upgradeCost: { l2: [{ itemId: "gold", quantity: 10 }] },
       /*
-       * ⚠️ **现在这个数不起作用**：型号上打了 `skipsSite`，木墙根本不立
+       * ⚠️ **现在这个数不起作用**：型号上打了 `instantBuild`，木墙根本不立
        * 工地，也就没有工期可言。留着是因为它记着当初的判断，而那个判断
-       * 后来长成了 skipsSite 本身——
+       * 后来长成了 instantBuild 本身——
        *
        * 一段栅栏几秒就搭起来。金币罐那种大件 20 秒，围墙要是也 20 秒，
        * 围一圈院子就是十几分钟的排队——它是**成批**建的东西，工期得配得上。
        *
        * 顺着这条想下去就会发现"配得上"的极限是 0：既然成批建，那就别排队。
-       * 哪天把 skipsSite 摘掉，这个数会重新生效。
+       * 哪天把 instantBuild 摘掉，这个数会重新生效。
        */
       buildDuration: { l1: 3 },
       build: (context?: BuildContext) =>

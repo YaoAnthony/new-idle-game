@@ -1,3 +1,5 @@
+import { findItemDefinition } from "core";
+
 import { arcane } from "./arcane.js";
 import { farmPlot } from "./farmPlot.js";
 import { woodWall } from "./woodWall.js";
@@ -111,4 +113,24 @@ export function buildingIcon(
     if (icon) return icon;
   }
   return undefined;
+}
+
+/**
+ * 一张**图纸**在背包里显示成什么样：就用它那栋楼**初始等级**的图。
+ *
+ * 用户 2026-08-23 定的："木墙图纸和金库的图纸 ICON，你直接拿 LV1 的图片
+ * 就好了，不需要重新画。" 这不只是省一次画——图纸和成品**本来就该长一样**，
+ * 玩家在背包里看见的那张脸，就是他摆下去会立起来的东西。各画各的反而要求
+ * 他记住"那张纸对应哪栋楼"。
+ *
+ * 取初始等级是因为图纸盖出来的永远是第一级（见 BuildShopPanel）。
+ *
+ * 和唱片封面（`recordCoverUrl`）同一个路数：**有些物品的图不在
+ * `/icons/<id>.png`，而是从它指向的东西那儿借的**。
+ */
+export function blueprintIconUrl(itemId: string): string | undefined {
+  const buildingId = findItemDefinition(itemId)?.blueprint?.buildingId;
+  if (!buildingId) return undefined;
+  // 不传 levelId = 初始等级
+  return buildingIcon(buildingId);
 }

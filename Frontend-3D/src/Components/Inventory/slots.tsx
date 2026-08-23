@@ -14,6 +14,7 @@ import {
 } from "../../Game/State/inventory";
 import { t } from "../../i18n/t";
 import { recordCoverUrl } from "../../Data/music/albums";
+import { blueprintIconUrl } from "../../Buildings/index";
 import { presentedItemId } from "../../Game/Systems/servedDish";
 
 /**
@@ -37,9 +38,13 @@ export function ItemIcon({
   const [broken, setBroken] = useState(false);
   const item = findItemDefinition(itemId);
   const sizing = fluid ? undefined : { width: size, height: size };
-  // 唱片的图标就是专辑封面（文件夹里的 curver.png）——
-  // 不用为每张专辑再画一张 /icons 图，加专辑自动有图标
-  const src = recordCoverUrl(itemId) ?? `/icons/${itemId}.png`;
+  /*
+   * 有两类物品的图**不在 `/icons/<id>.png`，而是从它指向的东西那儿借的**：
+   * 唱片借专辑封面（文件夹里的 curver.png），图纸借那栋楼初始等级的图。
+   * 都是"加一个自动就有图标"，不用为每一件再画一张。
+   */
+  const src =
+    recordCoverUrl(itemId) ?? blueprintIconUrl(itemId) ?? `/icons/${itemId}.png`;
 
   if (broken || !item) {
     return (

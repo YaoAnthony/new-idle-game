@@ -92,10 +92,28 @@ export class BuildingPlacementController {
     levelId?: string;
     instanceId?: string;
   }): boolean {
-    this.cancel();
-
     const level = findBuildingLevel(options.buildingId, options.levelId);
     if (!level) return false;
+
+    /**
+     * 已经在选同一件事就什么都不做（照家具那套 `PlacementController` 的先例）。
+     *
+     * 现在这个方法由 `held_changed` 驱动，而那个事件的触发面比"换了手上
+     * 拿什么"宽得多——数量变了也发。不挡一下的话，买第二张图纸、或者确认
+     * 之后扣掉手上那张，都会把虚影重建一次：玩家按 R 转好的朝向被打回北向，
+     * 已经选定的位置也退回跟着鼠标跑。
+     */
+    if (
+      this.ghost &&
+      this.mode === options.mode &&
+      this.buildingId === options.buildingId &&
+      this.levelId === level.levelId &&
+      this.instanceId === options.instanceId
+    ) {
+      return true;
+    }
+
+    this.cancel();
 
     this.mode = options.mode;
     this.buildingId = options.buildingId;
@@ -259,14 +277,37 @@ export class BuildingPlacementController {
   }
 
   /**
+   * 这一步要不要玩家再点一次「确认」。
+   *
+   * `instantBuild` 的型号（木墙）**只在建造时**免确认：挪位置和升级仍然
+   * 要问一句——那两件事各自只做一次，而且都动到已经立在那儿的东西，
+   * 误触的代价和"多摆了一段墙"完全不是一个量级。
+   */
+  get needsConfirm(): boolean {
+    if (this.mode !== "build") return true;
+    return !findBuilding(this.buildingId)?.instantBuild;
+  }
+
+  /**
    * 点一下 → **选定**。虚影停在那儿不再跟鼠标，出现确认条。
    *
    * 不合法时点击什么都不做——让玩家继续找地方，而不是弹一个框告诉他
    * 刚才那下没用。
+   *
+   * 免确认的型号在这里就**直接走完**：发的是和确认条上那颗按钮一模一样
+   * 的事件，于是消耗图纸、重算手持预瞄那些善后一件都不会漏——
+   * 复制一份"简化版落地"才是真正会漏东西的写法。
+   *
+   * 发完就 return，**不 refresh**：refresh 一下会把 committed=true 播出去，
+   * 确认条闪一帧再消失。
    */
   commit(): void {
     if (!this.ghost || !this.valid || this.committed) return;
     this.committed = true;
+    if (!this.needsConfirm) {
+      emit("building_placement_action", { action: "confirm" });
+      return;
+    }
     this.refresh();
   }
 

@@ -1,4 +1,4 @@
-import { BodyPosture, CreatureRole, DayPhaseId, Facing, FurnitureCapability, buildingRectWorld, constructionProgress, isConstructionQueued, WeatherKind, anchorOf, anchorRectToWorld, findItemDefinition, findPetDefinition, roomCellToWorld, worldToRoomLocal, type DeckRect, type WeatherDefinition, yardBoundsOf } from "core";
+import { BodyPosture, CreatureRole, DayPhaseId, Facing, FurnitureCapability, buildingRectWorld, constructionProgress, isConstructionQueued, WeatherKind, anchorOf, anchorRectToWorld, findItemDefinition, findPetDefinition, roomCellToWorld, type DeckRect, type WeatherDefinition, yardBoundsOf } from "core";
 import { isHouseStowed } from "core";
 import type { InteractHint, PlacedFurniture, RoomSave } from "core";
 import {
@@ -52,6 +52,25 @@ const MOVE_ACTIONS: InputAction[] = [
   "moveLeft",
   "moveRight",
 ];
+
+/**
+ * 交互测距的探针点在角色身前多远（米）。
+ *
+ * 0.45 是"半步"：够把身前那一格和身侧那一格分开（格宽 1 米），又不至于
+ * 让探针越过身前的家具落到它背后去。取 1.0 的话贴着灯站会把探针推进
+ * 灯后面的床里，症状原样回来，只是方向反了。
+ */
+const INTERACT_PROBE_AHEAD = 0.45;
+
+/** 探针到目标多远之内，F 才认它 */
+const INTERACT_RADIUS = 1.9;
+
+/**
+ * 气泡的搜索半径比 F 的大一点：纯装饰件（盆栽）没有 F 可做，只靠气泡
+ * 说一句话，稍远就浮出来房间才有"处处可点"的生机。真有 F 可做的目标
+ * 仍然由 INTERACT_RADIUS 说了算——气泡跟着它走。
+ */
+const HINT_RADIUS = 2.4;
 
 /** 提示气泡的附着目标：家具实例 + 提示数据 + 世界锚点 */
 type HintTarget = {
@@ -153,6 +172,7 @@ import { goldInJar } from "../../Game/State/buildingCommands";
 import { getResting, isResting } from "../../Game/State/posture";
 import { pruneOrphanStorages } from "../../Game/State/storage";
 import { pruneOrphanGramophones } from "../../Game/State/gramophones";
+import { isLampOn, pruneOrphanLamps, setLampOn } from "../../Game/State/lamps";
 import { allFurnitureInstanceIds } from "../../Game/State/world/entities";
 import { getWeather } from "../../Game/State/weather";
 import {
@@ -188,11 +208,12 @@ import { cycleMusicMode, getMusicMode } from "../Engine/MusicDirector.js";
 import { recordIn, setRecord } from "../../Game/State/gramophones";
 import { albumLabelOf } from "../../Data/music/albums";
 import {
-  FACING_VECTOR,
   FurnitureView,
+  facingWorldVector,
   furnitureWorldCenter,
   slotWorldPosition,
 } from "./FurnitureView.js";
+import { furnitureFloorDistance, interactProbe } from "./furnitureMath.js";
 import { HeldItemView } from "./HeldItemView.js";
 import {
   DoorView,
@@ -640,6 +661,21 @@ export class RoomScene {
       }),
     );
 
+    /*
+     * 拉了灯的开关：**不重放整套环境**。applyEnvironment 会连天光、
+     * 半球光、窗补光、背景色一起重算，为一个开关做这些太重了。
+     *
+     * 两步，缺一不可：FurnitureView 压自发光并在点光上插旗，Lighting
+     * 再按"现在几点钟"重新给强度。少了后一步，关掉的灯开回来时点光
+     * 会停在 0 —— 一直等到下一次天色或天气变化才亮起来。
+     */
+    this.offEventListeners.push(
+      on("lamp_changed", ({ instanceId }) => {
+        this.furnitureView.refreshLampSwitch(instanceId);
+        this.lighting.refreshLamps();
+      }),
+    );
+
     // 睡眠：黑屏期间锁输入，醒来站起来
     this.offEventListeners.push(
       on("sleep_changed", ({ phase }) => {
@@ -660,6 +696,7 @@ export class RoomScene {
         // 孤儿清掉，下一次自动存盘就永久落盘（箱庭审计的第一红灯）
         pruneOrphanStorages(allFurnitureInstanceIds());
         pruneOrphanGramophones(allFurnitureInstanceIds());
+        pruneOrphanLamps(allFurnitureInstanceIds());
       }),
     );
 
@@ -1318,6 +1355,29 @@ export class RoomScene {
     }
     const { placedFurniture } = getWorld();
 
+    /*
+     * 测距的原点不是角色脚下，是**身前 INTERACT_PROBE_AHEAD 米的一个探针点**。
+     *
+     * 起因是"站在落地灯前面按 F 却躺上了床"。灯 1×1、床 2×3，按占地矩形
+     * 最近边算距离时床那条长边横着扫过来，比灯还近——纯就近的尺子量不出
+     * "我正对着谁"这件事，而那恰恰是玩家心里唯一的判据。市面上同类
+     * （星露谷、动森）都是朝向决定交互目标，不是纯就近。
+     *
+     * 探针往前推而不是给候选加角度罚分：**四类候选（建筑/门/宠物/家具）
+     * 共用同一个原点**，一把尺子量到底。加罚分的话每类都要各自定义
+     * "中心在哪"才能求夹角，又变成好几把尺子——这文件为此已经栽过一次
+     * （见下面石傀儡那段注释）。
+     *
+     * 代价是**背对目标按 F 不再生效**：向前够得到 1.9+0.45 米，向后只剩
+     * 1.9−0.45。这是有意的——背对着箱子还能开箱本来就是就近尺子的副产品。
+     */
+    const { x: probeX, z: probeZ } = interactProbe(
+      this.controller.x,
+      this.controller.z,
+      this.controller.heading,
+      INTERACT_PROBE_AHEAD,
+    );
+
     let best:
       | {
           kind: "station";
@@ -1328,7 +1388,7 @@ export class RoomScene {
       | { kind: "door"; refId: string }
       | { kind: "building"; instanceId: string }
       | null = null;
-    let bestDistance = 1.9;
+    let bestDistance = INTERACT_RADIUS;
 
     /*
      * **建筑也参与竞争**（照门那一支抄）。以前 `refreshInteractTarget`
@@ -1345,8 +1405,8 @@ export class RoomScene {
       );
       if (!level) continue;
       const rect = buildingRectWorld(building, level.footprint);
-      const dx = Math.max(rect.minX - this.controller.x, 0, this.controller.x - rect.maxX);
-      const dz = Math.max(rect.minZ - this.controller.z, 0, this.controller.z - rect.maxZ);
+      const dx = Math.max(rect.minX - probeX, 0, probeX - rect.maxX);
+      const dz = Math.max(rect.minZ - probeZ, 0, probeZ - rect.maxZ);
       const distance = Math.hypot(dx, dz);
       if (distance < bestDistance) {
         bestDistance = distance;
@@ -1357,8 +1417,8 @@ export class RoomScene {
     // 门和宠物/工作站平级，按距离竞争。大门也在内——出门就靠它
     for (const door of listDoors()) {
       const distance = Math.hypot(
-        door.center.x - this.controller.x,
-        door.center.z - this.controller.z,
+        door.center.x - probeX,
+        door.center.z - probeZ,
       );
       if (distance < bestDistance) {
         bestDistance = distance;
@@ -1379,7 +1439,7 @@ export class RoomScene {
       if (pet.state === "hidden" || pet.state === "entering") continue;
       const distance = Math.max(
         0,
-        Math.hypot(pet.x - this.controller.x, pet.z - this.controller.z) - pet.radius,
+        Math.hypot(pet.x - probeX, pet.z - probeZ) - pet.radius,
       );
       if (distance < bestDistance) {
         bestDistance = distance;
@@ -1389,8 +1449,15 @@ export class RoomScene {
 
     // 提示气泡的目标独立于"按 F 干什么"：所有带 interactHint 的家具都会浮气泡，
     // 哪怕它暂时没有可执行的交互（比如盆栽），这样房间才有"处处可点"的生机
+    /*
+     * 每个候选各自的气泡都收进这张表，键和下面 hintKeyOf 对得上。
+     * 最后**按 interactTarget 取用**——气泡必须描述 F 真正会做的事，
+     * 而不是"离得最近的那件东西"。bestHint 只在 F 无事可做时兜底
+     * （盆栽这类纯装饰件，它们进不了 interactTarget）。
+     */
+    const hintByKey = new Map<string, HintTarget>();
     let bestHint: HintTarget | null = null;
-    let bestHintDistance = 2.4;
+    let bestHintDistance = HINT_RADIUS;
 
     for (const placed of placedFurniture) {
       const definition = getDefinition(placed.furnitureId);
@@ -1401,13 +1468,10 @@ export class RoomScene {
         definition.placement,
         this.roomOfFurniture(placed),
       );
-      const distance = Math.hypot(
-        center.x - this.controller.x,
-        center.z - this.controller.z,
-      );
-      if (distance >= bestHintDistance) continue;
-
-      bestHintDistance = distance;
+      // 和 F 同一把尺子（到占地矩形最近边）。以前这里量到中心，
+      // 于是 2×3 的床在两套判定里远近正好相反
+      const distance = this.furnitureDistance(placed, definition, probeX, probeZ);
+      if (distance >= HINT_RADIUS) continue;
 
       /**
        * 唱片机的气泡显示**当前播放模式**（顺序播放/随机播放/单曲循环），
@@ -1440,9 +1504,26 @@ export class RoomScene {
                   ? ("interact" as const)
                   : undefined,
             }
-          : definition.placement.interactHint;
+          : definition.placement.capabilities.includes(FurnitureCapability.Lighting)
+            ? {
+                ...definition.placement.interactHint,
+                /*
+                 * 灯的气泡说的是**按下去会发生什么**，不是它现在什么样：
+                 * 亮着 → "关灯"，灭着 → "开灯"。和门的开/关一个道理。
+                 *
+                 * 注册表里存的是 `_off` 那一条（它是出厂状态，也让 i18n
+                 * 覆盖测试有一条真键可查），亮着时把后缀换掉。
+                 */
+                localizationKey: isLampOn(placed.instanceId)
+                  ? definition.placement.interactHint.localizationKey.replace(
+                      /_off$/,
+                      "_on",
+                    )
+                  : definition.placement.interactHint.localizationKey,
+              }
+            : definition.placement.interactHint;
 
-      bestHint = {
+      const target: HintTarget = {
         instanceId: placed.instanceId,
         hint,
         world: new Vector3(
@@ -1451,6 +1532,11 @@ export class RoomScene {
           center.z,
         ),
       };
+      hintByKey.set(`station:${placed.instanceId}`, target);
+      if (distance < bestHintDistance) {
+        bestHintDistance = distance;
+        bestHint = target;
+      }
     }
     /*
      * 休眠的石傀儡也要一个气泡，而且**随手上拿没拿着零件换词**：
@@ -1469,18 +1555,48 @@ export class RoomScene {
       // 同上：减掉体型，和家具那把尺子对齐
       const distance = Math.max(
         0,
-        Math.hypot(pet.x - this.controller.x, pet.z - this.controller.z) - pet.radius,
+        Math.hypot(pet.x - probeX, pet.z - probeZ) - pet.radius,
       );
-      if (distance >= bestHintDistance) continue;
-      bestHintDistance = distance;
+      if (distance >= HINT_RADIUS) continue;
       const canAttach = heldPart !== undefined && !pet.attachedParts.has(heldPart);
-      bestHint = {
+      const target: HintTarget = {
         instanceId: pet.petId,
         hint: canAttach
           ? { localizationKey: "golem.hint.attach", action: "interact" }
           : { localizationKey: "golem.hint.dormant" },
         world: new Vector3(pet.x, 1.5, pet.z),
       };
+      hintByKey.set(`pet:${pet.petId}`, target);
+      if (distance < bestHintDistance) {
+        bestHintDistance = distance;
+        bestHint = target;
+      }
+    }
+
+    /*
+     * 醒着的工头也要一个气泡。他身上本来就有 F 的动作（开建造面板），
+     * 只是一直没有气泡——以前不显眼，现在气泡跟着 interactTarget 走了，
+     * 不给他配词的话走到他跟前会**一个气泡都没有**（他把旁边盆栽的
+     * 气泡挤掉了，自己又拿不出一句话）。
+     */
+    for (const pet of getPets()) {
+      if (pet.dormant || pet.role !== CreatureRole.Worker) continue;
+      if (pet.state === "hidden" || pet.state === "entering") continue;
+      const distance = Math.max(
+        0,
+        Math.hypot(pet.x - probeX, pet.z - probeZ) - pet.radius,
+      );
+      if (distance >= HINT_RADIUS) continue;
+      const target: HintTarget = {
+        instanceId: pet.petId,
+        hint: { localizationKey: "golem.hint.build", action: "interact" },
+        world: new Vector3(pet.x, 1.5, pet.z),
+      };
+      hintByKey.set(`pet:${pet.petId}`, target);
+      if (distance < bestHintDistance) {
+        bestHintDistance = distance;
+        bestHint = target;
+      }
     }
 
     /*
@@ -1494,33 +1610,36 @@ export class RoomScene {
       );
       if (!level) continue;
       const rect = buildingRectWorld(building, level.footprint);
-      const dx = Math.max(rect.minX - this.controller.x, 0, this.controller.x - rect.maxX);
-      const dz = Math.max(rect.minZ - this.controller.z, 0, this.controller.z - rect.maxZ);
+      const dx = Math.max(rect.minX - probeX, 0, probeX - rect.maxX);
+      const dz = Math.max(rect.minZ - probeZ, 0, probeZ - rect.maxZ);
       const distance = Math.hypot(dx, dz);
-      if (distance >= bestHintDistance) continue;
-      bestHintDistance = distance;
-      bestHint = {
+      if (distance >= HINT_RADIUS) continue;
+      const target: HintTarget = {
         instanceId: building.instanceId,
         hint: building.construction
           ? { localizationKey: "build.hint.site" }
           : { localizationKey: "build.hint.manage", action: "interact" },
         world: new Vector3(building.x, 1.5, building.z),
       };
+      hintByKey.set(`building:${building.instanceId}`, target);
+      if (distance < bestHintDistance) {
+        bestHintDistance = distance;
+        bestHint = target;
+      }
     }
 
     // 门的气泡和家具提示竞争同一个位置：开门/关门/锁着，随实体状态换词
     for (const door of listDoors()) {
       const distance = Math.hypot(
-        door.center.x - this.controller.x,
-        door.center.z - this.controller.z,
+        door.center.x - probeX,
+        door.center.z - probeZ,
       );
-      if (distance >= bestHintDistance) continue;
-      bestHintDistance = distance;
+      if (distance >= HINT_RADIUS) continue;
       /*
        * 锁着的门也照常显示"开门"——F 试图做的正是开门这件事。
        * 写"锁着"是提前替玩家把门试过了。
        */
-      bestHint = {
+      const target: HintTarget = {
         instanceId: door.refId,
         hint: {
           localizationKey: door.open ? "door.hint.close" : "door.hint.open",
@@ -1528,8 +1647,12 @@ export class RoomScene {
         },
         world: new Vector3(door.center.x, 1.7, door.center.z),
       };
+      hintByKey.set(`door:${door.refId}`, target);
+      if (distance < bestHintDistance) {
+        bestHintDistance = distance;
+        bestHint = target;
+      }
     }
-    this.hintTarget = bestHint;
 
     for (const placed of placedFurniture) {
       const definition = getDefinition(placed.furnitureId);
@@ -1543,6 +1666,10 @@ export class RoomScene {
         ? ("daily_board" as const)
         : definition.placement.capabilities.includes(FurnitureCapability.MusicPlayer)
         ? ("music_player" as const)
+        : // 灯排在做工的前面：带灯的工作台还不存在，真出现了也该是
+          // "先开灯再干活"（灯是一按就完、随时可逆的那种交互）
+          definition.placement.capabilities.includes(FurnitureCapability.Lighting)
+        ? ("lighting" as const)
         : definition.placement.capabilities.includes(FurnitureCapability.Crafting)
         ? ("crafting" as const)
         : definition.placement.capabilities.includes(FurnitureCapability.Cooking)
@@ -1579,46 +1706,34 @@ export class RoomScene {
         continue;
       }
 
-      const { gridPosition, facing } = placed.placement;
-      const rotated = facing === Facing.East || facing === Facing.West;
-      const w = rotated
-        ? definition.placement.footprint.height
-        : definition.placement.footprint.width;
-      const h = rotated
-        ? definition.placement.footprint.width
-        : definition.placement.footprint.height;
-
-      /**
-       * 距离算到**占地矩形的最近边**，不是中心。
-       *
-       * 原来按中心算、阈值 1.9——那是给 1×1、2×1 小家具定的。
-       * L 形橱柜占 6×4，中心离灶眼就有 2.35 米，玩家贴着灶台站着
-       * 也锁不上交互目标，"灶台上放不了东西"就是这么来的。
-       * 按最近边算，家具多大都能正常交互。
-       *
-       * 玩家位置转进**这件家具自己房间**的本地系再比：gridPosition 是
-       * 房本地格坐标，减的半宽半深必须是**那个房间**的 floorGrid，
-       * 用的锚点也必须是那个房间的。距离在刚体变换下不变，所以换到
-       * 本地系算出来的数和世界系一模一样。
-       */
-      const furnitureRoom = this.roomOfFurniture(placed);
-      const here = worldToRoomLocal(
-        furnitureRoom,
-        this.controller.x,
-        this.controller.z,
-      );
-      const minX = gridPosition.x - furnitureRoom.floorGrid.width / 2;
-      const minZ = gridPosition.y - furnitureRoom.floorGrid.height / 2;
-      const distance = Math.hypot(
-        Math.max(minX - here.x, 0, here.x - (minX + w)),
-        Math.max(minZ - here.z, 0, here.z - (minZ + h)),
-      );
+      const distance = this.furnitureDistance(placed, definition, probeX, probeZ);
 
       if (distance < bestDistance) {
         bestDistance = distance;
         best = { kind: "station", instanceId: placed.instanceId, capability };
       }
     }
+
+    /*
+     * 气泡跟着 F 走。
+     *
+     * 以前两者各算各的：气泡 2.4 米按中心量、F 1.9 米按最近边量，两套
+     * 判定给出不同的赢家是常态。落地灯是最极端的一例——它连 F 的候选池
+     * 都进不去（Ambience 不在能力分派链里），气泡却从第一天起就挂着
+     * "开灯 / 关灯"，玩家照着按下去，躺上了旁边那张床。
+     *
+     * 现在只有一个答案：**有 F 可做就说 F 会做什么，没有才退回最近的
+     * 装饰件说一句闲话**。找不到词的目标宁可不浮气泡，也不借旁边那件
+     * 东西的话来说——那正是这个 bug 的形状。
+     */
+    const hintKeyOf = (target: NonNullable<typeof best>): string =>
+      target.kind === "pet"
+        ? `pet:${target.petId}`
+        : target.kind === "door"
+          ? `door:${target.refId}`
+          : `${target.kind === "building" ? "building" : "station"}:${target.instanceId}`;
+
+    this.hintTarget = best ? hintByKey.get(hintKeyOf(best)) ?? null : bestHint;
 
     const keyOf = (
       target: typeof best | typeof this.interactTarget,
@@ -1755,6 +1870,11 @@ export class RoomScene {
           const phase = bathPhaseOf(this.interactTarget.instanceId);
           if (phase === "empty") requestFill(this.interactTarget.instanceId);
           else if (phase === "full") this.restAtTarget(BodyPosture.Sit);
+        } else if (this.interactTarget.capability === "lighting") {
+          // 只发绝对状态不发"切一下"（联机那侧的理由见 lamps.ts）——
+          // 本地读到的就是权威值，在这里翻面
+          const { instanceId } = this.interactTarget;
+          setLampOn(instanceId, !isLampOn(instanceId));
         } else if (this.interactTarget.capability === "unpack") {
           // 纸箱/奖励箱：弹领取面板，收下才真的入包并消失
           openUnpack(this.interactTarget.instanceId);
@@ -2051,10 +2171,10 @@ export class RoomScene {
       world.y -
       HIP_HEIGHT +
       (pose.supportLift ?? 0);
-    this.controller.faceToward(
-      world.x + FACING_VECTOR[ref.facing][0],
-      world.z + FACING_VECTOR[ref.facing][1],
-    );
+    // 锚点的朝向是**房本地**的（AnchorRef.facing 只复合到家具那一层），
+    // 而人活在世界系里——房子朝南时不过这一道，人就正好坐反 180°
+    const [faceX, faceZ] = facingWorldVector(getWorld().room, ref.facing);
+    this.controller.faceToward(world.x + faceX, world.z + faceZ);
   }
 
   /** 槽位的世界坐标。墙面家具没有槽位，所以只处理地面家具 */
@@ -2820,6 +2940,37 @@ export class RoomScene {
    * 查不到（几何还没生成的图）退回主房间：至少不指到天外，
    * 和 furnitureWorldCenter 对孤儿台面件报宿主原点是同一种兜底态度。
    */
+  /**
+   * 探针到一件家具有多远。**按 F 和提示气泡共用这一把尺子**——
+   * 两边各算一份的下场就是气泡说"开灯"、F 却把人放倒在床上。
+   *
+   * 地面件量到**占地矩形的最近边**（数学在 furnitureMath.furnitureFloorDistance，
+   * 那儿是纯函数、有单测）。墙饰和台面件量到中心：它们的 gridPosition
+   * 分别是墙面格和半格台面坐标，掉进地面公式会被报到屋子另一头去
+   * （挂钟会落到屋子正中）。反正这两类都是小件，中心和边差不了几厘米。
+   */
+  private furnitureDistance(
+    placed: PlacedFurniture,
+    definition: { placement: { footprint: { width: number; height: number } } },
+    fromX: number,
+    fromZ: number,
+  ): number {
+    const room = this.roomOfFurniture(placed);
+
+    if (placed.placement.kind !== PlacementSurface.Floor) {
+      const center = furnitureWorldCenter(placed, definition.placement, room);
+      return Math.hypot(center.x - fromX, center.z - fromZ);
+    }
+
+    return furnitureFloorDistance(
+      placed.placement,
+      definition.placement.footprint,
+      room,
+      fromX,
+      fromZ,
+    );
+  }
+
   private roomOfFurniture(placed: PlacedFurniture): RoomSave {
     return getRoom(placed.placement.roomId) ?? getWorld().room;
   }

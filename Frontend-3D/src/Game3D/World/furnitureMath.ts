@@ -2,7 +2,9 @@ import {
   Facing,
   anchorHeadingToWorld,
   anchorOf,
+  anchorVecToWorld,
   roomCellToWorld,
+  worldToRoomLocal,
   type RoomSave,
 } from "core";
 
@@ -53,6 +55,23 @@ export function furnitureWorldYaw(room: FurnitureRoom, facing: Facing): number {
   return anchorHeadingToWorld(anchorOf(room), FACING_ROTATION[facing]);
 }
 
+/**
+ * 朝向 → **世界系**的方向单位向量。FACING_VECTOR 的世界系孪生兄弟，
+ * 和 furnitureWorldYaw 之于 FACING_ROTATION 是同一件事：房本地的那份
+ * 只在房子朝北时等于世界，房子转过向就差着锚点那一次旋转。
+ *
+ * **活在世界系里的东西（人的朝向、掉落物的飞行方向）必须过这一道。**
+ * 挂在 built.root 下、写房本地坐标的东西不要过——那边转两次。
+ */
+export function facingWorldVector(
+  room: FurnitureRoom,
+  facing: Facing,
+): [number, number] {
+  const [dx, dz] = FACING_VECTOR[facing];
+  const world = anchorVecToWorld(anchorOf(room), { x: dx, y: 0, z: dz });
+  return [world.x, world.z];
+}
+
 /** 家具占地中心的世界坐标（朝向旋转后的宽高，经房屋锚点入世界） */
 export function furnitureCenterWorld(
   placement: { gridPosition: { x: number; y: number }; facing: Facing },
@@ -69,6 +88,61 @@ export function furnitureCenterWorld(
     room,
     placement.gridPosition.x + (w - 1) / 2,
     placement.gridPosition.y + (h - 1) / 2,
+  );
+}
+
+/**
+ * 交互测距的探针点：角色**身前 `ahead` 米**，不是脚下。
+ *
+ * 纯就近的尺子量不出"我正对着谁"，而那是玩家心里唯一的判据：站在
+ * 1×1 落地灯前面按 F，旁边 2×3 的床按占地矩形最近边算比灯还近，
+ * 于是人躺上了床。市面上同类（星露谷、动森）都是朝向决定交互目标。
+ *
+ * heading 的约定和 CharacterController 一致：`atan2(dx, dz)`，
+ * 所以前方向量是 `(sin, cos)` 而不是通常的 `(cos, sin)`。
+ */
+export function interactProbe(
+  x: number,
+  z: number,
+  heading: number,
+  ahead: number,
+): { x: number; z: number } {
+  return {
+    x: x + Math.sin(heading) * ahead,
+    z: z + Math.cos(heading) * ahead,
+  };
+}
+
+/**
+ * 一个点到地面家具**占地矩形最近边**的距离（不是到中心）。
+ *
+ * 按中心算的话 L 形橱柜（6×4）中心离灶眼就有 2.35 米，玩家贴着灶台
+ * 站也够不着——"灶台上放不了东西"就是这么来的。按最近边算，
+ * 家具多大都能正常交互。
+ *
+ * 点先转进**这件家具自己房间**的本地系：gridPosition 是房本地格坐标，
+ * 减的半宽半深必须是那个房间的 floorGrid。距离在刚体变换下不变，
+ * 所以本地系算出来的数和世界系一模一样——反过来在世界系拼一个轴对齐
+ * 矩形是错的，房子可以是转过的。
+ */
+export function furnitureFloorDistance(
+  placement: { gridPosition: { x: number; y: number }; facing: Facing },
+  footprint: { width: number; height: number },
+  room: FurnitureRoom,
+  fromX: number,
+  fromZ: number,
+): number {
+  const rotated =
+    placement.facing === Facing.East || placement.facing === Facing.West;
+  const w = rotated ? footprint.height : footprint.width;
+  const h = rotated ? footprint.width : footprint.height;
+
+  const here = worldToRoomLocal(room, fromX, fromZ);
+  const minX = placement.gridPosition.x - room.floorGrid.width / 2;
+  const minZ = placement.gridPosition.y - room.floorGrid.height / 2;
+  return Math.hypot(
+    Math.max(minX - here.x, 0, here.x - (minX + w)),
+    Math.max(minZ - here.z, 0, here.z - (minZ + h)),
   );
 }
 

@@ -53,6 +53,25 @@ function reattachMaterials(root: Object3D): void {
   }
 }
 
+/**
+ * 这个 mesh 此刻**归它自己**的材质。
+ *
+ * 平时是一份；正在淡出时是两份——在用的那份克隆，和寄存着等淡回来的原件。
+ * 谁要持久地改一件家具的材质（灯灭下去时把自发光归零），两份都得改：
+ * 只改在用的那份，淡回来时 reattachMaterials 会把旧值换回来，灯就自己
+ * 亮回去了；只改寄存的那份，淡出期间看不出变化。
+ *
+ * 导出这个函数而不是导出 ORIGINAL 那个键名：调用方要的是"改哪几份材质"，
+ * 不需要知道寄存是怎么实现的。
+ */
+export function ownedMaterialsOf(mesh: Mesh): Material[] {
+  const current = mesh.material;
+  if (Array.isArray(current)) return [];
+
+  const stashed = mesh.userData[ORIGINAL] as Material | undefined;
+  return stashed ? [current, stashed] : [current];
+}
+
 function setOpacity(root: Object3D, opacity: number): void {
   for (const mesh of meshesOf(root)) {
     (mesh.material as Material).opacity = opacity;

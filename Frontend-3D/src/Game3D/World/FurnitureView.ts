@@ -14,10 +14,11 @@ import {
   type FurnitureRoom,
 } from "./furnitureMath.js";
 import { hostGeometryOf, surfaceChildPose } from "./SurfacePlacement.js";
-import { Object3D } from "three";
+import { Color, Mesh, Object3D, PointLight } from "three";
 import { on } from "../../Game/EventBus";
+import { isLampOn, isSwitchableLamp } from "../../Game/State/lamps";
 import { getDefinition, getRoom, getWorld, groundHeightAt } from "../../Game/State/worldRuntime";
-import { clearFade, stepFade } from "../Engine/Fade.js";
+import { clearFade, ownedMaterialsOf, stepFade } from "../Engine/Fade.js";
 import { addOutline, setOutlineVisible } from "../Engine/Outline.js";
 import { buildItemVisual } from "../Visual/VisualRegistry.js";
 
@@ -134,6 +135,7 @@ export function furnitureWorldCenter(
 export {
   FACING_ROTATION,
   FACING_VECTOR,
+  facingWorldVector,
   furnitureCenterWorld,
   slotWorldPosition,
 } from "./furnitureMath.js";
@@ -241,6 +243,74 @@ export class FurnitureView {
     return result;
   }
 
+  /**
+   * 把一盏灯的开关状态压到它的模型上：内嵌的 `lamp-light` 点光 + 灯罩里
+   * 那颗自发光的灯泡，两样一起灭，只灭一样看着像"灯亮着却不照人"。
+   *
+   * 关的方式是**在光源上插旗**（`userData.switchedOff`）而不是直接把
+   * intensity 设 0：`Lighting.apply` 每次昼夜/天气变化都要扫全场重设一遍
+   * 强度，直接改数值的话下一次日落就把关掉的灯又点亮了。旗子由那边读。
+   *
+   * 自发光没有这个问题（没人扫它），原值就地寄存在 mesh 的 userData 里，
+   * 开回来时取出来还原。
+   */
+  private applyLampSwitch(instanceId: string, root: Object3D): void {
+    if (!isSwitchableLamp(instanceId)) return;
+    const on = isLampOn(instanceId);
+
+    root.traverse((node) => {
+      if (node instanceof PointLight && node.name === "lamp-light") {
+        node.userData.switchedOff = !on;
+        if (!on) node.intensity = 0;
+        return;
+      }
+      if (!(node instanceof Mesh)) return;
+
+      /*
+       * 两份材质都要改（见 ownedMaterialsOf）：灯正在给镜头让路（淡出）
+       * 时被关掉，只改在用的那份克隆的话，淡回来会把旧的自发光换回来，
+       * 灯自己就亮了。
+       */
+      for (const material of ownedMaterialsOf(node)) {
+        if (!("emissiveIntensity" in material) || !("emissive" in material)) continue;
+        const glow = material as typeof material & {
+          emissive: Color;
+          emissiveIntensity: number;
+        };
+        /*
+         * 只碰**真的在发光**的那几块（自发光色不是黑）。灯罩、灯杆、
+         * 描边壳的材质也有 emissiveIntensity 字段，默认值 1，配上黑色
+         * 自发光等于没发光——把它们一起归零是无害的空操作，但它让
+         * "这盏灯有几块发光件"这个问题在日志里变成一个假答案（5 块，
+         * 实际上只有 1 块灯泡）。
+         */
+        if (glow.emissive.r + glow.emissive.g + glow.emissive.b <= 0) continue;
+
+        if (!on) {
+          // 原值寄存在 mesh 上而不是写死一个"默认自发光强度"：写死的话
+          // 以后调灯泡亮度的人要在两个文件里各改一遍，漏一处也不会报错
+          if (node.userData.glowIntensity === undefined) {
+            node.userData.glowIntensity = glow.emissiveIntensity;
+          }
+          glow.emissiveIntensity = 0;
+        } else if (node.userData.glowIntensity !== undefined) {
+          glow.emissiveIntensity = node.userData.glowIntensity as number;
+        }
+      }
+      if (on) delete node.userData.glowIntensity;
+    });
+  }
+
+  /** 某盏灯的开关被拉了（本地或远端）。空 instanceId = 整表重灌，全刷 */
+  refreshLampSwitch(instanceId: string): void {
+    if (instanceId) {
+      const view = this.views.get(instanceId);
+      if (view) this.applyLampSwitch(instanceId, view);
+      return;
+    }
+    for (const [id, view] of this.views) this.applyLampSwitch(id, view);
+  }
+
   private sync(): void {
     const { placedFurniture } = getWorld();
     const alive = new Set<string>();
@@ -253,6 +323,9 @@ export class FurnitureView {
       if (view) {
         this.views.set(placed.instanceId, view);
         this.root.add(view);
+        // 刚建出来的模型是"亮着"的出厂状态：读档时屋里那盏关着的灯
+        // 要在这里就压下去，否则它会亮到下一次有人拉开关为止
+        this.applyLampSwitch(placed.instanceId, view);
       }
     }
 

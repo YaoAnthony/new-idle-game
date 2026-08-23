@@ -29,7 +29,14 @@ export type AnchorRef = {
   anchor: FurnitureAnchor;
   /** 锚点落在哪个格子（A* 走过去、判断远近用） */
   cell: GridPosition;
-  /** 叠加了家具朝向之后的世界朝向 */
+  /**
+   * 叠加了家具朝向之后的朝向。**和 cell 一样是房本地系的**——
+   * 这一层只到"哪个格子 + 什么朝向"为止，房子自己的朝向不在里面。
+   *
+   * 表现层要把人转过去，必须再过一次房屋锚点
+   * （Frontend 的 facingWorldVector）。房子朝南时漏掉那一道 = 人坐反 180°，
+   * 2026-08-23 修的就是这个。
+   */
   facing: Facing;
 };
 

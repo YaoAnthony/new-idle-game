@@ -10,6 +10,7 @@ import {
   placeBuilding,
   removeBuilding,
   restoreBuildings,
+  finishSite,
   upgradeBuilding,
   upgradeOptions,
 } from "../src/Game/State/buildings";
@@ -39,6 +40,20 @@ beforeEach(() => {
   clearAllFurniture();
   restoreBuildings([]);
 });
+
+/**
+ * **下单升级并立刻完工**。
+ *
+ * `upgradeBuilding` 从 2026-08-22 起不再瞬间完成：它下的是一张单，
+ * 建筑变成工地（`construction`），等石傀儡走过来建（见 05 文档期 C/D）。
+ * 下面这些用例钉的是**升级规则本身**（分叉、非空不给升、instanceId 不变），
+ * 不是施工流程，所以就地完工一步到位——施工流程有它自己的用例。
+ */
+function upgradeNow(instanceId: string, targetLevelId?: string) {
+  const result = upgradeBuilding(instanceId, targetLevelId);
+  if (result.ok !== false) finishSite(instanceId);
+  return result;
+}
 
 /**
  * 家院（开局格 x −15..5 / z −5..18）里的空地：世界 (3.5, 16.5)，
@@ -104,7 +119,7 @@ test("升级不换 instanceId——升级是同一栋楼换了个等级", () => 
   const id = built.ok ? built.instanceId : "";
   expect(listBuildings()[0].levelId).toBe("l1");
 
-  const up = upgradeBuilding(id);
+  const up = upgradeNow(id);
   expect(up.ok, JSON.stringify(up)).toBe(true);
   expect(listBuildings()[0].levelId).toBe("l2");
   expect(listBuildings()[0].instanceId).toBe(id);
@@ -115,26 +130,26 @@ test("分叉：房子 l2 有两个后继，不给目标就不升", () => {
   const id = built.ok ? built.instanceId : "";
 
   // l1 只有一个后继 → 直接升
-  expect(upgradeBuilding(id).ok).toBe(true);
+  expect(upgradeNow(id).ok).toBe(true);
   expect(listBuildings()[0].levelId).toBe("l2");
 
   // l2 分叉 → 不指定目标就不动，把选项交出去
   expect(upgradeOptions(id).sort()).toEqual(["l3a", "l3b"]);
-  const ambiguous = upgradeBuilding(id);
+  const ambiguous = upgradeNow(id);
   expect(ambiguous.ok).toBe(false);
   expect(listBuildings()[0].levelId).toBe("l2");
 
   // 指定了才升
-  expect(upgradeBuilding(id, "l3a").ok).toBe(true);
+  expect(upgradeNow(id, "l3a").ok).toBe(true);
   expect(listBuildings()[0].levelId).toBe("l3a");
   // 满级
-  expect(upgradeBuilding(id, "l3b").ok).toBe(false);
+  expect(upgradeNow(id, "l3b").ok).toBe(false);
 });
 
 test("serialize 往返：建筑和等级都还在", () => {
   const built = placeBuilding("gold_jar", HOME.x, HOME.z, Facing.North);
   const id = built.ok ? built.instanceId : "";
-  upgradeBuilding(id);
+  upgradeNow(id);
 
   const save = serializeGameSave();
   expect(save.ownWorld.buildings).toHaveLength(1);
@@ -262,7 +277,7 @@ test("升级换的是几何不是身份：roomId 不变，内景尺寸变了", (
   const roomId = `house:${id}`;
 
   const before = getRoom(roomId)!.floorGrid;
-  expect(upgradeBuilding(id).ok).toBe(true); // l1 → l2
+  expect(upgradeNow(id).ok).toBe(true); // l1 → l2
 
   const after = getRoom(roomId)!.floorGrid;
   expect(getRoom(roomId), "roomId 不该随等级变").toBeTruthy();
@@ -282,8 +297,8 @@ test("拆掉一栋楼，它的内景房间跟着消失", () => {
 test("塔屋（l3b）的内景墙高比 l3a 高——挑高是它和 3a 的分别", () => {
   const built = placeBuilding("house", FRONT_YARD.x, FRONT_YARD.z, Facing.North);
   const id = built.ok ? built.instanceId : "";
-  upgradeBuilding(id); // l2
-  upgradeBuilding(id, "l3b");
+  upgradeNow(id); // l2
+  upgradeNow(id, "l3b");
 
   const room = getRoom(`house:${id}`)!;
   // 墙格的 height 就是墙高；buildInterior 的 wallHeight 走这里

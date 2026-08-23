@@ -5,6 +5,7 @@ import { listBuildings } from "../../Game/State/buildings";
 import { groundHeightAt } from "../../Game/State/worldRuntime";
 import { GOLD_STAGES } from "../../Buildings/goldJar";
 import { buildPlacedBuilding } from "../../Buildings/placement";
+import { buildSiteFence, makeGhost } from "../../Buildings/site";
 import { disposeTree } from "../Visual/primitives";
 
 /**
@@ -64,6 +65,18 @@ export class BuildingsView {
        */
       node.position.y = groundHeightAt(placement.x, placement.z);
       applyState(node, placement.state);
+
+      /*
+       * **工地**：成品变半透明 + 围一圈围栏。
+       *
+       * 半透明的说"将来会是什么"，围栏说"这块地被占了"——只有虚影的话
+       * 远处几乎看不见，领地上一块地已经被下单这件事就读不出来。
+       */
+      if (placement.construction) {
+        makeGhost(node);
+        this.root.add(buildSiteFence(placement, groundHeightAt));
+      }
+
       this.root.add(node);
     }
   }

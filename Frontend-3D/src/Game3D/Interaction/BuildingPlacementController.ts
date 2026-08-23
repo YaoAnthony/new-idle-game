@@ -278,6 +278,12 @@ export class BuildingPlacementController {
   }
 
   /** [确认] → 动工。三种模式各自落到对应的写入口 */
+  /** 现在在干什么（build / move / upgrade）。confirm 之后会被 cancel 清掉，
+   *  所以调用方要在 confirm 之前问 */
+  get currentMode(): "build" | "move" | "upgrade" | null {
+    return this.ghost ? this.mode : null;
+  }
+
   confirm(): { ok: boolean; reason?: string } {
     if (!this.ghost || !this.valid || !this.committed) {
       return { ok: false, reason: "not_ready" };
@@ -286,7 +292,13 @@ export class BuildingPlacementController {
     let ok = false;
     let reason: string | undefined;
     if (this.mode === "build") {
-      const result = placeBuilding(this.buildingId, this.x, this.z, this.facing);
+      /*
+       * 落下去的是**工地**不是成品：围栏立起、进度 0，等石傀儡走过来建。
+       * 「确认」这一下是下单，不是完工——这一整套要演的就是中间那段。
+       */
+      const result = placeBuilding(this.buildingId, this.x, this.z, this.facing, {
+        asSite: true,
+      });
       ok = result.ok !== false;
       reason = result.ok === false ? result.reason : undefined;
     } else if (this.instanceId) {

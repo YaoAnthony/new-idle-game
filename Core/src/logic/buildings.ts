@@ -52,6 +52,54 @@ export type BuildCostCheck =
   | { ok: true }
   | { ok: false; reason: "missing_materials"; missing: Array<{ itemId: ItemId; quantity: number }> };
 
+// ---- 施工 ----
+
+/**
+ * 这块工地干到哪儿了（0..1）。
+ *
+ * 三种情况分得很清楚：
+ * - 不在施工 → 1（已经是成品）
+ * - 在队里等着（没 `workerId` / 没时刻）→ **0**，而且不会自己往前走
+ * - 有人在建 → 按 `(now − start) / (finish − start)` 线性推
+ *
+ * 排队的那一档是这套规则的重点。时刻在工人认领时才写，所以"玩家关掉
+ * 游戏一天再回来，排队的工地全建好了"这件事在**数据上就不可能发生**，
+ * 不需要在别处补一层判断。
+ */
+export function constructionProgress(
+  placement: Pick<BuildingPlacement, "construction">,
+  nowUtc: string,
+): number {
+  const site = placement.construction;
+  if (!site) return 1;
+  if (!site.startUtc || !site.finishUtc) return 0;
+
+  const start = Date.parse(site.startUtc);
+  const finish = Date.parse(site.finishUtc);
+  const now = Date.parse(nowUtc);
+  if (!Number.isFinite(start) || !Number.isFinite(finish) || finish <= start) {
+    return 0;
+  }
+  return Math.max(0, Math.min(1, (now - start) / (finish - start)));
+}
+
+/** 建完了吗。没在施工的答 false——它早就是成品，没有"刚建完"这一刻 */
+export function isConstructionDone(
+  placement: Pick<BuildingPlacement, "construction">,
+  nowUtc: string,
+): boolean {
+  if (!placement.construction) return false;
+  return constructionProgress(placement, nowUtc) >= 1;
+}
+
+/** 这块工地在排队（蓝图落了、围栏立了，但还没人来干） */
+export function isConstructionQueued(
+  placement: Pick<BuildingPlacement, "construction">,
+): boolean {
+  const site = placement.construction;
+  return Boolean(site && !site.workerId);
+}
+
 /** 盖得起吗（只管材料；能不能放在那儿是 `checkBuildingPlacement` 的事） */
 export function checkBuildAfford(options: {
   level: Pick<LevelShape, "buildCost">;

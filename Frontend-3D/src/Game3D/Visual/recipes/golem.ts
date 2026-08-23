@@ -194,6 +194,7 @@ export function buildStoneGolem(): Object3D {
   let sleepBlend = 0;
   let initialized = false;
   let walkPhase = 0;
+  let workPhase = 0;
   const smooth = (t: number): number => t * t * (3 - 2 * t);
 
   root.userData.animate = (
@@ -243,6 +244,14 @@ export function buildStoneGolem(): Object3D {
       }
     }
 
+    /*
+     * 干活：双臂**交替抡起砸下**。用 `−|sin|` 而不是 `sin`：抬起来慢、
+     * 砸下去到底停一下，那一下停顿才是"砸"；正弦上下对称，读起来像挥手。
+     */
+    const working = pet.state === "work";
+    if (working) workPhase += deltaSeconds * 2.6;
+    else workPhase = 0;
+
     // 手臂：坐着时垂在身侧微微内收；走路时和腿反相摆
     for (const [i, arm] of arms.entries()) {
       const side = i === 0 ? -1 : 1;
@@ -252,6 +261,15 @@ export function buildStoneGolem(): Object3D {
       if (!asleep && pet.moving) {
         arm.rotation.x += Math.sin(walkPhase + (side > 0 ? 0 : Math.PI)) * 0.38;
       }
+      if (working) {
+        const swing = Math.abs(Math.sin(workPhase + (side > 0 ? Math.PI / 2 : 0)));
+        arm.rotation.x -= 1.5 * swing;
+      }
+    }
+
+    // 砸下去时整个上身跟着往前送一点，力才从身体里出来
+    if (working) {
+      body.rotation.x += Math.abs(Math.sin(workPhase)) * 0.12;
     }
 
     if (!asleep && pet.moving) {

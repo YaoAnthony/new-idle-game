@@ -27,6 +27,7 @@ export type PanelId =
   | "daily"
   | "station"
   | "buildShop"
+  | "building"
   | "storage"
   | "reward"
   | "chest"

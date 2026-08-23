@@ -1,6 +1,7 @@
 import {
   AffectionStage,
   CreatureRole,
+  isConstructionDone,
   FurnitureCapability,
   PlacementSurface,
   GiftTier,
@@ -24,6 +25,14 @@ import {
   listDroppedItems,
   removeDroppedItem,
 } from "./droppedItems";
+import {
+  claimSite,
+  finishSite,
+  listSites,
+  releaseSite,
+} from "./buildings";
+import { findBuildingLevel } from "../../Buildings/index";
+import { getClock } from "./clock";
 import {
   creatureBlockedAt,
   getCurrentMapId,
@@ -67,12 +76,16 @@ export type PetActivity =
   | "approach"
   | "sleeping"
   | "eat"
-  | "drink";
+  | "drink"
+  /** 站在工地上干活（`CreatureRole.Worker` 专属） */
+  | "work";
 
 /** 到达路径终点后要干的事。走路只是手段，这里记着目的 */
 type Errand =
   | { kind: "eat"; droppedId: string }
   | { kind: "drink"; at: { x: number; z: number } }
+  /** 去某块工地干活。到了就认领，认领了才开始走进度 */
+  | { kind: "build"; instanceId: string }
   | null;
 
 /** 饱食/水分低于这条线就开始主动找吃找喝 */
@@ -216,6 +229,19 @@ export class PetAgent {
 
   dispose(): void {
     if (this.radius > 0) removeCreatureObstacle(this.petId);
+    this.abandonSite();
+  }
+
+  /**
+   * 放开手上的工地（被引开、读档、傀儡没了）。工地退回队列。
+   *
+   * 必须显式退：`workerId` 留着的话那块地永远等着一个不存在的工人，
+   * 队里后面的也跟着卡死。
+   */
+  private abandonSite(): void {
+    if (this.errand?.kind !== "build") return;
+    releaseSite(this.errand.instanceId);
+    this.errand = null;
   }
 
   /** 调试用：瞬移过去并回到发呆。只有 /pet 命令经 petsRuntime 调它 */
@@ -315,6 +341,11 @@ export class PetAgent {
       return;
     }
 
+    if (this.state === "work") {
+      this.tickWork(deltaSeconds);
+      return;
+    }
+
     if (this.pathIndex < this.path.length) {
       this.tickMove(deltaSeconds);
       return;
@@ -356,6 +387,9 @@ export class PetAgent {
      */
     const worker = this.role === CreatureRole.Worker;
 
+    // 有活就先干活，压倒一切（包括游荡）。工地不会自己等人
+    if (worker && this.trySeekSite()) return;
+
     if (!worker) {
       // 饿了渴了优先于一切安排——但找不到吃的就不硬找，继续过日子
       if (this.needs.hunger < NEED_SEEK_THRESHOLD && this.trySeekFood()) return;
@@ -389,6 +423,94 @@ export class PetAgent {
       this.state = "wander";
     }
     this.idleTimer = 3 + Math.random() * 5;
+  }
+
+  // ---- 干活：去工地 ----
+
+  /**
+   * 找一块该干的工地走过去。
+   *
+   * **一次只认一块**：手上已经有活（`construction.workerId` 是自己）就
+   * 接着干那块，不会半路改主意跑去另一个工地——那正是用户要的"建 A 的
+   * 时候 B 不会动工"。
+   *
+   * 挑的是**最早下单的**那块（`listSites()` 保持数组顺序 = 下单顺序）。
+   * 先来先建是玩家唯一能预测的规则；按距离挑的话，玩家下单的顺序和
+   * 开工的顺序对不上，看着像随机。
+   */
+  private trySeekSite(): boolean {
+    const mine = listSites().find(
+      (site) => site.construction?.workerId === this.petId,
+    );
+    const target = mine ?? listSites().find((site) => !site.construction?.workerId);
+    if (!target) return false;
+
+    // 已经站在跟前了 → 直接开工，不用再走
+    const level = findBuildingLevel(
+      target.buildingId,
+      target.construction?.targetLevelId ?? target.levelId,
+    );
+    const reach =
+      this.radius + 0.9 + Math.max(level?.footprint.width ?? 2, level?.footprint.height ?? 2) / 2;
+    if (Math.hypot(target.x - this.x, target.z - this.z) <= reach) {
+      this.beginWork(target.instanceId);
+      return true;
+    }
+
+    if (!this.seekNear(target.x, target.z, reach)) return false;
+    this.state = "wander";
+    this.errand = { kind: "build", instanceId: target.instanceId };
+    this.idleTimer = 6;
+    return true;
+  }
+
+  /** 站定、转向工地、认领它。认领那一刻才开始走进度 */
+  private beginWork(instanceId: string): void {
+    const site = listSites().find((item) => item.instanceId === instanceId);
+    if (!site) {
+      this.state = "idle";
+      this.idleTimer = 1;
+      return;
+    }
+    claimSite(instanceId, this.petId, getClock().sample.nowUtc);
+    this.heading = Math.atan2(site.x - this.x, site.z - this.z);
+    this.state = "work";
+    this.clearPath();
+    this.errand = { kind: "build", instanceId };
+    emit("pet_changed", { petId: this.petId, reason: "work" });
+  }
+
+  /**
+   * 干活那一帧：到点就完工，然后接着找下一块。
+   *
+   * 进度不在这里推——它是从 `startUtc / finishUtc` 算出来的（Core 的
+   * `constructionProgress`）。这里只负责**看时候到没到**，以及"人还在不在
+   * 工地上"：玩家把石傀儡引开的话，工地要退回队列，不能人走了活还在干。
+   */
+  private tickWork(deltaSeconds: number): void {
+    void deltaSeconds;
+    const instanceId =
+      this.errand?.kind === "build" ? this.errand.instanceId : undefined;
+    const site = instanceId
+      ? listSites().find((item) => item.instanceId === instanceId)
+      : undefined;
+
+    if (!site) {
+      // 工地没了（被拆了 / 读档换了世界）：回去发呆
+      this.errand = null;
+      this.state = "idle";
+      this.idleTimer = 1;
+      return;
+    }
+
+    if (isConstructionDone(site, getClock().sample.nowUtc)) {
+      finishSite(site.instanceId);
+      this.errand = null;
+      this.state = "idle";
+      // 完工立刻找下一块：队里还有的话，玩家看见他转身就走
+      this.idleTimer = 0.4;
+      emit("pet_changed", { petId: this.petId, reason: "work_done" });
+    }
   }
 
   // ---- 基础行为：吃（找地上的） ----
@@ -485,6 +607,11 @@ export class PetAgent {
       this.busyTimer = 2.6;
       this.errand = errand; // 吃完要知道吃的是哪一份
       emit("pet_changed", { petId: this.petId, reason: "eat" });
+      return;
+    }
+
+    if (errand.kind === "build") {
+      this.beginWork(errand.instanceId);
       return;
     }
 

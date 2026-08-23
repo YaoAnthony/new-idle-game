@@ -1,4 +1,4 @@
-import { BodyPosture, CreatureRole, DayPhaseId, Facing, FurnitureCapability, WeatherKind, anchorOf, anchorRectToWorld, findItemDefinition, findPetDefinition, roomCellToWorld, worldToRoomLocal, type DeckRect, type WeatherDefinition, yardBoundsOf } from "core";
+import { BodyPosture, CreatureRole, DayPhaseId, Facing, FurnitureCapability, buildingRectWorld, constructionProgress, isConstructionQueued, WeatherKind, anchorOf, anchorRectToWorld, findItemDefinition, findPetDefinition, roomCellToWorld, worldToRoomLocal, type DeckRect, type WeatherDefinition, yardBoundsOf } from "core";
 import { isHouseStowed } from "core";
 import type { InteractHint, PlacedFurniture, RoomSave } from "core";
 import {
@@ -141,6 +141,8 @@ import {
 } from "../../Game/Systems/resting";
 import { startSleep } from "../../Game/Systems/sleep";
 import { getClock } from "../../Game/State/clock";
+import { findPlacement, listBuildings, listSites } from "../../Game/State/buildings";
+import { findBuildingLevel } from "../../Buildings/index";
 import { getResting, isResting } from "../../Game/State/posture";
 import { pruneOrphanStorages } from "../../Game/State/storage";
 import { pruneOrphanGramophones } from "../../Game/State/gramophones";
@@ -309,6 +311,7 @@ export class RoomScene {
       }
     | { kind: "pet"; petId: string }
     | { kind: "door"; refId: string }
+    | { kind: "building"; instanceId: string }
     | null = null;
   private interactCheckTimer = 0;
   /** 遮挡检测的限流计时。射线不必每帧打，镜头转得再快也跟得上 */
@@ -722,9 +725,32 @@ export class RoomScene {
       this.renderer.renderer.domElement,
     );
     this.offEventListeners.push(
+      on("building_siting_requested", ({ mode, instanceId, levelId }) => {
+        // 型号从实例查——面板只知道"哪一栋"，不该再抄一份型号 id
+        const placement = findPlacement(instanceId);
+        if (!placement) return;
+        this.beginBuildingSiting({
+          mode,
+          buildingId: placement.buildingId,
+          instanceId,
+          levelId,
+        });
+      }),
       on("building_placement_action", ({ action }) => {
-        if (action === "confirm") this.buildingPlacement.confirm();
-        else if (action === "reselect") this.buildingPlacement.uncommit();
+        if (action === "confirm") {
+          /*
+           * 确认成功才**消耗图纸**。失败（那块地不能放）时图纸留在手上，
+           * 玩家换个地方再来——扣了钱又没盖成是最难解释的一种失败。
+           */
+          const mode = this.buildingPlacement.currentMode;
+          const result = this.buildingPlacement.confirm();
+          if (result.ok && mode === "build") {
+            const held = getSelectedStack();
+            if (held && findItemDefinition(held.itemId)?.blueprint) {
+              consumeSelectedOne();
+            }
+          }
+        } else if (action === "reselect") this.buildingPlacement.uncommit();
         else this.buildingPlacement.cancel();
       }),
     );
@@ -1237,8 +1263,33 @@ export class RoomScene {
         }
       | { kind: "pet"; petId: string }
       | { kind: "door"; refId: string }
+      | { kind: "building"; instanceId: string }
       | null = null;
     let bestDistance = 1.9;
+
+    /*
+     * **建筑也参与竞争**（照门那一支抄）。以前 `refreshInteractTarget`
+     * 只遍历家具 + 门 + 宠物，从不看 `listBuildings()`——玩家走到自己盖的
+     * 罐子跟前按 F，什么也不会发生，管理只能走控制台指令。
+     *
+     * 距离算到**占地矩形最近边**，和家具那把尺子一致：4×4 的罐子按中心
+     * 算的话得走到它身体里才够得着。
+     */
+    for (const building of listBuildings()) {
+      const level = findBuildingLevel(
+        building.buildingId,
+        building.construction?.targetLevelId ?? building.levelId,
+      );
+      if (!level) continue;
+      const rect = buildingRectWorld(building, level.footprint);
+      const dx = Math.max(rect.minX - this.controller.x, 0, this.controller.x - rect.maxX);
+      const dz = Math.max(rect.minZ - this.controller.z, 0, this.controller.z - rect.maxZ);
+      const distance = Math.hypot(dx, dz);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = { kind: "building", instanceId: building.instanceId };
+      }
+    }
 
     // 门和宠物/工作站平级，按距离竞争。大门也在内——出门就靠它
     for (const door of listDoors()) {
@@ -1369,6 +1420,31 @@ export class RoomScene {
       };
     }
 
+    /*
+     * 建筑的气泡：在建的说"施工中"（没有可执行动作，不给按键标签），
+     * 建好的说"看看这栋"。
+     */
+    for (const building of listBuildings()) {
+      const level = findBuildingLevel(
+        building.buildingId,
+        building.construction?.targetLevelId ?? building.levelId,
+      );
+      if (!level) continue;
+      const rect = buildingRectWorld(building, level.footprint);
+      const dx = Math.max(rect.minX - this.controller.x, 0, this.controller.x - rect.maxX);
+      const dz = Math.max(rect.minZ - this.controller.z, 0, this.controller.z - rect.maxZ);
+      const distance = Math.hypot(dx, dz);
+      if (distance >= bestHintDistance) continue;
+      bestHintDistance = distance;
+      bestHint = {
+        instanceId: building.instanceId,
+        hint: building.construction
+          ? { localizationKey: "build.hint.site" }
+          : { localizationKey: "build.hint.manage", action: "interact" },
+        world: new Vector3(building.x, 1.5, building.z),
+      };
+    }
+
     // 门的气泡和家具提示竞争同一个位置：开门/关门/锁着，随实体状态换词
     for (const door of listDoors()) {
       const distance = Math.hypot(
@@ -1490,7 +1566,9 @@ export class RoomScene {
           ? `pet:${target.petId}`
           : target.kind === "door"
             ? `door:${target.refId}`
-            : `station:${target.instanceId}:${target.capability}`;
+            : target.kind === "building"
+              ? `building:${target.instanceId}`
+              : `station:${target.instanceId}:${target.capability}`;
 
     if (keyOf(best) === keyOf(this.interactTarget)) return;
 
@@ -1502,6 +1580,10 @@ export class RoomScene {
       emit("interact_target_changed", { kind: "pet", petId: best.petId });
     } else if (best.kind === "door") {
       emit("interact_target_changed", { kind: "door", refId: best.refId });
+    } else if (best.kind === "building") {
+      // 建筑不进这条事件（它没有"工作站"那套载荷）。订阅方看到 null
+      // 就知道现在没有工作站可开——按 F 干什么由 interact() 自己分派
+      emit("interact_target_changed", null);
     } else {
       emit("interact_target_changed", {
         kind: "station",
@@ -1689,6 +1771,10 @@ export class RoomScene {
             capability: this.interactTarget.capability,
           });
         }
+      } else if (this.interactTarget.kind === "building") {
+        emit("building_panel_open_requested", {
+          instanceId: this.interactTarget.instanceId,
+        });
       } else {
         /**
          * 对话选哪一段是**这只宠物的内容**，不是交互系统的逻辑——
@@ -1746,6 +1832,25 @@ export class RoomScene {
           startDialogue(dialogueId, petId);
         }
       }
+      return;
+    }
+
+    /*
+     * 手上拿着**图纸** → 进选址。放在"附近没有目标"之前判：站在傀儡旁边
+     * 拿着图纸按 F，玩家要的是开工不是再开一次面板。
+     *
+     * 判据是物品的 `blueprint` 块，不是物品 id——加一种可盖的建筑只加
+     * 一件图纸物品，这段一行不用改。
+     */
+    const heldBlueprint = (() => {
+      const held = getSelectedStack();
+      return held ? findItemDefinition(held.itemId)?.blueprint : undefined;
+    })();
+    if (heldBlueprint) {
+      this.beginBuildingSiting({
+        mode: "build",
+        buildingId: heldBlueprint.buildingId,
+      });
       return;
     }
 
@@ -1934,6 +2039,57 @@ export class RoomScene {
     }
 
     return best;
+  }
+
+  /**
+   * 场上每块工地的**屏幕坐标 + 进度**，给进度条用。
+   *
+   * 和气泡走同一条管线（世界坐标 → NDC → 容器内像素），因为它们是同一
+   * 类东西：贴在世界物体上的一小块 UI。相机背后的（z > 1）直接不给，
+   * 由 UI 那边跳过。
+   *
+   * 进度从 Core 的 `constructionProgress` 算——**排队中的恒 0**，
+   * 因为排队的工地数据上就没有开工时刻。
+   */
+  getBuildingProgress(): Array<{
+    instanceId: string;
+    progress: number;
+    queued: boolean;
+    x: number;
+    y: number;
+  }> {
+    const rect = this.container.getBoundingClientRect();
+    const nowUtc = getClock().sample.nowUtc;
+    const out: Array<{
+      instanceId: string;
+      progress: number;
+      queued: boolean;
+      x: number;
+      y: number;
+    }> = [];
+
+    for (const site of listSites()) {
+      const level = findBuildingLevel(
+        site.buildingId,
+        site.construction?.targetLevelId ?? site.levelId,
+      );
+      if (!level) continue;
+
+      // 挂在占地中心正上方，高度按占地大小给——大楼的条要浮得高一点
+      const lift = 1.4 + Math.max(level.footprint.width, level.footprint.height) * 0.22;
+      this.projectScratch.set(site.x, groundHeightAt(site.x, site.z) + lift, site.z);
+      this.projectScratch.project(this.rig.camera);
+      if (this.projectScratch.z > 1) continue;
+
+      out.push({
+        instanceId: site.instanceId,
+        progress: constructionProgress(site, nowUtc),
+        queued: isConstructionQueued(site),
+        x: rect.left + ((this.projectScratch.x + 1) / 2) * rect.width,
+        y: rect.top + ((1 - this.projectScratch.y) / 2) * rect.height,
+      });
+    }
+    return out;
   }
 
   /**

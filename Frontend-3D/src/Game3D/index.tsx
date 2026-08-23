@@ -33,7 +33,9 @@ import { SleepOverlay } from "../Components/SleepOverlay/SleepOverlay";
 import { HudColumn } from "../Components/Hud/HudColumn";
 import { HudTopCenter } from "../Components/Hud/HudTopCenter";
 import { FocusVignette } from "../Components/ActionHub/FocusCard";
+import { BuildProgress } from "../Components/BuildProgress/BuildProgress";
 import { BuildShopPanel } from "../Components/BuildShopPanel/BuildShopPanel";
+import { BuildingPanel } from "../Components/BuildingPanel/BuildingPanel";
 import { StationPanel } from "../Components/StationPanel/StationPanel";
 import { StoragePanel } from "../Components/StoragePanel/StoragePanel";
 import {
@@ -1220,10 +1222,12 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       {/* 快捷栏只管选中；"使用"（吃 / 进布置模式）统一走 F，见 RoomScene */}
       <Hotbar />
       <InteractBubble scene={scene} />
+      <BuildProgress scene={scene} />
       {/* 家具从背包也能直接进布置模式了——原来只有快捷栏能进，
           得先把家具拖到快捷栏才摆得了，白绕一步 */}
       <Backpack />
       <BuildShopPanel />
+      <BuildingPanel />
       <StationPanel />
       <DailyBoardPanel />
       <StoragePanel />

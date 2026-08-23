@@ -51,16 +51,33 @@ export type BuildingPlacement = {
   levelId?: string;
 
   /**
-   * **正在施工中**（本期恒不出现——升级瞬时完成）。
+   * **正在施工中**。有这一块就是工地：模型半透明、围一圈围栏、头顶一根
+   * 进度条；`levelId` 要等完工才落到 `targetLevelId`。
    *
-   * 工人系统那一期填它：目标等级 + 完工时刻 + 占用的工人。结构先留，
-   * 接的时候不用给 BuildingPlacement 做存档迁移。CoC 的核心约束是
-   * "建筑工小时"而不是材料，这个字段就是给那一天准备的。
+   * ## 为什么有 startUtc
+   *
+   * 原来只有 `finishUtc`。那算得出"还剩多久"，**算不出百分比**——分母
+   * 不在数据里。补一个开工时刻，进度就是
+   * `(now − startUtc) / (finishUtc − startUtc)`，纯从这一条记录推得出来，
+   * 不用回头查型号表的 `buildDuration`。
+   *
+   * ## 为什么它们是可选的
+   *
+   * **排队中的工地这两个都没有**。工人一次只干一个活；排在后面的工地
+   * 蓝图已经落地、围栏已经立起、进度恒 0，但**还没开工**。
+   *
+   * 时刻在**工人认领的那一刻**才写。要是下单时就按墙钟算，玩家去睡一觉
+   * 回来会发现排队的全都自己建好了——工位就白设了。所以：
+   * 没有 `workerId` = 没有 `startUtc` = 进度 0。
    */
   construction?: {
     targetLevelId: string;
-    finishUtc: string;
+    /** 谁在建。空 = 排队中，还没轮到 */
     workerId?: string;
+    /** 开工时刻。**认领时才写**，排队中为空 */
+    startUtc?: string;
+    /** 完工时刻。同上 */
+    finishUtc?: string;
   };
 
   /**

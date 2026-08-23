@@ -110,6 +110,14 @@ export type GameEvents = {
    * 不是村民，走过去就该直接看到能盖什么。
    */
   build_shop_open_requested: Record<string, never>;
+  /** 玩家按 F 对着自己盖的建筑：开管理面板（迁移/拆除/升级/概览） */
+  building_panel_open_requested: { instanceId: string };
+  /** 面板请求进入选址（迁移/升级都要选位置，由场景的控制器接管） */
+  building_siting_requested: {
+    mode: "move" | "upgrade";
+    instanceId: string;
+    levelId?: string;
+  };
   /** 玩家按 F 请求打开工作站界面。灶台不走这条——菜是真的在锅里做的 */
   station_open_requested: {
     instanceId: string;

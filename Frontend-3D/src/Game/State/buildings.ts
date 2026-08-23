@@ -20,6 +20,7 @@ import { emit } from "../EventBus";
 import { guardWorldMutation } from "../Multiplayer/worldLock";
 import { nextObjectId, syncIdCounters } from "./ids";
 import { findBuilding, findBuildingLevel } from "../../Buildings/index";
+import { materialCounts, spendMaterials } from "../Systems/materials";
 import { getUnlockedFeatures } from "../Systems/events";
 import {
   getCurrentMap,
@@ -154,6 +155,7 @@ export function placeBuilding(
   x: number,
   z: number,
   facing: Facing = Facing.North,
+  options: { asSite?: boolean } = {},
 ): BuildingActionResult {
   if (guardWorldMutation()) return { ok: false, reason: "busy" };
 
@@ -163,6 +165,16 @@ export function placeBuilding(
   const check = previewPlacement({ buildingId, x, z, facing, countsAsNew: true });
   if (check.ok === false) return { ok: false, reason: check.reason };
 
+  const firstLevel = definition.levels[0].levelId;
+  /*
+   * `asSite`：落下去的是**工地**不是成品。
+   *
+   * 工地就是这栋建筑的一个阶段，不另立实体——占地校验、迁移、拆除全部
+   * 立刻复用现成规则。区别只在 `construction` 这一块在不在。
+   *
+   * 开工时刻**不在这里写**：那是工人认领时的事（见 `claimSite`）。
+   * 下单就按墙钟算的话，玩家去睡一觉回来排队的全建好了。
+   */
   const placement: BuildingPlacement = {
     instanceId: nextObjectId("building", buildingId),
     buildingId,
@@ -171,12 +183,97 @@ export function placeBuilding(
     elevation: 0,
     facing,
     // 新建出来就是**初始等级**（levels[0]）
-    levelId: definition.levels[0].levelId,
+    levelId: firstLevel,
+    ...(options.asSite
+      ? { construction: { targetLevelId: firstLevel } }
+      : {}),
   };
   placements = [...placements, placement];
   syncBuildingInteriors();
   emit("world_changed", { reason: "buildings" });
   return { ok: true, instanceId: placement.instanceId };
+}
+
+// ---- 施工 ----
+
+/**
+ * 型号没写 `buildDuration` 时的工期（秒）。
+ *
+ * 给一个数而不是 0：0 会让工地在落地那一帧就完工，玩家看不见围栏也看不见
+ * 石傀儡走过来——那正是这一整套要演的东西。20 秒是测试期的值，正式平衡
+ * 时每个型号自己写。
+ */
+const DEFAULT_BUILD_SECONDS = 20;
+
+/** 场上所有工地（有 construction 的），按下单先后（数组顺序）排 */
+export function listSites(): BuildingPlacement[] {
+  return placements.filter((item) => item.construction);
+}
+
+/**
+ * 工人认领一块工地：写上 workerId 和**开工/完工时刻**。
+ *
+ * 时刻在这一刻才写，是整套排队规则的支点——见 `BuildingPlacement.construction`
+ * 的注释。工期从型号表的 `buildDuration` 查，查不到给个兜底值。
+ */
+export function claimSite(instanceId: string, workerId: string, nowUtc: string): boolean {
+  const placement = placements.find((item) => item.instanceId === instanceId);
+  if (!placement?.construction || placement.construction.workerId) return false;
+
+  const target = placement.construction.targetLevelId;
+  const level = findBuildingLevel(placement.buildingId, target);
+  const seconds = level?.buildDuration?.[target] ?? DEFAULT_BUILD_SECONDS;
+  const start = Date.parse(nowUtc);
+
+  placements = placements.map((item) =>
+    item.instanceId === instanceId
+      ? {
+          ...item,
+          construction: {
+            ...item.construction!,
+            workerId,
+            startUtc: nowUtc,
+            finishUtc: new Date(start + seconds * 1000).toISOString(),
+          },
+        }
+      : item,
+  );
+  emit("world_changed", { reason: "buildings" });
+  return true;
+}
+
+/** 工人放手（被引开、读档、傀儡没了）。工地退回队列，进度清零重来 */
+export function releaseSite(instanceId: string): void {
+  const placement = placements.find((item) => item.instanceId === instanceId);
+  if (!placement?.construction) return;
+  placements = placements.map((item) =>
+    item.instanceId === instanceId
+      ? {
+          ...item,
+          construction: { targetLevelId: item.construction!.targetLevelId },
+        }
+      : item,
+  );
+  emit("world_changed", { reason: "buildings" });
+}
+
+/**
+ * 完工：`construction` 摘掉，`levelId` 落到目标等级。
+ *
+ * 建造和升级走**同一条**完工路径——两者的区别只在下单时 `targetLevelId`
+ * 是不是当前等级。
+ */
+export function finishSite(instanceId: string): void {
+  const placement = placements.find((item) => item.instanceId === instanceId);
+  if (!placement?.construction) return;
+  const target = placement.construction.targetLevelId;
+  placements = placements.map((item) =>
+    item.instanceId === instanceId
+      ? { ...item, levelId: target, construction: undefined }
+      : item,
+  );
+  syncBuildingInteriors();
+  emit("world_changed", { reason: "buildings" });
 }
 
 export function moveBuilding(
@@ -263,9 +360,17 @@ export function upgradeBuilding(
   const target = targetLevelId ?? (options.length === 1 ? options[0] : undefined);
   if (!target) return { ok: false, reason: "unknown_target", options };
 
+  // 已经在施工的不给再下单：一栋楼同时只能有一个目标
+  if (placement.construction) return { ok: false, reason: "unknown_target" };
+
   const check = checkUpgrade({
     level: shape,
     targetLevelId: target,
+    /*
+     * 材料**这次真的传了**。以前这里不传，于是 `checkUpgrade` 里那道
+     * `missing_materials` 的门物理上永远开着——校验写好了却从没被触发过。
+     */
+    materials: materialCounts(),
     others: placements
       .filter((item) => item.instanceId !== instanceId)
       .map((item) => ({
@@ -276,13 +381,23 @@ export function upgradeBuilding(
   });
   if (check.ok === false) return check;
 
+  const cost = shape.upgradeCost?.[target] ?? [];
+  if (!spendMaterials(cost)) return { ok: false, reason: "missing_materials", missing: cost };
+
+  /*
+   * 升级**不再瞬间完成**：变成一块工地，围栏立起、进度 0，等石傀儡走
+   * 过来。`levelId` 要到完工才落到 `target`（`finishSite`），所以在建
+   * 期间这栋楼仍然是旧等级——容量、内景、占地都还是原来那份，玩家
+   * 在建期间照样用得上。
+   *
+   * **instanceId 不变**：升级是同一栋楼换了个等级，里面存的东西、位置
+   * 全保留。这正是"升级 = 同一建筑的多个等级"那条决策的落点。
+   */
   placements = placements.map((item) =>
-    // **instanceId 不变**：升级是同一栋楼换了个等级，里面存的东西、
-    // 位置全保留。这正是"升级 = 同一建筑的多个等级"那条决策的落点
-    item.instanceId === instanceId ? { ...item, levelId: target } : item,
+    item.instanceId === instanceId
+      ? { ...item, construction: { targetLevelId: target } }
+      : item,
   );
-  // 升级换的是几何：roomId 不变，内景重新生成
-  syncBuildingInteriors();
   emit("world_changed", { reason: "buildings" });
   return { ok: true };
 }

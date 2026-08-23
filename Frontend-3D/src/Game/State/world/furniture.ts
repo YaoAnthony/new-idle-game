@@ -246,6 +246,21 @@ export function seedInitialFurniture(): void {
      * （x = −10）一格，也不挡从大门往北走的那条路。
      * **fixed**：井挖在地里，拿不走。
      */
+    /*
+     * 石傀儡的头（2026-08-22）。**开场唯一的谜题道具**。
+     *
+     * 院子格 (27, 39) = 世界 (−12.5, 12.5)：房子**西**边，和坐在东边的
+     * 傀儡分居两侧。要绕过房子才拿得到，路上正好经过井——走那一趟顺带
+     * 把院子逛了一遍，这是开局唯一的"引导"，不靠任何箭头和文字。
+     *
+     * 不 fixed：它就是要被拿走的。
+     */
+    {
+      furnitureId: "golem_head",
+      gridPosition: { x: 27, y: 39 },
+      facing: Facing.South,
+      roomId: worldState.map.outdoorRoomId,
+    },
     {
       furnitureId: "well",
       gridPosition: { x: 27, y: 25 },

@@ -1,5 +1,6 @@
 import {
   AffectionStage,
+  CreatureRole,
   FurnitureCapability,
   PlacementSurface,
   GiftTier,
@@ -125,6 +126,16 @@ export class PetAgent {
   private blockedFor = 0;
   private errand: Errand = null;
 
+  /** 陪你的还是干活的。干活的不吃不喝不亲近 */
+  readonly role: CreatureRole;
+  /**
+   * 身上装了哪些零件。只对 `CreatureRole.Worker` 有意义。
+   *
+   * **零件不全 = 休眠**，而且自己醒不过来（见 `dormant`）：石傀儡开场
+   * 没有头，坐在那儿就是一堆石头，不该过一会儿自己站起来溜达。
+   */
+  readonly attachedParts = new Set<string>();
+
   private readonly sleepiness: number;
   private readonly napSeconds: [number, number];
   private readonly hungerPerHour: number;
@@ -147,6 +158,7 @@ export class PetAgent {
     this.radius = definition?.collisionRadius ?? 0;
     this.sleepiness = definition?.behavior?.sleepiness ?? 0;
     this.napSeconds = definition?.behavior?.napSeconds ?? [60, 120];
+    this.role = definition?.role ?? CreatureRole.Pet;
     this.hungerPerHour =
       definition?.behavior?.hungerPerHour ?? DEFAULT_HUNGER_PER_HOUR;
     this.thirstPerHour =
@@ -195,10 +207,33 @@ export class PetAgent {
   }
 
   wakeUp(): void {
+    // 零件不全的傀儡叫不醒。它不是在睡觉，是**没启动**
+    if (this.dormant) return;
     this.state = "idle";
     // 醒来先愣一会儿再决定干什么——猫不会睁眼就走
     this.idleTimer = 2 + Math.random() * 3;
     emit("pet_changed", { petId: this.petId, reason: "wake" });
+  }
+
+  /**
+   * 零件缺着，动不了。
+   *
+   * 和"睡着"是两回事：睡着的会自己醒（`sleepTimer` 走完），休眠的不会。
+   * 判据只看 `Worker`——宠物没有零件这回事，永远不休眠。
+   */
+  get dormant(): boolean {
+    return this.role === CreatureRole.Worker && !this.attachedParts.has("head");
+  }
+
+  /**
+   * 装一个零件上去。装齐了就**自己醒过来**——玩家把头按回脖子上，
+   * 期待的就是它当场活过来，不该还要再戳一下。
+   */
+  attachPart(part: string): void {
+    if (this.attachedParts.has(part)) return;
+    this.attachedParts.add(part);
+    emit("pet_changed", { petId: this.petId, reason: "part_attached" });
+    if (!this.dormant && this.state === "sleeping") this.wakeUp();
   }
 
   // ---- 基础行为：吃（外部喂食也走这里，送礼那边调用） ----
@@ -232,6 +267,8 @@ export class PetAgent {
     this.driftMood(deltaSeconds);
 
     if (this.state === "sleeping") {
+      // 零件不全的不会自己醒：它不是困了，是没启动
+      if (this.dormant) return;
       this.sleepTimer -= deltaSeconds;
       if (this.sleepTimer <= 0) this.wakeUp();
       return;
@@ -273,9 +310,22 @@ export class PetAgent {
   // ---- 行为选择：需求 > 睡意 > 亲近 > 乱走 ----
 
   private chooseNextActivity(player: { x: number; z: number }): void {
-    // 饿了渴了优先于一切安排——但找不到吃的就不硬找，继续过日子
-    if (this.needs.hunger < NEED_SEEK_THRESHOLD && this.trySeekFood()) return;
-    if (this.needs.thirst < NEED_SEEK_THRESHOLD && this.trySeekWater()) return;
+    /*
+     * 干活的不吃不喝不亲近（`CreatureRole.Worker`）。
+     *
+     * 跳过这三支而不是给它一套"永不饿"的数字：石傀儡是石头，"它不饿"
+     * 不是把 `hungerPerHour` 调成 0 那种意思，是**这个概念对它不成立**。
+     * 数字调法还会让它在存档里带着一组永远 80 的饱食度，看着像忘了实现。
+     *
+     * 施工那一支（去工地干活）等下一期，接在这里。
+     */
+    const worker = this.role === CreatureRole.Worker;
+
+    if (!worker) {
+      // 饿了渴了优先于一切安排——但找不到吃的就不硬找，继续过日子
+      if (this.needs.hunger < NEED_SEEK_THRESHOLD && this.trySeekFood()) return;
+      if (this.needs.thirst < NEED_SEEK_THRESHOLD && this.trySeekWater()) return;
+    }
 
     if (this.sleepiness > 0 && Math.random() < this.sleepiness) {
       this.fallAsleep();
@@ -285,6 +335,7 @@ export class PetAgent {
     // 熟悉后偶尔主动走向玩家（好感度的空间表现）
     const nearPlayer = Math.hypot(player.x - this.x, player.z - this.z) < 2.2;
     const wantsApproach =
+      !worker &&
       this.affectionStage !== AffectionStage.Stranger &&
       !nearPlayer &&
       Math.random() < 0.45;
@@ -604,6 +655,9 @@ export class PetAgent {
       lastGiftWorldDayId: this.lastGiftWorldDayId,
       // undefined 而不是 false：醒着是默认态，别往每份存档里写一排 false
       sleeping: this.state === "sleeping" ? true : undefined,
+      // 同理：没有零件概念的物种不写这个字段
+      attachedParts:
+        this.role === CreatureRole.Worker ? [...this.attachedParts] : undefined,
     };
   }
 
@@ -623,6 +677,17 @@ export class PetAgent {
       hunger: entry.needs?.hunger ?? 80,
       thirst: entry.needs?.thirst ?? 80,
     };
+
+    /*
+     * 零件：**老存档没有这个字段 → 按齐全算**。现有四只宠物本来就没有
+     * 零件这回事，不能因为新加了字段就集体判成"缺零件"而全体瘫在地上。
+     * 只有 Worker 才可能真的缺——它的存档一定写了这个字段。
+     */
+    if (entry.attachedParts) {
+      for (const part of entry.attachedParts) agent.attachedParts.add(part);
+    } else if (agent.role === CreatureRole.Worker) {
+      agent.attachedParts.add("head");
+    }
 
     // 存盘时睡着的接着睡（时长重掷）。读档不重放"从门口进来"的登场
     if (entry.sleeping) {

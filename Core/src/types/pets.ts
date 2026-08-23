@@ -11,6 +11,25 @@ import type { ItemId } from "./items.js";
 export type PetId = string;
 export type PetDefinitionId = string;
 
+/**
+ * 这只生物是来陪你的，还是来干活的。
+ *
+ * 加这一档而不是给石傀儡另起一套运行时（2026-08-22）：`PetAgent` 已经有
+ * 带体型的 A* 寻路、休眠/苏醒、碰撞体、存档、按 F 参与交互竞争——石傀儡
+ * 要的全在里面。`petAgent.ts` 文件头写着"实例化不继承，真出现『数字表达
+ * 不了的独有行为』再考虑子类"，而**不吃不喝不亲近**恰恰是数字表达得了的：
+ * 一个枚举就够，`chooseNextActivity` 少走三支。
+ *
+ * 真正表达不了的是"干活"（有工作目标、要改世界状态），那一支等施工那期
+ * 再说，届时也是往这个类上挂一个 job，不是另起一棵继承树。
+ */
+export enum CreatureRole {
+  /** 会吃会喝会亲近的伙伴。不填就是它 */
+  Pet = "pet",
+  /** 干活的：不吃不喝不亲近，也没有好感度 */
+  Worker = "worker",
+}
+
 export enum AffectionStage {
   Stranger = "stranger",
   FamiliarResident = "familiar_resident",
@@ -53,6 +72,9 @@ export type PetDefinition = {
   /** 造型由表现层的 VisualRegistry 解析：先程序化，以后换精模只改那一张表 */
   visualId: VisualId;
   species: string;
+
+  /** 陪你的还是干活的。不填 = `CreatureRole.Pet`，老定义零改动 */
+  role?: CreatureRole;
 
   behavior?: PetBehavior;
 
@@ -147,6 +169,16 @@ export type PetSave = {
    * 纯新增可选字段：老存档读出来 undefined → 醒着。
    */
   sleeping?: boolean;
+
+  /**
+   * 身上装了哪些零件（石傀儡这类 `CreatureRole.Worker` 才有意义）。
+   *
+   * 存**数组**不存 `headAttached: boolean`：傀儡以后缺胳膊少腿是迟早的事，
+   * 一个布尔到时候要么改名要么再加一个，而数组加一项就完了。
+   * 老存档没有 → `undefined`，按"零件齐全"算（现有四只宠物本来就没零件
+   * 这回事，不能因为加了这个字段就集体瘫痪）。
+   */
+  attachedParts?: string[];
 
   /**
    * 心情（0~100）。所有物种统一的档案属性：由吃喝睡是否被照顾到推着走，

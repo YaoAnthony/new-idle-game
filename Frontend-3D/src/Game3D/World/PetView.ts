@@ -68,6 +68,17 @@ export class PetView {
         this.root.add(view);
       }
 
+      /*
+       * 零件装没装上（石傀儡的头）。**模型自己认领这件事**：视图只把
+       * "装了没有"这个布尔递过去，不去翻子节点找那块头——翻子节点等于
+       * 让这里记住"头在模型里叫什么名字"，换个模型就得回来改。
+       * 没有这个钩子的物种（所有宠物）静默跳过。
+       */
+      const setHead = view.userData.setHeadAttached as
+        | ((attached: boolean) => void)
+        | undefined;
+      setHead?.(pet.attachedParts.has("head"));
+
       // 脚下的承托面（缘侧那类室外平台）。溜达到廊子上的猫要站在板上，
       // 不是陷进去半截——和玩家读的是同一个地形高度
       const ground = groundHeightAt(pet.x, pet.z);

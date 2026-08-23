@@ -90,6 +90,7 @@ import { emit, on, type StationCapability } from "../../Game/EventBus";
 import {
   getPet,
   getPets,
+  seedInitialCreatures,
   tickPets,
 } from "../../Game/State/petsRuntime";
 import {
@@ -350,6 +351,9 @@ export class RoomScene {
     // 读档时屋里的东西来自存档，不能再铺一次房东留下的旧家具和纸箱
     if (options.seedFurniture !== false) {
       seedInitialFurniture();
+      // 开局就在世界上的活物（现在只有那尊没头的石傀儡）。和上一句是一对：
+      // 那条摆东西，这条摆活物，都只在新档跑
+      seedInitialCreatures();
       /*
        * 这里原来还有一句 seedInitialPets()：新档开局让舒舒睡在屋角。
        * 那是**旧剧情的舞台调度**——"搬家那天它就已经在角落里呼呼大睡，
@@ -1248,12 +1252,20 @@ export class RoomScene {
       }
     }
 
-    // 宠物优先级和工作站平级，按距离竞争
+    /*
+     * 宠物优先级和工作站平级，按距离竞争。
+     *
+     * 距离要**减掉体型**：家具那边算的是到占地矩形最近边（L 形橱柜就是
+     * 因此才够得着），生物这边原来算的是到中心。两把不同的尺子放在同一
+     * 场竞争里，大家伙就系统性吃亏——半径 1.1 的石傀儡贴着站，中心距
+     * 1.3；旁边一米开外的纸箱按边算只有 1.2，于是按 F 打开的是纸箱。
+     * 玩家眼里那两样东西的远近正好是反的。
+     */
     for (const pet of getPets()) {
       if (pet.state === "hidden" || pet.state === "entering") continue;
-      const distance = Math.hypot(
-        pet.x - this.controller.x,
-        pet.z - this.controller.z,
+      const distance = Math.max(
+        0,
+        Math.hypot(pet.x - this.controller.x, pet.z - this.controller.z) - pet.radius,
       );
       if (distance < bestDistance) {
         bestDistance = distance;
@@ -1326,6 +1338,37 @@ export class RoomScene {
         ),
       };
     }
+    /*
+     * 休眠的石傀儡也要一个气泡，而且**随手上拿没拿着零件换词**：
+     * 拿着头 → "装上头"，空手 → 报状态（他缺个头），不给按键标签。
+     *
+     * 只给**休眠的干活生物**，不给所有宠物：宠物的对话现在全是空的
+     * （剧情推倒重来），给它们挂个"F 说话"是句假话——按了什么也不会发生。
+     * 等对话写好了再把这个分支放宽。
+     */
+    const heldPart = (() => {
+      const held = getSelectedStack();
+      return held ? findItemDefinition(held.itemId)?.golemPart : undefined;
+    })();
+    for (const pet of getPets()) {
+      if (!pet.dormant) continue;
+      // 同上：减掉体型，和家具那把尺子对齐
+      const distance = Math.max(
+        0,
+        Math.hypot(pet.x - this.controller.x, pet.z - this.controller.z) - pet.radius,
+      );
+      if (distance >= bestHintDistance) continue;
+      bestHintDistance = distance;
+      const canAttach = heldPart !== undefined && !pet.attachedParts.has(heldPart);
+      bestHint = {
+        instanceId: pet.petId,
+        hint: canAttach
+          ? { localizationKey: "golem.hint.attach", action: "interact" }
+          : { localizationKey: "golem.hint.dormant" },
+        world: new Vector3(pet.x, 1.5, pet.z),
+      };
+    }
+
     // 门的气泡和家具提示竞争同一个位置：开门/关门/锁着，随实体状态换词
     for (const door of listDoors()) {
       const distance = Math.hypot(
@@ -1655,6 +1698,29 @@ export class RoomScene {
          */
         const petId = this.interactTarget.petId;
         const pet = getPet(petId);
+
+        /*
+         * 手上拿着它缺的那个零件 → 装上去。**判据是物品的 `golemPart`
+         * 字段，不是物品 id**：以后傀儡缺胳膊少腿，加一件新物品就够，
+         * 这段一行不用改。
+         *
+         * 写在对话之前：一尊没有头的傀儡还没法说话，这时候 F 的含义
+         * 就只有"把头按回去"。装好之后 `attachPart` 自己叫醒它。
+         */
+        const heldStack = getSelectedStack();
+        const part = heldStack
+          ? findItemDefinition(heldStack.itemId)?.golemPart
+          : undefined;
+        if (pet && part && !pet.attachedParts.has(part)) {
+          consumeSelectedOne();
+          pet.attachPart(part);
+          pushChatMessage({
+            kind: ChatMessageKind.System,
+            text: t("golem.awakened"),
+          });
+          return;
+        }
+
         const definition = pet ? findPetDefinition(pet.definitionId) : undefined;
         const known = definition?.bondEventId
           ? getEventStage(definition.bondEventId) === "gifted"

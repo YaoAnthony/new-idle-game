@@ -152,6 +152,65 @@ export function placeSleepingPet(definitionId: string): PetAgent | null {
 }
 
 /**
+ * 把一只生物**直接放在某个世界坐标上**，可选立刻睡下 / 缺零件。
+ *
+ * 和上面两条的分别：`spawnPet` 是登场演出（推门进来、发 pet_spawned），
+ * `placeSleepingPet` 是"它本来就在屋里"（按房间格子挑角落）。这一条是
+ * **"它本来就在世界的这个地方"**——收世界坐标，不问房间，因为石傀儡
+ * 坐在院子里，而院子的"角落"是没有意义的概念。
+ *
+ * `missingParts` 给了就把那些零件摘掉：石傀儡开场没有头，于是它
+ * `dormant`，坐在那儿自己醒不过来（见 `PetAgent.dormant`）。
+ */
+export function placeCreatureAt(
+  definitionId: string,
+  at: { x: number; z: number; heading?: number },
+  options: { asleep?: boolean; missingParts?: string[] } = {},
+): PetAgent {
+  const petId = `pet-${definitionId}`;
+  const existing = pets.get(petId);
+  if (existing) return existing;
+
+  const pet = new PetAgent(petId, definitionId, {
+    x: at.x,
+    z: at.z,
+    heading: at.heading ?? 0,
+  });
+
+  /*
+   * 零件：默认齐全，再按 `missingParts` 摘。反过来写（默认全缺、按需装）
+   * 的话，每加一个零件都要回来补一次"记得装上"，漏一次就是一只瘫在地上
+   * 的傀儡——默认可用、显式弄坏，是更难出错的那一边。
+   */
+  pet.attachedParts.add("head");
+  for (const part of options.missingParts ?? []) pet.attachedParts.delete(part);
+
+  if (options.asleep || pet.dormant) pet.fallAsleep();
+
+  pets.set(petId, pet);
+  emit("pet_changed", { petId, reason: "seeded" });
+  return pet;
+}
+
+/**
+ * 开局就在世界上的生物。和 `seedInitialFurniture` 是一对：那条摆东西，
+ * 这条摆活物，都只在**新档**跑一次。
+ *
+ * 现在只有石傀儡。他**没有头、坐在院子东侧休眠**——头在院子西侧
+ * （由 `seedInitialFurniture` 摆），玩家得绕过房子去拿。分居两侧是有意的：
+ * 走那一趟的路上会经过井，顺带把院子逛了一遍。
+ */
+export function seedInitialCreatures(): void {
+  if (pets.size > 0) return;
+  placeCreatureAt(
+    "stone_golem",
+    // 房子东边那条带子（房子占 x −10..−1），面朝西——正对着走出大门的人
+    { x: 1.5, z: 8, heading: -Math.PI / 2 },
+    { missingParts: ["head"] },
+  );
+}
+
+/**
  * `frozenPetId`：正在跟它对话的那一只不推进。
  *
  * 这是实测撞出来的坑：对话打开时玩家的移动会锁（RoomScene 的

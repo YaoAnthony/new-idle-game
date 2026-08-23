@@ -95,6 +95,15 @@ const ZH: Record<string, string> = {
   // 这里留下的是三件玩家拿不到、也没有物品条目的房子自带道具
   "furniture.stove": "灶台",
   "furniture.well": "石井",
+
+  // ---- 石傀儡（2026-08-22）----
+  "pet.stone_golem": "石傀儡",
+  "pet.stone_golem.nickname": "石头",
+  "item.golem_head": "石傀儡的头",
+  "hint.golem_head": "捡起来",
+  "golem.hint.attach": "装上头",
+  "golem.hint.dormant": "一尊没有头的石像",
+  "golem.awakened": "石头缝里亮起一道光。它撑着地站了起来。",
   "furniture.stove.burner": "灶眼",
   "furniture.cardboard_box": "纸箱",
   "furniture.cardboard_stack": "纸箱堆",

@@ -1,4 +1,9 @@
-import { GiftTier, type PetDefinition, type PetTaste } from "../../types/pets.js";
+import {
+  CreatureRole,
+  GiftTier,
+  type PetDefinition,
+  type PetTaste,
+} from "../../types/pets.js";
 
 /**
  * 宠物物种注册表。
@@ -67,6 +72,34 @@ export const petDefinitions = [
     /** 体宽约 1.6 米，圆形碰撞半径取到肩宽略收——蹭着毛边走得过去 */
     collisionRadius: 0.95,
     // 同上：对话与羁绊事件等新剧情写好再认领
+  },
+
+  /**
+   * 石傀儡：领地上那尊会干活的石头人。
+   *
+   * 它和前面四只的分别不在数字上，在**身份**上——`role: Worker` 让它
+   * 不吃不喝不亲近，也不涨好感度。玩家和它的关系是雇佣不是养育。
+   *
+   * 开场它**没有头，坐在地上休眠**；头在领地另一头。装上头才醒，
+   * 醒了才能说话、才会去工地。这段调度不写在这里（数据只描述"它是什么"），
+   * 由开局摆设和剧情安排，见 Frontend 的 `seedInitialCreatures`。
+   */
+  {
+    id: "stone_golem",
+    localizationKey: "pet.stone_golem",
+    defaultNicknameKey: "pet.stone_golem.nickname",
+    visualId: "stone_golem",
+    species: "golem",
+    role: CreatureRole.Worker,
+    behavior: {
+      /** 石头做的，比舒舒还沉。慢是它的性格，不是待优化的数值 */
+      moveSpeed: 0.55,
+      /** 干活的不打盹。开场那段休眠是剧情摆的，不是它自己困了 */
+      sleepiness: 0,
+      napSeconds: [60, 120],
+    },
+    /** 比舒舒宽一圈：它是一堵会走路的墙 */
+    collisionRadius: 1.1,
   },
 ] satisfies PetDefinition[];
 

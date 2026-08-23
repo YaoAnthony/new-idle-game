@@ -1211,6 +1211,41 @@ export const itemDefinitions = [
     },
   },
   {
+    /**
+     * 石傀儡的头（2026-08-22）。**开场唯一的谜题道具**。
+     *
+     * 它是件**家具**不是掉落物：掉落物走的是"踩上去自动捡"（半径 0.6），
+     * 剧情道具不该是路过顺手吸走的。摆成家具就有气泡、要右键，
+     * 玩家是**决定**捡它，不是碰巧捡到。
+     *
+     * 捡起来之后拿在手上对着石傀儡按 F 就装上去——那条交互在
+     * RoomScene，判据是"手上这件的 `golemPart` 是 head"，不写死物品 id。
+     */
+    id: "golem_head",
+    localizationKey: "item.golem_head",
+    category: ItemCategory.Furniture,
+    stackLimit: 1,
+    rarity: Rarity.Rare,
+    visual: { id: "golem_head" },
+    /** 它是石傀儡身上的哪一块。装配交互按这个字段认，不认物品 id */
+    golemPart: "head",
+    placement: {
+      surface: PlacementSurface.Floor,
+      footprint: { width: 1, height: 1 },
+      capabilities: [],
+      floorLayer: FloorLayer.Object,
+      // 一颗石头脑袋不挡路，也不是台面——**没有** surfaceHeight：
+      // 不挡路的家具上面放东西会直接落地，写个台面高度是句空话
+      // （物品自检 itemAudit 就是拦这个的，第一版写了 0.5 当场被它抓住）
+      blocksMovement: false,
+      interactHint: {
+        localizationKey: "hint.golem_head",
+        action: "pickup",
+        anchorHeight: 0.85,
+      },
+    },
+  },
+  {
     /*
      * 石井（2026-08-22）。**院子里的水源**。
      *

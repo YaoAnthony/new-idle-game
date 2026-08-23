@@ -5,6 +5,7 @@ import {
   buildFloorLamp,
 } from "./recipes/ambience.js";
 import { buildCushion, buildWoodenBed } from "./recipes/bedroom.js";
+import { buildGolemHead, buildStoneGolem } from "./recipes/golem.js";
 import {
   buildGardenBench,
   buildStreetLamp,
@@ -119,6 +120,8 @@ const REGISTRY: Record<string, VisualEntry> = {
   pencil: { kind: "procedural", build: buildPencil },
 
   stove_default: { kind: "procedural", build: buildStove },
+  stone_golem: { kind: "procedural", build: buildStoneGolem },
+  golem_head: { kind: "procedural", build: buildGolemHead },
   well_stone: { kind: "procedural", build: buildWell },
   kitchen_counter_l: { kind: "procedural", build: buildKitchenCounter },
   cardboard_box: { kind: "procedural", build: buildCardboardBox },

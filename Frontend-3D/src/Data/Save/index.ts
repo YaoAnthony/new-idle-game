@@ -6,7 +6,13 @@ export {
   resetSaveRepository,
   stashMainToConflict,
 } from "./SaveRepository";
-export { serializeGameSave, hydrateGameSave } from "./serialize";
+export {
+  serializeGameSave,
+  hydrateGameSave,
+  // 开新档的复位口。为什么需要它见 serialize.ts 里 pristine 那一段
+  capturePristineSave,
+  resetToPristineSave,
+} from "./serialize";
 export {
   startAutosave,
   saveNow,

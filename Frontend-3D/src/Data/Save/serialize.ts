@@ -201,10 +201,58 @@ export function serializeGameSave(previous?: GameSave): GameSave {
 }
 
 /**
+ * **开机那一刻的运行时**，留作"开新档"的复位源。
+ *
+ * ## 为什么开新档需要它
+ *
+ * `Game/State` 下有五十来处模块级状态（建筑、金币、领地进度、灯、门…），
+ * 它们的**唯一**复位路径就是 `hydrateGameSave`。而开新档那条路原来不走
+ * 它——回标题只卸掉 React 那棵树，模块级状态活得比组件久。于是
+ * "回标题 → 开新档"进去的是上一个世界：实测 5 栋建筑、70 金币、
+ * 三块已解锁的地原样都在，接着第一次落盘还会把这份脏世界写进存档。
+ *
+ * ## 为什么是"抓一份快照"而不是逐个 restore(undefined)
+ *
+ * 逐个调二十六次 `restore*` 今天也能修好，但下一个人加第二十七个系统时
+ * 会忘——而这正是这个 bug 的成因本身。快照是自愈的：**凡是进了
+ * serialize/hydrate 的东西就自动被覆盖**，将来加系统不需要记得改这里。
+ *
+ * 这也是代码库自己的成语——`enterRemoteWorld` 换世界时写着"复用
+ * hydrateGameSave 而不是逐系统手灌：读档路径是全项目测得最多的一条路"。
+ *
+ * ## 抓取时机
+ *
+ * 抓在**第一次 hydrate 之前**（见 hydrateGameSave 的第一行）或第一次复位
+ * 时，取先到者。两种进入顺序都成立：先"继续游戏"的话，读档动手之前
+ * 运行时还是干净的；先"开新档"的话，那时更是什么都没发生过。
+ *
+ * 抓完就不再更新（幂等）：它要的是**开机时**那一份，不是"现在这一份"。
+ */
+let pristine: GameSave | null = null;
+
+export function capturePristineSave(): void {
+  if (!pristine) pristine = serializeGameSave();
+}
+
+/**
+ * 开新档：把运行时倒回开机那一刻。
+ *
+ * 玩家侧的东西（外观）由调用方在这之后自己写——复位是**整份**的，
+ * 顺序反了会把玩家刚捏好的脸一起抹掉。
+ */
+export function resetToPristineSave(): void {
+  capturePristineSave();
+  if (pristine) hydrateGameSave(pristine);
+}
+
+/**
  * 把存档灌回运行时。顺序有讲究：**世界先于宠物**——
  * 宠物快照要读房间尺寸做坐标换算，房间没就位会算错格子。
  */
 export function hydrateGameSave(save: GameSave): void {
+  // **必须是第一行**：晚一步抓到的就不是空世界了
+  capturePristineSave();
+
   /*
    * 换世界了，id 计数器先清零。
    *

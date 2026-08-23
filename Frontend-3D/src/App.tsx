@@ -5,7 +5,12 @@ import { LoadingScreen } from "./Components/Loading/LoadingScreen";
 import { RotatePrompt } from "./Components/Mobile/RotatePrompt";
 import { TitleScreen } from "./Components/TitleScreen";
 import { TITLE_SCREEN_CONFIG } from "./Components/TitleScreen/config";
-import { getSaveRepository, hydrateGameSave, setBaseline } from "./Data/Save";
+import {
+  getSaveRepository,
+  hydrateGameSave,
+  resetToPristineSave,
+  setBaseline,
+} from "./Data/Save";
 import { saveNow } from "./Data/Save/autosave";
 import { ConflictDialog } from "./Features/CloudSave/ConflictDialog";
 import {
@@ -229,6 +234,16 @@ function App() {
   }, []);
 
   const confirmCreation = useCallback((config: AvatarConfig) => {
+    /*
+     * **先把运行时倒回开机那一刻，再写这一轮捏的脸。**顺序不能反：
+     * 复位是整份的，会把外观一起刷回默认。
+     *
+     * 这一行修的是"开新档继承上一个世界"：`Game/State` 下五十来处模块级
+     * 状态只有 hydrate 会复位，而回标题只卸掉 React 那棵树，模块活得比
+     * 组件久。实测过——不复位的话新档里上一局的建筑、金币、已解锁的地
+     * 原样都在，接着第一次落盘就把这份脏世界写死了。
+     */
+    resetToPristineSave();
     setAvatar(config);
     // 同时记成"我的形象"：下次开新档从这套开始，删档不删脸
     void getProfileStore().save(config);

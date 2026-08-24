@@ -171,6 +171,7 @@ import { findBuildingLevel } from "../../Buildings/index";
 import { goldInJar } from "../../Game/State/buildingCommands";
 import { getResting, isResting } from "../../Game/State/posture";
 import { pruneOrphanStorages } from "../../Game/State/storage";
+import { shelfOwnerIds } from "../../Game/Systems/shopkeeping";
 import { pruneOrphanGramophones } from "../../Game/State/gramophones";
 import { isLampOn, pruneOrphanLamps, setLampOn } from "../../Game/State/lamps";
 import { allFurnitureInstanceIds } from "../../Game/State/world/entities";
@@ -694,7 +695,13 @@ export class RoomScene {
         // 活名单必须是**全世界**（活跃 + 搁置）的家具：prune 的语义是
         // "不在名单里就删"，只报当前图的话，别图所有箱子的内容会被当
         // 孤儿清掉，下一次自动存盘就永久落盘（箱庭审计的第一红灯）
-        pruneOrphanStorages(allFurnitureInstanceIds());
+        /*
+         * 活名单的语义是"**还拥有库存的东西**"，不是"家具"。期 5 起
+         * 家具小店的货架也是一份储物库存（键由建筑实例 id 生成），
+         * 不报进来的话每次 world_changed 都会把整架货当孤儿清掉。
+         * 唱片机和灯只长在家具上，仍然只喂家具。
+         */
+        pruneOrphanStorages([...allFurnitureInstanceIds(), ...shelfOwnerIds()]);
         pruneOrphanGramophones(allFurnitureInstanceIds());
         pruneOrphanLamps(allFurnitureInstanceIds());
       }),

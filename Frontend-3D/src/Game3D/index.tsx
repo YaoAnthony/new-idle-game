@@ -55,6 +55,7 @@ import { TradePanel } from "../Components/TradePanel/TradePanel";
 import { BuildingPanel } from "../Components/BuildingPanel/BuildingPanel";
 import { StationPanel } from "../Components/StationPanel/StationPanel";
 import { StoragePanel } from "../Components/StoragePanel/StoragePanel";
+import { ShopShelfPanel } from "../Components/ShopShelfPanel/ShopShelfPanel";
 import {
   parseEnum,
   registerCommand,
@@ -120,6 +121,13 @@ import {
   startDayRecord,
 } from "../Game/Systems/dayRecord";
 import { listResidents, startResidents } from "../Game/Systems/residents";
+import {
+  debugSettleOnce,
+  findShop,
+  shelfCapacityOf,
+  shelfSlotsOf,
+  startShopkeeping,
+} from "../Game/Systems/shopkeeping";
 import {
   isOtterHereToday,
   isOtterScheduledOn,
@@ -357,6 +365,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
     const stopTrading = isRemoteWorldActive() ? () => {} : startTrading();
     // 居民搬入（期 4）：房子完工 → 驻地重定向 + resident_moved_in
     const stopResidents = isRemoteWorldActive() ? () => {} : startResidents();
+    // 家具小店的隔夜结算（期 5）。做客时不跑：别人的店别人结
+    const stopShopkeeping = isRemoteWorldActive() ? () => {} : startShopkeeping();
     // 把手上拿的东西 / 坐姿汇进 participants 的 appearance 层。
     // 那是给渲染和（将来的）网络读的投影，见 Systems/participantSync
     const stopParticipantSync = startParticipantSync();
@@ -402,7 +412,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       registerCommand({
         name: "advance",
         usage: "advance <小时数>",
-        description: "把世界时钟往前推若干小时，用来看跨天与天气重掷",
+        description:
+          "把世界时钟往前推若干小时，看跨天、天气重掷、离线补算（拨一天就是 24）",
         handler: (args) => {
           const hours = Number(args[0]);
           if (!Number.isFinite(hours)) {
@@ -1274,6 +1285,74 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
           ),
       }),
       registerCommand({
+        name: "shop",
+        usage: "shop [open|settle]",
+        description:
+          "家具小店（期 5）：不带参数看货架和客源，open 开上架面板，settle 立刻结算一天",
+        handler: (args) => {
+          const instanceId = findShop();
+          if (!instanceId) return fail("还没盖家具小店（/give blueprint_furniture_shop）");
+
+          if (args[0] === "open") {
+            /*
+             * 真游戏的入口是"对着店按 F → 管理面板 → 摆货上架"。这条指令
+             * 直接发同一个事件，省掉走过去那段——**验的是同一块面板**，
+             * 因为面板只认这个事件，不认调用方是谁。
+             */
+            emit("shelf_open_requested", { instanceId });
+            return ok("开了上架面板");
+          }
+
+          if (args[0] === "settle") {
+            const sold = debugSettleOnce();
+            if (sold.length === 0) {
+              /*
+               * 卖不出去有三个互不相同的原因，**说得出是哪一个**——
+               * 一句"没卖出去"会让人先去翻货架，而真凶往往是满金库
+               * （实测就在这儿绕了一圈）。拒绝要给理由是这套建筑系统
+               * 一开始就立的规矩（见 BuildingPanel 的 whyBuild）。
+               */
+              const room = getGoldCapacity() - getGold();
+              return ok(
+                shelfSlotsOf(instanceId).filter(Boolean).length === 0
+                  ? "货架是空的"
+                  : listResidents().length === 0
+                    ? "一位居民都没有，没人来买"
+                    : room <= 0
+                      ? "金库满了——装不下就不成交，货给你留在架上了"
+                      : `架上最便宜的一件也超过金库剩下的 ${room}`,
+              );
+            }
+            return ok(
+              sold
+                .map((entry) => `${entry.itemId} → ${entry.customerId} ${entry.price}`)
+                .join(" · "),
+            );
+          }
+
+          return ok(
+            JSON.stringify(
+              {
+                店: instanceId,
+                货位: `${shelfSlotsOf(instanceId).filter(Boolean).length}/${shelfCapacityOf(instanceId)}`,
+                /*
+                 * 货架和客源一起打出来：卖不出去只有两种原因（架上没货 /
+                 * 没有客人），分开看得两条指令来回切。
+                 */
+                货架: shelfSlotsOf(instanceId)
+                  .map((slot, index) =>
+                    slot ? `${index}:${slot.itemId}×${slot.count}` : null,
+                  )
+                  .filter(Boolean),
+                今日客源: listResidents(),
+              },
+              null,
+              1,
+            ),
+          );
+        },
+      }),
+      registerCommand({
         name: "residents",
         usage: "residents",
         description: "在场的居民一览（期 4）：住哪、驻地在哪、有没有搬进去",
@@ -1504,6 +1583,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       stopStory();
       stopTrading();
       stopResidents();
+      stopShopkeeping();
       stopParticipantSync();
       stopBath();
       stopDailyRollover();
@@ -1623,6 +1703,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       <StationPanel />
       <DailyBoardPanel />
       <StoragePanel />
+      <ShopShelfPanel />
       <DialoguePanel />
       <ActionHub />
       {/*

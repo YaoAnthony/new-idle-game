@@ -142,6 +142,26 @@ export const storyRules: StoryRule[] = [
     ],
   },
 
+  /*
+   * 三位住齐 → 他们来问能不能买你的家具 → 递给你小店的图纸（期 5）。
+   *
+   * `signalCount: 3` 查的是**不带 subject 的那个键**（`resident_moved_in`），
+   * 也就是"搬进来过三位"。这正是期 0 那条"不复用 pet_spawned 数人数"的
+   * 注释在讲的事——pet_spawned 会把水獭和石傀儡一起算进去。
+   *
+   * 这条规则本来写在期 4 的文档里，**故意挪到期 5 才上线**：玩家拿着一张
+   * 暂时盖不了的图纸，比晚一天拿到糟糕得多。
+   */
+  {
+    id: "residents_want_furniture",
+    triggers: [{ signal: "resident_moved_in", signalCount: 3 }],
+    effects: [
+      { kind: "start_dialogue", dialogueId: "residents_ask_for_shop", delayMs: 2000 },
+      { kind: "give_item", itemId: "blueprint_furniture_shop", quantity: 1 },
+      { kind: "unlock_feature", featureId: "furniture_shop" },
+    ],
+  },
+
   {
     /*
      * ④' 玩家在初见对话里选了"不用管它" → 龙不会被抓、钱不回来，

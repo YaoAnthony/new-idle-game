@@ -136,6 +136,23 @@ export const dialogueDefinitions: DialogueDefinition[] = [
    * 分开**：史莱姆软乎乎话少、狐狸嘴快话密、精灵斯文有礼——
    * 没有分工的话玩家只会觉得"来了三个 NPC"，不是"来了三位邻居"。
    */
+  /*
+   * 三位住齐之后来求购（期 5）。**说话的是狐狸阿茜**：三位里她最快人快语，
+   * 由她开口最不别扭——史莱姆讲话软，让他提"生意"会读成撒娇；精灵斯文，
+   * 让她提会读成客套。角色的分工在这里第一次真的派上用场。
+   */
+  {
+    id: "residents_ask_for_shop",
+    localizationKey: "dlg.residents_ask_for_shop",
+    speakerNameKey: "pet.fox_neighbor",
+    entryNodeId: "r1",
+    nodes: {
+      r1: { nodeId: "r1", speaker: "npc", localizationKey: "dlg.residents_ask_for_shop.r1", nextNodeId: "r2" },
+      r2: { nodeId: "r2", speaker: "npc", localizationKey: "dlg.residents_ask_for_shop.r2", nextNodeId: "r3" },
+      r3: { nodeId: "r3", speaker: "npc", localizationKey: "dlg.residents_ask_for_shop.r3", nextNodeId: "r4" },
+      r4: { nodeId: "r4", speaker: "npc", localizationKey: "dlg.residents_ask_for_shop.r4" },
+    },
+  },
   {
     id: "slime_asks_to_stay",
     localizationKey: "dlg.slime_asks_to_stay",

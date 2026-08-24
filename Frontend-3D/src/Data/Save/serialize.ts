@@ -44,6 +44,7 @@ import {
   snapshotBaseGold,
   snapshotPendingGold,
 } from "../../Game/State/gold";
+import { shelfOwnerIds } from "../../Game/Systems/shopkeeping";
 import {
   pruneOrphanStorages,
   restoreStorages,
@@ -318,9 +319,16 @@ export function hydrateGameSave(save: GameSave): void {
   restoreDroppedItems(active.droppedItems);
   // 消息记录要在时钟之后恢复——裁剪按"今天是哪天"算
   restoreChatLog(save.ownWorld.chatLog);
-  pruneOrphanStorages(
-    save.ownWorld.placedFurniture.map((item) => item.instanceId),
-  );
+  /*
+   * 活名单 = 还拥有库存的东西。家具之外还有家具小店的货架（期 5），
+   * 它的键由**建筑**实例 id 生成——漏掉的话读一次档整架货就没了。
+   * restoreBuildings 必须在这之前跑完（就在上面几行），否则 shelfOwnerIds
+   * 报的是上一个世界的店。
+   */
+  pruneOrphanStorages([
+    ...save.ownWorld.placedFurniture.map((item) => item.instanceId),
+    ...shelfOwnerIds(),
+  ]);
   pruneOrphanGramophones(
     save.ownWorld.placedFurniture.map((item) => item.instanceId),
   );

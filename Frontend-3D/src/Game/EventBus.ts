@@ -277,6 +277,8 @@ export type GameEvents = {
   storage_changed: { inventoryId: string };
   /** 玩家按 F 请求打开某个储物家具 */
   storage_open_requested: { instanceId: string; furnitureId: string };
+  /** 家具小店的上架面板（期 5）。从建筑管理面板那一颗按钮发出 */
+  shelf_open_requested: { instanceId: string };
   /**
    * 玩家按 F 请求打开每日任务面板。不带 instanceId——
    * 进度是全家一份（WorldSave.dailyBoard），哪台机器打开的都一样。

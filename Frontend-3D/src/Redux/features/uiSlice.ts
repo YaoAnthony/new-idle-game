@@ -30,6 +30,7 @@ export type PanelId =
   | "trade"
   | "building"
   | "storage"
+  | "shopShelf"
   | "reward"
   | "chest"
   | "escMenu";

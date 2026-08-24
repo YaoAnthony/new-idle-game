@@ -45,6 +45,8 @@ type Detail = {
   gold?: { stored: number; capacity: number };
   /** 在建中（工地）：这时候不给再下单，也不给拆 */
   building: boolean;
+  /** 家具小店才有：一颗进上架面板的按钮 */
+  hasShelf: boolean;
   next: UpgradeOption[];
 };
 
@@ -71,6 +73,9 @@ function readDetail(instanceId: string): Detail | null {
         ? { stored: goldInJar(instanceId), capacity: jarCapacity(level.levelId) }
         : undefined,
     building: Boolean(placement.construction),
+    // 建好了才有货架：工地上摆货没有意义，也会让"结算到哪天"提前起算
+    hasShelf:
+      placement.buildingId === "furniture_shop" && !placement.construction,
     next,
   };
 }
@@ -176,6 +181,24 @@ export function BuildingPanel() {
             <div className="mt-1 text-[11px] text-[#b4432e]">
               {t("build.panel.working")}
             </div>
+          )}
+          {/*
+            * 上架入口开在管理面板里，不是"走进店里对着货架按 F"。
+            * 后者更有代入感，但那要求店里真的立着一排货架模型——参考图
+            * 还没来，占位壳里塞个方块反而更糟。图到了再把入口挪进去，
+            * 面板本身不用动。
+            */}
+          {detail.hasShelf && (
+            <button
+              type="button"
+              className="ui-wood-btn mt-2 w-full px-3 py-2 text-[12px] font-bold"
+              onClick={() => {
+                emit("shelf_open_requested", { instanceId: detail.instanceId });
+                close();
+              }}
+            >
+              {t("build.panel.shelf")}
+            </button>
           )}
           {!detail.building && detail.next.length === 0 && (
             <div className="mt-1 text-[11px] text-[#8a6a48]">

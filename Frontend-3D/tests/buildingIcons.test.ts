@@ -149,11 +149,13 @@ test("不是图纸的物品不借图——番茄不该拿到某栋楼的脸", ()
  * 是同一条线。
  */
 test("上架出售的图纸都借得到图，没有一张是空的", () => {
-  // 邻居送的赠品图纸：不上货架，对应的楼还是占位壳（期 4，等参考图）
+  // 剧情送的图纸：不上货架，对应的楼还是占位壳（期 4/5，等参考图）
   const GIFTED = new Set([
     "blueprint_slime_house",
     "blueprint_fox_house",
     "blueprint_spirit_house",
+    // 三位住齐之后他们塞给你的（期 5）。同样是赠品，铺子里买不到
+    "blueprint_furniture_shop",
   ]);
   const naked = itemDefinitions
     .filter((item) => item.blueprint)

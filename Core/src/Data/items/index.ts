@@ -1537,6 +1537,19 @@ export const itemDefinitions = [
    * 对话里递给你（give_item 效果）。和别的图纸一样没有 value：
    * 白得的凭证能卖钱就是白得的钱。
    */
+  /*
+   * 家具小店的图纸（期 5）。同样是**送的**：三位邻居住齐之后来问能不能
+   * 买你的家具，顺手把图纸递过来。所以没有 value。
+   */
+  {
+    id: "blueprint_furniture_shop",
+    localizationKey: "item.blueprint_furniture_shop",
+    category: ItemCategory.Material,
+    stackLimit: 1,
+    rarity: Rarity.Common,
+    visual: { id: "blueprint" },
+    blueprint: { buildingId: "furniture_shop" },
+  },
   {
     id: "blueprint_slime_house",
     localizationKey: "item.blueprint_slime_house",

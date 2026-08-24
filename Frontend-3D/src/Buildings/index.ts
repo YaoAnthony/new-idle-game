@@ -6,6 +6,7 @@ import { woodWall } from "./woodWall.js";
 import { goldJar } from "./goldJar.js";
 import { house } from "./house.js";
 import { landCabin } from "./landCabin.js";
+import { furnitureShop } from "./furnitureShop.js";
 import { slimeHouse } from "./slimeHouse.js";
 import { foxHouse } from "./foxHouse.js";
 import { spiritHouse } from "./spiritHouse.js";
@@ -39,6 +40,7 @@ export const buildingDefinitions: BuildingDefinition[] = [
   landCabin,
   house,
   // 三位居民的家（期 4）。占位壳，等参考图
+  furnitureShop,
   slimeHouse,
   foxHouse,
   spiritHouse,

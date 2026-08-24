@@ -17,8 +17,9 @@ import { disposeTree } from "../Visual/primitives";
  * "一天点几次"这个频率下等于零。
  *
  * 两处按实例状态调模型，都靠模型里约好的**节点名**找：
- * - 金币罐的液面（`gold-surface`）：`y` 按 `stored / capacity` 插值。
- *   **这是那个建筑的灵魂**——玩家一眼看出还能装多少。
+ * - 金库的存量（`gold-stage-*`）：按 `stored / capacity` 分六档，只显示那一档。
+ *   一档 = 一个完整造型（箱盖开合 + 一堆币），**这是那个建筑的灵魂**——
+ *   玩家一眼看出还能装多少。
  * - 农田的阶段（`stage-*`）：只显示当前阶段那一组。
  */
 export class BuildingsView {

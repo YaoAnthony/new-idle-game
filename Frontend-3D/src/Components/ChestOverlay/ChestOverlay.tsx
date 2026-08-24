@@ -43,10 +43,11 @@ import { chainColor, chainEmoji } from "../ActionHub/chainVisuals";
 type ChestEvent = {
   size: "node" | "chain";
   title: string;
-  chainId: string;
+  /** 链专属。行动开箱不带（期 2），下面两个 helper 自带兜底 */
+  chainId?: string;
   nodeId?: string;
-  iconId: string;
-  colorId: string;
+  iconId?: string;
+  colorId?: string;
   rarity: Rarity;
   items: Array<{ itemId: string; quantity: number }>;
 };
@@ -211,7 +212,7 @@ export function ChestOverlay() {
 
   if (!current) return null;
 
-  const accent = chainColor(current.colorId);
+  const accent = chainColor(current.colorId ?? "");
   const big = current.size === "chain";
 
   return (
@@ -246,7 +247,7 @@ export function ChestOverlay() {
               className="grid h-8 w-8 place-items-center rounded-full text-[15px]"
               style={{ backgroundColor: accent }}
             >
-              {chainEmoji(current.iconId)}
+              {chainEmoji(current.iconId ?? "")}
             </span>
           )}
           <span className="text-[19px] font-bold tracking-wide text-[#4a3b2a]">

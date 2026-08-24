@@ -52,7 +52,48 @@ export type StorySignalKind =
   | "action_completed"
   | "sleep_ended"
   | "pet_spawned"
-  | "pet_entered";
+  | "pet_entered"
+
+  /**
+   * **新的一天开始了**（世界日翻页，凌晨 4 点）。**不带 subject。**
+   *
+   * 不把 worldDayId 塞进 subject 是刻意的：`signalCounts` 按
+   * `signalCountKey(kind, subject)` 计数并且**进存档**，带上日期就是每天
+   * 一个新键，存档会无限涨——而"数到第几天"这件事恰好是不带 subject 的
+   * 那个键本来就在做的。规则要判具体日期有 `minWorldDayId`。
+   *
+   * **离线多天只发一次**（对齐 V0.2「不应一次性自动补播多段剧情」）。
+   * 想补算多天产出的系统自己去比 lastObservedWorldDayId，不靠这个信号数次数。
+   */
+  | "day_started"
+
+  /**
+   * **一栋楼真的完工了**。subject 是 **buildingId**（型号），不是 instanceId。
+   *
+   * 型号才是规则写得出来的东西——instanceId 是运行时生成的，注册表里
+   * 没法引用它。要区分"第一座金库"和"第五座金库"用 `signalCount`，
+   * 那正是它存在的理由。
+   *
+   * **排队中的工地不发**：`finishSite` 才发，下单和认领都不发。
+   */
+  | "building_completed"
+
+  /**
+   * **一位居民搬进了他自己的房子**。subject 是物种 definitionId。
+   *
+   * 不复用 `pet_spawned` 数人数：那个信号连商人、石傀儡一起算，
+   * "满三位居民"会提前成立。语义不同就该是两个信号。
+   * （发射点在居民那一期才接——搬入这个动作那时才存在。）
+   */
+  | "resident_moved_in"
+
+  /**
+   * **走进了某张图**。subject 是 mapId。
+   *
+   * 「去过小镇之后才解锁餐厅」用它。判"去过"而不是"开了桥那块地"：
+   * 到过镇上的人才见过餐厅长什么样，条件和叙事对得上。
+   */
+  | "map_entered";
 
 export type StorySignal = {
   kind: StorySignalKind;
@@ -109,13 +150,49 @@ export type StoryTrigger = {
   requiresItem?: { itemId: ItemId; quantity: number };
 
   /**
+   * **这个进度键必须已解锁。**
+   *
+   * 地块用 `plotFeatureId(plotId)` 拼（`plot.east_grove`），店铺开张、
+   * 桥修好这类也都是同一个池子里的键——`unlock_feature` 效果写进去的
+   * 就是它，进度只增不减。
+   *
+   * 有了它，「开了林子那块地之后才会来的邻居」是一行数据。没有它就只能
+   * 在代码里写 if，而那正是这套注册表存在的理由。
+   *
+   * 不校验它指向的键存不存在：FeatureId 是自由字符串、没有注册表，
+   * 地块的键还是函数拼出来的。硬要校验就得先造一张"所有合法 feature"
+   * 的表，而那张表会跟着每个新玩法漏更新——比不校验更坏。
+   */
+  requiresFeature?: FeatureId;
+
+  /**
    * 命中概率（0~1，不填 = 必中）。
    *
    * 「某一天暴雨时」这种没法用确定条件表达的桥段用它。**每次信号
    * 独立掷点**，不做保底——保底要存"已经错过几次"，而这类事件本来就
-   * 该是撞见的，不是攒出来的。
+   * 该是撞见的，不是攒出来的。**要保底的场合用 `poolId`**，别把这个
+   * 字段改成两用。
    */
   chance?: number;
+
+  /**
+   * **把这条规则放进一个抽签池。**
+   *
+   * 和 `chance` 是两种东西，不要混用（audit 会拦）：
+   *
+   * - `chance` 是**撞见的**——每次信号独立掷点，错过就错过。
+   * - 池是**迟早会来的**——同一个 poolId 的规则共享一次掷点和一份
+   *   "错过了几次"的计数，每错过一次命中率往上抬，命中后归零。
+   *
+   * 共享 poolId **就是共享节奏**：三位邻居写同一个池，于是（a）一次
+   * 派发只掷一次点，同一天最多来一位；（b）有人来了，三条的命中率一起
+   * 回到底；（c）加第四位邻居 = 加一条规则、写同一个 poolId，参数
+   * 一个字不用改。
+   *
+   * 池的参数（起始概率、每次抬多少、封顶）在 `Data/story` 的
+   * `storyPools`——写在规则上会让同池的三条各抄一遍同样的数，迟早走散。
+   */
+  poolId?: string;
 };
 
 /** 事件后果。所有剧情效果都必须表达成这些声明之一 */
@@ -155,7 +232,21 @@ export type StoryEffect =
    */
   | { kind: "pet_wake"; petId: PetId }
   /** 让宠物躺下睡着。舒舒送礼收尾那句"说着说着又睡着了"就是它 */
-  | { kind: "pet_sleep"; petId: PetId };
+  | { kind: "pet_sleep"; petId: PetId }
+  /**
+   * **加减金币。** 正数入库、负数从库里扣。
+   *
+   * 偷窃那一段的语义要求它**不是全有或全无**：龙要偷 5 枚而库里只有 3，
+   * 就偷走 3——`spendGoldFrom` 不够时整笔失败，那是"买东西"的语义
+   * （钱不够就不该扣），不是"被偷"的语义，所以执行侧走"扣到底为止"
+   * 的那条路（`takeGoldUpTo`）。
+   *
+   * 入库照常走溢出规则（满了多的丢掉并明话提示）——剧情给的钱和任务
+   * 给的钱没有分别，不该为它开一条绕过容量的后门。
+   *
+   * 做客时不执行：那是主人家的金库。
+   */
+  | { kind: "adjust_gold"; amount: number };
 
 export type StoryRuleId = string;
 

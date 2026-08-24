@@ -99,8 +99,13 @@ Crafting / Cooking / Storage / Sleep / Sitting / Ambience / WaterSource / Unpack
   - 地面件：原点 = 占地中心，y=0 在地板，**正面朝 +Z**（椅背/床头在 −Z）。模型必须装在 footprint 里，别外扩挤邻居。
   - 墙饰：原点贴墙面，XY 落在墙平面里，**+Z 朝屋内**（挂钟 `decor.ts` 是样板：厚度沿 +Z 堆）。
   - 台面件（上桌的东西）：同地面件，y=0 是桌面。
-- 灯：`lampLight(PALETTE.lampGlow, x, y, z)` + `makeGlow(mesh, emissive, intensity)`（`recipes/ambience.ts`）。
+- 灯：`lampLight(PALETTE.lampGlow, x, y, z, opts?)` + `makeGlow(mesh, emissive, intensity)`（`recipes/ambience.ts`）。
   点光名字 **`lamp-light` 是 Lighting 扫描约定，别改**；昼 0 / 黄昏 9 / 夜 18，雾天全天亮。
+  **那个数是"昼夜调光旋钮"，不是这盏灯的瓦数**——瓦数写在 `opts.strength`（不填 = 1 = 落地灯那一档），
+  `Lighting.refreshLamps` 把两者相乘。摆得低、贴着墙的灯**必须自己调小**：
+  平方反比在半米这个距离上是九倍的差距，套用落地灯的 18 会把整面墙烧成白斑
+  （桌灯第一版的教训，用户实拍）。桌灯用 `TABLE_LAMP`（strength 0.06 / range 4.5 / **decay 1**）——
+  decay 1 是因为一块 30 厘米的发光灯罩根本不是点光源，近场用平方反比就是错的。
 - 动件：给节点起稳定的 kebab-case 名，Animator 每帧按名找（`DailyBoardAnimator` 事件驱动 / `GramophoneAnimator` 状态驱动 两个样板）。
 - 建模要读 Core 的权威数值别抄数字：`findPlaceableItem("furniture_x")?.placement.surfaceHeight`（橱柜 `kitchen.ts` 是样板）。
   同一个高度出现在配方 + surfaceHeight + anchor.y 三处时（长椅的教训），三处一起改。
@@ -147,13 +152,17 @@ Crafting / Cooking / Storage / Sleep / Sitting / Ambience / WaterSource / Unpack
   注意：**带贴图的配方建不出来**（唱片封套要 `document`），这个脚本只守程序化家具。
 - **观察台**（看长相用）：`Frontend-3D/Agent/create-furniture/preview.html`。dev 服起着的时候开
   `/Agent/create-furniture/preview.html?ids=furniture_a,furniture_b&phase=night&view=front`
-  （`phase` day|night、`view` front|angle|top、`table` 桌面高、`spacing` 间距）。
-  每件摆两份——桌面上一份、地板上一份，桌面画了 0.5 米半格线。
+  （`phase` day|dusk|night、`view` front|angle|top、`table` 桌面高、`spacing` 间距、`w`/`h` 画幅）。
+  每件摆两份——桌面上一份、地板上一份，桌面画了 0.5 米半格线，**桌子背后立着一堵墙**。
+  验灯请把 `table` 设成 0.56（床头柜高）：那是台灯最常见的摆法，也是唯一能看出"照墙太亮"的摆法。
   **不进游戏、不碰存档**（记忆 verify-in-dedicated-page）。它和 Engine/Renderer 一样开了
   ACESFilmic + 曝光 1.15，不抄这两行会骗人：没有色调映射时夜里发光面全顶成纯白。
   面板 hidden 时用 `window.__preview.shot()` 取 JPEG（记忆 offscreen-render-when-pane-hidden）。
-  **灯具必须看夜景**：点光装在壳里，壳的外表面拿不到自己的光，夜里只剩冷蓝环境光——
-  emissive 是它唯一的暖色来源，而且 emissive 色要比固有色**更饱和**，否则 ACES 会把它压成白灯。
+  **灯具必须看夜景，而且要靠着墙看**：
+  ① 点光装在壳里，壳的外表面拿不到自己的光，夜里只剩冷蓝环境光——emissive 是它唯一的暖色来源，
+  而且 emissive 色要比固有色**更饱和**，否则 ACES 会把它压成白灯；
+  ② 判"照墙会不会过亮"别靠眼睛，`gl.readPixels` 量墙面最亮那点——**顶到 255 就是丢了色相**，
+  留在 200 上下才是"亮着但还是奶白墙"。第一版三盏灯在空地里怎么看都好，一靠墙就烧穿。
 - 实机：DEV 控制台无 `auditItemVisuals` 警告（观察台里 `import("/src/Game3D/Visual/VisualRegistry.ts")`
   再调一次就行，不用进游戏）；`/testroom` 里 `placed` 含新件且 `walkableRegions === 1`；
   面板不显示时按 `offscreen-render-when-pane-hidden` 记忆离屏截图（`window.__scene` 手动 update+render → JPEG POST 本地 5199）。

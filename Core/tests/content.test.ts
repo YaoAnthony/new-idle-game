@@ -7,12 +7,20 @@ import { auditStoryContent } from "../src/logic/storyAudit.js";
 import { footprintCells } from "../src/logic/grid.js";
 import { Facing } from "../src/types/base.js";
 import { FurnitureCapability, PlacementSurface } from "../src/types/furniture.js";
+import { ItemOrigin } from "../src/types/items.js";
+import { ActionCategory } from "../src/types/actions.js";
+import type { RewardDefinition } from "../src/types/events.js";
+import { dailyBoardDefinition } from "../src/Data/dailyTasks/index.js";
+import { merchantDefinitions } from "../src/Data/merchants/index.js";
+import { storyRules } from "../src/Data/story/index.js";
 import {
   findItemDefinition,
   isPlaceable,
   itemDefinitions,
   placeableItems,
+  untradableItemIds,
 } from "../src/Data/items/index.js";
+import { chestExcludedItemIds } from "../src/Data/actionChains/index.js";
 import { recipeDefinitions } from "../src/Data/recipes/index.js";
 import { cookingRecipeDefinitions, mysteryDish } from "../src/Data/cooking/index.js";
 import { lootTableDefinitions } from "../src/Data/loot/index.js";
@@ -279,7 +287,16 @@ test("战利品表里的东西都存在", () => {
 
 test("行动的奖励物品存在，声音档案存在，时长区间合法", () => {
   for (const action of actionDefinitions) {
-    for (const reward of action.rewards ?? []) {
+    /*
+     * 期 2 之后四条基础行动的 rewards 全空（走开箱），所以这个循环
+     * **今天一次都不进**——`satisfies` 保留的字面量类型会把元素收成
+     * `never`，得显式放宽才编得过。
+     *
+     * 那为什么还留着：`rewards` 那条路没有废，特殊行动（剧情任务、
+     * 教程步骤）仍然会写死奖励，而那时候"指向一件不存在的物品"依旧是
+     * 静默失效。留着比等出事再补便宜。
+     */
+    for (const reward of action.rewards as RewardDefinition[]) {
       if (reward.type !== "item") continue;
       assert.ok(itemIds.has(reward.itemId), `行动 ${action.id} 奖励了不存在的 ${reward.itemId}`);
     }
@@ -396,4 +413,238 @@ test("isPlaceable 和 placement 字段是同一个判据", () => {
     assert.equal(isPlaceable(item), Boolean(item.placement), `${item.id} 的两个判据不一致`);
   }
   assert.equal(placeableItems().length, itemDefinitions.filter((i) => i.placement).length);
+});
+
+// ---- 价格（期 1 · 小动物经济圈）----
+
+/**
+ * 可交易的东西必须有价。
+ *
+ * 漏写的后果不是崩溃，是**它在商人那儿卖 0 金币**——玩家点了卖、东西没了、
+ * 钱没多，看起来像 bug 而且没人报得清。这类"静默地不对"正是这份文件
+ * 存在的理由。
+ *
+ * 豁免的是**结构上就不该交易**的三类：
+ * 图纸（商店发的凭证，能倒卖就是套现口子）、
+ * `untradableItemIds` 点名的（卖了会坏事，**各有各的理由，写在那张表上**）、
+ * `chestExcludedItemIds` 里的场景道具（本来就进不了背包）。
+ *
+ * **没有按 `ItemCategory.Quest` 整类豁免**：注册表里今天一件 Quest 物品
+ * 都没有（`typecheck:tests` 会把那种恒假的比较当错误报出来），而且
+ * 整类豁免不如点名表——点名逼作者写下"为什么这件不能卖"，
+ * 而那句话正是三个月后唯一有用的东西。以后真加了 Quest 物品，
+ * 这条用例会要它给个价，作者要么给、要么进点名表，两条路都对。
+ */
+test("可交易的物品都有价——漏写的会静默地卖 0 金币", () => {
+  for (const item of itemDefinitions) {
+    if (item.blueprint) continue;
+    if (untradableItemIds.has(item.id)) continue;
+    if (chestExcludedItemIds.has(item.id)) continue;
+
+    assert.equal(
+      typeof item.value,
+      "number",
+      `${item.id}（${item.category}）没写 value——它会在商人那儿卖 0 金币`,
+    );
+    assert.ok(item.value! > 0, `${item.id} 的 value 应该大于 0`);
+  }
+});
+
+test("不该交易的东西没有价——有价就说明它能被卖掉", () => {
+  for (const item of itemDefinitions) {
+    if (item.blueprint) {
+      assert.equal(item.value, undefined, `图纸 ${item.id} 不该有价：能倒卖就是套现口子`);
+    }
+    if (untradableItemIds.has(item.id)) {
+      assert.equal(item.value, undefined, `${item.id} 在不可交易名单里，不该有价`);
+    }
+  }
+});
+
+test("不可交易名单里的 id 都是真物品——写错了等于没拦住", () => {
+  for (const id of untradableItemIds) {
+    assert.ok(findItemDefinition(id), `不可交易名单里的 "${id}" 不是任何物品 id`);
+  }
+});
+
+/**
+ * 熟食必须比材料之和贵。
+ *
+ * 不然做饭在经济上是**赔本**的：玩家会把生食材直接卖掉，厨房那套
+ * 火候玩法连带作废。这条比"价格好不好看"重要得多，所以钉成用例。
+ */
+test("熟食比它的材料之和贵——否则做饭是赔本买卖", () => {
+  for (const recipe of cookingRecipeDefinitions) {
+    const output = findItemDefinition(recipe.output);
+    if (!output?.value) continue;
+    const inputSum = recipe.inputs.reduce((sum, input) => {
+      const item = findItemDefinition(input.itemId);
+      return sum + (item?.value ?? 0) * input.quantity;
+    }, 0);
+    assert.ok(
+      output.value > inputSum,
+      `${recipe.output} 卖 ${output.value}，材料值 ${inputSum}——做饭反而亏钱`,
+    );
+  }
+});
+
+// ---- 行动开箱（期 2 · 小动物经济圈）----
+
+/**
+ * 行动的奖励**默认走开箱**。
+ *
+ * 钉这一条是因为"空数组=开箱"是个约定，而约定最容易在某次
+ * "顺手把奖励填回去"的改动里被破坏——填回去之后行动就不开箱了，
+ * 而且不会报错，只会安静地变回旧玩法。
+ */
+test("四条行动要么开箱要么显式关掉，没有第三种", () => {
+  for (const action of actionDefinitions) {
+    if (action.noChest) {
+      assert.equal(
+        action.rewards.length,
+        0,
+        `${action.id} 既写了 noChest 又写了奖励——两个意思打架`,
+      );
+      continue;
+    }
+    assert.equal(
+      action.rewards.length,
+      0,
+      `${action.id} 写死了奖励，不会开箱。特殊行动可以这样，但四条基础行动不该`,
+    );
+  }
+});
+
+test("休息不掉东西——它是唯一不耗精力的行动，白开箱就是无限刷货", () => {
+  const rest = actionDefinitions.find((a) => a.category === ActionCategory.Rest);
+  assert.ok(rest, "找不到休息这条行动");
+  assert.equal(rest!.noChest, true);
+  assert.ok(rest!.fatigueCost < 0, "休息应该是回精力的");
+});
+
+test("每日任务满格只给金币——两条产出线各出一种，读得懂才记得住", () => {
+  for (const reward of dailyBoardDefinition.rewards) {
+    assert.equal(
+      reward.type,
+      "gold",
+      `满格奖里混进了 ${reward.type}：行动出家具、任务出金币，别串线`,
+    );
+  }
+});
+
+/**
+ * `origin` 的分工（决策 28）：工作台造得出来的是这边的，其余是那边来的。
+ *
+ * 它同时是**定价的依据**（那边来的贵，水獭稀罕）和**说法**（他没货源，
+ * 所以只收不卖）。分工错了两头都跟着错，而且不会有任何报错。
+ */
+test("工作台造得出来的家具都是 Otherworld——本地木头敲的，商人见得多", () => {
+  const crafted = new Set(
+    recipeDefinitions.flatMap((recipe) => recipe.outputs.map((o) => o.itemId)),
+  );
+  for (const itemId of crafted) {
+    const item = findItemDefinition(itemId);
+    if (!item?.placement) continue;
+    assert.notEqual(
+      item.origin,
+      ItemOrigin.Real,
+      `${itemId} 工作台造得出来，却标成了"那边来的"——定价和商人的说法都会跟着错`,
+    );
+  }
+});
+
+test("开箱池里两种 origin 都有——池子不按 origin 筛（决策 12/17）", () => {
+  const pool = itemDefinitions.filter(
+    (item) => item.placement && !item.record && !chestExcludedItemIds.has(item.id),
+  );
+  assert.ok(pool.some((i) => i.origin === ItemOrigin.Real), "池里没有'那边来的'");
+  assert.ok(
+    pool.some((i) => i.origin === ItemOrigin.Otherworld),
+    "池里没有'这边造的'",
+  );
+});
+
+// ---- 商人与偷窃（期 3 · 小动物经济圈）----
+
+test("商人货架上的东西都存在、都有价——漏一样就是卖空气", () => {
+  for (const merchant of merchantDefinitions) {
+    for (const itemId of merchant.stock) {
+      const item = findItemDefinition(itemId);
+      assert.ok(item, `商人 ${merchant.merchantId} 的货架上有不存在的 "${itemId}"`);
+      assert.ok(
+        typeof item!.value === "number" && item!.value > 0,
+        `货架上的 ${itemId} 没有价——买它等于白拿`,
+      );
+    }
+  }
+});
+
+test("水獭不卖家具——他只收不卖（决策 12），货架上出现家具就是打脸", () => {
+  const otter = merchantDefinitions.find((m) => m.merchantId === "otter_trader");
+  assert.ok(otter);
+  for (const itemId of otter!.stock) {
+    assert.ok(
+      !findItemDefinition(itemId)?.placement,
+      `水獭货架上出现了家具 ${itemId}——"他没货源"这个说法就塌了`,
+    );
+  }
+});
+
+test("失窃链的金额是同一个数进出——第一次全额追回，净损失恒零", () => {
+  // 从规则数据里挖出 adjust_gold 的两笔，防止有人只改了一头
+  const amounts = storyRules
+    .flatMap((rule) => rule.effects)
+    .filter((effect) => effect.kind === "adjust_gold")
+    .map((effect) => (effect.kind === "adjust_gold" ? effect.amount : 0));
+  assert.equal(amounts.length, 2, "失窃链该有恰好两笔金币变动（偷、还）");
+  assert.equal(amounts[0] + amounts[1], 0, "偷和还不是同一个数——净损失不为零");
+});
+
+test("放弃追讨那条也解锁交易——那是唯一能把玩家锁死的路径", () => {
+  const waive = storyRules.find((rule) => rule.id === "theft_waived");
+  assert.ok(waive);
+  assert.ok(
+    waive!.effects.some(
+      (effect) => effect.kind === "unlock_feature" && effect.featureId === "merchant_trading",
+    ),
+    "拒绝抓贼把销路一起拒掉了——卖货是主要收入，玩家会被锁死",
+  );
+});
+
+test("剧情注册表整体过审（现在有真数据了，不再是空数组的假绿）", () => {
+  assert.deepEqual(auditStoryContent(), []);
+});
+
+// ---- 居民（期 4 · 小动物经济圈）----
+
+test("三条到来规则共享同一个抽签池——同一天最多来一位靠它", () => {
+  const arrivals = storyRules.filter((rule) => rule.id.startsWith("resident_"));
+  assert.equal(arrivals.length, 3);
+  for (const rule of arrivals) {
+    for (const trigger of rule.triggers) {
+      assert.equal(
+        trigger.poolId,
+        "resident_arrival",
+        `${rule.id} 没走 resident_arrival 池——三位会在同一天挤进门`,
+      );
+      // 现在纯随机（用户定），不该有门槛。以后加 requiresFeature 时删掉这两行
+      assert.equal(trigger.requiresFeature, undefined, `${rule.id} 提前加了门槛`);
+    }
+  }
+});
+
+test("每条到来规则给的图纸指向一栋真实存在于物品注册表的房子", () => {
+  const arrivals = storyRules.filter((rule) => rule.id.startsWith("resident_"));
+  for (const rule of arrivals) {
+    const gift = rule.effects.find((effect) => effect.kind === "give_item");
+    assert.ok(gift, `${rule.id} 没送图纸`);
+    const item = findItemDefinition(gift!.kind === "give_item" ? gift!.itemId : "");
+    assert.ok(item?.blueprint, `${rule.id} 送的不是图纸`);
+  }
+});
+
+test("居民的图纸没有价——邻居送的凭证能卖钱就是白得的钱", () => {
+  for (const id of ["blueprint_slime_house", "blueprint_fox_house", "blueprint_spirit_house"]) {
+    assert.equal(findItemDefinition(id)?.value, undefined, `${id} 不该有 value`);
+  }
 });

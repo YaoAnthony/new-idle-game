@@ -1,10 +1,26 @@
 import { matchesAction } from "../Game/Input/bindings";
 import { readDebugProbe, toggleDebugMode } from "../Game/State/debugMode";
 import {
+  ActionCategory,
+  ActionPriority,
+  CreatureRole,
   DayPhaseId,
+  actionDefinitions,
+  findActionByCategory,
+  findActionPriority,
   findItemDefinition,
+  nodeChestScore,
+  pickChestFurniture,
+  rollChestRarity,
   itemDefinitions,
+  economyStages,
+  fullBoardIncome,
+  dailyBoardDefinition,
   petDefinitions,
+  poolChance,
+  storyPools,
+  storyRules,
+  untradableItemIds,
   type StorySignalKind,
   weatherDefinitions,
 } from "core";
@@ -35,12 +51,14 @@ import { HudTopCenter } from "../Components/Hud/HudTopCenter";
 import { FocusVignette } from "../Components/ActionHub/FocusCard";
 import { BuildProgress } from "../Components/BuildProgress/BuildProgress";
 import { BuildShopPanel } from "../Components/BuildShopPanel/BuildShopPanel";
+import { TradePanel } from "../Components/TradePanel/TradePanel";
 import { BuildingPanel } from "../Components/BuildingPanel/BuildingPanel";
 import { StationPanel } from "../Components/StationPanel/StationPanel";
 import { StoragePanel } from "../Components/StoragePanel/StoragePanel";
 import {
   parseEnum,
   registerCommand,
+  runCommand,
   type CommandResult,
 } from "../Game/CommandLine/commands";
 import { saveNow, startAutosave } from "../Data/Save";
@@ -54,7 +72,7 @@ import {
 } from "../Game/State/clock";
 import { findDoorAgent, listDoors } from "../Game/State/doorsRuntime";
 import { getHeld } from "../Game/State/heldItem";
-import { debugPlacePet, spawnPet } from "../Game/State/petsRuntime";
+import { debugPlacePet, getPets, spawnPet } from "../Game/State/petsRuntime";
 import {
   debugClearWeather,
   debugForceWeather,
@@ -77,14 +95,38 @@ import {
 } from "../Game/Systems/kitchen";
 import { setupTestRoom } from "../Game/Systems/testRoom";
 import {
+  findSupportingFurniture,
+  getLastActionEnd,
+  startAction,
+} from "../Game/Systems/actions";
+import {
   getEventProgress,
   getUnlockedFeatures,
 } from "../Game/Systems/events";
 import {
+  buildCandidatePool,
+  ownedCountFn,
+} from "../Game/Systems/actionChains";
+import {
+  fireStoryRuleById,
   getFiredStoryRuleIds,
+  getPoolMisses,
   signal,
   startStorySystem,
 } from "../Game/Systems/story";
+import {
+  factsOfToday,
+  factsOfYesterday,
+  startDayRecord,
+} from "../Game/Systems/dayRecord";
+import { listResidents, startResidents } from "../Game/Systems/residents";
+import {
+  isOtterHereToday,
+  isOtterScheduledOn,
+  startTrading,
+  syncTraderPresence,
+  wantedToday,
+} from "../Game/Systems/trading";
 import { unlockAudio } from "./Engine/AudioEngine";
 import { initAudioSettings } from "./Engine/audioSettings";
 import { startParticipantSync } from "../Game/Systems/participantSync";
@@ -165,6 +207,10 @@ const STORY_SIGNALS = [
   "sleep_ended",
   "pet_spawned",
   "pet_entered",
+  "day_started",
+  "building_completed",
+  "resident_moved_in",
+  "map_entered",
 ] as const satisfies readonly StorySignalKind[];
 
 /**
@@ -266,6 +312,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
 
     // 时钟必须最先起：天气要读世界日，剧情与行动要读时间
     const stopClock = startClock();
+    // 昨日事实（报纸素材）：翻页时把新的一天开出来、记下天气
+    const stopDayRecord = startDayRecord();
     initAutoWalk();
     /*
      * 做客（世界是房主的）时不跑天气重掷：天气属于世界，重掷是**改世界**。
@@ -305,6 +353,10 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
     const stopStory = isRemoteWorldActive()
       ? () => {}
       : startStorySystem(!loadedFromSave);
+    // 水獭的班表同步（期 3）。做客时不跑：商人是世界的，归房主管
+    const stopTrading = isRemoteWorldActive() ? () => {} : startTrading();
+    // 居民搬入（期 4）：房子完工 → 驻地重定向 + resident_moved_in
+    const stopResidents = isRemoteWorldActive() ? () => {} : startResidents();
     // 把手上拿的东西 / 坐姿汇进 participants 的 appearance 层。
     // 那是给渲染和（将来的）网络读的投影，见 Systems/participantSync
     const stopParticipantSync = startParticipantSync();
@@ -673,7 +725,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
           { name: "实例或型号", suggest: () => asSuggestions(listBuildings().map((b) => b.instanceId)) },
         ],
         usage: "removebuilding <instanceId|型号>",
-        description: "拆一栋。**非空不给拆**——屋里有家具 / 罐里有钱就拒绝",
+        description: "拆一栋。**非空不给拆**——屋里有家具 / 金库里有钱就拒绝",
         handler: (args) => {
           // `=== false` 收窄：tsconfig 没开 strict，真值收窄在判别式联合上不生效
           const target = resolveBuilding(args[0] ?? "");
@@ -683,7 +735,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
           });
           if (result.ok !== false) return ok("拆了");
           const { furniture, gold } = result.detail;
-          if (gold) return fail(`罐里还有 ${gold} 金币，先取出来`);
+          if (gold) return fail(`金库里还有 ${gold} 金币，先取出来`);
           return fail(`屋里还有 ${furniture} 件家具，先收进背包`);
         },
       }),
@@ -714,11 +766,11 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
           { name: "数量" },
         ],
         usage: "gold [show|add <n>|spend <n>]",
-        description: "看/加/花金币。**罐就是钱包**——没罐就全额溢出",
+        description: "看/加/花金币。**金库就是钱包**——没库就全额溢出",
         handler: (args) => {
           const action = args[0] ?? "show";
           if (action === "show") {
-            return ok(`${getGold()} / ${getGoldCapacity()}（罐 ${jarLevelIds().length} 只）`);
+            return ok(`${getGold()} / ${getGoldCapacity()}（金库 ${jarLevelIds().length} 座）`);
           }
           const amount = Number(args[1]);
           if (!Number.isFinite(amount) || amount <= 0) return fail("用法：gold add <数量>");
@@ -1033,6 +1085,325 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
         },
       }),
       registerCommand({
+        name: "act",
+        usage: "act <分类> <秒> [low|normal|high] [名字]",
+        description: "起一条**独立**行动（不走链）。秒数很短时能当场看到开箱",
+        arguments: [
+          {
+            name: "分类",
+            suggest: () =>
+              asSuggestions(actionDefinitions.map((a) => a.category)),
+          },
+          { name: "秒" },
+          {
+            name: "重要级",
+            suggest: () => asSuggestions(["low", "normal", "high"]),
+          },
+          { name: "名字" },
+        ],
+        handler: (args) => {
+          const category = args[0] as ActionCategory;
+          const definition = findActionByCategory(category);
+          if (!definition) {
+            return fail(
+              `没有这个分类：${args[0]}（可选 ${actionDefinitions.map((a) => a.category).join(" / ")}）`,
+            );
+          }
+          const seconds = Number(args[1]);
+          if (!Number.isFinite(seconds) || seconds <= 0) {
+            return fail("用法：act <分类> <秒> [low|normal|high] [名字]");
+          }
+          const priority = parseEnum(
+            args[2] ?? "normal",
+            ["low", "normal", "high"] as const,
+            "重要级",
+          ) as ActionPriority;
+          const name = args.slice(3).join(" ") || `调试·${definition.id}`;
+
+          if (findSupportingFurniture(definition.category) === null) {
+            return fail(
+              `屋里没有支撑「${definition.id}」的家具（要 ${definition.requiredFurnitureCapabilities.join(" / ")}）`,
+            );
+          }
+          const started = startAction(definition.id, name, seconds, priority);
+          if (!started) return fail("起不来：已经有行动在跑，或者精力不够");
+          return ok(
+            `开始「${name}」：${definition.id} / ${priority} / ${seconds} 秒`,
+          );
+        },
+      }),
+      registerCommand({
+        name: "lastact",
+        usage: "lastact",
+        description: "打印上一条行动的结算结果（开出了什么、有没有陪伴）",
+        handler: () => {
+          const end = getLastActionEnd();
+          if (!end) return fail("还没有结算过的行动");
+          return ok(
+            JSON.stringify(
+              {
+                名字: end.action.customName,
+                分类: end.action.category,
+                重要级: end.action.priority,
+                时长分钟: Math.round(end.action.durationMs / 60000),
+                完成: end.completed,
+                开出: end.rewards,
+                陪伴: end.petCompanion,
+              },
+              null,
+              1,
+            ),
+          );
+        },
+      }),
+      registerCommand({
+        name: "chest",
+        usage: "chest <分钟> [low|normal|high] [次数]",
+        description: "模拟行动开箱：按时长×重要级算投入分，抽给定次数看分布",
+        arguments: [
+          { name: "分钟" },
+          {
+            name: "重要级",
+            suggest: () => asSuggestions(["low", "normal", "high"]),
+          },
+          { name: "次数" },
+        ],
+        handler: (args) => {
+          const minutes = Number(args[0]);
+          if (!Number.isFinite(minutes) || minutes <= 0) {
+            return fail("用法：chest <分钟> [low|normal|high] [次数]");
+          }
+          const priority = parseEnum(
+            args[1] ?? "normal",
+            ["low", "normal", "high"] as const,
+            "重要级",
+          ) as ActionPriority;
+          const times = Math.max(1, Math.min(500, Number(args[2] ?? 1) || 1));
+
+          const multiplier = findActionPriority(priority)?.rewardMultiplier ?? 1;
+          const score = nodeChestScore(minutes) * multiplier;
+
+          /*
+           * **只掷点、不入包**：这条命令是用来看分布的，抽 200 次
+           * 真发 200 件家具会把背包塞爆，而且污染 ownedCount（开箱
+           * 优先抽没有的，背包被塞满之后分布就不是真的了）。
+           */
+          const pool = buildCandidatePool();
+          const owned = ownedCountFn();
+          const tally: Record<string, number> = {};
+          const sample: string[] = [];
+          for (let i = 0; i < times; i += 1) {
+            const rarity = rollChestRarity(score, Math.random);
+            const picked = pickChestFurniture(rarity, pool, owned, Math.random);
+            const key = picked?.rarity ?? "（池子空了）";
+            tally[key] = (tally[key] ?? 0) + 1;
+            if (sample.length < 5 && picked) sample.push(picked.itemId);
+          }
+          return ok(
+            JSON.stringify(
+              {
+                时长分钟: minutes,
+                重要级: priority,
+                投入分: Number(score.toFixed(2)),
+                抽了几次: times,
+                档位分布: tally,
+                前几件: sample,
+              },
+              null,
+              1,
+            ),
+          );
+        },
+      }),
+      registerCommand({
+        name: "price",
+        usage: "price [物品id]",
+        description: "查物品的价钱；不给 id 就按价钱从高到低列全表",
+        arguments: [
+          {
+            name: "物品",
+            suggest: () => asSuggestions(itemDefinitions.map((item) => item.id)),
+          },
+        ],
+        handler: (args) => {
+          const id = args[0];
+          if (id) {
+            const item = findItemDefinition(id);
+            if (!item) return fail(`没有这件物品：${id}`);
+            if (item.value === undefined) {
+              const why = item.blueprint
+                ? "图纸（商店发的凭证，不可倒卖）"
+                : untradableItemIds.has(item.id)
+                  ? "在不可交易名单里"
+                  : "场景道具（进不了背包）";
+              return ok(`${id}：不可交易（${why}）`);
+            }
+            return ok(`${id}：${item.value} 金币（${item.category} / ${item.rarity}）`);
+          }
+          const priced = itemDefinitions
+            .filter((item) => item.value !== undefined)
+            .sort((a, b) => (b.value ?? 0) - (a.value ?? 0))
+            .map((item) => `${String(item.value).padStart(3)}  ${item.id}`);
+          return ok([`${priced.length} 件有价（从贵到便宜）`, ...priced].join("\n"));
+        },
+      }),
+      registerCommand({
+        name: "economy",
+        usage: "economy",
+        description: "打印收支总表：每个阶段一天进多少、出多少、余多少",
+        handler: () =>
+          ok(
+            JSON.stringify(
+              economyStages.map((stage) => {
+                const board = fullBoardIncome(stage, dailyBoardDefinition.taskCount);
+                return {
+                  阶段: stage.label,
+                  打满一块板: board,
+                  卖货日均: stage.income.typicalSellPerDay,
+                  必需开销: stage.spending.essentialPerDay,
+                  可选开销: stage.spending.optionalPerDay,
+                  余: board + stage.income.typicalSellPerDay
+                    - stage.spending.essentialPerDay
+                    - stage.spending.optionalPerDay,
+                  够不够吃饭: board >= stage.spending.essentialPerDay ? "够" : "**不够**",
+                };
+              }),
+              null,
+              1,
+            ),
+          ),
+      }),
+      registerCommand({
+        name: "residents",
+        usage: "residents",
+        description: "在场的居民一览（期 4）：住哪、驻地在哪、有没有搬进去",
+        handler: () =>
+          ok(
+            JSON.stringify(
+              {
+                /*
+                 * 驻地一起打出来：**"搬没搬进去"唯一看得见的证据就是它**。
+                 * 只列 id 的话，搬入到底生效没有得靠猜——期 4 实测就在这儿
+                 * 卡了一轮（房子立起来了，人没进去，而且不报错）。
+                 */
+                在场居民: getPets()
+                  .filter((pet) => pet.role === CreatureRole.Resident)
+                  .map((pet) => ({
+                    id: pet.petId,
+                    物种: pet.definitionId,
+                    驻地: `${pet.homeX.toFixed(1)}, ${pet.homeZ.toFixed(1)}`,
+                    现在在: `${pet.x.toFixed(1)}, ${pet.z.toFixed(1)}`,
+                  })),
+                名单: listResidents(),
+                具名召唤: storyRules
+                  .filter((rule) => rule.id.startsWith("resident_"))
+                  .map((rule) => `/rule ${rule.id}`),
+              },
+              null,
+              1,
+            ),
+          ),
+      }),
+      registerCommand({
+        name: "otter",
+        usage: "otter",
+        description: "水獭的班表：今天在不在、这回想要什么、未来七天哪天来",
+        handler: () => {
+          const today = getClock().worldDayId;
+          const next = [];
+          for (let i = 0; i < 7; i += 1) {
+            const date = new Date(`${today}T00:00:00Z`);
+            date.setUTCDate(date.getUTCDate() + i);
+            const dayId = date.toISOString().slice(0, 10);
+            next.push(`${dayId} ${isOtterScheduledOn(dayId) ? "来" : "—"}`);
+          }
+          return ok(
+            JSON.stringify(
+              {
+                今天在吗: isOtterHereToday(),
+                这回想要: [...wantedToday()],
+                未来七天: next,
+              },
+              null,
+              1,
+            ),
+          );
+        },
+      }),
+      registerCommand({
+        name: "trade",
+        usage: "trade",
+        description: "直接打开交易面板（调试；正式入口是对着在场的水獭按 F）",
+        handler: () => {
+          syncTraderPresence();
+          emit("trade_open_requested", {});
+          return ok("交易面板已打开");
+        },
+      }),
+      registerCommand({
+        name: "day",
+        usage: "day",
+        description: "手动发一次 day_started 剧情信号（不用等凌晨 4 点）",
+        handler: () => {
+          signal("day_started");
+          return ok("已发出 day_started");
+        },
+      }),
+      registerCommand({
+        name: "rule",
+        usage: "rule <ruleId>",
+        description: "跳过所有条件直接点火一条剧情规则（具名加入居民等调试用）",
+        arguments: [
+          {
+            name: "规则",
+            // 候选就是注册表本身，加一条规则这里自动就有
+            suggest: () => asSuggestions(storyRules.map((rule) => rule.id)),
+          },
+        ],
+        handler: (args) => {
+          const ruleId = args[0];
+          if (!ruleId) return fail("用法：rule <ruleId>");
+          const outcome = fireStoryRuleById(ruleId);
+          if (outcome === "unknown") return fail(`没有这条规则：${ruleId}`);
+          if (outcome === "already_fired") {
+            return fail(`规则 ${ruleId} 已经触发过（once），不重放`);
+          }
+          return ok(`已点火 ${ruleId}`);
+        },
+      }),
+      registerCommand({
+        name: "pool",
+        usage: "pool",
+        description: "打印各抽签池的错过次数和当前命中率（保底看这里）",
+        handler: () => {
+          const misses = getPoolMisses();
+          return ok(
+            JSON.stringify(
+              storyPools.map((pool) => ({
+                poolId: pool.poolId,
+                misses: misses[pool.poolId] ?? 0,
+                chance: poolChance(pool, misses[pool.poolId] ?? 0),
+              })),
+              null,
+              1,
+            ),
+          );
+        },
+      }),
+      registerCommand({
+        name: "facts",
+        usage: "facts",
+        description: "打印昨日事实记录（报纸素材）：今天在写的 + 昨天定稿的",
+        handler: () =>
+          ok(
+            JSON.stringify(
+              { today: factsOfToday(), yesterday: factsOfYesterday() },
+              null,
+              1,
+            ),
+          ),
+      }),
+      registerCommand({
         name: "story",
         usage: "story",
         description: "打印剧情进度：已触发的规则、事件阶段、解锁的功能",
@@ -1131,6 +1502,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       void saveNow().then(stopAutosave);
       offSpoil();
       stopStory();
+      stopTrading();
+      stopResidents();
       stopParticipantSync();
       stopBath();
       stopDailyRollover();
@@ -1138,6 +1511,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       stopSoundscape();
       stopNeeds();
       stopWeather();
+      stopDayRecord();
       stopClock();
     };
   }, [loadedFromSave]);
@@ -1198,6 +1572,22 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
     // 供自动化验证读取，不参与玩法
     (window as unknown as { __scene?: RoomScene }).__scene = scene;
 
+    /*
+     * 供自动化验证**驱动命令行**，和 `__scene` 同一个路数、同一条纪律：
+     * 只读/只驱动，不参与玩法，DEV 才挂。
+     *
+     * 为什么需要它：命令行的唯一入口是聊天面板，验收脚本要走
+     * "聚焦输入框 → 逐字打字 → 回车 → 从 DOM 里捞回显"四步，
+     * 每一步都可能因为面板动画、输入法、滚动位置而失手——而那些失手
+     * 看起来会像"命令坏了"。直接调 runCommand 验的是命令本身。
+     * 人手玩的那条路仍然只有聊天面板，这里不新增任何玩家可达的入口。
+     */
+    if (import.meta.env.DEV) {
+      (
+        window as unknown as { __run?: (input: string) => CommandResult }
+      ).__run = runCommand;
+    }
+
     const onResize = () => scene.resize();
     window.addEventListener("resize", onResize);
 
@@ -1210,6 +1600,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       sceneRef.current = null;
       setScene(null);
       delete (window as unknown as { __scene?: RoomScene }).__scene;
+      delete (window as unknown as { __run?: unknown }).__run;
     };
   }, [loadedFromSave, mapEpoch]);
 
@@ -1227,6 +1618,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
           得先把家具拖到快捷栏才摆得了，白绕一步 */}
       <Backpack />
       <BuildShopPanel />
+      <TradePanel />
       <BuildingPanel />
       <StationPanel />
       <DailyBoardPanel />

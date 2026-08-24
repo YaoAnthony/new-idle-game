@@ -1,4 +1,5 @@
 import type { DailyBoardDefinition } from "../../types/dailyTasks.js";
+import { economyStages } from "../economy/index.js";
 
 /**
  * 每日任务机器的玩法参数（V0.11）。
@@ -52,12 +53,30 @@ export const dailyBoardDefinition: DailyBoardDefinition = {
    * 第一天就让玩家撞上"罐太小"，逼着去升罐/多建罐——容量是关卡这件事
    * 靠说明书讲不明白，靠漏掉几个金币一次就懂。溢出有明话提示，不是默默吞。
    */
-  perTaskRewards: [{ type: "gold", amount: 5 }],
+  /*
+   * **金额从 `Data/economy` 读，不在这里写字面量**（2026-08-24）。
+   *
+   * 原来这两个数（5 / 12）就写在这儿。它们同时是"一天能挣多少"这条
+   * 不变量的分子，而分母（一天要花多少）住在别的文件——两处分开放，
+   * 每次调平衡都要在文件之间心算，心算错了没有任何东西会报。
+   * 现在收支并排在同一张表上，`economy.test.ts` 直接读它对账。
+   *
+   * 取 `economyStages[0]` 是因为阶段刻度还没定（用户：等数值平衡时再说），
+   * 表里只有一个阶段。真接上阶段之后这里要改成"按当前阶段取"，
+   * 那时候这个函数要能拿到运行时状态——所以那一天它会挪出注册表，
+   * 变成一个由玩法层调用的选择器。今天不需要。
+   */
+  perTaskRewards: [{ type: "gold", amount: economyStages[0].income.perTaskCheck }],
 
-  rewards: [
-    { type: "item", itemId: "tomato", quantity: 1 },
-    { type: "gold", amount: 12 },
-  ],
+  /*
+   * **满格只给金币**（决策 2，2026-08-24）。
+   *
+   * 原来还有一颗番茄，是"先把流程跑通"时随手放的。现在两条产出线分工
+   * 明确：**行动出家具、任务出金币**，中间靠卖货接起来。任务再吐一颗
+   * 番茄的话，玩家会以为"食材从任务来"，而实际来源是农田和商人（期 3）。
+   * 一条线一种产出，读得懂才记得住。
+   */
+  rewards: [{ type: "gold", amount: economyStages[0].income.boardComplete }],
 
   hintLocalizationKey: "hint.daily_board_first_placed",
 };

@@ -5,10 +5,13 @@ import {
   findActionByCategory,
   findActionDefinition,
   findActionPriority,
+  nodeChestScore,
   type ActionChainRef,
+  type Rarity,
   type ActionDefinition,
   type ActionProcessSave,
   type PlayerActionEntry,
+  type RewardDefinition,
 } from "core";
 import { emit } from "../EventBus";
 import { nowMs, nowUtc } from "../State/clock";
@@ -22,7 +25,8 @@ import { getNeeds, restoreFatigue, spendFatigue } from "../State/needs";
 import { getPets } from "../State/petsRuntime";
 // 循环引用是刻意的：actionChains 要 startAction（发起），这里要
 // completeChainNode（回勾）。两边都只在运行时调用，模块求值期互不取值
-import { completeChainNode } from "./actionChains";
+import { completeChainNode, grantChest } from "./actionChains";
+import { recordActionFact } from "./dayRecord";
 import { getDefinition, getWorld } from "../State/worldRuntime";
 
 /**
@@ -192,18 +196,52 @@ function finish(completed: boolean): void {
 
   const definition = findActionDefinition(active.definitionId);
   const rewards: Array<{ itemId: string; quantity: number }> = [];
+  /** 开箱抽到的最高档位。没开箱就是 undefined，演出那一步据此决定发不发 */
+  let chestRarity: Rarity | undefined;
 
   if (completed && definition) {
     // 重要级放大收益（代价已经在开始时按同一个重要级扣过精力了）
     const multiplier =
       findActionPriority(active.priority)?.rewardMultiplier ?? 1;
 
-    for (const reward of definition.rewards) {
-      if (reward.type !== "item") continue;
-      const quantity = Math.max(1, Math.round(reward.quantity * multiplier));
-      addItem(reward.itemId, quantity);
-      rewards.push({ itemId: reward.itemId, quantity });
+    if (definition.noChest) {
+      // 休息：回报就是那个负的 fatigueCost，没有物品
+    } else if (definition.rewards.length === 0) {
+      /*
+       * **开箱**（期 2）。走的是系列任务那套现成的：投入分 → 权重表 →
+       * 稀有度 → 从候选池抽一件。
+       *
+       * 重要级乘的是**投入分**，不是件数。乘件数等于"标重要就开三个箱"
+       * ——那是纯收益，重要级标签当场退化成一次无意义的点击
+       * （`actionPriorityDefinitions` 的注释专门讲过这件事）。乘投入分
+       * 保住了取舍：标得越重要越累、当天做得越少，但开出的东西越好。
+       */
+      const minutes = active.durationMs / 60000;
+      const score = nodeChestScore(minutes) * multiplier;
+      const box: { rewards: RewardDefinition[] } = { rewards: [] };
+      const chest = grantChest(box, score);
+      rewards.push(...chest.items);
+      chestRarity = chest.rarity;
+    } else {
+      // 写死了奖励的行动照发不抽，仍然吃件数倍率——对定量奖励它是对的
+      for (const reward of definition.rewards) {
+        if (reward.type !== "item") continue;
+        const quantity = Math.max(1, Math.round(reward.quantity * multiplier));
+        addItem(reward.itemId, quantity);
+        rewards.push({ itemId: reward.itemId, quantity });
+      }
     }
+  }
+
+  if (completed) {
+    // 记进「昨日事实」（报纸素材）。名字用玩家自己起的那个——
+    // 报纸登的是"写完 assignment2"，不是内部的 work_study
+    recordActionFact(
+      active.customName,
+      Math.round(active.durationMs / 60000),
+      // 开出的那件（报纸"昨日行动"版块要写"做完 X，得了 Y"）
+      rewards[0]?.itemId,
+    );
   }
 
   // 陪伴事件：完成那一刻宠物就在身边（好感度不再是陌生人）
@@ -214,9 +252,26 @@ function finish(completed: boolean): void {
     );
 
   const chainRef = active.chainRef;
+  // 标题要在 setActive(null) **之前**抓走：下面那条开箱事件在清空之后才发
+  const title = active.customName;
   lastEnd = { action: active, completed, rewards, petCompanion };
   setActive(null);
   emit("action_changed", { status: completed ? "completed" : "cancelled" });
+  /*
+   * 开箱演出。**奖励此刻已经入包**（grantChest 里 addItem 过了），
+   * 这条事件纯演出——错过、关掉、崩了都不丢东西，和链开箱同一条纪律。
+   *
+   * 从链节点发起的行动**不在这里发**：那一条由 completeChainNode 回勾时
+   * 发它自己的节点箱，两边都发会弹两个箱子。
+   */
+  if (completed && chestRarity && !chainRef) {
+    emit("action_chest_ready", {
+      size: "node",
+      title,
+      rarity: chestRarity,
+      items: rewards,
+    });
+  }
   if (completed) signal("action_completed", definition?.id);
   // 链的回勾放最后：completeChainNode 会发奖、可能连带整链结项弹箱，
   // 那些事件的监听方应当看到"行动已经结束"的世界

@@ -131,9 +131,33 @@ test("不是图纸的物品不借图——番茄不该拿到某栋楼的脸", ()
   expect(blueprintIconUrl("no_such_item")).toBeUndefined();
 });
 
-test("每一件图纸都借得到图，没有一张是空的", () => {
+/**
+ * **上架出售**的图纸都得借得到图。
+ *
+ * 收窄过一次（期 4）：原来查的是"每一件图纸"，三位居民的房子图纸落地后
+ * 当场红——那三张是**邻居送的赠品，永远不上货架**，而它们那三栋楼还是
+ * 占位壳（没有 icon，等参考图）。
+ *
+ * 为什么收窄而不是硬凑一张图：这条守卫的真意是"图纸不该顶着一张**别的**
+ * 脸"，不是"每张图纸都必须有脸"。没图时 `slots.tsx` 会退化成画名字
+ * （`broken` 分支），那是诚实的降级，不是空洞。而铺子里的卡片得有脸——
+ * 玩家在货架上是**看图买东西**的，那一栏不能只有字。
+ *
+ * 判据用"有没有人卖它"：`buildCards` 那条上架规则是"注册表里存在
+ * blueprint 指向它的物品"，所以反过来问"这栋楼在不在铺子的清单里"。
+ * 这和上面那条 `buildingIcon` 的豁免（房子、小镇店铺不上架所以不查）
+ * 是同一条线。
+ */
+test("上架出售的图纸都借得到图，没有一张是空的", () => {
+  // 邻居送的赠品图纸：不上货架，对应的楼还是占位壳（期 4，等参考图）
+  const GIFTED = new Set([
+    "blueprint_slime_house",
+    "blueprint_fox_house",
+    "blueprint_spirit_house",
+  ]);
   const naked = itemDefinitions
     .filter((item) => item.blueprint)
+    .filter((item) => !GIFTED.has(item.id))
     .filter((item) => !blueprintIconUrl(item.id))
     .map((item) => item.id);
   expect(naked).toEqual([]);

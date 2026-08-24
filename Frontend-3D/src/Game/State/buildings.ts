@@ -198,6 +198,24 @@ export function placeBuilding(
   placements = [...placements, placement];
   syncBuildingInteriors();
   emit("world_changed", { reason: "buildings" });
+  /*
+   * **当场成品的也算完工**（2026-08-24，期 4 实测抓到）。
+   *
+   * `building_completed` 原来只在 `finishSite` 发，于是走这条路落地的楼
+   * ——`instantBuild` 的木墙、`buildDuration` 为空的瞬时建筑、调试指令
+   * 直接摆的——一律不发。后果是任何挂在"楼建成了"上的剧情**静默不触发**：
+   * 期 4 的居民搬入实测就卡在这儿，房子立起来了人不进去，而且不报错。
+   *
+   * 判据是"这一刻它是不是成品"（没有 construction 就是），不是"走了哪个
+   * 函数"。两条落地路径各发一次，`finishSite` 那条只在真的从工地转成品时发，
+   * 所以同一栋楼不会报两遍。
+   */
+  if (!placement.construction) {
+    emit("building_completed", {
+      buildingId: placement.buildingId,
+      instanceId: placement.instanceId,
+    });
+  }
   return { ok: true, instanceId: placement.instanceId };
 }
 
@@ -281,6 +299,15 @@ export function finishSite(instanceId: string): void {
   );
   syncBuildingInteriors();
   emit("world_changed", { reason: "buildings" });
+  /*
+   * 完工才报，下单和认领都不报——排队中的工地对剧情来说什么也没发生。
+   * 带上 buildingId 是因为 world_changed 只说"建筑那边变了"，
+   * 剧情要问的是"变成了什么"。
+   */
+  emit("building_completed", {
+    buildingId: placement.buildingId,
+    instanceId,
+  });
 }
 
 export function moveBuilding(

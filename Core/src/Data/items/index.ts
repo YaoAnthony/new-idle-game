@@ -23,7 +23,54 @@ import {
  *
  * `visual` 是必填的：加了一件东西却没人知道它长什么样，这种事要在
  * 编译期就过不去。
+ *
+ * ## 价钱（`value`）怎么定的
+ *
+ * **逐件手写**（用户 2026-08-24 定），不是公式算的。下面这张分档表只是
+ * **起草时的基准**，落进每一条的是显式数字——同样是"优良"的一张沙发和
+ * 一块门垫，玩家心里的价钱差得很远，公式抹平的正是这个差别。
+ *
+ * | 类别 | 普通 | 优良 | 稀有 | 判据 |
+ * |---|---|---|---|---|
+ * | 原料（木头、石墨） | 2~4 | 8~10 | — | 一次能拿好几个，单价必须低 |
+ * | 加工件（板子、纸） | 2~3 | — | — | 便宜，靠"做成东西"增值 |
+ * | 生食材 | 5~7 | 10 | 20 | 玩家**买**的主要开销 |
+ * | 熟食 | 11~20 | 26~28 | — | **必须高于材料之和**，做饭才有溢价 |
+ * | 家具 · 工作台造的 | 5~13 | 18~24 | — | 本地木头敲的，水獭见得多 |
+ * | 家具 · 那边来的 | 15~26 | 45~50 | 60~90 | **现实世界的东西**，他稀罕 |
+ *
+ * 三条压着这张表的约束：
+ *
+ * 1. **一件普通「那边来的」家具（15~26）< 一天打满每日任务（32）**
+ *    ——用户定的"单笔：一个勾 > 一件普通家具"。卖货靠**量**赢：
+ *    水獭三天来一趟，一趟清十几件。
+ * 2. **一顿饭的食材 ≤ 两个勾**（必需开销 1~2 个勾就够，见 `Data/economy`）。
+ * 3. **开一块地 50**（`territoryTuning.unlockCost`）不动——它是这张表
+ *    唯一的既有锚点，其余数字围着它排。
+ *
+ * 收支的**总账**在 `Core/src/Data/economy/`，不在这里：这里回答
+ * "这一件值多少"，那边回答"一天进出多少"。
  */
+
+/**
+ * **点名不可交易的东西。**
+ *
+ * 卖不掉不是因为它们不值钱，是因为**卖掉会坏事**，而每一件的理由都不同
+ * ——所以是一张点名表配注释，不是一个 `tradable: false` 开关（那样
+ * 只看得到"不能卖"，看不到"为什么"）。和 `chestExcludedItemIds` 同一个路数。
+ *
+ * 图纸不列在这里：它们由 `blueprint` 能力块判定（有那块就不可交易），
+ * 加一张新图纸不用记得回来改这张表。
+ */
+export const untradableItemIds: ReadonlySet<string> = new Set([
+  // 石傀儡的头。卖了他就永远醒不过来，而商人不卖回来——这是死锁
+  "golem_head",
+  // 每日任务机器。卖了每日任务就没了入口，同样买不回来
+  "furniture_daily_board",
+  // 院子里那口井：全据点唯一的水源，宠物喝水靠它
+  "well",
+]);
+
 export const itemDefinitions = [
   // ---- 材料（V0.2 工作台配方用） ----
   {
@@ -32,6 +79,7 @@ export const itemDefinitions = [
     category: ItemCategory.Material,
     stackLimit: 99,
     rarity: Rarity.Common,
+    value: 2,
     visual: { id: "wood" },
   },
   {
@@ -40,6 +88,8 @@ export const itemDefinitions = [
     category: ItemCategory.Material,
     stackLimit: 99,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    value: 3,
     visual: { id: "plank" },
   },
   {
@@ -48,6 +98,8 @@ export const itemDefinitions = [
     category: ItemCategory.Material,
     stackLimit: 99,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    value: 3,
     visual: { id: "stick" },
   },
   {
@@ -56,6 +108,7 @@ export const itemDefinitions = [
     category: ItemCategory.Material,
     stackLimit: 99,
     rarity: Rarity.Common,
+    value: 3,
     visual: { id: "sugarcane" },
   },
   {
@@ -64,6 +117,8 @@ export const itemDefinitions = [
     category: ItemCategory.Material,
     stackLimit: 99,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    value: 2,
     visual: { id: "paper" },
   },
   {
@@ -72,6 +127,7 @@ export const itemDefinitions = [
     category: ItemCategory.Material,
     stackLimit: 99,
     rarity: Rarity.Uncommon,
+    value: 8,
     visual: { id: "leather" },
   },
   {
@@ -80,6 +136,7 @@ export const itemDefinitions = [
     category: ItemCategory.Material,
     stackLimit: 99,
     rarity: Rarity.Common,
+    value: 4,
     visual: { id: "graphite" },
   },
   {
@@ -88,6 +145,7 @@ export const itemDefinitions = [
     category: ItemCategory.Material,
     stackLimit: 99,
     rarity: Rarity.Uncommon,
+    value: 10,
     // 文档点名的现实产出例子之一（「奶酪、铁块」）
     origin: ItemOrigin.Real,
     visual: { id: "iron_ingot" },
@@ -98,6 +156,7 @@ export const itemDefinitions = [
     category: ItemCategory.Material,
     stackLimit: 99,
     rarity: Rarity.Common,
+    value: 2,
     visual: { id: "root" },
   },
   {
@@ -106,6 +165,8 @@ export const itemDefinitions = [
     category: ItemCategory.Material,
     stackLimit: 9,
     rarity: Rarity.Uncommon,
+    origin: ItemOrigin.Otherworld,
+    value: 30,
     visual: { id: "notebook" },
   },
   {
@@ -114,6 +175,8 @@ export const itemDefinitions = [
     category: ItemCategory.Material,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    value: 8,
     visual: { id: "pencil" },
   },
 
@@ -129,6 +192,7 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 4,
     rarity: Rarity.Uncommon,
+    value: 45,
     origin: ItemOrigin.Real,
     visual: { id: "kitchen_counter_l" },
     audio: { active: "furniture_cooking" },
@@ -203,6 +267,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Real,
+    value: 22,
     visual: { id: "ordinary_workbench" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -226,6 +292,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    value: 12,
     visual: { id: "wooden_table" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -253,6 +321,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Real,
+    value: 18,
     visual: { id: "nightstand" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -272,6 +342,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    value: 9,
     visual: { id: "wooden_chair" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -302,6 +374,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Real,
+    value: 16,
     visual: { id: "round_rug" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -317,6 +391,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Real,
+    value: 15,
     visual: { id: "bedroll" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -340,6 +416,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    value: 10,
     visual: { id: "dumbbell" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -357,6 +435,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    value: 13,
     visual: { id: "bookshelf" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -384,6 +464,7 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Uncommon,
+    origin: ItemOrigin.Real,
     visual: { id: "daily_board" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -406,6 +487,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Rare,
+    origin: ItemOrigin.Real,
+    value: 90,
     visual: { id: "gramophone" },
     // 出厂装着动森那张。换唱片时它会被弹出来，从此变成一件普通物品
     musicPlayer: { defaultRecordItemId: "record_animal_crossing" },
@@ -437,6 +520,8 @@ export const itemDefinitions = [
     category: ItemCategory.Material,
     stackLimit: 1,
     rarity: Rarity.Rare,
+    origin: ItemOrigin.Real,
+    value: 60,
     visual: { id: "record_animal_crossing" },
     record: { albumId: "animal_crossing_new_horizons_2021" },
     /**
@@ -457,6 +542,8 @@ export const itemDefinitions = [
     category: ItemCategory.Material,
     stackLimit: 1,
     rarity: Rarity.Rare,
+    origin: ItemOrigin.Real,
+    value: 60,
     visual: { id: "record_minecraft" },
     record: { albumId: "minecraft" },
     /**
@@ -477,6 +564,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    value: 12,
     visual: { id: "storage_chest" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -500,6 +589,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Uncommon,
+    origin: ItemOrigin.Otherworld,
+    value: 20,
     visual: { id: "wooden_bed" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -525,6 +616,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    value: 7,
     visual: { id: "round_stool" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -555,6 +648,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    value: 6,
     visual: { id: "floor_cushion" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -588,6 +683,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Uncommon,
+    origin: ItemOrigin.Otherworld,
+    value: 24,
     visual: { id: "fireplace" },
     audio: { ambient: "furniture_fireplace" },
     placement: {
@@ -609,6 +706,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    value: 10,
     visual: { id: "floor_lamp" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -657,6 +756,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Real,
+    value: 24,
     visual: { id: "moon_lamp" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -678,6 +779,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Real,
+    value: 22,
     visual: { id: "mushroom_lamp" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -699,6 +802,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Real,
+    value: 26,
     visual: { id: "cloud_lamp" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -720,6 +825,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    value: 9,
     visual: { id: "potted_plant" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -748,6 +855,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Real,
+    value: 18,
     visual: { id: "lucky_bamboo" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -773,6 +882,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 1,
     rarity: Rarity.Uncommon,
+    origin: ItemOrigin.Real,
+    value: 50,
     visual: { id: "ofuro" },
     audio: { active: "furniture_bath_water" },
     placement: {
@@ -806,6 +917,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    value: 8,
     visual: { id: "long_rug" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -821,6 +934,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    value: 7,
     visual: { id: "tatami_mat" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -836,6 +951,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    value: 5,
     visual: { id: "door_mat" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -851,6 +968,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Uncommon,
+    origin: ItemOrigin.Otherworld,
+    value: 22,
     visual: { id: "fabric_sofa" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -889,6 +1008,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Real,
+    value: 20,
     visual: { id: "garden_bench" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -917,6 +1038,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Real,
+    value: 22,
     visual: { id: "street_lamp" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -938,6 +1061,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Uncommon,
+    origin: ItemOrigin.Otherworld,
+    value: 20,
     visual: { id: "wardrobe" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -958,6 +1083,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    value: 13,
     visual: { id: "study_desk" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -982,6 +1109,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    value: 11,
     visual: { id: "coffee_table" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -1002,6 +1131,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Uncommon,
+    origin: ItemOrigin.Otherworld,
+    value: 18,
     visual: { id: "easel" },
     placement: {
       surface: PlacementSurface.Floor,
@@ -1023,6 +1154,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    value: 8,
     visual: { id: "picture_frame" },
     placement: {
       surface: PlacementSurface.Wall,
@@ -1037,6 +1170,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    value: 9,
     visual: { id: "wall_clock" },
     audio: { ambient: "furniture_clock" },
     placement: {
@@ -1052,6 +1187,8 @@ export const itemDefinitions = [
     category: ItemCategory.Furniture,
     stackLimit: 9,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    value: 9,
     visual: { id: "curtain" },
     placement: {
       surface: PlacementSurface.Wall,
@@ -1078,6 +1215,7 @@ export const itemDefinitions = [
     category: ItemCategory.Tool,
     stackLimit: 1,
     rarity: Rarity.Uncommon,
+    value: 18,
     // 搬家行李里带来的，和地铺、纸箱一样属于现实世界
     origin: ItemOrigin.Real,
     visual: { id: "wok" },
@@ -1093,6 +1231,8 @@ export const itemDefinitions = [
     category: ItemCategory.Tool,
     stackLimit: 1,
     rarity: Rarity.Uncommon,
+    origin: ItemOrigin.Otherworld,
+    value: 18,
     visual: { id: "tall_pot" },
     cookware: {
       methods: ["boil", "steam"],
@@ -1106,6 +1246,8 @@ export const itemDefinitions = [
     category: ItemCategory.Tool,
     stackLimit: 1,
     rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    value: 8,
     visual: { id: "plate" },
     servingWare: { capacity: 2 },
   },
@@ -1125,6 +1267,7 @@ export const itemDefinitions = [
     category: ItemCategory.Material,
     stackLimit: 99,
     rarity: Rarity.Common,
+    value: 4,
     origin: ItemOrigin.Otherworld,
     visual: { id: "tomato_seed" },
     seed: {
@@ -1140,6 +1283,7 @@ export const itemDefinitions = [
     category: ItemCategory.Food,
     stackLimit: 99,
     rarity: Rarity.Common,
+    value: 6,
     origin: ItemOrigin.Otherworld,
     visual: { id: "tomato" },
     ingredient: { tags: ["vegetable"] },
@@ -1150,6 +1294,7 @@ export const itemDefinitions = [
     category: ItemCategory.Food,
     stackLimit: 99,
     rarity: Rarity.Common,
+    value: 6,
     origin: ItemOrigin.Otherworld,
     visual: { id: "egg" },
     ingredient: { tags: ["egg"] },
@@ -1160,6 +1305,7 @@ export const itemDefinitions = [
     category: ItemCategory.Food,
     stackLimit: 99,
     rarity: Rarity.Common,
+    value: 5,
     origin: ItemOrigin.Otherworld,
     /**
      * 下锅形态显式指回整形态：**米不用切**。
@@ -1175,6 +1321,7 @@ export const itemDefinitions = [
     category: ItemCategory.Food,
     stackLimit: 99,
     rarity: Rarity.Common,
+    value: 6,
     origin: ItemOrigin.Otherworld,
     visual: { id: "green_pepper" },
     ingredient: { tags: ["vegetable"] },
@@ -1185,6 +1332,7 @@ export const itemDefinitions = [
     category: ItemCategory.Food,
     stackLimit: 99,
     rarity: Rarity.Common,
+    value: 12,
     origin: ItemOrigin.Otherworld,
     visual: { id: "pork" },
     ingredient: { tags: ["meat"] },
@@ -1195,6 +1343,7 @@ export const itemDefinitions = [
     category: ItemCategory.Food,
     stackLimit: 99,
     rarity: Rarity.Uncommon,
+    value: 10,
     origin: ItemOrigin.Otherworld,
     visual: { id: "century_egg" },
     ingredient: { tags: ["egg"] },
@@ -1205,6 +1354,7 @@ export const itemDefinitions = [
     category: ItemCategory.Food,
     stackLimit: 99,
     rarity: Rarity.Common,
+    value: 7,
     origin: ItemOrigin.Otherworld,
     visual: { id: "baby_cabbage" },
     ingredient: { tags: ["vegetable"] },
@@ -1219,6 +1369,7 @@ export const itemDefinitions = [
     category: ItemCategory.Food,
     stackLimit: 99,
     rarity: Rarity.Rare,
+    value: 20,
     origin: ItemOrigin.Real,
     visual: { id: "cheese" },
     ingredient: { tags: ["dairy"] },
@@ -1232,6 +1383,7 @@ export const itemDefinitions = [
     category: ItemCategory.Food,
     stackLimit: 20,
     rarity: Rarity.Common,
+    value: 12,
     origin: ItemOrigin.Otherworld,
     visual: { id: "fried_egg" },
     food: { hungerRestore: 12, shelfLifeSeconds: 86400 },
@@ -1243,6 +1395,7 @@ export const itemDefinitions = [
     category: ItemCategory.Food,
     stackLimit: 20,
     rarity: Rarity.Common,
+    value: 20,
     origin: ItemOrigin.Otherworld,
     visual: { id: "fried_tomato_egg" },
     food: { hungerRestore: 32, fatigueRestore: 6, shelfLifeSeconds: 172800 },
@@ -1254,6 +1407,7 @@ export const itemDefinitions = [
     category: ItemCategory.Food,
     stackLimit: 20,
     rarity: Rarity.Common,
+    value: 11,
     origin: ItemOrigin.Otherworld,
     visual: { id: "cooked_rice" },
     food: { hungerRestore: 24, shelfLifeSeconds: 86400 },
@@ -1265,6 +1419,7 @@ export const itemDefinitions = [
     category: ItemCategory.Food,
     stackLimit: 20,
     rarity: Rarity.Uncommon,
+    value: 28,
     origin: ItemOrigin.Otherworld,
     visual: { id: "pepper_pork" },
     food: { hungerRestore: 38, fatigueRestore: 8, shelfLifeSeconds: 172800 },
@@ -1276,6 +1431,7 @@ export const itemDefinitions = [
     category: ItemCategory.Food,
     stackLimit: 20,
     rarity: Rarity.Uncommon,
+    value: 26,
     origin: ItemOrigin.Otherworld,
     visual: { id: "baby_cabbage_soup" },
     food: { hungerRestore: 30, fatigueRestore: 10, shelfLifeSeconds: 172800 },
@@ -1294,6 +1450,7 @@ export const itemDefinitions = [
     category: ItemCategory.Food,
     stackLimit: 20,
     rarity: Rarity.Common,
+    value: 8,
     origin: ItemOrigin.Otherworld,
     visual: { id: "mystery_stew" },
     food: { hungerRestore: 10, shelfLifeSeconds: 86400 },
@@ -1374,6 +1531,38 @@ export const itemDefinitions = [
     rarity: Rarity.Common,
     visual: { id: "blueprint" },
     blueprint: { buildingId: "gold_jar" },
+  },
+  /*
+   * 三位居民的房子图纸（期 4）。**是他们送的，不是商店卖的**——
+   * 对话里递给你（give_item 效果）。和别的图纸一样没有 value：
+   * 白得的凭证能卖钱就是白得的钱。
+   */
+  {
+    id: "blueprint_slime_house",
+    localizationKey: "item.blueprint_slime_house",
+    category: ItemCategory.Material,
+    stackLimit: 1,
+    rarity: Rarity.Common,
+    visual: { id: "blueprint" },
+    blueprint: { buildingId: "slime_house" },
+  },
+  {
+    id: "blueprint_fox_house",
+    localizationKey: "item.blueprint_fox_house",
+    category: ItemCategory.Material,
+    stackLimit: 1,
+    rarity: Rarity.Common,
+    visual: { id: "blueprint" },
+    blueprint: { buildingId: "fox_house" },
+  },
+  {
+    id: "blueprint_spirit_house",
+    localizationKey: "item.blueprint_spirit_house",
+    category: ItemCategory.Material,
+    stackLimit: 1,
+    rarity: Rarity.Common,
+    visual: { id: "blueprint" },
+    blueprint: { buildingId: "spirit_house" },
   },
   {
     /**

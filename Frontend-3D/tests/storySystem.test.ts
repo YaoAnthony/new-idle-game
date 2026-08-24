@@ -108,12 +108,20 @@ describe("信号计数", () => {
 // ---- once 语义 ----
 
 describe("一次性规则", () => {
-  /** 找一条 once（默认就是 once）且只靠信号种类就能触发的规则 */
+  /**
+   * 找一条 once（默认就是 once）且**只靠信号种类就能触发**的规则。
+   *
+   * `poolId` 也要排掉（期 4 加的）：进抽签池的规则不是"发了信号就触发"，
+   * 而是"同池掷一次点、命中的那条才触发"。三位居民的到来规则形状上
+   * 满足下面所有条件，挑中它之后发一次 day_started 命中的往往是**别人**
+   * ——这条用例本来要验的是 firedRules 的去重，不是抽签。
+   */
   const oneShot = storyRules.find(
     (rule) =>
       (rule.once ?? true) &&
       rule.triggers.some(
         (trigger) =>
+          !trigger.poolId &&
           !trigger.subject &&
           !trigger.requiresItem &&
           !trigger.minWorldDayId &&

@@ -1,10 +1,15 @@
 import { useEffect, useState } from "react";
 
 import { emit, on } from "../../Game/EventBus";
+import { labelsForAction } from "../../Game/Input/bindings";
 import { t } from "../../i18n/t";
 
 /**
  * 建筑选址的两种界面（决策 B17 的 UI 那一半）。
+ *
+ * 什么时候出现：**选中图纸就出现**（选中即预瞄，不用再按一次交互键），
+ * 换一格快捷栏就消失——这条面板的寿命完全跟着"手上拿着那张图纸"。
+ * 挪 / 升级是例外，它们由建筑面板拉起。
  *
  * - **还在挑**：底部一条细提示（"这块地还没开" / "点一下选定 · R 转向"）。
  *   这时候玩家正在用鼠标挪虚影，界面必须让开——遮住地面就没法选位置了。
@@ -70,11 +75,19 @@ export function BuildingPlacePanel() {
 
   // ---- 还在挑：底部细提示，绝不遮住地面 ----
   if (!state.committed) {
+    /*
+     * 按键名**查当前绑定**，不写 "F" / "R" 这两个字面量：键位是可重映射的
+     * （见 Game/Input/bindings），写死的话玩家改完键，提示还在教他按原来那颗。
+     */
+    const commitKey = labelsForAction("interact")[0];
+    const rotateKey = labelsForAction("rotatePlacement")[0];
     return (
       <div className="pointer-events-none absolute bottom-24 left-1/2 z-20 -translate-x-1/2 rounded-2xl bg-[var(--cream-1)]/95 px-4 py-3 shadow-lg">
         <div className="flex items-center gap-2 text-[13px]">
           <span className="text-[var(--ink-soft)]">
-            {name ? `摆放「${name}」` : "选个位置"} · 点一下选定 · R 转向
+            {name ? `摆放「${name}」` : "选个位置"} · 点一下选定
+            {commitKey ? `（或按 ${commitKey}）` : ""}
+            {rotateKey ? ` · ${rotateKey} 转向` : ""}
           </span>
           {state.valid === false && (
             <span className="text-[#c9544a]">
@@ -127,13 +140,27 @@ export function BuildingPlacePanel() {
           >
             重选
           </button>
-          <button
-            type="button"
-            className="rounded-xl px-4 py-2 text-[13px] text-[var(--ink-soft)]"
-            onClick={() => emit("building_placement_action", { action: "cancel" })}
-          >
-            取消
-          </button>
+          {/*
+           * **建造模式没有「取消」。**
+           *
+           * 建造的选址现在和"手上拿着那张图纸"严格同寿命（选中即预瞄），
+           * 按「取消」会造出一个死状态：图纸还在手上、虚影没了、底部那条
+           * 提示也没了，屏幕上没有任何东西告诉玩家怎么回去。家具的虚影
+           * 当初退役 Esc 就是栽在这上面（RoomScene 里那段注释），规矩是
+           * **不想摆就换一格快捷栏**——这里跟着同一条。
+           *
+           * 挪 / 升级留着：它们是从建筑面板进的模态流程，手上拿什么都
+           * 退不出去，没有出口才是真的困住。
+           */}
+          {state.mode !== "build" && (
+            <button
+              type="button"
+              className="rounded-xl px-4 py-2 text-[13px] text-[var(--ink-soft)]"
+              onClick={() => emit("building_placement_action", { action: "cancel" })}
+            >
+              取消
+            </button>
+          )}
         </div>
       </div>
     </div>

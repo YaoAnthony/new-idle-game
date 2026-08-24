@@ -113,7 +113,7 @@ main.tsx        DEV 下跑三个注册表体检（剧情 / 捏人 / 门）
 
 ## 存档
 
-`SAVE_SCHEMA_VERSION = 25`，24 条迁移链（v2 → v25）。IndexedDB，主档 / 备份 / 冲突三键，**双份轮写**：写主档前先把当前主档复制到备份，读不出来自动回退（回退必须告诉玩家）。
+`SAVE_SCHEMA_VERSION = 30`（迁移链 v2 起步，最新一条见 `Data/Save/migrations.ts` 文件尾）。IndexedDB，主档 / 备份 / 冲突三键，**双份轮写**：写主档前先把当前主档复制到备份，读不出来自动回退（回退必须告诉玩家）。
 
 改 `GameSave` 的形状就要问一次"需要迁移吗"，并且 `SAVE_SCHEMA_VERSION` **必须等于迁移链里最大的 `to`**——小于它会导致每次读档都把最后几条迁移重跑一遍。
 
@@ -165,12 +165,18 @@ cd Core && npm test && cd ../Backend && npm test && cd ../Frontend-3D && npm tes
 
 **剧情重构**（2026-08-13 起）。旧的租房主线整套删除：10 条规则、6 段对话共 56 个节点、6 个事件、6 步教程、83 条文案。新设定是「魔女在深山收你这个学徒」，参照《魔女之旅》的口味。
 
-已定的：修行 = 四维修为（术式 / 脚力 / 调合 / 魔力），从行动系统按**时长**累加、**只增不减**；数值不做效率加成，只用来推剧情和决定出师时师父给的二つ名；魔女间歇登场，不做常驻 NPC。
+> **四维修为那条已作废**（2026-08-24，用户定：太复杂，不想做数值游戏）。
+> 取而代之的是「**小动物经济圈**」——进度是**看得见的物**：住进来的邻居、
+> 家里摆的东西、店里挂着的货，没有属性面板。九期规划与逐期施工文档见
+> [`Frontend-3D/gpt设计稿/小动物经济圈/00-总纲.md`](Frontend-3D/gpt设计稿/小动物经济圈/00-总纲.md)。
+> 期 0（剧情引擎补口）和期 1（价格层）已实现。
 
 写剧情只碰四个文件：`Core/src/Data/{story,dialogues,events}/index.ts` + `Frontend-3D/src/i18n/t.ts`。
 
 **已知未修**：
-- `Systems/dialogue.ts` 的 `event_completed` 条件实为"触发过"而非"完成了"
-- 对话条件 `feature_unlocked` 和 `weather_is` 恒返回 false
-- `logic/storyAudit.ts` 不检查 `eventDefinitions` 自己的文案键
 - `Backend` 的 `applyRefresh` 漏了 `gramophones` 切片（测试里标了 todo）
+
+> 2026-08-24 对账：原来列在这里的另外四条都清了。`event_completed` /
+> `feature_unlocked` / `weather_is` 三条早已修好（对过 `Systems/dialogue.ts`
+> 的现行代码，清单没跟上）；`storyAudit` 不查事件文案键那条在
+> 「小动物经济圈 · 期 0」补上了（`auditEventDefinitions`）。

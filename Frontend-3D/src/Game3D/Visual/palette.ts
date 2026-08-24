@@ -88,6 +88,42 @@ export const PALETTE = {
   shuInnerEar: "#dfa9b4",
   shuNose: "#b28494",
   shuClosedEye: "#5b5568",
+
+  /* ---- 水獭商人（期 3）：**九个色号全部从用户给的参考图采样** ----
+   *
+   * 不借最接近的现成色号（那条规矩踩过）——这只是全新一支，
+   * 配色本身就是他的辨识度：暖棕的毛 + 奶白的脸腹 + 一条绿围巾
+   * + 一件靛蓝背心，全身唯一的高饱和是油灯那点橙黄。
+   *
+   * 参考图里给的十六进制原样搬过来，一个数字都没改。
+   */
+  otterFur: "#a47a52",       // 主毛色（参考图 A47A52）
+  otterFurDeep: "#5c422f",   // 深棕：背脊、四肢、尾巴（5C422F）
+  otterCream: "#ead9b8",     // 脸罩 + 肚皮 + 帆布高光（EAD9B8）
+  otterScarf: "#6fa37a",     // 围巾 + 卷起的毯子（6FA37A）
+  otterVest: "#3f6e8c",      // 背心（3F6E8C）
+  otterVestShade: "#5e7a8e", // 背心暗面 / 边饰（5E7A8E）
+  otterCanvas: "#d7c39b",    // 背包帆布（D7C39B）
+  otterBrass: "#e1a856",     // 油灯的光、扣件（E1A856）
+  otterLeather: "#804e2d",   // 皮带、背带（804E2D）
+
+  /* ---- 小龙「青涟」（期 3 的贼）：**从用户参考图采样** ----
+   *
+   * 这张图和水獭那张不同，**没标 hex**（五个色块没写数字），所以这批是
+   * 对着图上的色块和原画取的近似值——采样的对象是参考图本身，
+   * 不是借现成色板。设定：灵渊小龙、幼年期、鳞片细小光滑有水波光泽、
+   * 幼年龙角半透明、翅膀骨架轻盈膜薄。
+   */
+  dragonBody: "#cfe3d9",     // 身体主色：极浅的青瓷绿
+  dragonBelly: "#efe9d8",    // 腹部：奶油白（和原画的肚皮鳞带一致）
+  dragonMane: "#a8c9ad",     // 鬃毛/背鳍：浅草绿
+  dragonManeDeep: "#7fa98c", // 鬃毛暗层
+  dragonHorn: "#c9b98f",     // 幼年角：半透明的暖茶色
+  dragonEye: "#4f8d80",      // 瞳色如深潭的青
+  dragonWing: "#dcebe2",     // 翅膜：近白的粉青（材质上再给透明度）
+  dragonShade: "#9db5a7",    // 鳞片阴影的灰绿
+  dragonDark: "#5c7466",     // 爪尖、鼻头（比 shade 再深一档，五官要立得住）
+
   mossSeed: "#2c3524",
 
   foamBody: "#8fc4d4",
@@ -191,6 +227,25 @@ export const PALETTE = {
   gramBrassBright: "#dcb96e",
   gramBrassDeep: "#a87f3e",
   gramHornBlack: "#2b2726",
+
+  // ---- 金库（2026-08-23）。色值**直接从用户给的参考图上采样**：
+  //      深板岩的台基与箱体 + 暖棕的木作 + 高饱和的金，三块颜色互相拉开。
+  //
+  //      第一版是从现成色板里借的（屋顶的 roofTile 当石、留声机的
+  //      gramBrassBright 当金），"不新增配色"听着像纪律，摆出来却和参考图
+  //      完全不是一个东西——借来的冷灰偏蓝像塑料，借来的黄铜偏灰堆在币旁边
+  //      像发霉。**参考图给了具体颜色时，采样比复用重要**：复用是为了让新东西
+  //      落进已有的调子，可这一族本来就是要跳出来的那一件。
+  vaultStone: "#4b535d",
+  vaultStoneDark: "#3a4149",
+  vaultDeck: "#9a6d3d",
+  vaultDeckAlt: "#89602f",
+  vaultFence: "#8d6132",
+  vaultChest: "#3b424a",
+  /** 箱体的迎光面 / 柱头的铁箍：比箱身亮一档，同一支板岩 */
+  vaultChestLit: "#4b545d",
+  vaultGold: "#e0a527",
+  vaultCoin: "#f2c02c",
 
   waterBlue: "#7fb2c4",
 

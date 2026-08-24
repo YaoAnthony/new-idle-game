@@ -17,7 +17,7 @@ export function totalGold(jars: readonly JarState[]): number {
 export type DepositResult = {
   /** 实际进账 */
   accepted: number;
-  /** 溢出丢掉的。UI 拿它提示"金币罐满了" */
+  /** 溢出丢掉的。UI 拿它提示"金库满了" */
   overflowed: number;
   next: JarState[];
 };

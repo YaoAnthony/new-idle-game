@@ -1,18 +1,22 @@
 import {
+  drawFromPool,
+  findStoryPool,
   signalCountKeysFor,
   storyRules,
   triggerMatches,
   type StoryContext,
+  type StoryRule,
   type StorySignal,
   type StoryEffect,
 } from "core";
 import { emit, on } from "../EventBus";
 import { getClock } from "../State/clock";
+import { depositGoldTo, takeGoldUpTo } from "../State/gold";
 import { addItem, getCounts, removeItem } from "../State/inventory";
 import { getPet, setPetAffection, spawnPet } from "../State/petsRuntime";
 import { getWeather } from "../State/weather";
 import { startDialogue } from "./dialogue";
-import { getEventStage, setEventStage, unlockFeature } from "./events";
+import { getEventStage, isFeatureUnlocked, setEventStage, unlockFeature } from "./events";
 
 /**
  * 剧情解释器。剧情内容全部来自 Core 的 storyRules 注册表，
@@ -58,12 +62,33 @@ let signalCounts: Record<string, number> = {};
  * 联机时服务端要用同一份校验访客报上来的推进。
  */
 function currentContext(): StoryContext {
+  /*
+   * **一次派发看到的是同一份世界快照**（2026-08-24，用例抓出来的真缺陷）。
+   *
+   * eventStage / isFeatureUnlocked 原来直接递实时函数，于是同一次
+   * day_started 里：偷窃规则把阶段推到 robbed，**下一条**规则的
+   * requiresEventStage 立刻看到 robbed 也跟着触发——五幕在一天里连锁
+   * 跑完，"一天一步"整个塌掉。剧情能等，玩家一天只该看一幕。
+   *
+   * 修法是派发内 memo：每个 eventId / featureId 第一次被问时取实时值，
+   * 之后同一次派发里永远答同一个数。**要连锁请用两条信号**，
+   * 那才是作者显式写出来的意图。
+   */
+  const stageCache = new Map<string, string | null>();
+  const featureCache = new Map<string, boolean>();
   return {
     worldDayId: getClock().worldDayId,
     weatherId: getWeather().id,
     itemCounts: getCounts(),
     signalCounts,
-    eventStage: getEventStage,
+    eventStage: (eventId) => {
+      if (!stageCache.has(eventId)) stageCache.set(eventId, getEventStage(eventId));
+      return stageCache.get(eventId) ?? null;
+    },
+    isFeatureUnlocked: (featureId) => {
+      if (!featureCache.has(featureId)) featureCache.set(featureId, isFeatureUnlocked(featureId));
+      return featureCache.get(featureId) ?? false;
+    },
   };
 }
 
@@ -128,7 +153,25 @@ function runEffect(effect: StoryEffect): void {
         durationMs: effect.durationMs ?? 6000,
       });
       break;
+
+    case "adjust_gold":
+      // 正数入库照常走溢出规则；负数"扣到底为止"（被偷的语义，
+      // 不是买东西的全有或全无）。做客守卫在 gold.ts 那两个函数里
+      if (effect.amount > 0) depositGoldTo(effect.amount);
+      else if (effect.amount < 0) takeGoldUpTo(-effect.amount);
+      break;
   }
+}
+
+/**
+ * 各抽签池"连续错过了几次"。进存档——不进的话读一次档保底就归零，
+ * 玩家重开游戏就能把等待重置。
+ */
+let poolMisses: Record<string, number> = {};
+
+function fire(rule: StoryRule): void {
+  firedRules.add(rule.id);
+  for (const effect of rule.effects) runEffect(effect);
 }
 
 function handleSignal(signal: StorySignal): void {
@@ -142,17 +185,75 @@ function handleSignal(signal: StorySignal): void {
 
   const context = currentContext();
 
+  /*
+   * 派发分两段：不进池的照旧一条条判；进池的按 poolId 分组，一组
+   * 一次掷点（同一天最多命中一条——三位邻居不该同一天全来）。
+   *
+   * 一条规则算不算"进池"，看的是**这次匹配上的那个 trigger** 有没有
+   * poolId——同一条规则可以有两个 trigger，一个走池一个不走。
+   */
+  const pooled = new Map<string, StoryRule[]>();
+
   for (const rule of storyRules) {
     if ((rule.once ?? true) && firedRules.has(rule.id)) continue;
-    if (
-      !rule.triggers.some((trigger) => triggerMatches(trigger, signal, context))
-    ) {
+    const hit = rule.triggers.find((trigger) =>
+      triggerMatches(trigger, signal, context),
+    );
+    if (!hit) continue;
+
+    if (hit.poolId) {
+      const group = pooled.get(hit.poolId) ?? [];
+      group.push(rule);
+      pooled.set(hit.poolId, group);
+    } else {
+      fire(rule);
+    }
+  }
+
+  /*
+   * 池结算。**候选为空的池根本不在 pooled 里**，所以"错过"只在真有
+   * 候选时才累积——门槛没满足的那些天不攒保底，否则条件满足那天
+   * 保底已满、邻居当场就来，"过几天会有人来"的节奏被吃掉。
+   */
+  for (const [poolId, candidates] of pooled) {
+    const pool = findStoryPool(poolId);
+    if (!pool) {
+      // 池没登记 = 数据写错了。auditStoryContent 开机会报；这里不静默
+      if (import.meta.env.DEV) {
+        console.warn(
+          `[story] 池 "${poolId}" 没有登记，${candidates.length} 条规则不会触发`,
+        );
+      }
       continue;
     }
 
-    firedRules.add(rule.id);
-    for (const effect of rule.effects) runEffect(effect);
+    const { hit, nextMisses } = drawFromPool(
+      pool,
+      candidates,
+      poolMisses[poolId] ?? 0,
+      context.worldDayId,
+    );
+    poolMisses[poolId] = nextMisses;
+    if (hit) fire(hit);
   }
+}
+
+/**
+ * 按 id 直接点火一条规则，**跳过所有触发条件**（含池）。
+ *
+ * 只给调试指令用（`/rule`）——用户定的"命令行能指定具名加入"落到实现
+ * 上就是它：期 4 之后 `/rule resident_slime_arrives` 让史莱姆当场来。
+ * `once` 照常生效：已经触发过的一次性规则返回 "already_fired"，
+ * 想重演先清存档，别给调试口开重放后门。
+ */
+export function fireStoryRuleById(
+  ruleId: string,
+): "fired" | "already_fired" | "unknown" {
+  const rule = storyRules.find((item) => item.id === ruleId);
+  if (!rule) return "unknown";
+  if ((rule.once ?? true) && firedRules.has(rule.id)) return "already_fired";
+  fire(rule);
+  return "fired";
 }
 
 // ---- 存档 ----
@@ -180,6 +281,17 @@ export function restoreSignalCounts(
   signalCounts = { ...(counts ?? {}) };
 }
 
+export function getPoolMisses(): Record<string, number> {
+  return { ...poolMisses };
+}
+
+/** 老存档没有这一段 → 从零开始数，不需要迁移 */
+export function restorePoolMisses(
+  misses: Record<string, number> | undefined,
+): void {
+  poolMisses = { ...(misses ?? {}) };
+}
+
 let detach: (() => void) | null = null;
 
 /**
@@ -195,9 +307,27 @@ export function startStorySystem(emitGameStarted = true): () => void {
   const offPanel = on("blocking_panel_changed", ({ open }) => {
     blockingPanelOpen = open;
   });
+
+  /*
+   * 把三个玩法事件翻译成剧情信号。
+   *
+   * 放在这里而不是让玩法系统自己调 `signal()`：本文件头上那句
+   * "玩法系统不知道剧情的存在"才算真的成立，而且 State/buildings.ts
+   * 不必 import 本模块（那会是 State → Systems → State 的循环）。
+   * `resident_moved_in` 的发射点在居民那一期——搬入这个动作那时才存在。
+   */
+  const offDay = on("world_day_changed", () => signal("day_started"));
+  const offBuilt = on("building_completed", ({ buildingId }) =>
+    signal("building_completed", buildingId),
+  );
+  const offMap = on("map_changed", ({ mapId }) => signal("map_entered", mapId));
+
   detach = () => {
     off();
     offPanel();
+    offDay();
+    offBuilt();
+    offMap();
     blockingPanelOpen = false;
     detach = null;
   };

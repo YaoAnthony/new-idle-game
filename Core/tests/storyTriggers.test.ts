@@ -3,6 +3,8 @@ import { test } from "node:test";
 
 import type { StorySignal, StoryTrigger } from "../src/types/story.js";
 import {
+  drawFromPool,
+  poolChance,
   signalCountKey,
   signalCountKeysFor,
   triggerMatches,
@@ -23,6 +25,7 @@ function context(overrides: Partial<StoryContext> = {}): StoryContext {
     itemCounts: {},
     signalCounts: {},
     eventStage: () => null,
+    isFeatureUnlocked: () => false,
     ...overrides,
   };
 }
@@ -233,4 +236,79 @@ test("多个条件同时存在时全都要满足", () => {
   assert.equal(triggerMatches(strict, sig, { ...ok, itemCounts: {} }), false);
   assert.equal(triggerMatches(strict, sig, { ...ok, worldDayId: "2026-08-01" }), false);
   assert.equal(triggerMatches(strict, sig, { ...ok, eventStage: () => "term_2" }), false);
+});
+
+// ---- requiresFeature（期 0 · 小动物经济圈）----
+
+test("requiresFeature：没解锁不命中，解锁了就命中", () => {
+  const gated = trigger({ requiresFeature: "plot.east_grove" });
+  const sig = signal("action_completed");
+
+  assert.equal(triggerMatches(gated, sig, context()), false);
+  assert.equal(
+    triggerMatches(
+      gated,
+      sig,
+      context({ isFeatureUnlocked: (id) => id === "plot.east_grove" }),
+    ),
+    true,
+  );
+});
+
+// ---- 抽签池 ----
+
+const POOL = { poolId: "resident_arrival", base: 0.12, step: 0.08, max: 1 };
+
+test("poolChance：base + step × 错过次数，封顶 max", () => {
+  assert.equal(poolChance(POOL, 0), 0.12);
+  // 浮点相加会带尾差，用近似比较——曲线钉的是形状不是第 17 位小数
+  assert.ok(Math.abs(poolChance(POOL, 5) - 0.52) < 1e-9);
+  assert.equal(poolChance(POOL, 20), 1);
+  // 负数错过按 0 算（防御：存档被手改出负数不该把概率拉到 base 以下）
+  assert.equal(poolChance(POOL, -3), 0.12);
+});
+
+test("drawFromPool：候选为空什么都不发生，也不累积错过", () => {
+  const outcome = drawFromPool(POOL, [], 4, "2026-08-24");
+  assert.equal(outcome.hit, null);
+  assert.equal(outcome.nextMisses, 4);
+});
+
+test("drawFromPool：错过 +1，命中归零；max=1 时有限次内必中", () => {
+  const candidates = ["slime", "fox", "spirit"];
+  let misses = 0;
+  let hit: string | null = null;
+  let days = 0;
+
+  // 每"天"换一个 worldDayId——同一天重掷是确定性的，永远同一个结果
+  while (hit === null && days < 20) {
+    const outcome = drawFromPool(POOL, candidates, misses, `2026-09-${String(days + 1).padStart(2, "0")}`);
+    if (outcome.hit === null) {
+      assert.equal(outcome.nextMisses, misses + 1);
+    } else {
+      assert.equal(outcome.nextMisses, 0);
+    }
+    misses = outcome.nextMisses;
+    hit = outcome.hit;
+    days += 1;
+  }
+
+  // base .12 / step .08 到第 12 次错过就是 1.0，20 天是宽裕的上界
+  assert.notEqual(hit, null);
+  assert.ok(candidates.includes(hit as string));
+});
+
+test("drawFromPool：同一天同状态重掷，结果一字不差（重开刷不出人来）", () => {
+  const candidates = ["slime", "fox", "spirit"];
+  const first = drawFromPool(POOL, candidates, 11, "2026-08-24");
+  const second = drawFromPool(POOL, candidates, 11, "2026-08-24");
+  assert.deepEqual(first, second);
+});
+
+test("drawFromPool：掷点和挑人分种子——候选变了，中不中不跟着翻", () => {
+  // misses 抬到必中，专看"是谁"那一半
+  const three = drawFromPool(POOL, ["slime", "fox", "spirit"], 12, "2026-08-24");
+  const four = drawFromPool(POOL, ["slime", "fox", "spirit", "badger"], 12, "2026-08-24");
+  assert.notEqual(three.hit, null);
+  assert.notEqual(four.hit, null);
 });

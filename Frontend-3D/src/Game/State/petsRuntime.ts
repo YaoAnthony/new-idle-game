@@ -81,6 +81,24 @@ export function spawnPet(petId: string, definitionId: string): PetAgent {
 }
 
 /**
+ * 把一只生物从运行时**送走**（期 3：水獭的来去、小龙的离场）。
+ *
+ * 是移除不是隐藏——隐藏的话碰撞体还在，玩家会撞到一团空气，
+ * `refreshInteractTarget` 也还会把它算进交互竞争。
+ *
+ * 不发 `pet_spawned` 的反向信号：剧情里没有"谁走了"要接的后果，
+ * 视图靠 `pet_changed` + PetView 的清扫把模型收走。
+ */
+export function removePet(petId: string): boolean {
+  const pet = pets.get(petId);
+  if (!pet) return false;
+  pet.dispose();
+  pets.delete(petId);
+  emit("pet_changed", { petId, reason: "removed" });
+  return true;
+}
+
+/**
  * 调试用：把一只宠物直接放到某个坐标（跳过登场过场）。
  * 只给 /pet 命令用——正式的登场永远走 spawnPet 的"从门口进来"。
  */

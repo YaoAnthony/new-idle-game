@@ -1,4 +1,6 @@
 import type { ItemCounts } from "./crafting.js";
+import { drawDeterministic, hashSeed, seededRandom } from "../Data/dailyTasks/index.js";
+import type { FeatureId } from "../types/base.js";
 import type { EventId, EventStageId } from "../types/events.js";
 import type { StorySignal, StoryTrigger } from "../types/story.js";
 import type { WorldDayId } from "../types/time.js";
@@ -23,6 +25,8 @@ export type StoryContext = {
   signalCounts: Readonly<Record<string, number>>;
   /** 事件当前处于哪个阶段；没触发过返回 null */
   eventStage: (eventId: EventId) => EventStageId | null;
+  /** 这个进度键解锁了没有。`requiresFeature` 查它 */
+  isFeatureUnlocked: (featureId: FeatureId) => boolean;
   /** 掷点。**注入而不是直接用 Math.random**：测试要能定住，服务端要能复算 */
   roll?: () => number;
 };
@@ -89,6 +93,13 @@ export function triggerMatches(
     if ((context.itemCounts[itemId] ?? 0) < quantity) return false;
   }
 
+  if (
+    trigger.requiresFeature &&
+    !context.isFeatureUnlocked(trigger.requiresFeature)
+  ) {
+    return false;
+  }
+
   // 概率放**最后**：前面的条件都不满足时不该白掷一次点，
   // 否则同一条规则的命中率会随"被无关信号扫过几次"变化
   if (trigger.chance !== undefined) {
@@ -97,4 +108,60 @@ export function triggerMatches(
   }
 
   return true;
+}
+
+// ---- 抽签池 ----
+//
+// `poolId` 不在 triggerMatches 里判：它要**跨规则**共享一次掷点，
+// 纯的"这一条命中吗"表达不了"这一组一起结算"。解释器先用 triggerMatches
+// 选出候选、按 poolId 分组，再拿下面两个函数结算。
+
+/**
+ * 池当前的命中率。`misses` 是"连续错过了几次"。
+ *
+ * 单独成函数是为了让用例能直接钉住这条曲线——它是平衡的一部分，
+ * 埋在派发循环里就没法单独验。
+ */
+export function poolChance(
+  pool: { base: number; step: number; max?: number },
+  misses: number,
+): number {
+  return Math.min(pool.max ?? 1, pool.base + pool.step * Math.max(0, misses));
+}
+
+/**
+ * 结算一个池的一次抽签：中不中、中了是谁、错过计数变成多少。
+ *
+ * **掷点是确定性的**（种子带 worldDayId）：玩家一发现"今天没人来"就会
+ * 重开游戏再试，用 Math.random 的话抽签这个机制当场失效——和每日任务
+ * 抽签同一条判据，所以复用同一套 hashSeed / seededRandom。
+ *
+ * 掷点和挑人用**两个种子**（后缀 |pick）：共用一个的话"今天中了"和
+ * "今天来的是谁"被同一个数字绑死，候选名单一变（第四位邻居入池），
+ * 已经中了的那天可能翻成没中，读档就不一致了。
+ *
+ * **候选为空时什么都不发生、也不累积错过**：门槛没满足的时候不该在
+ * 给一件还不可能发生的事攒保底，否则条件满足那天保底已满、当场就来，
+ * "过几天会有人来"的节奏被吃掉。调用方对空候选**不要调这个函数**——
+ * 这里再挡一道只是防御。
+ */
+export function drawFromPool<T>(
+  pool: { poolId: string; base: number; step: number; max?: number },
+  candidates: readonly T[],
+  misses: number,
+  worldDayId: WorldDayId,
+): { hit: T | null; nextMisses: number } {
+  if (candidates.length === 0) return { hit: null, nextMisses: misses };
+
+  const roll = seededRandom(hashSeed(`${pool.poolId}|${worldDayId}`))();
+  if (roll >= poolChance(pool, misses)) {
+    return { hit: null, nextMisses: misses + 1 };
+  }
+
+  const [picked] = drawDeterministic(
+    candidates,
+    1,
+    hashSeed(`${pool.poolId}|${worldDayId}|pick`),
+  );
+  return { hit: picked ?? null, nextMisses: 0 };
 }

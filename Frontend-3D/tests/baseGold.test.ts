@@ -41,14 +41,14 @@ test("一只罐都没有时也存得下钱——原来这一笔会全额流失",
   expect(getGold()).toBe(5);
 });
 
-test("钱匣也是有底的：装满之后照样溢出，而且话说的是钱匣不是罐", () => {
+test("钱匣也是有底的：装满之后照样溢出，而且话说的是钱匣不是金库", () => {
   depositGoldTo(BASE_GOLD_CAPACITY + 4);
 
   expect(getGold()).toBe(BASE_GOLD_CAPACITY);
   const said = listChatMessages().at(-1)?.text ?? "";
-  // 没罐的人该去建罐，不该被告知"升一级或者再建一只"
+  // 没库的人该去建库，不该被告知"升一级或者再建一座"
   expect(said).toContain("4");
-  expect(said).toContain("金币罐");
+  expect(said).toContain("建一座金库");
   expect(said).not.toContain("升一级");
 });
 

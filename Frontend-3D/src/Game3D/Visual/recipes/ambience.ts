@@ -10,11 +10,47 @@ import { blob, box, cylinder, group, sphere } from "../primitives.js";
  * "点灯能改善夜里的屋子"从此是真的。
  */
 
+/**
+ * 一盏灯的"瓦数"，不是一个全局数（2026-08-23）。
+ *
+ * `Lighting.LAMP_INTENSITY` 是**昼夜调光旋钮**（昼 0 / 黄昏 9 / 夜 18），
+ * 它按时段决定"现在灯该开几成"；但"这盏灯本身有多亮"是灯自己的属性。
+ * 原来两者是同一个数，于是落地灯调好的 18 被原样套到台灯上——
+ * 落地灯光心 1.5 米、四周空旷，台灯光心离墙只有半米，平方反比在这个
+ * 距离上是 9 倍的差距，**整面墙烧成一块白斑**（用户实拍，2026-08-23）。
+ */
+export type LampOptions = {
+  /** 相对亮度。**1 = 落地灯那一档**（也就是 LAMP_INTENSITY 的原值） */
+  strength?: number;
+  /** 照到多远为止（PointLight.distance） */
+  range?: number;
+  /**
+   * 衰减指数。2 是物理正确的点光源。
+   *
+   * 小台灯给 1：一块 30 厘米宽的发光灯罩**不是点光源**，离墙 40 厘米时
+   * 平方反比根本不成立（近场差几厘米亮度差一倍）。decay 1 是"面光源"的
+   * 廉价近似——近处不炸、远处还留得住一点光，正好是台灯该有的样子。
+   */
+  decay?: number;
+};
+
 /** 灯具内嵌点光。名字是 Lighting 扫描用的约定，别改（estate 的路灯也用） */
-export function lampLight(colorValue: string, x: number, y: number, z: number): PointLight {
-  const light = new PointLight(colorValue, 0, 7, 2);
+export function lampLight(
+  colorValue: string,
+  x: number,
+  y: number,
+  z: number,
+  options: LampOptions = {},
+): PointLight {
+  const light = new PointLight(
+    colorValue,
+    0,
+    options.range ?? 7,
+    options.decay ?? 2,
+  );
   light.name = "lamp-light";
   light.castShadow = false;
+  light.userData.lampStrength = options.strength ?? 1;
   light.position.set(x, y, z);
   return light;
 }
@@ -210,6 +246,22 @@ export function buildFloorLamp(): Object3D {
  */
 const LAMP_EMISSIVE = PALETTE.emberYellow;
 
+/**
+ * 三盏桌灯共用的一套灯光参数。**照着"靠墙摆"调的**，不是照着空地调的：
+ * 台灯十有八九贴着墙（床头柜、书桌都靠墙），光心离墙面只有半米左右。
+ * 观察台的 `preview.html` 现在桌子背后立着一堵墙，就是为了守这一条。
+ *
+ * range 4.5 而不是默认 7：一盏台灯照亮的是它那一角，不是整间屋子。
+ * 屋子的整体亮度是天光和环境光的活儿。
+ *
+ * strength 0.06 是在观察台里量出来的，不是拍的：夜里（全局 18）墙面最亮处
+ * 落在 rgb(198,182,146) 上下——**亮但没顶到 255**，所以墙还留着自己的奶白色，
+ * 而不是一块糊掉的白斑。往上到 0.08 是 213，再往上就开始丢色相；
+ * 0.035 试过，墙是干净了但桌面太暗，灯像没开。留这点余量也是给
+ * "一间屋里摆两盏"和窗补光留的——它们是加上去的。
+ */
+const TABLE_LAMP = { strength: 0.06, range: 4.5, decay: 1 } as const;
+
 const SHELL_GLOW = 0.9;
 const ACCENT_GLOW = 0.7;
 
@@ -296,7 +348,7 @@ export function buildMoonLamp(): Object3D {
     pole,
     ...crescent,
     ...stars,
-    lampLight(PALETTE.lampGlow, 0, CRESCENT_Y, 0),
+    lampLight(PALETTE.lampGlow, 0, CRESCENT_Y, 0, TABLE_LAMP),
   ]);
 }
 
@@ -373,7 +425,7 @@ export function buildMushroomLamp(): Object3D {
     skirt,
     dome,
     ...spots,
-    lampLight(PALETTE.lampGlow, 0, 0.26, 0),
+    lampLight(PALETTE.lampGlow, 0, 0.26, 0, TABLE_LAMP),
   ]);
 }
 
@@ -451,6 +503,6 @@ export function buildCloudLamp(): Object3D {
     pole,
     ...puffs,
     ...drops,
-    lampLight(PALETTE.lampGlow, 0, 0.3, 0),
+    lampLight(PALETTE.lampGlow, 0, 0.3, 0, TABLE_LAMP),
   ]);
 }

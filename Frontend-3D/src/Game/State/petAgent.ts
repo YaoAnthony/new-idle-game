@@ -213,6 +213,18 @@ export class PetAgent {
     if (spot) this.startPathTo(spot[0], spot[1]);
   }
 
+  /**
+   * 换驻地（期 4：居民搬进自己的房子）。
+   *
+   * 只挪圆心不挪人：他会自己**溜达过去**——乱走的候选点从此只在新驻地
+   * 半径内取，几步之内就走过去了。瞬移过去反而穿帮（正和别人说着话呢）。
+   * home 进存档（PetSave.home），读档不漂移。
+   */
+  rehome(x: number, z: number): void {
+    this.homeX = x;
+    this.homeZ = z;
+  }
+
   dispose(): void {
     if (this.radius > 0) removeCreatureObstacle(this.petId);
     this.abandonSite();

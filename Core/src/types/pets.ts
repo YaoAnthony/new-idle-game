@@ -28,6 +28,26 @@ export enum CreatureRole {
   Pet = "pet",
   /** 干活的：不吃不喝不亲近，也没有好感度 */
   Worker = "worker",
+  /**
+   * 做生意的：不吃不喝不亲近（同 Worker），但**会来会走**，
+   * 而且按 F 打开的是交易面板不是对话。
+   *
+   * 和 Worker 分成两档而不是共用：石傀儡是常驻的、有工位有活干；
+   * 商人**间歇在场**，"今天他在不在"是这一档独有的状态，
+   * 而"在不在"要影响交互竞争（不在场的不能被 F 选中）。
+   * 混一档会在 chooseNextActivity 和 refreshInteractTarget 两处各堆一个 if。
+   */
+  Merchant = "merchant",
+  /**
+   * 住在这块地上的邻居（期 4）。
+   *
+   * 和 Pet 的区别只有一条：他**有自己的房子**——搬入时驻地（home）
+   * 重定向到那栋楼门口，晚上就在自家附近转。吃喝亲近照 Pet 走
+   * （他们是邻居不是工具），所以 chooseNextActivity 对这一档**不分支**：
+   * 行为上 Resident ≡ Pet，这个枚举值的意义在**身份**——
+   * `resident_moved_in` 只数这一档，家具小店只把这一档当客人。
+   */
+  Resident = "resident",
 }
 
 export enum AffectionStage {

@@ -17,8 +17,16 @@ import "./Mobile.css";
 export function TouchActions() {
   /** 附近有没有可交互的东西。主按钮靠它决定亮不亮 */
   const [hasTarget, setHasTarget] = useState(false);
-  /** 摆放模式：这时候要多一个转方向的按钮 */
+  /**
+   * 摆放模式：这时候要多一个转方向的按钮。
+   *
+   * **家具虚影和建筑选址都算**：两者都认 `rotatePlacement`（RoomScene 的
+   * onKeyDown 里同一个 if 喂给两个控制器），手机上没有键盘，少认一种就等于
+   * 那一种在手机上永远转不了方向。选定之后不给转（控制器那边也拒），
+   * 按钮跟着收起来，免得点了没反应。
+   */
   const [placing, setPlacing] = useState(false);
+  const [siting, setSiting] = useState(false);
   /** 挡视线的面板 / 对话开着时整组按钮让位，否则会压在面板上 */
   const [blocked, setBlocked] = useState(false);
   const [dialogueOpen, setDialogueOpen] = useState(false);
@@ -27,6 +35,9 @@ export function TouchActions() {
     const offs = [
       on("interact_target_changed", (target) => setHasTarget(target !== null)),
       on("placement_mode_changed", ({ active }) => setPlacing(active)),
+      on("building_placement_changed", (next) =>
+        setSiting(next.active && !next.committed),
+      ),
       on("blocking_panel_changed", ({ open }) => setBlocked(open)),
       on("dialogue_changed", ({ open }) => setDialogueOpen(open)),
     ];
@@ -37,7 +48,7 @@ export function TouchActions() {
 
   return (
     <div className="touch-actions">
-      {placing && (
+      {(placing || siting) && (
         <button
           type="button"
           className="touch-button touch-button--small"

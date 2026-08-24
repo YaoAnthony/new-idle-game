@@ -313,7 +313,16 @@ export class Lighting {
   refreshLamps(): void {
     this.scene.traverse((node) => {
       if (node.name === "lamp-light" && node instanceof PointLight) {
-        node.intensity = node.userData.switchedOff ? 0 : this.lampIntensity;
+        /*
+         * 乘上灯具自己的瓦数（`recipes/ambience.ts` 的 `LampOptions.strength`，
+         * 不填 = 1 = 落地灯那一档）。这个数原来只有全局一份，于是照落地灯
+         * （光心 1.5 米、四周空旷）调出来的 18 被原样套到台灯上——台灯离墙
+         * 半米，平方反比一放大就把整面墙烧白了。**时段管开几成，灯管自己多亮**。
+         */
+        const strength = (node.userData.lampStrength as number | undefined) ?? 1;
+        node.intensity = node.userData.switchedOff
+          ? 0
+          : this.lampIntensity * strength;
       }
     });
   }

@@ -111,6 +111,12 @@ export type GameEvents = {
    * 不是村民，走过去就该直接看到能盖什么。
    */
   build_shop_open_requested: Record<string, never>;
+  /**
+   * 玩家按 F 请求打开**交易面板**（对着在场的水獭，期 3）。
+   * 和石傀儡的建造面板同一个路数：商人是摊主不是村民，
+   * 走过去就该看到能买卖什么，寒暄留给剧情主动拉起的对话。
+   */
+  trade_open_requested: Record<string, never>;
   /** 玩家按 F 对着自己盖的建筑：开管理面板（迁移/拆除/升级/概览） */
   building_panel_open_requested: { instanceId: string };
   /** 面板请求进入选址（迁移/升级都要选位置，由场景的控制器接管） */
@@ -211,10 +217,15 @@ export type GameEvents = {
   action_chest_ready: {
     size: "node" | "chain";
     title: string;
-    chainId: string;
+    /**
+     * 链专属的三样。**行动开箱没有链，所以都是可选的**（期 2）——
+     * 硬塞空串的话 ChestOverlay 会去查一条不存在的链；不填由它退到
+     * 缺省图标和缺省配色（`chainEmoji` / `chainColor` 本来就带兜底）。
+     */
+    chainId?: string;
     nodeId?: string;
-    iconId: string;
-    colorId: string;
+    iconId?: string;
+    colorId?: string;
     rarity: import("core").Rarity;
     items: Array<{ itemId: string; quantity: number }>;
   };
@@ -227,6 +238,12 @@ export type GameEvents = {
    * 天气据此重掷当天日程，每日限额据此刷新。
    */
   world_day_changed: { worldDayId: string; previousWorldDayId: string };
+  /**
+   * 一栋楼**真的完工了**（finishSite 那一刻；下单、认领都不算）。
+   * 剧情信号 building_completed 由 story.ts 从这里翻译——State 层
+   * 不 import Systems/story，否则是 State → Systems → State 的循环。
+   */
+  building_completed: { buildingId: string; instanceId: string };
   /** 跨过时段（晨/昼/暮/夜）。光照、窗外天空、环境音音量吃这条 */
   day_phase_changed: { phase: import("core").DayPhaseId };
   /** 当前天气变了（跨天重掷、或事件/道具/调试写了 override） */

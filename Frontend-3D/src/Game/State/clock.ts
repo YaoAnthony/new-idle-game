@@ -139,14 +139,49 @@ export function startClock(): () => void {
 
   // 先立刻采一次，让首帧就有正确的时段（否则第一帧总是默认值）
   cached = read();
+
+  /*
+   * **开机时也要报翻页**（2026-08-24）。
+   *
+   * 原来这里只是把 lastObservedWorldDayId 静默改成当前值，于是"离线七天
+   * 回来"在事件层面等于什么都没发生——`world_day_changed` 一次都不发，
+   * 挂在它上面的报纸、商人排期、隔夜结算、过期食物降品质全都不会跑。
+   *
+   * 判据是**存档里记着的那一天和今天不同**。空串要排除：那是第一次开档，
+   * 没有"上一天"可言，报一次翻页会让开局第一帧就播一遍每日流程。
+   *
+   * 只报**一次**，不按差了几天补发——照 V0.2「不应一次性自动补播多段
+   * 剧情」。要按天数补算产出的系统自己读 previousWorldDayId 去算，
+   * 那是产出不是剧情，两回事。
+   *
+   * **延迟一拍再发**：startClock 是启动链里最先起的（"时钟必须最先起"），
+   * 同一个 effect 里剧情、天气、食物过期的监听都挂在它**后面**——同步发
+   * 的话一个听众都还不在场。挂到 setTimeout(0) 上，等这一轮启动跑完、
+   * 监听全部就位再响；stop 时要把还没响的这一拍拆掉。
+   */
+  const rememberedDay = save.lastObservedWorldDayId;
   save = { ...save, lastObservedWorldDayId: cached.worldDayId };
   emit("day_phase_changed", { phase: cached.phase });
+
+  let bootRollover: ReturnType<typeof setTimeout> | null = null;
+  if (rememberedDay && rememberedDay !== cached.worldDayId) {
+    const payload = {
+      worldDayId: cached.worldDayId,
+      previousWorldDayId: rememberedDay,
+    };
+    bootRollover = setTimeout(() => {
+      bootRollover = null;
+      emit("world_day_changed", payload);
+    }, 0);
+  }
 
   timer = setInterval(tick, SAMPLE_INTERVAL_MS);
 
   return () => {
     if (timer) clearInterval(timer);
     timer = null;
+    if (bootRollover) clearTimeout(bootRollover);
+    bootRollover = null;
   };
 }
 

@@ -26,6 +26,13 @@ import {
   buildFoamWisp,
   buildMossWisp,
 } from "./recipes/creatures.js";
+import { buildCoinDragon } from "./recipes/dragon.js";
+import { buildOtterTrader } from "./recipes/otter.js";
+import {
+  buildFoxPlaceholder,
+  buildSlimePlaceholder,
+  buildSpiritPlaceholder,
+} from "./recipes/residentPlaceholder.js";
 import { buildShuShu } from "./recipes/shushu.js";
 import {
   buildBlueprint,
@@ -214,6 +221,12 @@ const REGISTRY: Record<string, VisualEntry> = {
   mystery_stew: { kind: "procedural", build: buildMysteryStew },
 
   shushu: { kind: "procedural", build: buildShuShu },
+  otter_trader: { kind: "procedural", build: buildOtterTrader },
+  coin_dragon: { kind: "procedural", build: buildCoinDragon },
+  // 三位居民：**占位造型**（头顶问号圈），等用户给参考图后各自换正式配方
+  slime_neighbor: { kind: "procedural", build: buildSlimePlaceholder },
+  fox_neighbor: { kind: "procedural", build: buildFoxPlaceholder },
+  spirit_neighbor: { kind: "procedural", build: buildSpiritPlaceholder },
 
   // 墙饰
   picture_frame: { kind: "procedural", build: buildPictureFrame },

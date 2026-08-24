@@ -180,6 +180,29 @@ export function spendGoldFrom(
 }
 
 /**
+ * **能扣多少扣多少**，返回实际扣掉的数。
+ *
+ * 和 `spendGoldFrom` 分成两个函数而不是加一个 `partial` 参数：调用点
+ * 读起来必须一眼看出是哪种语义。买东西钱不够就是买不成（全有或全无）；
+ * 被偷、被罚这类是"有多少拿多少"，两者混在一个函数里，将来一定有人
+ * 传错那个布尔。今天唯一的调用方是剧情效果 `adjust_gold` 的负数支。
+ */
+export function takeGoldUpTo(amount: number): number {
+  if (isRemoteWorld()) {
+    pushSystemMessage("这是别人家的金库，动不了——回自己家再说");
+    return 0;
+  }
+  const take = Math.max(0, Math.min(Math.floor(amount), getGold()));
+  if (take === 0) return 0;
+  const before = jars();
+  const result = spendGold(before, take);
+  // take 已经收到余额以内，spendGold 不该失败；防御一下不写回
+  if (result.ok === false) return 0;
+  writeBack(before, result.next);
+  return take;
+}
+
+/**
  * 把每只罐的液面比例重算一遍。
  *
  * **升级/拆罐会改容量但不改余额**，而 `fill` 是"余额 ÷ 容量"——不重算的话

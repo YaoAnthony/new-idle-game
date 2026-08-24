@@ -13,6 +13,29 @@ import type { RegionId, RoomStyleId } from "./roomStyle.js";
 import type { WorldClockSave } from "./time.js";
 import type { WeatherSave } from "./weather.js";
 
+/**
+ * 一个世界日的事实汇编（报纸的素材，见 `WorldSave.dayFacts`）。
+ *
+ * 字段都是**已经归好类的**：写入那一刻就分好版块，出报时不用再从
+ * 几百条日志里挖。哪些系统往里写、什么时候翻页，在 Frontend 的
+ * `Systems/dayRecord.ts`——这里只是形状，因为它要进存档。
+ */
+export type DayFactsSave = {
+  worldDayId: string;
+  /**
+   * 做完的行动。报纸"昨日行动"版块。
+   * `gained` 是那次开箱开出的东西（期 2 起）；休息这类不开箱的没有。
+   */
+  actions: Array<{ name: string; minutes: number; gained?: string }>;
+  /** 当天的天气 id。报纸"天气"版块 */
+  weatherId?: string;
+  /** 金币进出总额。报纸"市场行情"版块 */
+  goldIn: number;
+  goldOut: number;
+  /** 大事（谁搬来了、什么建成了、被偷了）。头条从这里挑 */
+  headlines: Array<{ kind: string; subject?: string }>;
+};
+
 export type HouseId = string;
 
 /**
@@ -133,6 +156,17 @@ export type WorldSave = {
    */
   chatLog?: ChatMessage[];
 
+  /**
+   * 「昨日事实」——报纸的素材源（最多两条：今天在写的 + 昨天定稿的）。
+   *
+   * **不是日志**：日志求全，这份求可读——记的是归好类的事实
+   * （做了哪些行动、天气、金币进出、大事），不是原始事件流。
+   * 也**不复用 chatLog**：那条流混着系统提示、按天数裁剪，粒度和
+   * 保留期都不对。世界的事跟着世界走：做客看到的是主人家的报纸。
+   * 老存档没有这个字段，读出来当空数组。
+   */
+  dayFacts?: DayFactsSave[];
+
   /** 储物箱等容器的内容，键为 InventoryId */
   inventories: Record<string, InventorySave>;
 
@@ -183,6 +217,15 @@ export type WorldSave = {
      * 老存档没有这一段，读出来当空表。
      */
     signalCounts?: Record<string, number>;
+
+    /**
+     * 各抽签池（`StoryTrigger.poolId`）连续错过了几次。保底靠它爬坡。
+     *
+     * **必须进存档**——不进的话读一次档保底归零，重开游戏就能把
+     * "还要等几天"重置掉。命中后那个池的计数清零。
+     * 老存档没有这一段，读出来当空表。
+     */
+    poolMisses?: Record<string, number>;
   };
 
   // activeActionProcess 搬去 PlayerSave 了（save v12）。

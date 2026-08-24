@@ -80,10 +80,13 @@ import {
 } from "../../Game/Systems/events";
 import {
   getFiredStoryRuleIds,
+  getPoolMisses,
   getSignalCounts,
   restoreFiredStoryRules,
+  restorePoolMisses,
   restoreSignalCounts,
 } from "../../Game/Systems/story";
+import { getDayFacts, restoreDayFacts } from "../../Game/Systems/dayRecord";
 import { SAVE_SCHEMA_VERSION } from "./types";
 
 /**
@@ -197,11 +200,15 @@ export function serializeGameSave(previous?: GameSave): GameSave {
       // 每日任务的**共享进度**属于这个家，不属于哪台机器（V0.11）
       dailyBoard: snapshotDailyBoard(),
 
+      // 「昨日事实」（报纸素材，最多两条）。世界的事跟着世界走
+      dayFacts: getDayFacts(),
+
       progression: {
         unlockedFeatureIds: getUnlockedFeatures(),
         events: getEventProgress(),
         firedStoryRuleIds: getFiredStoryRuleIds(),
         signalCounts: getSignalCounts(),
+        poolMisses: getPoolMisses(),
       },
     },
   };
@@ -348,6 +355,8 @@ export function hydrateGameSave(save: GameSave): void {
   });
   restoreFiredStoryRules(save.ownWorld.progression.firedStoryRuleIds ?? []);
   restoreSignalCounts(save.ownWorld.progression.signalCounts);
+  restorePoolMisses(save.ownWorld.progression.poolMisses);
+  restoreDayFacts(save.ownWorld.dayFacts);
 
   // 行动最后恢复：它可能立刻结算并发奖励，需要背包已经就位
   restoreActionEntries(save.player.actionEntries);

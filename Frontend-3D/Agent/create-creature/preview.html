@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8" />
+    <title>生物观察台</title>
+    <style>
+      html, body { margin: 0; height: 100%; background: #1b1f2a; overflow: hidden; }
+      canvas { display: block; }
+      #hint { position: fixed; left: 8px; top: 6px; color: #cfc6b4; font: 12px/1.6 monospace; white-space: pre; }
+    </style>
+  </head>
+  <body>
+    <div id="hint"></div>
+    <!--
+      生物观察台。**不进游戏、不碰存档**，只把 VisualRegistry 里的生物摆出来
+      看剪影、比例和动画（用户定的规矩：视觉零件在专门的观察台里验，
+      不要 hack 存档进游戏走位截图）。
+
+      和隔壁 create-furniture/preview.html 的分工：那个吃 `buildItemVisual`
+      （物品），这个吃 `buildVisual`（任意 visualId，生物走这条）。两个页面
+      而不是一个带开关，是因为它们要看的东西不同——家具看"上桌会不会顶头"，
+      生物看**剪影和动作**，连带机位、参照物、要不要驱动 animate 全都不一样。
+
+      开法（dev 服起着）：
+        /Agent/create-creature/preview.html?ids=otter_trader
+        &view=front|side|back|angle|all   四视图对着参考图核
+        &state=idle|walk|sleeping         驱动 userData.animate
+        &phase=day|dusk|night
+
+      **一定要摆参照物**：低模生物单独看永远"大小合适"，旁边杵一根 1.7 米
+      的人高标尺才知道它到底多大。默认画一根，`?ruler=0` 关掉。
+
+      面板 hidden 时窗口尺寸是 0 → 画布 0×0 → toDataURL 吐空串，落地 0 字节。
+      所以拿不到 innerWidth 就退到固定 1280×720（家具台踩过这个坑）。
+    -->
+    <script type="module">
+      import {
+        ACESFilmicToneMapping,
+        AmbientLight,
+        Box3,
+        BoxGeometry,
+        Color,
+        DirectionalLight,
+        GridHelper,
+        Mesh,
+        MeshLambertMaterial,
+        PerspectiveCamera,
+        Scene,
+        Vector3,
+        WebGLRenderer,
+      } from "three";
+      import { buildVisual } from "../../src/Game3D/Visual/VisualRegistry.ts";
+
+      const params = new URLSearchParams(location.search);
+      const ids = (params.get("ids") ?? "otter_trader").split(",").filter(Boolean);
+      const spacing = Number(params.get("spacing") ?? 1.2);
+      const showRuler = params.get("ruler") !== "0";
+
+      const renderer = new WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+      // 和 Engine/Renderer.ts 同一套色调映射与曝光，否则观察台会骗人
+      renderer.toneMapping = ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.15;
+      const width = Number(params.get("w")) || window.innerWidth || 1280;
+      const height = Number(params.get("h")) || window.innerHeight || 720;
+      renderer.setSize(width, height, false);
+      document.body.appendChild(renderer.domElement);
+
+      const scene = new Scene();
+      const camera = new PerspectiveCamera(38, width / height, 0.05, 100);
+
+      // 地面 + 半米格线：脚有没有陷进去、占地多大，一眼可见
+      const floor = new Mesh(
+        new BoxGeometry(14, 0.1, 10),
+        new MeshLambertMaterial({ color: "#c09a6a", flatShading: true }),
+      );
+      floor.position.y = -0.05;
+      scene.add(floor);
+      const grid = new GridHelper(12, 24, "#5b4332", "#8a7050");
+      grid.position.y = 0.003;
+      scene.add(grid);
+
+      const rowWidth = Math.max(1, (ids.length - 1) * spacing);
+      const built = [];
+      ids.forEach((id, index) => {
+        const x = (index - (ids.length - 1) / 2) * spacing;
+        const visual = buildVisual(id);
+        if (!visual) {
+          console.error("没有这个视觉配方:", id);
+          return;
+        }
+        visual.position.set(x, 0, 0);
+        scene.add(visual);
+        built.push({ id, visual });
+      });
+
+      /*
+       * 人高标尺：1.7 米一根细柱 + 每 0.5 米一道刻度。
+       * 低模生物单独看永远"大小合适"，有参照才知道它到底多大——
+       * 石傀儡第一版读成石柱，一半原因就是没人拿东西比过。
+       */
+      if (showRuler) {
+        /*
+         * 标尺放在**斜后方**，不放正侧面：侧视图的机位在 +X 轴上，
+         * 标尺立在那儿会正对镜头把生物整个挡住（第一次抓侧视图就是
+         * 一根柱子劈在画面中间）。挪到 −X 后方，四个机位都不挡。
+         */
+        const rulerX = -(rowWidth / 2 + 0.85);
+        const rulerZ = -0.75;
+        const pole = new Mesh(
+          new BoxGeometry(0.03, 1.7, 0.03),
+          new MeshLambertMaterial({ color: "#d8d2c4", flatShading: true }),
+        );
+        pole.position.set(rulerX, 0.85, rulerZ);
+        scene.add(pole);
+        for (let h = 0.5; h <= 1.5; h += 0.5) {
+          const tick = new Mesh(
+            new BoxGeometry(0.14, 0.012, 0.012),
+            new MeshLambertMaterial({ color: "#8a7050", flatShading: true }),
+          );
+          tick.position.set(rulerX + 0.07, h, rulerZ);
+          scene.add(tick);
+        }
+      }
+
+      const ambient = new AmbientLight("#ffffff", 1);
+      scene.add(ambient);
+      const sun = new DirectionalLight("#fff2d8", 1);
+      sun.position.set(2.5, 4, 3);
+      scene.add(sun);
+
+      function setPhase(phase) {
+        const night = phase === "night";
+        scene.background = new Color(night ? "#252e42" : "#e8ddc6");
+        ambient.color = new Color(night ? "#6b7aa1" : "#ffffff");
+        ambient.intensity = night ? 0.5 : 1;
+        sun.intensity = night ? 0.12 : 1;
+      }
+
+      /**
+       * 机位。**四视图是主力**——参考图给的就是正/侧/背，要对着核。
+       * `all` 把四个角度并排渲进同一张，省得截四次。
+       */
+      const DIST = Math.max(2.0, rowWidth * 0.8 + 1.9);
+      const EYE = 0.55;
+      const VIEWS = {
+        front: new Vector3(0, EYE, DIST),
+        back: new Vector3(0, EYE, -DIST),
+        side: new Vector3(DIST, EYE, 0),
+        // 32° 俯角 = 游戏里实际的视角，比正视图更接近玩家看到的
+        angle: new Vector3(DIST * 0.62, DIST * 0.62, DIST * 0.62),
+        top: new Vector3(0.01, DIST * 1.1, 0.01),
+      };
+      function frame(view) {
+        camera.position.copy(VIEWS[view] ?? VIEWS.angle);
+        camera.lookAt(new Vector3(0, 0.38, 0));
+        camera.updateProjectionMatrix();
+      }
+
+      function render() {
+        renderer.render(scene, camera);
+      }
+
+      /**
+       * 驱动 `userData.animate`。**不跑 rAF**：面板 hidden 时 rAF 被节流到
+       * 几乎不动，抓图会永远停在第一帧。改成"推进 n 秒再渲染"，
+       * 想看第几秒就给几秒，可复现。
+       */
+      function advance(seconds, state) {
+        const dt = 1 / 60;
+        const moving = state === "walk";
+        const petState = state === "walk" ? "idle" : state;
+        for (let t = 0; t < seconds; t += dt) {
+          for (const { visual } of built) {
+            visual.userData.animate?.(dt, { state: petState, moving });
+          }
+        }
+        render();
+      }
+
+      const sizes = built.map(({ id, visual }) => {
+        const box = new Box3().setFromObject(visual);
+        const s = box.getSize(new Vector3());
+        return `${id}  ${s.x.toFixed(2)}×${s.y.toFixed(2)}×${s.z.toFixed(2)}m`;
+      });
+      document.getElementById("hint").textContent = sizes.join("\n");
+
+      setPhase(params.get("phase") ?? "day");
+      frame(params.get("view") ?? "angle");
+      advance(Number(params.get("t") ?? 0.6), params.get("state") ?? "idle");
+
+      window.__preview = {
+        scene,
+        camera,
+        renderer,
+        built,
+        sizes,
+        setPhase,
+        frame,
+        advance,
+        render,
+        /** 抓一张 JPEG（面板 hidden 时也能抓，drawing buffer 保留着） */
+        shot(quality = 0.8) {
+          render();
+          return renderer.domElement.toDataURL("image/jpeg", quality);
+        },
+      };
+    </script>
+  </body>
+</html>

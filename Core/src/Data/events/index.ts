@@ -15,7 +15,37 @@ import type { EventDefinition } from "../../types/events.js";
  * 2026-08-13 清空：旧的 moving_in / pet_arrival / mom_first_call /
  * pet_missing / mom_gift / shushu_bond 跟着旧剧情一起推倒。
  */
-export const eventDefinitions: EventDefinition[] = [];
+export const eventDefinitions: EventDefinition[] = [
+  /**
+   * 金库失窃（期 3 · 小动物经济圈）。**剧情引擎推倒重写后的第一条链**，
+   * 五幕一天一步：落成 / 失窃 / 上门 / 见贼 / 了结。
+   *
+   * 阶段是**门闩**不是演出：每一幕的规则都用 requiresEventStage 卡在
+   * 上一幕的阶段上，day_started 一天只发一次（期 0 定的），所以这条链
+   * 天然一天推一步，离线七天回来也只走一步——剧情不在你不在的时候自己演完。
+   */
+  {
+    id: "gold_theft",
+    localizationKey: "event.gold_theft",
+    stages: [
+      // 金库建成，被盯上了。玩家看不到这一幕，它只是次日偷窃的门闩
+      { stageId: "eyed", localizationKey: "event.gold_theft.eyed" },
+      // 钱被偷了，水獭还没来
+      { stageId: "robbed", localizationKey: "event.gold_theft.robbed" },
+      // 水獭上门，答应去追（或者玩家说不用管——那就直接跳 settled）
+      { stageId: "chasing", localizationKey: "event.gold_theft.chasing" },
+      /*
+       * 小龙被抓回来了（用户 2026-08-24 加的一幕）。单独一个阶段而不是
+       * 并进 settled：这一幕的内容是**你见到了那条龙**——它从一个影子
+       * 变成有脸会说话的角色。追赃和见贼是两件事，合成一步的话
+       * 前者会把后者盖掉，玩家读到的只剩"钱回来了"。
+       */
+      { stageId: "caught", localizationKey: "event.gold_theft.caught" },
+      // 结了：钱奉还、水獭提出长期合作（或者玩家放弃了追讨）
+      { stageId: "settled", localizationKey: "event.gold_theft.settled" },
+    ],
+  },
+];
 
 export function findEventDefinition(id: string): EventDefinition | undefined {
   return eventDefinitions.find((event) => event.id === id);

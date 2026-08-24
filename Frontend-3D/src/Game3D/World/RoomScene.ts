@@ -78,7 +78,7 @@ type HintTarget = {
   hint: InteractHint;
   world: Vector3;
 };
-import { PlacementSurface, findPlaceableItem } from "core";
+import { PlacementSurface } from "core";
 import { ChatMessageKind } from "core";
 import { getAvatar } from "../../Game/State/avatar";
 import { pushChatMessage } from "../../Game/State/chatLog";
@@ -90,7 +90,6 @@ import {
   tickDoors,
 } from "../../Game/State/doorsRuntime";
 import type { Door as DoorAgent } from "../../Game/State/doorAgent";
-import { getHeld } from "../../Game/State/heldItem";
 import {
   consumeSelectedOne,
   getSelectedStack,
@@ -139,6 +138,7 @@ import { FogField } from "./FogField.js";
 import { weatherVisualProfileOf } from "../Visual/weatherProfiles.js";
 import { getActiveDialogue, startDialogue } from "../../Game/Systems/dialogue";
 import { getEventStage } from "../../Game/Systems/events";
+import { heldPreviewOf } from "../../Game/Systems/heldPreview";
 import {
   describeKitchenSlot,
   dumpKitchenSlot,
@@ -618,7 +618,7 @@ export class RoomScene {
      * 低视角够不到远处地面格这件事由方向键微调解决（它本来就是为此加的）。
      */
     this.offEventListeners.push(
-      on("held_changed", () => this.syncPlacementToHeld()),
+      on("held_changed", () => this.syncHeldPreview()),
     );
 
     // 扔出去的东西落地那一刻，问一句附近的槽位收不收
@@ -794,8 +794,20 @@ export class RoomScene {
               consumeSelectedOne();
             }
           }
+          /*
+           * 落幕之后重算一次手持预瞄。
+           *
+           * build 那条其实靠 `consumeSelectedOne` 发的 held_changed 就会
+           * 自己回来（手上还有第二张图纸就接着摆），**但挪 / 升级那两条不会**：
+           * 它们一颗物品都不动，收工之后没有任何事件把"手上还拿着家具"
+           * 这件事重新落实一遍，虚影就再也不出现了——一直到玩家自己换格。
+           */
+          this.syncHeldPreview();
         } else if (action === "reselect") this.buildingPlacement.uncommit();
-        else this.buildingPlacement.cancel();
+        else {
+          this.buildingPlacement.cancel();
+          this.syncHeldPreview();
+        }
       }),
     );
 
@@ -821,9 +833,11 @@ export class RoomScene {
       mapId: getCurrentMap().mapId,
     }));
 
-    // 补一次初始同步。**必须在 placement 建好之后**——读档进来时手上可能
-    // 已经拿着家具了，而 held_changed 早在场景构造之前就发完了
-    this.syncPlacementToHeld();
+    // 补一次初始同步。**必须在两个 placement 都建好之后**——读档进来、
+    // 或者换图重建场景时手上可能已经拿着家具或图纸了，而 held_changed
+    // 早在场景构造之前就发完了。换图那一下同时也是"这张图能不能盖楼"
+    // 重新过闸的时机（从据点走进店铺，图纸的虚影要跟着消失）
+    this.syncHeldPreview();
 
     this.applyEnvironment();
     this.resize();
@@ -886,7 +900,12 @@ export class RoomScene {
     const offAction = on("game_action_requested", ({ action }) => {
       if (action === "interact") this.interact();
       else if (action === "throw") this.throwHeld();
-      else if (action === "rotate_placement") this.placement.rotate();
+      else if (action === "rotate_placement") {
+        // 两个控制器都喂，和键盘那侧（onKeyDown 里的 rotatePlacement）
+        // 一模一样：只喂家具的话，手机上建筑选址永远转不了方向
+        this.placement.rotate();
+        this.buildingPlacement.rotate();
+      }
       else if (action === "dump_kitchen") this.dumpKitchen();
     });
     this.offEventListeners.push(offAction);
@@ -1041,18 +1060,23 @@ export class RoomScene {
       }
 
       /**
-       * 触摸落座家具前要先把虚影挪到手指位置。
+       * 触摸落地前要先把虚影挪到手指位置。
        *
        * 鼠标一直在动，`onPointerMove` 早就把虚影喂到位了；手指是"点下去
        * 才第一次有位置"，不补这一下的话，第一次点击会把家具放到**上一次**
        * 手指抬起的地方——而那通常是屏幕另一头。
+       *
+       * 建筑选址同理，而且更糟：它的虚影初始在 (0,0)，手机上第一次点
+       * 会把楼选定在世界原点。以前只补了家具那一半。
        */
       if (
         dragDistance <= DRAG_THRESHOLD_PIXELS &&
-        event.pointerType !== "mouse" &&
-        this.placement.active
+        event.pointerType !== "mouse"
       ) {
-        this.placement.onPointerMove(event);
+        if (this.placement.active) this.placement.onPointerMove(event);
+        if (this.buildingPlacement.active) {
+          this.buildingPlacement.onPointerMove(event);
+        }
       }
 
       // 拖过就不是点击了
@@ -1812,12 +1836,30 @@ export class RoomScene {
    * 否则手机上那套要么复制一份逻辑（两边迟早漂），要么伪造 KeyboardEvent
    * （合成事件 isTrusted 为 false，解锁不了音频——这个坑本项目踩过）。
    *
-   * 优先级：坐着躺着时含义变了（起身 / 睡觉）→ 附近有目标就操作目标 →
-   * 都没有就用手上那件东西。
+   * 优先级：坐着躺着时含义变了（起身 / 睡觉）→ **正在选址就是定点** →
+   * 附近有目标就操作目标 → 都没有就用手上那件东西。
    */
   interact(): void {
     if (isResting()) {
       this.interactWhileResting();
+      return;
+    }
+
+    /*
+     * 正在给建筑选址 → F = **选定**（等同在地上点一下）。
+     *
+     * 排在目标之前：站在石傀儡旁边瞄一个储金罐的位置时，F 的含义只有
+     * "就放这儿"，不该是又开一次他的铺子——真想开铺子，换一格快捷栏
+     * 把图纸放下就是了。
+     *
+     * 已经选定了就不理：最后那一下确认必须是弹窗上那颗按钮。连按 F
+     * 顺手把一次扣材料、占地的下单带过去，是最难解释的一种误操作。
+     *
+     * 这里不再有"拿着图纸按 F 进选址"那一段——选中图纸就自动进了
+     * （见 syncHeldPreview），留着只会变成一条永远走不到的分支。
+     */
+    if (this.buildingPlacement.active) {
+      this.buildingPlacement.commit();
       return;
     }
 
@@ -2000,6 +2042,12 @@ export class RoomScene {
           return;
         }
 
+        // 商人同理（期 3）：F 开交易面板。寒暄由剧情主动拉起，不占 F
+        if (pet && pet.role === CreatureRole.Merchant && !pet.dormant) {
+          emit("trade_open_requested", {});
+          return;
+        }
+
         const definition = pet ? findPetDefinition(pet.definitionId) : undefined;
         const known = definition?.bondEventId
           ? getEventStage(definition.bondEventId) === "gifted"
@@ -2015,25 +2063,6 @@ export class RoomScene {
           startDialogue(dialogueId, petId);
         }
       }
-      return;
-    }
-
-    /*
-     * 手上拿着**图纸** → 进选址。放在"附近没有目标"之前判：站在傀儡旁边
-     * 拿着图纸按 F，玩家要的是开工不是再开一次面板。
-     *
-     * 判据是物品的 `blueprint` 块，不是物品 id——加一种可盖的建筑只加
-     * 一件图纸物品，这段一行不用改。
-     */
-    const heldBlueprint = (() => {
-      const held = getSelectedStack();
-      return held ? findItemDefinition(held.itemId)?.blueprint : undefined;
-    })();
-    if (heldBlueprint) {
-      this.beginBuildingSiting({
-        mode: "build",
-        buildingId: heldBlueprint.buildingId,
-      });
       return;
     }
 
@@ -2685,13 +2714,36 @@ export class RoomScene {
     if (accepted) removeDroppedItem(id);
   }
 
-  /** 手上拿的是能摆的东西 → 出虚影；换成别的或空手 → 收起来 */
-  private syncPlacementToHeld(): void {
-    const held = getHeld();
-    const placeable = held ? findPlaceableItem(held.itemId) : undefined;
+  /**
+   * 手上拿什么，就进什么预瞄：家具出虚影、图纸进建筑选址、别的两样都收。
+   *
+   * **哪种由 `heldPreviewOf` 一处推导**（判据是物品的能力块，不是 id），
+   * 这里只负责把结论落到两个控制器上。写成"算一次、逐个落实"而不是
+   * 两条各判各的 if：**最多开一种**这条不变量必须有一个地方保证，否则
+   * 迟早会出现家具虚影和建筑虚影同时挂在场上的组合。
+   *
+   * 挪 / 升级的选址**不受手上拿什么影响**：那是从建筑面板进的模态流程，
+   * 有自己的确认和取消。玩家在选新位置时顺手翻一下背包，不该把它踢掉。
+   */
+  private syncHeldPreview(): void {
+    if (
+      this.buildingPlacement.currentMode === "move" ||
+      this.buildingPlacement.currentMode === "upgrade"
+    ) {
+      return;
+    }
 
-    if (placeable) this.placement.begin(placeable.id);
+    const preview = heldPreviewOf(getSelectedStack()?.itemId ?? null);
+
+    if (preview?.kind === "furniture") this.placement.begin(preview.itemId);
     else this.placement.cancel();
+
+    // 进不去也要收（比如这张图没有领地，见 beginBuildingSiting 的闸）——
+    // "最多开一种"包括"一种都不开"
+    const siting =
+      preview?.kind === "building" &&
+      this.beginBuildingSiting({ mode: "build", buildingId: preview.buildingId });
+    if (!siting) this.buildingPlacement.cancel();
   }
 
   rotate(direction: 1 | -1): void {
@@ -3030,10 +3082,20 @@ export class RoomScene {
   }
 
   /**
-   * 进入建筑选址。指令和以后的建造菜单都走它。
+   * 进入建筑选址。手上拿着图纸、建筑面板、`/site` 指令都走它。
    *
-   * 返回 false = 这个型号/等级不存在。**不抛**——选址是玩家动作，
-   * 参数不对该是"没反应"，不是整个场景崩掉。
+   * 返回 false = 进不去（这张图不能盖 / 这个型号或等级不存在）。**不抛**——
+   * 选址是玩家动作，参数不对该是"没反应"，不是整个场景崩掉。
+   *
+   * ## 领地闸
+   *
+   * **没有领地定义的图不能盖楼**，判据是 `MapDefinition.territory` 在不在，
+   * 不是列一串图 id。这条本来就是数据模型的事实而不是新规矩：
+   * `BuildingPlacement` 身上没有 mapId，占地、领地、占用图全按
+   * `getCurrentMap()` 算——玩家建的楼隐式地只活在领地那张图上。
+   *
+   * 以前这里不判也没出事，是因为进选址得主动按 F；现在选中图纸就自动进，
+   * 不拦的话走进店铺一切到图纸那格，人家店里的地板上就浮起一个虚影。
    */
   beginBuildingSiting(options: {
     mode: "build" | "move" | "upgrade";
@@ -3041,6 +3103,15 @@ export class RoomScene {
     levelId?: string;
     instanceId?: string;
   }): boolean {
+    if (!getCurrentMap().territory) return false;
+
+    /*
+     * 进选址就收掉家具虚影。**"场上最多一种预瞄"这条不能只由
+     * syncHeldPreview 保证**——挪 / 升级是建筑面板拉起来的，那条路
+     * 根本不经过它：手里拿着一把椅子去点"挪一下罐子"，两个虚影就
+     * 同时挂在场上了，而且鼠标一动两个一起跟。
+     */
+    this.placement.cancel();
     return this.buildingPlacement.begin(options);
   }
 

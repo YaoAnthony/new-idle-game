@@ -49,6 +49,119 @@ export const petDefinitions = [
   },
 
   /**
+   * 水獭商人（期 3）。**三天来一趟收家具**，顺便卖你种不出来的食材。
+   *
+   * `role: Merchant` 让他跳过吃/喝/亲近三支（同石傀儡），但比石傀儡多
+   * 一件事：**他会走**。在不在场由 `Systems/trading` 按固定周期算，
+   * 不在的那几天整只从运行时移除——不是藏起来，藏起来碰撞体还在，
+   * 玩家会撞到一团空气。
+   *
+   * 造型见 `Visual/recipes/otter.ts`（用户 2026-08-24 给了两张参考图）。
+   */
+  {
+    id: "otter_trader",
+    localizationKey: "pet.otter_trader",
+    defaultNicknameKey: "pet.otter_trader.nickname",
+    visualId: "otter_trader",
+    species: "otter",
+    role: CreatureRole.Merchant,
+    /*
+     * 碰撞半径 0.5：他本人只有 0.25 宽，但**背着那个包**——
+     * 按身体算的话玩家会从包里穿过去，那一下"这是个活物"的错觉就碎了
+     * （舒舒那条注释里的同一个判据）。
+     */
+    collisionRadius: 0.5,
+    behavior: {
+      moveSpeed: 1.1,
+      // 摊位边上转两步就够。他是来做生意的，不是来溜达的
+      wanderRadius: 2.5,
+      // 商人不打盹：玩家走过去他要是睡着的，"来做生意"就不成立
+      sleepiness: 0,
+    },
+    // dialogues 等 3B 写完对话数据一起填——content.test 查引用必须存在
+  },
+
+  /**
+   * 小龙「青涟」（期 3 的贼）。灵渊小龙、幼年期，喜探索水域，爱偷金币。
+   *
+   * **不常驻**：只在偷窃链的"被抓回来"那一幕登场（spawn_pet），
+   * 事件结了就从运行时移除。造型见 `Visual/recipes/dragon.ts`
+   * （用户 2026-08-24 给的设定稿：三视图 + 表情 + 细节 + 比例）。
+   *
+   * role 走缺省的 Pet 而不是 Worker——Worker 会去认领工地（石傀儡的
+   * 行为），龙站在院子里等发落的时候跑去搬砖就穿帮了。吃喝用零衰减
+   * 关掉：它只站一两天，不该饿。
+   */
+  {
+    id: "coin_dragon",
+    localizationKey: "pet.coin_dragon",
+    defaultNicknameKey: "pet.coin_dragon.nickname",
+    visualId: "coin_dragon",
+    species: "spirit_dragon",
+    collisionRadius: 0.35,
+    behavior: {
+      moveSpeed: 1.4,
+      // 被抓回来的贼站在原地等发落，不游荡
+      wanderRadius: 1.2,
+      sleepiness: 0,
+      hungerPerHour: 0,
+      thirstPerHour: 0,
+    },
+    // 按 F 听它道歉（剧情主动拉起的也是这一段；没有 bondEventId，永远是它）
+    dialogues: { firstMeet: "dragon_caught" },
+  },
+
+  /*
+   * ==== 三位居民（期 4）====
+   *
+   * 到来走抽签池（storyRules 里共享 poolId "resident_arrival"，同一天
+   * 最多来一位）。**造型都是占位**——用户还没给这三只的参考图，
+   * visualId 指向的是 `recipes/residentPlaceholder`（一颗带问号气质的
+   * 小圆球，各染各的色）。图到了换 VisualRegistry 一行，定义不动。
+   *
+   * 搬入前驻地在出生点附近；房子建成那一刻 `Systems/residents` 把
+   * home 重定向到他家门口（进存档，不漂移）。
+   */
+  {
+    id: "slime_neighbor",
+    localizationKey: "pet.slime_neighbor",
+    defaultNicknameKey: "pet.slime_neighbor.nickname",
+    visualId: "slime_neighbor",
+    species: "slime",
+    role: CreatureRole.Resident,
+    collisionRadius: 0.3,
+    behavior: { moveSpeed: 0.9, wanderRadius: 3, sleepiness: 0.3, napSeconds: [60, 150] },
+    dialogues: { firstMeet: "slime_asks_to_stay", casual: "slime_casual" },
+  },
+  {
+    id: "fox_neighbor",
+    localizationKey: "pet.fox_neighbor",
+    defaultNicknameKey: "pet.fox_neighbor.nickname",
+    visualId: "fox_neighbor",
+    species: "fox",
+    role: CreatureRole.Resident,
+    collisionRadius: 0.35,
+    behavior: { moveSpeed: 1.5, wanderRadius: 4, sleepiness: 0.15 },
+    dialogues: { firstMeet: "fox_asks_to_stay", casual: "fox_casual" },
+  },
+  {
+    /*
+     * 精灵：**尖耳朵人形，像个小人**（用户 2026-08-24 定）。
+     * 不是 wisp 那一支（wisp 是环境凝出来的元素体）——它是全游戏
+     * 第一个"像人"的角色（除玩家），文明设定期 7 写播报员对话时一起立。
+     */
+    id: "spirit_neighbor",
+    localizationKey: "pet.spirit_neighbor",
+    defaultNicknameKey: "pet.spirit_neighbor.nickname",
+    visualId: "spirit_neighbor",
+    species: "spirit_folk",
+    role: CreatureRole.Resident,
+    collisionRadius: 0.3,
+    behavior: { moveSpeed: 1.2, wanderRadius: 3.5, sleepiness: 0.2 },
+    dialogues: { firstMeet: "spirit_asks_to_stay", casual: "spirit_casual" },
+  },
+
+  /**
    * 舒舒：一只两个人那么大的巨猫，几乎总在地上睡（对照 整体架构.md
    * 开头那句"一只龙猫正躺在角落里呼呼大睡"——就是这个位置的生物）。
    *

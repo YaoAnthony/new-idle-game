@@ -1174,6 +1174,34 @@ export const migrations: Migration[] = [
       return save;
     },
   },
+
+  /**
+   * v30（2026-08-24，小动物经济圈 · 期 0）：剧情引擎补口带来的两个字段。
+   *
+   * | 字段 | 是什么 |
+   * |------|------|
+   * | `WorldSave.dayFacts` | 「昨日事实」——报纸的素材源（期 7 出版面，素材从期 0 攒） |
+   * | `WorldSave.progression.poolMisses` | 抽签池连续错过几次——保底靠它爬坡，不进档读一次就归零 |
+   *
+   * 数据不用动：两个都是可选字段、缺省即默认（没记过事实 / 一次都没
+   * 错过）。显式赋值同 v29 的理由——让形状在存档里落实，saveShape
+   * 的指纹从此稳定。联机不跟：story 不在做客端跑，刷新切片不带它们
+   * （报纸要不要给访客看是期 7 的决定）。
+   */
+  {
+    to: 30,
+    migrate: (save) => {
+      const world = save.ownWorld as unknown as Record<string, unknown>;
+      if (world) {
+        world.dayFacts ??= [];
+        const progression = world.progression as
+          | Record<string, unknown>
+          | undefined;
+        if (progression) progression.poolMisses ??= {};
+      }
+      return save;
+    },
+  },
 ];
 
 /**

@@ -25,6 +25,7 @@ import { initDoors } from "../src/Game/State/doorsRuntime";
 import { invalidateNavGrid } from "../src/Game/Systems/navigation";
 import { travelTo } from "../src/Game/Systems/mapTravel";
 import { replaceCounts } from "../src/Game/State/inventory";
+import { on } from "../src/Game/EventBus";
 
 /**
  * 施工：下单 → 排队 → 认领 → 完工。
@@ -169,4 +170,61 @@ test("已经在施工的不给再下一单", () => {
 
   expect(upgradeBuilding(id, "l2").ok).toBe(true);
   expect(upgradeBuilding(id, "l2").ok).toBe(false);
+});
+
+/**
+ * 回归：**building_completed 要在"楼变成成品"的那一刻发，不管走的哪条路**。
+ *
+ * 原来只有 `finishSite` 发。于是绕过工地那条路落地的楼一律不报完工：
+ * `instantBuild` 的木墙（确认下去当场就是成品），以及 `asSite` 没打的
+ * 任何入口（调试指令 `/build`、以后可能出现的礼物型直接落成）。
+ *
+ * 期 4 的居民搬入挂在这条信号上，实测用 `/build` 摆房子时人不搬进去、
+ * 而且一声不吭——真游戏走选址面板（`asSite: true`）是好的，所以这个洞
+ * **当时只在调试路径和木墙上真实存在**。但判据本来就该是"这一刻它是不是
+ * 成品"而不是"走了哪个函数"，何况木墙那一支是实打实的产品路径，
+ * 只是今天还没有剧情挂上去。
+ */
+test("construction_落地即成品的楼当场报完工_工地则要等finishSite", () => {
+  // Arrange
+  const seen: string[] = [];
+  const off = on("building_completed", ({ instanceId }) => seen.push(instanceId));
+
+  // Act & Assert ①：打了 asSite 的普通楼是工地，落地不报完工
+  const site = placeBuilding("gold_jar", SPOT_A.x, SPOT_A.z, Facing.North, { asSite: true });
+  expect(site.ok, JSON.stringify(site)).toBe(true);
+  expect(seen).toEqual([]);
+
+  // Act & Assert ②：完工才报
+  const siteId = site.ok !== false ? site.instanceId : "";
+  claimSite(siteId, "pet-stone_golem", "2026-08-22T00:00:00.000Z");
+  finishSite(siteId);
+  expect(seen).toEqual([siteId]);
+
+  // Act & Assert ③：没打 asSite = 当场成品（调试指令走的就是这条），立刻报
+  const instant = placeBuilding("gold_jar", SPOT_B.x, SPOT_B.z, Facing.North);
+  expect(instant.ok, JSON.stringify(instant)).toBe(true);
+  const instantId = instant.ok !== false ? instant.instanceId : "";
+  expect(seen).toEqual([siteId, instantId]);
+
+  off();
+});
+
+test("construction_instantBuild的楼即使点了asSite也当场报完工", () => {
+  // Arrange：木墙的 instantBuild 会无视 asSite（那道门开在 placeBuilding 里）
+  const seen: string[] = [];
+  const off = on("building_completed", ({ buildingId }) => seen.push(buildingId));
+
+  // Act
+  const wall = placeBuilding("wood_wall", SPOT_A.x, SPOT_A.z, Facing.North, { asSite: true });
+  expect(wall.ok, JSON.stringify(wall)).toBe(true);
+
+  // Assert：没有工地，所以完工必须当场报——否则挂在木墙上的剧情永远静默
+  const placed = listBuildings().find(
+    (item) => item.instanceId === (wall.ok !== false ? wall.instanceId : ""),
+  );
+  expect(placed?.construction).toBeUndefined();
+  expect(seen).toEqual(["wood_wall"]);
+
+  off();
 });

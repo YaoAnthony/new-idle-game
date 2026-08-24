@@ -8,7 +8,8 @@ import { FurnitureCapability } from "../../types/furniture.js";
 
 /**
  * 行动注册表。行动是玩家现实中真的要做的事（专注陪伴工具的核心）；
- * 完成后的物品奖励让游戏循环得以继续。
+ * 完成后**开一个箱子，抽一件家具**（期 2 起）——那件家具既是布置屋子的
+ * 材料，也是拿去卖给水獭换钱的货，两条循环靠它接起来。
  *
  * 能做哪类行动取决于家里有什么家具——这条规则通过
  * `requiredFurnitureCapabilities` 表达，家具那边用同名的 FurnitureCapability 声明，
@@ -23,10 +24,8 @@ export const actionDefinitions = [
     requiredFurnitureCapabilities: [FurnitureCapability.Study],
     durationMinutes: { min: 1, max: 480 },
     fatigueCost: 18,
-    rewards: [
-      { type: "item", itemId: "wood", quantity: 2 },
-      { type: "item", itemId: "egg", quantity: 1 },
-    ],
+    // 空 = 开箱（期 2）。原来是「2 木头 + 1 鸡蛋」，不看时长
+    rewards: [],
     audioProfileId: "sfx_action_writing",
   },
   {
@@ -36,10 +35,7 @@ export const actionDefinitions = [
     requiredFurnitureCapabilities: [FurnitureCapability.Exercise],
     durationMinutes: { min: 1, max: 240 },
     fatigueCost: 25,
-    rewards: [
-      { type: "item", itemId: "iron_ingot", quantity: 1 },
-      { type: "item", itemId: "tomato", quantity: 1 },
-    ],
+    rewards: [],
   },
   {
     id: "creation",
@@ -48,10 +44,7 @@ export const actionDefinitions = [
     requiredFurnitureCapabilities: [FurnitureCapability.Creation],
     durationMinutes: { min: 1, max: 300 },
     fatigueCost: 15,
-    rewards: [
-      { type: "item", itemId: "paper", quantity: 3 },
-      { type: "item", itemId: "graphite", quantity: 1 },
-    ],
+    rewards: [],
     // 画画和写字共用笔尖摩擦的声音——同一支笔在纸上走
     audioProfileId: "sfx_action_writing",
   },
@@ -64,7 +57,13 @@ export const actionDefinitions = [
     requiredFurnitureCapabilities: [FurnitureCapability.Rest],
     durationMinutes: { min: 1, max: 180 },
     fatigueCost: -30,
-    rewards: [{ type: "item", itemId: "root", quantity: 1 }],
+    /*
+     * **休息不掉东西**（期 2）。空数组在别处等于"开箱"，所以要显式关掉
+     * ——否则它会成为全游戏最优刷法：不耗精力、上限 180 分、白开箱。
+     * 它的回报是上面那个负的 fatigueCost 本身。
+     */
+    rewards: [],
+    noChest: true,
   },
 ] satisfies ActionDefinition[];
 

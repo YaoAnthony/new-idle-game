@@ -2,10 +2,10 @@ import {
   dialogueDefinitions,
   findDialogueDefinition,
 } from "../Data/dialogues/index.js";
-import { findEventDefinition } from "../Data/events/index.js";
+import { eventDefinitions, findEventDefinition } from "../Data/events/index.js";
 import { findItemDefinition } from "../Data/items/index.js";
 import { findPetDefinition } from "../Data/pets/index.js";
-import { storyRules, tutorialDefinition } from "../Data/story/index.js";
+import { findStoryPool, storyRules, tutorialDefinition } from "../Data/story/index.js";
 import { weatherDefinitions } from "../Data/weather/index.js";
 import type { StoryTrigger } from "../types/story.js";
 
@@ -49,7 +49,8 @@ const ITEM_SUBJECT_SIGNALS = new Set([
 
 const WEATHER_IDS = new Set(weatherDefinitions.map((weather) => weather.id));
 
-function auditTrigger(where: string, trigger: StoryTrigger): string[] {
+/** 导出是给用例喂 fixture 用的；正式入口仍是 auditStoryContent */
+export function auditTrigger(where: string, trigger: StoryTrigger): string[] {
   const problems: string[] = [];
 
   if (
@@ -105,6 +106,58 @@ function auditTrigger(where: string, trigger: StoryTrigger): string[] {
 
   if (trigger.signalCount !== undefined && trigger.signalCount < 1) {
     problems.push(`${where}：signalCount ${trigger.signalCount} 应该至少是 1`);
+  }
+
+  if (trigger.poolId !== undefined) {
+    // 一个是"迟早会来"，一个是"撞见的"——同写说明作者没分清想要哪种
+    if (trigger.chance !== undefined) {
+      problems.push(`${where}：poolId 和 chance 不能同时写`);
+    }
+    if (!findStoryPool(trigger.poolId)) {
+      problems.push(`${where}：poolId "${trigger.poolId}" 没有在 storyPools 里登记`);
+    }
+  }
+
+  return problems;
+}
+
+/**
+ * 事件注册表自己的体检。**导出是给用例喂 fixture 用的**（正式注册表是
+ * 模块级常量，测试没法往里塞坏数据）；正式入口仍是 auditStoryContent。
+ *
+ * 原来完全没查：规则引用的 eventId 查得出来，但那条事件**自己**的名字和
+ * 各阶段的说明有没有译文，从来没人管——上一版六个事件漏了 16 个文案键，
+ * 表现是"事件记录"那一屏显示不出名字，而所有测试都是绿的。
+ */
+export function auditEventDefinitions(
+  events: ReadonlyArray<{
+    id: string;
+    localizationKey: string;
+    stages: ReadonlyArray<{ stageId: string; localizationKey: string }>;
+  }>,
+  checkText: (where: string, key: string) => void,
+): string[] {
+  const problems: string[] = [];
+  const seenIds = new Set<string>();
+
+  for (const event of events) {
+    const where = `事件 ${event.id}`;
+    if (seenIds.has(event.id)) problems.push(`${where}：id 重复`);
+    seenIds.add(event.id);
+
+    checkText(where, event.localizationKey);
+
+    if (event.stages.length === 0) {
+      problems.push(`${where}：一个阶段都没有，set_event_stage 无处可写`);
+    }
+
+    const stageIds = new Set<string>();
+    for (const stage of event.stages) {
+      const stageWhere = `${where} 阶段 ${stage.stageId}`;
+      if (stageIds.has(stage.stageId)) problems.push(`${stageWhere}：stageId 重复`);
+      stageIds.add(stage.stageId);
+      checkText(stageWhere, stage.localizationKey);
+    }
   }
 
   return problems;
@@ -261,11 +314,19 @@ export function auditStoryContent(options: AuditOptions = {}): string[] {
           checkText(where, effect.localizationKey);
           break;
 
+        case "adjust_gold":
+          if (effect.amount === 0) {
+            problems.push(`${where}：adjust_gold 的 amount 是 0，什么都不会发生`);
+          }
+          break;
+
         default:
           break;
       }
     }
   }
+
+  problems.push(...auditEventDefinitions(eventDefinitions, checkText));
 
   for (const step of tutorialDefinition.steps) {
     const where = `教程步骤 ${step.stepId}`;

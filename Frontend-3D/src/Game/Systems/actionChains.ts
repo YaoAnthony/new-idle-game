@@ -106,7 +106,14 @@ export function completeChainNode(ref: ActionChainRef): void {
  * 将来的特殊链）。**入包只发生在这一刻**——completeChainNode 只放行
  * 一次，所以不用另存"已领取"标记。
  */
-function grantChest(
+/**
+ * 开一个箱：没写死奖励就按投入分抽一件，然后统一入包、算出最高档位。
+ *
+ * **导出给行动系统用**（期 2）：行动完成也走这一条路——同一套投入分、
+ * 同一张权重表、同一个候选池。两处各写一份抽取的话，"两小时的活该开出
+ * 什么档"会在两个地方各调一次，迟早走散。
+ */
+export function grantChest(
   target: { rewards: RewardDefinition[] },
   score: number,
 ): { items: Array<{ itemId: string; quantity: number }>; rarity: Rarity } {

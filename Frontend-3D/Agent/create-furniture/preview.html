@@ -55,11 +55,20 @@
       // 没有 ACES 的话夜里发光面全部顶到纯白，会误判成"emissive 调太高"
       renderer.toneMapping = ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.15;
-      renderer.setSize(window.innerWidth, window.innerHeight, false);
+      /*
+       * 画布尺寸**不能直接信 innerWidth**：Browser pane 不显示时它是 0，
+       * 于是画布 0×0、toDataURL 吐出一个 6 字节的空串，落地是个 0 字节的 jpg
+       * （2026-08-23 踩到，排查了一轮才发现不是渲染的问题）。
+       * 拿不到窗口尺寸就用固定的 1280×720——观察台本来就该在固定画幅下比对。
+       */
+      const width = Number(params.get("w")) || window.innerWidth || 1280;
+      const height = Number(params.get("h")) || window.innerHeight || 720;
+
+      renderer.setSize(width, height, false);
       document.body.appendChild(renderer.domElement);
 
       const scene = new Scene();
-      const camera = new PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.05, 60);
+      const camera = new PerspectiveCamera(38, width / height, 0.05, 60);
 
       // 地板 + 一块桌板。桌板只到 ids 的一半宽，右边留出地板对照
       const rowWidth = Math.max(ids.length * spacing, spacing);
@@ -76,6 +85,20 @@
       );
       table.position.set(0, tableTop - 0.045, -0.75);
       scene.add(table);
+
+      /*
+       * 桌子背后那堵墙（2026-08-23 补）。**没有它观察台就漏掉了最常见的摆法**：
+       * 台灯十有八九是靠墙放的（床头柜、书桌都贴墙），而点光离墙只有三四十厘米，
+       * 平方反比在这个距离上极其凶——第一版三盏灯在空地里看着好好的，
+       * 进游戏往床头柜上一放，整面墙烧成一块白斑。
+       * 墙贴着桌子的后沿，和床头柜靠墙时的距离一样。
+       */
+      const wall = new Mesh(
+        new BoxGeometry(rowWidth + 2.4, 3, 0.08),
+        new MeshLambertMaterial({ color: "#ece1cb", flatShading: true }),
+      );
+      wall.position.set(0, 1.5, -1.29);
+      scene.add(wall);
 
       // 半格参考线（0.5 米）铺在桌面上：模型压没压过格子边一眼可见
       const grid = new GridHelper(Math.ceil(rowWidth + 0.5), Math.ceil((rowWidth + 0.5) / 0.5), "#5b4332", "#8a7050");
@@ -103,16 +126,23 @@
       sun.position.set(2.5, 4, 3);
       scene.add(sun);
 
-      /** 照 Lighting.ts 的两档：白天灯灭，夜里灯全亮（intensity 18） */
+      /*
+       * 照 Lighting.ts 的档位：白天灯灭、黄昏 9、入夜 18。
+       * **倍率要跟 refreshLamps 同一套算法**（乘 userData.lampStrength），
+       * 否则观察台看到的亮度和游戏里对不上，调出来的数是白调的。
+       */
+      const LAMP_INTENSITY = { day: 0, dusk: 9, night: 18 };
+
       function setPhase(phase) {
         const night = phase === "night";
+        const base = LAMP_INTENSITY[phase] ?? 0;
         scene.background = new Color(night ? "#252e42" : "#e8ddc6");
         ambient.color = new Color(night ? "#6b7aa1" : "#ffffff");
         ambient.intensity = night ? 0.5 : 1;
         sun.intensity = night ? 0.12 : 1;
         scene.traverse((node) => {
           if (node.name === "lamp-light" && node instanceof PointLight) {
-            node.intensity = night ? 18 : 0;
+            node.intensity = base * (node.userData.lampStrength ?? 1);
           }
         });
       }

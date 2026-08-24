@@ -52,6 +52,8 @@ const SHAPE: string[] = [
   "ownWorld.clock.timePolicyId",
   "ownWorld.clock.timeZoneId",
   "ownWorld.dailyBoard",
+  // v30：昨日事实（报纸素材）。版本已抬、迁移已补、联机不跟（story 不在做客端跑）
+  "ownWorld.dayFacts[]",
   "ownWorld.doors",
   "ownWorld.droppedItems[]",
   "ownWorld.gramophones{}",
@@ -65,6 +67,8 @@ const SHAPE: string[] = [
   "ownWorld.placedFurniture[]",
   "ownWorld.progression.events",
   "ownWorld.progression.firedStoryRuleIds[]",
+  // v30：抽签池的保底计数。不进档的话读一次档等待就归零
+  "ownWorld.progression.poolMisses",
   "ownWorld.progression.signalCounts",
   "ownWorld.progression.unlockedFeatureIds[]",
   "ownWorld.seed",

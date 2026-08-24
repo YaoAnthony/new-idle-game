@@ -1,10 +1,11 @@
 import { findPetDefinition } from "core";
 import { Object3D } from "three";
 import { on } from "../../Game/EventBus";
-import { getPets } from "../../Game/State/petsRuntime";
+import { getPet, getPets } from "../../Game/State/petsRuntime";
 import { groundHeightAt } from "../../Game/State/worldRuntime";
 import { addOutline } from "../Engine/Outline.js";
 import { buildVisual } from "../Visual/VisualRegistry.js";
+import { disposeTree } from "../Visual/primitives.js";
 
 /**
  * 宠物场景同步。造型**不在这里写死**——走和家具同一条路：
@@ -103,6 +104,18 @@ export class PetView {
         // 叠在承托面上，不是覆盖它——覆盖的话站在缘侧上的小团子会掉回地面
         view.position.y = ground + bounce;
       }
+    }
+
+    /*
+     * 清扫：运行时里已经不在的生物，把模型收走（期 3：水獭隔天走、
+     * 小龙被送走）。在这之前从没有生物会消失，所以这个循环一直不存在——
+     * 不补的话水獭走了模型还站在原地，成了一只按 F 没反应的"空壳"。
+     */
+    for (const [petId, view] of this.views) {
+      if (getPet(petId)) continue;
+      this.root.remove(view);
+      disposeTree(view);
+      this.views.delete(petId);
     }
   }
 }

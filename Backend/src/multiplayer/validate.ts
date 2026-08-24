@@ -2,6 +2,7 @@ import {
   GestureKind,
   Locomotion,
   NET_LIMITS,
+  WORLD_REFRESH_KEYS,
   auditAvatarConfig,
   type NetError,
   type NetErrorCode,
@@ -197,14 +198,19 @@ export function parseWorldOp(value: unknown): WorldOp | null {
   return value as WorldOp
 }
 
-const REFRESH_KEYS = new Set([
-  'placedFurniture',
-  'droppedItems',
-  'inventories',
-  'weather',
-  'clock',
-  'gramophones',
-])
+/**
+ * 切片白名单**从 Core 来**，不在这里抄第二份。
+ *
+ * 抄的那份已经走散过一次：协议 v6 给客户端加了 `lamps` 并每次刷新都发，
+ * 这张表没跟上——于是每一次 `world:refresh` 都撞上下面那句"未知切片 =
+ * 整条拒绝"被打回，房客连家具、天气都不再同步。没有任何东西报错，
+ * 因为拒绝的分支就是 `return null`。
+ *
+ * Core 那边有编译期断言钉着"类型里的键必须都在表里"，所以现在漏一个的
+ * 后果是**编译不过**，不是线上静默失联。这也正合 Backend AGENTS.md 那条：
+ * 内容/协议规则只有一份，服务端不得自己复制一份。
+ */
+const REFRESH_KEYS = new Set<string>(WORLD_REFRESH_KEYS)
 
 export function parseRefreshSlices(value: unknown): WorldRefreshSlices | null {
   if (typeof value !== 'object' || value === null) return null

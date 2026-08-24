@@ -1,5 +1,6 @@
 import { findItemDefinition, type ItemId } from "core";
 
+import { isRemoteWorld } from "../Multiplayer/worldLock";
 import { getCounts, addItem, removeItem } from "../State/inventory";
 import { getGold, spendGoldFrom } from "../State/gold";
 
@@ -21,7 +22,15 @@ import { getGold, spendGoldFrom } from "../State/gold";
 /** 不在背包里的资源。key 是保留 id */
 const RESERVED_MATERIALS: Record<string, { get: () => number; spend: (n: number) => boolean }> = {
   gold: {
-    get: () => getGold(),
+    /*
+     * **做客时能花的是 0**，不是房主罐里那个数。
+     *
+     * `getGold()` 回答的是"这个世界的金库里有多少"（罐子的液面就是照它画
+     * 的），而这里问的是"我现在能花多少"——在别人家这两个数不是一回事。
+     * 不分开的话，商店会拿房主的余额把按钮点亮，按下去被 `spendGoldFrom`
+     * 拒掉：一个亮着却按不动的按钮，比一个灰着的难解释得多。
+     */
+    get: () => (isRemoteWorld() ? 0 : getGold()),
     spend: (n) => spendGoldFrom(n).ok,
   },
 };

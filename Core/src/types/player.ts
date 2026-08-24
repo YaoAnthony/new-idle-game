@@ -29,6 +29,26 @@ export type PlayerSave = {
    * 别复活那个壳。
    */
   actionChains: ActionChainSave[];
+
+  /**
+   * **在别人家赚的、还没带回家的钱**（存档 v29）。
+   *
+   * 做客时运行时里装着的是**房主的**世界，金币罐当然也是房主的——赚到的钱
+   * 直接入账等于往朋友的罐子里塞钱（用户 2026-08-23 定："联机的人获得的
+   * 金币存到自己的世界的金库里面，而不是这个人的"）。而自己家的罐子这会儿
+   * 根本不在运行时里，存不进去。
+   *
+   * 所以钱先记在**人**身上，回家那一刻再走正常入账（该溢出照样溢出——
+   * 罐装不下是罐的事，不因为钱是外面赚的就网开一面）。
+   *
+   * 落在 PlayerSave 不落在 WorldSave 的理由和 `actionChains`、`character.position`
+   * 一样：**它跟着人走**。做客期间的存档合成（composeGuestSave）玩家侧照抄
+   * 运行时、世界侧用入房前快照，所以挂在这里的钱中途崩溃也不丢。
+   *
+   * 老档没有 → 0。不是"欠玩家一笔"，是"没在外面赚过钱"。
+   */
+  pendingGold?: number;
+
   character: {
     inventory: InventoryStack[];
     inventoryId?: InventoryId;

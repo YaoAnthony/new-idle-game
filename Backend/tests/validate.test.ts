@@ -14,6 +14,7 @@ import {
   parseTransform,
   parseWorldOp,
 } from '../src/multiplayer/validate.js'
+import { WORLD_REFRESH_KEYS } from 'core'
 
 /**
  * 入站载荷的结构校验。**服务端一个字都不信客户端**——不是防玩家，
@@ -275,6 +276,32 @@ test('切片：认识的键放行，一个都没有时拒绝', () => {
 test('切片：出现不认识的键就整条拒绝（坏客户端）', () => {
   assert.equal(parseRefreshSlices({ droppedItems: [], evil: 1 }), null)
   assert.equal(parseRefreshSlices({ ownWorld: {} }), null)
+})
+
+/**
+ * 上面那条的**反面**，而缺的一直是这一面。
+ *
+ * 2026-08-23 审计发现：协议 v6 给客户端加了 `lamps`、每次刷新都发，
+ * 而服务端白名单是抄的一份字面量、没跟上——于是**每一次 world:refresh
+ * 都被整条打回**，房客连家具、天气都不再同步。全程没有任何东西变红，
+ * 因为拒绝的分支就是 `return null`，而当时只有"坏键要拒绝"那条用例。
+ *
+ * 现在白名单从 Core 来（`WORLD_REFRESH_KEYS`，那边有编译期断言钉着
+ * 类型和表一致），这条用例守的是运行时那一半：**表里的每一片都真的
+ * 放得进来**。由表驱动而不是手写键名，所以加片时它不会烂。
+ */
+test('切片：客户端真会发的每一片都放得进来（lamps 那次就是漏在这儿）', () => {
+  const full: Record<string, unknown> = {}
+  for (const key of WORLD_REFRESH_KEYS) full[key] = {}
+
+  const parsed = parseRefreshSlices(full)
+  assert.ok(parsed, `整片刷新被拒了，白名单和 WORLD_REFRESH_KEYS 走散了`)
+  assert.deepEqual(Object.keys(parsed).sort(), [...WORLD_REFRESH_KEYS].sort())
+
+  // 逐片单发也要放行——房主端将来若改成挑着发，不该有哪一片进不来
+  for (const key of WORLD_REFRESH_KEYS) {
+    assert.ok(parseRefreshSlices({ [key]: {} }), `切片 ${key} 被拒了`)
+  }
 })
 
 test('切片：协议 v4 的 gramophones 是合法切片', () => {

@@ -49,7 +49,14 @@ import {
   restoreGramophones,
   snapshotGramophones,
 } from "../State/gramophones";
+import { restoreBuildings, snapshotBuildings } from "../State/buildings";
+import { flushPendingGold } from "../State/gold";
+import {
+  getUnlockedFeatures,
+  replaceUnlockedFeatures,
+} from "../Systems/events";
 import { restoreLamps, snapshotLamps } from "../State/lamps";
+import { setRemoteWorldActive } from "./worldLock";
 import { restoreWeather, snapshotWeather } from "../State/weather";
 import { getWorld, restoreWorld } from "../State/worldRuntime";
 import { getClock } from "../State/clock";
@@ -227,6 +234,12 @@ function enterRemoteWorld(ownSnapshot: GameSave, hostWorld: WorldSave): void {
    * 世界永远进不了这份档。第一版用"做客全程不写盘"，两头都吃亏。
    */
   setSaveComposer(() => composeGuestSave(ownSnapshot));
+  /*
+   * 打上"运行时里是别人的世界"这个位。归属类判断靠它——最要命的是金币：
+   * 罐子从这一刻起是房主的，赚到的钱得先记在人身上（见 State/gold）。
+   * 真相仍是 state.kind，这里是它在换世界出入口上的镜像。
+   */
+  setRemoteWorldActive(true);
 
   const synthetic: GameSave = {
     meta: ownSnapshot.meta,
@@ -275,7 +288,17 @@ function exitRemoteWorld(ownSnapshot: GameSave): void {
   const final = composeGuestSave(ownSnapshot);
   setSaveComposer(null);
   hydrateGameSave(final);
-  setBaseline(final);
+
+  /*
+   * **顺序是死的**：先把自家世界灌回来，再翻掉"在别人家"这个位，
+   * 最后才结算在外面赚的钱。早翻一步 `depositGoldTo` 就会往房主的罐里
+   * 塞钱，早结算一步则连罐子都还没回来。
+   */
+  setRemoteWorldActive(false);
+  flushPendingGold();
+
+  // 基线要反映结算之后的状态：钱已经从"身上寄存"挪进了罐子
+  setBaseline(serializeGameSave(final));
   emit("net_world_swapped", {});
   void saveNow();
 }
@@ -404,6 +427,18 @@ function applyWorldRefresh(event: WorldRefreshEvent): void {
   if (slices.inventories) restoreStorages(slices.inventories);
   if (slices.gramophones) restoreGramophones(slices.gramophones);
   if (slices.lamps) restoreLamps(slices.lamps);
+  if (slices.buildings) restoreBuildings(slices.buildings);
+  /*
+   * 进度整份覆盖（协议 v7）。**做客期间盖掉的是自己的进度**，这没问题：
+   * 进度是世界状态（`WorldSave.progression`），此刻运行时里装的本来就是
+   * 房主的世界；回家时 hydrate 会把自己那份灌回来。
+   *
+   * 剧情规则不会因此乱跑——做客期间世界侧的自治系统本来就按
+   * `isRemoteWorldActive` 闭嘴。
+   */
+  if (slices.unlockedFeatureIds) {
+    replaceUnlockedFeatures(slices.unlockedFeatureIds);
+  }
   if (slices.weather) restoreWeather(slices.weather);
   if (slices.clock) restoreClock(slices.clock);
 }
@@ -423,8 +458,9 @@ function startHostRefreshWatch(): void {
   const send = (): void => {
     if (state.kind !== "hosting") return;
     lastRefreshAt = Date.now();
-    // 六片全发。变更本来就低频（合并过），挑着发省的那点字节
-    // 抵不上"漏发一片"的排查成本
+    // **全片发**。变更本来就低频（合并过），挑着发省的那点字节抵不上
+    // "漏发一片"的排查成本——期 2 的建筑就是漏了整整一片才没在联机里
+    // 出现过（协议 v7 补上）
     sendWorldRefresh({
       // 摊成可变数组：运行时那份是 readonly，而切片类型要可变的。
       // 原来走无类型的 socket.emit 时这个错位是看不见的
@@ -435,6 +471,11 @@ function startHostRefreshWatch(): void {
       clock: snapshotClock(),
       gramophones: snapshotGramophones(),
       lamps: snapshotLamps(),
+      // 期 2 的建筑（协议 v7）。罐子的液面也搭这趟车——fill 存在实例的
+      // state 里，跟着建筑走
+      buildings: snapshotBuildings(),
+      // 开了哪几块地（协议 v7）。领地围栏靠它跟着房主往外挪
+      unlockedFeatureIds: [...getUnlockedFeatures()],
     });
   };
 

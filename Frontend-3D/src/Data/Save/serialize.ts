@@ -38,7 +38,12 @@ import {
   restoreBuildings,
   snapshotBuildings,
 } from "../../Game/State/buildings";
-import { restoreBaseGold, snapshotBaseGold } from "../../Game/State/gold";
+import {
+  restoreBaseGold,
+  restorePendingGold,
+  snapshotBaseGold,
+  snapshotPendingGold,
+} from "../../Game/State/gold";
 import {
   pruneOrphanStorages,
   restoreStorages,
@@ -120,6 +125,8 @@ export function serializeGameSave(previous?: GameSave): GameSave {
       name: previous?.player.name ?? "旅人",
       avatar: snapshotAvatar(),
       actionChains: snapshotActionChains(),
+      // 在别人家赚的、还没带回家的钱。跟着人走，所以落在玩家侧
+      pendingGold: snapshotPendingGold(),
       character: {
         inventory: snapshotInventory(),
         needs: getNeeds(),
@@ -348,5 +355,6 @@ export function hydrateGameSave(save: GameSave): void {
   // 当场补结算，带 chainRef 的那条要立刻回链上打勾——链还没恢复就打，
   // 勾会打在空气里，奖励发了、树却停在原地
   restoreActionChains(save.player.actionChains);
+  restorePendingGold(save.player.pendingGold);
   restoreAction(save.player.activeActionProcess);
 }

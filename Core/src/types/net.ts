@@ -1,4 +1,5 @@
 import type { AvatarConfig } from "./avatar.js";
+import type { BuildingPlacement } from "./building.js";
 import type { PlayerId } from "./base.js";
 import type { ContainerContents } from "./cooking.js";
 import type { ItemId } from "./items.js";
@@ -46,7 +47,7 @@ import type { DroppedItem, WorldSave } from "./world.js";
  * v5（2026-08-19）：加浴缸水位转折（bath_water_set）。
  * v6（2026-08-23）：加灯的开关（lamp_switched）+ lamps 刷新切片。
  */
-export const NET_PROTOCOL_VERSION = 6;
+export const NET_PROTOCOL_VERSION = 7;
 
 /** 服务端强制的上限。放在共享类型里，客户端可以在发送前先自查 */
 export const NET_LIMITS = {
@@ -211,7 +212,90 @@ export type WorldRefreshSlices = {
   gramophones?: Record<string, { recordItemId: string }>;
   /** 哪几盏灯被关掉了（协议 v6）。形状同 WorldSave.lamps，缺条目 = 开着 */
   lamps?: Record<string, { on: boolean }>;
+
+  /**
+   * 玩家在领地里建的建筑（协议 v7）。形状同 WorldSave.buildings。
+   *
+   * 补这一片之前，期 2 的全部内容在联机里等于不存在：进场那一下 hydrate
+   * 房主整份世界所以看得见，但**做客期间房主盖的墙、石傀儡完工的工地、
+   * 罐里涨的钱，房客一概不会更新**——一个人在那儿盖房子，另一个人看着
+   * 一块空地。
+   *
+   * 罐子的液面也搭这趟车：`fill` 存在建筑实例的 state 里，跟着这一片走。
+   */
+  buildings?: BuildingPlacement[];
+
+  /**
+   * 已解锁的进度 id（协议 v7）。形状同 `WorldSave.progression.unlockedFeatureIds`。
+   *
+   * 领地开没开哪块地就记在这里面（`plot.*`），所以扩地要靠它同步——
+   * 不发的话房主推倒界桩、围栏往外挪一圈，房客那边纹丝不动。
+   *
+   * 发整份而不是"新开了哪块"：**只增不减**的集合整份覆盖最省心，
+   * 漏包、乱序都收敛到同一个结果。和灯那片发绝对状态是同一个道理。
+   */
+  unlockedFeatureIds?: string[];
 };
+
+/**
+ * 刷新切片的**键白名单**。服务端拿它校验（未知键 = 坏客户端，整条拒绝）。
+ *
+ * ## 为什么这张表必须住在 Core
+ *
+ * 它原来是抄在 Backend 的 `validate.ts` 里的一份字面量，和上面这个类型
+ * 各写各的。2026-08-23 的审计发现两边已经走散了：协议 v6 给客户端加了
+ * `lamps` 并每次刷新都发，而 Backend 那张表没跟上——于是**每一次世界
+ * 刷新都被整条打回**，房客连家具、天气都不再同步。没有任何东西报错，
+ * 因为拒绝的分支就是 `return null`。
+ *
+ * 现在类型和表在同一个文件里，而且下面那行编译期断言把它们钉在一起：
+ * 往 `WorldRefreshSlices` 加字段却忘了加进这张表，**Core 当场编译不过**。
+ * 这是那次走散唯一治得住的修法——靠人记得改两处，迟早再走散一次。
+ */
+export const WORLD_REFRESH_KEYS = [
+  "placedFurniture",
+  "droppedItems",
+  "inventories",
+  "weather",
+  "clock",
+  "gramophones",
+  "lamps",
+  "buildings",
+  "unlockedFeatureIds",
+] as const;
+
+/**
+ * 编译期断言：类型里的每一个键都在白名单里。
+ *
+ * 漏一个的话这里会报 "Type 'xxx' does not satisfy..."，指名道姓告诉你
+ * 漏了哪个键。反过来（表里多一个类型没有的）由 `as const` 的字面量
+ * 类型和下面的 satisfies 一起挡住。
+ */
+type MissingFromKeys = Exclude<
+  keyof WorldRefreshSlices,
+  (typeof WORLD_REFRESH_KEYS)[number]
+>;
+
+/**
+ * `T extends never` 是这里唯一管用的写法。
+ * 写成 `const x: MissingFromKeys[] = []` 是拦不住的——空数组对任何元素
+ * 类型都合法，漏了键也照样编译过（第一版就这么写的，加一片假切片试出来的）。
+ */
+type AssertNoMissingKeys<T extends never> = T;
+
+/**
+ * 这个类型**只为报错而存在**，没有任何运行时意义：
+ * `WorldRefreshSlices` 里有键不在 `WORLD_REFRESH_KEYS` 里时，它编译不过。
+ *
+ * 导出是因为前端那边开了 `noUnusedLocals`——不导出的话它在最严的那个
+ * 消费者里会被当成"没人用的局部类型"报掉，而它恰恰是最该留着的一行。
+ */
+export type WorldRefreshKeysAreComplete = AssertNoMissingKeys<MissingFromKeys>;
+
+// 反向：表里不能有类型里没有的键
+const _keysAreRealSlices: readonly (keyof WorldRefreshSlices)[] =
+  WORLD_REFRESH_KEYS;
+void _keysAreRealSlices;
 
 export type WorldRefreshEvent = {
   revision: number;

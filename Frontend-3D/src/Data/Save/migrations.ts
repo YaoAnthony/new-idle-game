@@ -1125,6 +1125,55 @@ export const migrations: Migration[] = [
       return save;
     },
   },
+
+  /*
+   * v29（2026-08-23 补账）：**一条迁移追四个字段**，因为这四次形状变更
+   * 都没有抬版本号。
+   *
+   * | 提交     | 日期 | 字段                          |
+   * |----------|------|-------------------------------|
+   * | df9c2bc  | 8-22 | WorldSave.buildings（期 2 建筑）|
+   * | ac4d983  | 8-23 | WorldSave.lamps               |
+   * | b10741b  | 8-23 | WorldSave.baseGold（钱匣）     |
+   * | 本次     | 8-23 | PlayerSave.pendingGold（在外面赚的钱）|
+   *
+   * ## 为什么一条而不是四条
+   *
+   * 迁移链描述的是**发布过的版本之间**的落差。这四次全在测试期，一天之内
+   * 落地，没有任何一份存档停在"有 buildings 没有 lamps"那个中间态上
+   * （老档已按用户 2026-08-22 的决定全删）。拆成 29/30/31/32 会凭空造出
+   * 三个从未存在过的版本，读的人得挨个去问"这一档谁写的"。
+   *
+   * ## 不补版本号的真实后果
+   *
+   * 不是"少迁一次"，是**静默丢档**：两个客户端都自称 28、形状却不同。
+   * 旧客户端读得进新档（版本闸门 `from > 28` 不触发），把认不出的字段
+   * 悄悄忽略，再存回去就永久没了。有云同步和多设备时这是真丢东西。
+   *
+   * 抬到 29 之后，8-20 那批客户端会当场拒绝并让人更新——这正是闸门
+   * 该干的事。
+   *
+   * ## 数据本身几乎不用动
+   *
+   * 四个字段都是可选的、缺省即默认（无建筑 / 灯全开 / 匣空 / 没在外面
+   * 赚过钱），各家 restore 早就按 undefined 处理了。这条迁移写成显式赋值
+   * 是为了**让形状在存档里落实**——`serialize` 之后的键集合从此稳定，
+   * 那正是 saveShape 用例比对的东西。
+   */
+  {
+    to: 29,
+    migrate: (save) => {
+      const world = save.ownWorld as unknown as Record<string, unknown>;
+      if (world) {
+        world.buildings ??= [];
+        world.lamps ??= {};
+        world.baseGold ??= 0;
+      }
+      const player = save.player as unknown as Record<string, unknown>;
+      if (player) player.pendingGold ??= 0;
+      return save;
+    },
+  },
 ];
 
 /**

@@ -92,17 +92,23 @@ function grantRewards(
   if (rewards.length === 0) return;
   const spout = findSpout();
 
+  /*
+   * **金币不乘 shares，物品乘。**
+   *
+   * `shares` 的意思是"在场每人各一整份"——对物品成立：每个人脚下都真的
+   * 落一个番茄，各拿各的。对金币不成立：**这个世界只有一个钱包**，乘以
+   * 人数不是"每人一份"，只是让房主的罐里凭空多出几倍的钱。两个人在场
+   * 满一次格，12 金币会入账两次变成 24（这条一直如此，2026-08-23 才修）。
+   *
+   * 而且金币本来就不需要分发：做客的人赚的钱记在自己身上带回家
+   * （见 State/gold 的 pendingGold），发起方这一份从来只该是一份。
+   */
+  for (const reward of rewards) {
+    if (reward.type === "gold") depositGoldTo(reward.amount);
+  }
+
   for (let share = 0; share < shares; share += 1) {
     for (const reward of rewards) {
-      /*
-       * 金币不吐成地上的东西，**直接进罐**——罐就是钱包，罐满了多的
-       * 部分会溢出丢失（并给一句明话）。这正是"溢出只发生在你主动做
-       * 任务的那一刻"：损失是"这一笔本来能拿多少"，不是"放着放着就没了"。
-       */
-      if (reward.type === "gold") {
-        depositGoldTo(reward.amount);
-        continue;
-      }
       if (reward.type !== "item") continue;
       for (let n = 0; n < reward.quantity; n += 1) {
         throwItem({

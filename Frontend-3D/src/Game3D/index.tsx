@@ -1477,11 +1477,19 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       }),
       registerCommand({
         name: "trade",
-        usage: "trade",
-        description: "直接打开交易面板（调试；正式入口是对着在场的水獭按 F）",
-        handler: () => {
+        usage: "trade [peddler]",
+        description:
+          "直接打开交易面板（调试；正式入口是对着在场的商人按 F）。peddler = 小鱼人那一版",
+        handler: (args) => {
           syncTraderPresence();
-          emit("trade_open_requested", {});
+          /*
+           * 默认开水獭那一版；`/trade peddler` 开稀客的。
+           * 面板本身按 merchantId 参数化，这里只是把 id 递进去。
+           */
+          emit("trade_open_requested", {
+            merchantId:
+              args[0] === "peddler" ? "traveling_peddler" : "otter_trader",
+          });
           return ok("交易面板已打开");
         },
       }),

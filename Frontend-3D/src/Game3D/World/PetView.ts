@@ -34,6 +34,12 @@ export class PetView {
   readonly root = new Object3D();
 
   private readonly views = new Map<string, Object3D>();
+  /*
+   * 身后拖着的东西（小鱼人的浮筏车）。**和本体分开存**：它不能跟着
+   * 本体的 `animate` 一起被挤压拉伸（车不是软的），落点也要单独算
+   * ——挂成子节点的话，人一转身车会绕着人公转，像被甩出去的流星锤。
+   */
+  private readonly trailers = new Map<string, Object3D>();
   private elapsed = 0;
   private readonly unsubscribe: () => void;
 
@@ -55,7 +61,46 @@ export class PetView {
     this.unsubscribe();
   }
 
+  /**
+   * 摆他身后拖着的那件东西。
+   *
+   * `trailing` 是**物种定义上的一句声明**（`PetDefinition.trailing`），
+   * 不是这里的 if——下一个拖东西的角色只要在数据里加一行，这个方法
+   * 一个字不用改。
+   *
+   * 落点是"沿他背后方向退 distance 米"，朝向和他一致：车头始终对着他，
+   * 看起来才是被拖着走的。地面高度单独取——人站在缘侧上、车还在地上时，
+   * 两边各自贴各自的地。
+   */
+  private placeTrailer(pet: ReturnType<typeof getPets>[number]): void {
+    const definition = findPetDefinition(pet.definitionId);
+    const trailing = definition?.trailing;
+    if (!trailing) return;
+
+    let cart = this.trailers.get(pet.petId);
+    if (!cart) {
+      const built = buildVisual(trailing.visualId);
+      if (!built) return;
+      addOutline(built, { scale: built.userData.outlineScale ?? 1.02 });
+      cart = built;
+      this.trailers.set(pet.petId, cart);
+      this.root.add(cart);
+    }
+
+    const behind = pet.heading + Math.PI;
+    const x = pet.x + Math.sin(behind) * trailing.distance;
+    const z = pet.z + Math.cos(behind) * trailing.distance;
+    cart.position.set(x, groundHeightAt(x, z), z);
+    cart.rotation.y = pet.heading;
+
+    const animate = cart.userData.animate as ((dt: number) => void) | undefined;
+    animate?.(this.lastDelta);
+  }
+
+  private lastDelta = 0;
+
   update(deltaSeconds: number): void {
+    this.lastDelta = deltaSeconds;
     this.elapsed += deltaSeconds;
 
     for (const pet of getPets()) {
@@ -86,6 +131,8 @@ export class PetView {
       view.position.set(pet.x, ground, pet.z);
       view.rotation.y = pet.heading;
 
+      this.placeTrailer(pet);
+
       /**
        * 带骨架的生物自己动（约定：build 时把 animate 闭包挂在 userData 上，
        * 内部只动自己的子节点，root 的位置朝向仍归这里管）。
@@ -111,6 +158,13 @@ export class PetView {
      * 小龙被送走）。在这之前从没有生物会消失，所以这个循环一直不存在——
      * 不补的话水獭走了模型还站在原地，成了一只按 F 没反应的"空壳"。
      */
+    for (const [petId, trailer] of this.trailers) {
+      if (getPet(petId)) continue;
+      this.root.remove(trailer);
+      disposeTree(trailer);
+      this.trailers.delete(petId);
+    }
+
     for (const [petId, view] of this.views) {
       if (getPet(petId)) continue;
       this.root.remove(view);

@@ -35,6 +35,18 @@ import type { BuildingDefinition } from "./types.js";
 const CELL = 1;
 
 /**
+ * 墙高。**里外必须是同一个数**，而且不能矮过玩家。
+ *
+ * 第一版外壳给了 1.55——比 1.7 米的玩家还矮，而 `buildInterior` 的默认
+ * 墙高是 4：从外面看是个娃娃屋，走进去房间比外面高一倍多。玩家自己那栋
+ * 1 级小屋墙高 3（`cottage.test.ts` 钉着），领地上的楼没有理由比它矮。
+ *
+ * 所以这个常量同时喂给外壳和 `buildInterior({ wallHeight })`——
+ * 里外各写一个数，迟早走散。
+ */
+const WALL_H = 3;
+
+/**
  * 双坡瓦顶。**坡向左右，屋脊沿前后方向走。**
  *
  * 方向不是随便定的：这样一来**正面就是一整个三角山墙**，招牌正好挂在
@@ -89,13 +101,13 @@ function tiledRoof(width: number, depth: number, ridgeY: number, eaveY: number):
 function shopShell(cells: number, awning: number): Object3D {
   const w = cells * CELL;
   const half = w / 2;
-  const wallH = 1.55;
+  const wallH = WALL_H;
   /*
    * 屋脊高度。第一版给 0.95，坡度只有 15°，渲出来是一块盖在房子上的
    * 绿板——**可爱小屋的屋顶必须陡**（稿子上目测三十几度）。
    * 2.15 对 6 米进深 → 约 36°。
    */
-  const ridgeY = wallH + 2.15;
+  const ridgeY = wallH + 2.4;
   const eaveY = wallH + 0.16;
 
   return group("furniture-shop", [
@@ -182,11 +194,11 @@ function shopShell(cells: number, awning: number): Object3D {
 
     // ---- 山墙上的招牌（"这是铺子"的凭据之一）----
     box([1.5, 0.72, 0.1], {
-      position: [0, wallH + 0.78, half + 0.04],
+      position: [0, wallH + 0.85, half + 0.04],
       color: PALETTE.shopWood,
     }),
     box([1.28, 0.54, 0.06], {
-      position: [0, wallH + 0.78, half + 0.1],
+      position: [0, wallH + 0.85, half + 0.1],
       color: PALETTE.shopSign,
       castShadow: false,
     }),
@@ -195,12 +207,12 @@ function shopShell(cells: number, awning: number): Object3D {
      * 在 32° 俯角、隔着两三米看过去，多做的部分一格像素都占不到。
      */
     box([0.34, 0.28, 0.04], {
-      position: [0, wallH + 0.88, half + 0.14],
+      position: [0, wallH + 0.95, half + 0.14],
       color: PALETTE.shopWood,
       castShadow: false,
     }),
     box([0.42, 0.09, 0.04], {
-      position: [0, wallH + 0.68, half + 0.14],
+      position: [0, wallH + 0.75, half + 0.14],
       color: PALETTE.shopWood,
       castShadow: false,
     }),
@@ -283,7 +295,8 @@ export const furnitureShop: BuildingDefinition = {
       // 稿子标的就是 6×6 格
       footprint: { width: 6, height: 6 },
       // 走进去才看得到货架——同图内景，和居民房、landCabin 同一条路
-      interior: (style) => buildInterior({ width: 6, depth: 6, windows: true }, style),
+      interior: (style) =>
+        buildInterior({ width: 6, depth: 6, windows: true, wallHeight: WALL_H }, style),
       buildCost: [{ itemId: "gold", quantity: shopkeepingTuning.buildGold }],
       nextLevelIds: ["l2"],
       upgradeCost: {
@@ -296,7 +309,8 @@ export const furnitureShop: BuildingDefinition = {
       localizationKey: "building.furniture_shop.l2",
       descriptionKey: "building.furniture_shop.l2.desc",
       footprint: { width: 7, height: 7 },
-      interior: (style) => buildInterior({ width: 7, depth: 7, windows: true }, style),
+      interior: (style) =>
+        buildInterior({ width: 7, depth: 7, windows: true, wallHeight: WALL_H }, style),
       build: () => shopShell(7, 1.6),
     },
   ],

@@ -100,6 +100,18 @@ export type PetDefinition = {
   defaultNicknameKey: LocalizationKey;
   /** 造型由表现层的 VisualRegistry 解析：先程序化，以后换精模只改那一张表 */
   visualId: VisualId;
+
+  /**
+   * **身后拖着的东西**（旅行商人的浮筏车，期 6）。
+   *
+   * 做成**定义上的一句声明**，不是在 `PetView` 里写
+   * `if (petId === "pet-fish-trader")`。那种写法把"谁拖车"这件事从内容
+   * 挪进了渲染代码，下一个拖东西的角色（推板车的、牵气球的）就得再加一个
+   * 分支；而这里加一行，视图一个字不动。
+   *
+   * `distance` 是车心离人心多远（米），沿着他**背后**的方向。
+   */
+  trailing?: { visualId: VisualId; distance: number };
   species: string;
 
   /** 陪你的还是干活的。不填 = `CreatureRole.Pet`，老定义零改动 */

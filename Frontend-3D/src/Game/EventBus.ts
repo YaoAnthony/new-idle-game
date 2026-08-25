@@ -116,7 +116,11 @@ export type GameEvents = {
    * 和石傀儡的建造面板同一个路数：商人是摊主不是村民，
    * 走过去就该看到能买卖什么，寒暄留给剧情主动拉起的对话。
    */
-  trade_open_requested: Record<string, never>;
+  /**
+   * 开交易面板。**带上是哪个商人**——水獭和小鱼人共用同一块面板，
+   * 卖什么、能不能卖给他、限不限量全看这个 id。
+   */
+  trade_open_requested: { merchantId: string };
   /** 玩家按 F 对着自己盖的建筑：开管理面板（迁移/拆除/升级/概览） */
   building_panel_open_requested: { instanceId: string };
   /** 面板请求进入选址（迁移/升级都要选位置，由场景的控制器接管） */

@@ -29,7 +29,7 @@ export const slimeHouse: BuildingDefinition = {
       descriptionKey: "building.slime_house.l1.desc",
       footprint: { width: 3, height: 3 },
       // 同图走进去（领地建筑那条路），带窗——窗里透光 = 有人住
-      interior: (style) => buildInterior({ width: 3, depth: 3, windows: true }, style),
+      interior: (style) => buildInterior({ width: 3, depth: 3, windows: true, wallHeight: 2.7 }, style),
       // 图纸白送，房子的工钱是你的：白得一栋楼就没有"给邻居安家"的付出感
       buildCost: [{ itemId: "gold", quantity: residentTuning.houseBuildGold }],
       buildDuration: {},

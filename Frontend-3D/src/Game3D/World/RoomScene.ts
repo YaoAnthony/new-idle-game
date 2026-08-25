@@ -2049,9 +2049,17 @@ export class RoomScene {
           return;
         }
 
-        // 商人同理（期 3）：F 开交易面板。寒暄由剧情主动拉起，不占 F
+        /*
+         * 商人同理（期 3）：F 开交易面板。寒暄由剧情主动拉起，不占 F。
+         *
+         * **是哪个商人由物种推**（期 6 加了第二个）。不写死"水獭"，
+         * 也不在面板里判——面板只认一个 merchantId，谁递给它都行。
+         */
         if (pet && pet.role === CreatureRole.Merchant && !pet.dormant) {
-          emit("trade_open_requested", {});
+          emit("trade_open_requested", {
+            merchantId:
+              pet.definitionId === "fish_trader" ? "traveling_peddler" : "otter_trader",
+          });
           return;
         }
 

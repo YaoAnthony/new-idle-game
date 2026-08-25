@@ -58,6 +58,29 @@ export const petDefinitions = [
    *
    * 造型见 `Visual/recipes/otter.ts`（用户 2026-08-24 给了两张参考图）。
    */
+  /*
+   * 旅行商人「小鱼人」（期 6）。八天一趟的稀客，**身后拖着一辆浮筏车**。
+   *
+   * 和水獭的分工是硬的：水獭三天一趟收家具（熟人），这只八天一趟卖
+   * 永久升级（稀客）。一密一疏、一收一卖、一暖一冷，玩家分得出来。
+   */
+  {
+    id: "fish_trader",
+    localizationKey: "pet.fish_trader",
+    defaultNicknameKey: "pet.fish_trader.nickname",
+    visualId: "fish_trader",
+    species: "fishfolk",
+    role: CreatureRole.Merchant,
+    // 车在身后，碰撞半径按"人 + 车"给，不然玩家会从车里穿过去
+    collisionRadius: 0.9,
+    trailing: { visualId: "raft_cart", distance: 1.15 },
+    behavior: {
+      moveSpeed: 0.9,
+      // 拖着车的人不会满院子跑
+      wanderRadius: 1.8,
+      sleepiness: 0,
+    },
+  },
   {
     id: "otter_trader",
     localizationKey: "pet.otter_trader",

@@ -42,6 +42,14 @@ export type HutStyle = {
 /** 一格一米，和院子一致 */
 const CELL = 1;
 
+/**
+ * 墙高。**里外同一个数，而且不矮过玩家。**
+ *
+ * 第一版 1.4——比 1.7 米的玩家还矮，而内景默认 4 米：外面娃娃屋、
+ * 里面大厅。玩家自己那栋 1 级小屋是 3，邻居的房子没有理由更矮。
+ */
+const WALL_H = 2.7;
+
 function hutRoof(
   width: number,
   depth: number,
@@ -96,10 +104,10 @@ function hutRoof(
 export function buildResidentHut(style: HutStyle, cells = 3): Object3D {
   const w = cells * CELL;
   const half = w / 2;
-  const wallH = 1.4;
+  const wallH = WALL_H;
   const eaveY = wallH + 0.14;
-  const ridgeY = wallH + 1.35;
-  const doorW = 0.95;
+  const ridgeY = wallH + 1.7;
+  const doorW = 1.1;
 
   return group("resident-hut", [
     // 地基

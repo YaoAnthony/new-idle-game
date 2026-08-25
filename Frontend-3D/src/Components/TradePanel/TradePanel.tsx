@@ -5,11 +5,14 @@ import { on } from "../../Game/EventBus";
 import { getGold } from "../../Game/State/gold";
 import { getCounts } from "../../Game/State/inventory";
 import {
+  buyFromTraveler,
   buyItem,
   buyPriceOf,
   otterStock,
   sellItem,
   sellPriceOf,
+  travelerOfferToday,
+  travelerStockToday,
   wantedToday,
 } from "../../Game/Systems/trading";
 import { t } from "../../i18n/t";
@@ -35,16 +38,35 @@ import { usePanel } from "../PanelStack/usePanel";
  * 点一下卖一件 / 买一件，不做批量：批量要挑数量，挑数量要一个
  * stepper，而这个面板的高频动作是"清几件重复家具"——连点比对着
  * 输入框敲数字快。真出现"卖三十根木头"的场景再说。
+ *
+ * ## 两个商人共用这一块（期 6）
+ *
+ * 小鱼人来了之后没有另写一块面板，而是**按 `merchantId` 参数化**：
+ * 版式、卡片、样式全一样，差别只有三处——
+ *
+ * | | 水獭 | 小鱼人 |
+ * |---|---|---|
+ * | 页签 | 卖 + 买 | **只有买**（他不收东西，那是水獭的活） |
+ * | 货源 | 固定货架，不限量 | 每趟抽的**限量**摊子 |
+ * | 售罄 | 不会 | 卡片留在原位、压暗、标「售罄」 |
+ *
+ * 第三条是刻意的：**卖光的东西不从摊上消失**。抹掉的话玩家会以为
+ * "他今天就带了两件"，而实际上是"你已经买走了第三件"——那份
+ * "这趟赶上了"的实感是稀客的全部价值，得让人看得见自己买走了什么。
  */
 export function TradePanel() {
   const [open, setOpen] = usePanel("trade");
+  const [merchantId, setMerchantId] = useState("otter_trader");
   const [tab, setTab] = useState<"sell" | "buy">("sell");
   // 计数当刷新信号：卡片列表从背包和注册表推，不另存一份真相
   const [, setRevision] = useState(0);
   const bump = () => setRevision((n) => n + 1);
 
   useEffect(() => {
-    const offOpen = on("trade_open_requested", () => {
+    const offOpen = on("trade_open_requested", (request) => {
+      setMerchantId(request.merchantId);
+      // 只卖的商人没有"卖"页签，进来就得落在买上
+      if (request.merchantId !== "otter_trader") setTab("buy");
       bump();
       setOpen(true);
     });
@@ -62,12 +84,20 @@ export function TradePanel() {
   const counts = getCounts();
   const gold = getGold();
   const wanted = wantedToday();
+  const isPeddler = merchantId === "traveling_peddler";
 
   const sellables = Object.entries(counts)
     .filter(([itemId, count]) => count > 0 && sellPriceOf(itemId) > 0)
     .sort(([a], [b]) => sellPriceOf(b) - sellPriceOf(a));
 
-  const stock = otterStock();
+  /*
+   * 稀客的货架读**本趟原本摆了什么**（`travelerOfferToday`），
+   * 卖没卖掉另问 `travelerStockToday`——两个都要，才能把"售罄"画出来
+   * 而不是让卡片凭空消失。
+   */
+  const stock = isPeddler ? travelerOfferToday() : otterStock();
+  const left = isPeddler ? new Set(travelerStockToday()) : null;
+  const buy = isPeddler ? buyFromTraveler : buyItem;
 
   return (
     <div
@@ -82,7 +112,12 @@ export function TradePanel() {
       >
         <div className="ui-plaque absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 px-9 py-2">
           <span className="text-[20px] font-bold tracking-[0.25em] text-[#7a5a1d]">
-            {t("ui.trade")}
+            {/*
+              * 标题也跟着商人走。实测时忘了这一处：小鱼人的摊子顶着
+              * "阿獭的收购摊"的匾——面板里所有别的东西都对了，只有最
+              * 显眼的那行字在说谎。
+              */}
+            {t(isPeddler ? "ui.trade.peddler" : "ui.trade")}
           </span>
         </div>
         <button
@@ -97,10 +132,12 @@ export function TradePanel() {
         <div className="mt-1 flex min-h-0 gap-3">
           <nav className="flex w-[86px] shrink-0 flex-col gap-1.5 pt-0.5 sm:w-[104px]">
             {(
-              [
-                ["sell", "ui.trade.tab.sell"],
-                ["buy", "ui.trade.tab.buy"],
-              ] as const
+              isPeddler
+                ? ([["buy", "ui.trade.tab.buy"]] as const)
+                : ([
+                    ["sell", "ui.trade.tab.sell"],
+                    ["buy", "ui.trade.tab.buy"],
+                  ] as const)
             ).map(([id, labelKey]) => (
               <button
                 key={id}
@@ -146,25 +183,35 @@ export function TradePanel() {
               )
             ) : (
               <div className="ui-shop-grid">
-                {stock.map((itemId) => (
-                  <TradeCard
-                    key={itemId}
-                    itemId={itemId}
-                    price={buyPriceOf(itemId)}
-                    enabled={gold >= buyPriceOf(itemId)}
-                    onAction={() => {
-                      buyItem(itemId);
-                      bump();
-                    }}
-                  />
-                ))}
+                {stock.map((itemId) => {
+                  const soldOut = left !== null && !left.has(itemId);
+                  return (
+                    <TradeCard
+                      key={itemId}
+                      itemId={itemId}
+                      price={buyPriceOf(itemId)}
+                      enabled={!soldOut && gold >= buyPriceOf(itemId)}
+                      soldOut={soldOut}
+                      onAction={() => {
+                        buy(itemId);
+                        bump();
+                      }}
+                    />
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
 
         <div className="mt-2.5 text-center text-[11px] leading-snug text-[var(--ink-soft)]">
-          {t(tab === "sell" ? "ui.trade.sell.hint" : "ui.trade.buy.hint")}
+          {t(
+            tab === "sell"
+              ? "ui.trade.sell.hint"
+              : isPeddler
+                ? "ui.trade.peddler.hint"
+                : "ui.trade.buy.hint",
+          )}
         </div>
       </div>
     </div>
@@ -176,6 +223,7 @@ function TradeCard({
   count,
   price,
   wanted = false,
+  soldOut = false,
   enabled,
   onAction,
 }: {
@@ -183,6 +231,8 @@ function TradeCard({
   count?: number;
   price: number;
   wanted?: boolean;
+  /** 稀客专用：这一趟已经被买走了。**卡片留着**，不从摊上抹掉 */
+  soldOut?: boolean;
   enabled: boolean;
   onAction: () => void;
 }) {
@@ -201,6 +251,16 @@ function TradeCard({
       {wanted && (
         <span className="absolute -right-1 -top-1 rounded-full bg-[#c9503c] px-1.5 py-0.5 text-[10px] font-bold text-white">
           {t("ui.trade.wanted")}
+        </span>
+      )}
+      {/*
+        * 售罄：**盖一层斜标而不是删掉卡片**。删掉的话玩家会以为他今天就
+        * 带了两件，而实际上是"第三件已经被你买走了"——那份"这趟赶上了"
+        * 的实感正是稀客的全部价值。
+        */}
+      {soldOut && (
+        <span className="absolute inset-0 z-10 grid place-items-center rounded-[inherit] bg-black/45 text-[12px] font-bold tracking-[0.2em] text-white">
+          {t("ui.trade.sold_out")}
         </span>
       )}
       <span

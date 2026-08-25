@@ -82,7 +82,7 @@ test("residentHouses_三栋居民房占地一致_摆放规划才有谱", () => {
   /*
    * 三栋共用一个构造器（`residentHut.ts`），占地就该一样——不一样的话
    * 说明有人单独改了某一栋的 footprint 而没动别的，那多半是失手。
-   * 小店不在这条里：它照设计稿是 6×6。
+   * 小店不在这条里：它有自己的尺寸。
    */
   const sizes = ["slime_house", "fox_house", "spirit_house"].map((id) => {
     const f = findBuildingLevel(id, "l1")!.footprint;
@@ -90,8 +90,13 @@ test("residentHouses_三栋居民房占地一致_摆放规划才有谱", () => {
   });
   expect(new Set(sizes).size).toBe(1);
 
+  /*
+   * 小店 7×7（2026-08-26 用户拍板"size 小了，要大一些"，从设计稿的
+   * 6×6 放大）。钉尺寸是防手滑改动，不是防有意决策——改这里前先确认
+   * 是拍过板的。
+   */
   const shop = findBuildingLevel("furniture_shop", "l1")!.footprint;
-  expect(`${shop.width}x${shop.height}`).toBe("6x6");
+  expect(`${shop.width}x${shop.height}`).toBe("7x7");
 });
 
 test("residentHouses_一位邻居一栋_maxInstances 都是 1", () => {

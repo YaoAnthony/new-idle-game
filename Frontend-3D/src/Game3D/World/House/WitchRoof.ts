@@ -58,8 +58,12 @@ const EAST_SEGMENTS = 8;
 /** 木瓦一条多宽（沿 z） */
 const SHINGLE_ROW = 0.75;
 
-const SHINGLE = "#7a6a55";
-const SHINGLE_DARK = "#5e5143";
+/**
+ * 木瓦的两个色。**导出**是给同一个村子的其它屋顶用的（家具小店的
+ * 正山墙顶）——屋顶的剪影可以各有各的，但瓦是同一批木头劈的。
+ */
+export const SHINGLE = "#7a6a55";
+export const SHINGLE_DARK = "#5e5143";
 const GABLE_STONE = "#a89f8c";
 
 /** 屋面的剖面：给一个房本地 x，答屋面在那儿多高。南北一致 */

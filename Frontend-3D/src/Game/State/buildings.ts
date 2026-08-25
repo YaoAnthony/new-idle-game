@@ -266,6 +266,38 @@ export function placeBuilding(
  */
 const DEFAULT_BUILD_SECONDS = 20;
 
+/**
+ * **调试用的统一工期**（用户 2026-08-25 要的："每个建筑的建造时间改成
+ * 2 秒，方便测试"）。非 null 时压过型号表里的一切工期。
+ *
+ * ## 为什么不直接把内容表改成 2
+ *
+ * 工期是**平衡数值**（木墙 3 秒 / 小屋 20 秒的差别是设计），改内容表
+ * 等于把一次调试便利永久烧进平衡里，而且回不去——没人记得原来是多少。
+ * 覆盖值住在 gameplay 层、只在开发环境生效、随时能关，内容表一个字没动。
+ *
+ * ## 三档环境
+ *
+ * - **dev server**：默认 2 秒。这正是用户要的，不用每次开局先打指令。
+ * - **测试（MODE=test）**：不覆盖。`construction.test.ts` 钉的是真工期
+ *   （"默认 20 秒：10 秒过半"），被调试值污染的话那条用例测的就不是
+ *   产品行为了。
+ * - **正式构建**：不覆盖。
+ *
+ * `/buildspeed off` 可以当场恢复真工期，验手感的时候用。
+ */
+let debugBuildSeconds: number | null =
+  import.meta.env.DEV && import.meta.env.MODE !== "test" ? 2 : null;
+
+/** 覆盖工期。null = 恢复型号表里的真工期 */
+export function setDebugBuildSeconds(seconds: number | null): void {
+  debugBuildSeconds = seconds;
+}
+
+export function getDebugBuildSeconds(): number | null {
+  return debugBuildSeconds;
+}
+
 /** 场上所有工地（有 construction 的），按下单先后（数组顺序）排 */
 export function listSites(): BuildingPlacement[] {
   return placements.filter((item) => item.construction);
@@ -283,7 +315,8 @@ export function claimSite(instanceId: string, workerId: string, nowUtc: string):
 
   const target = placement.construction.targetLevelId;
   const level = findBuildingLevel(placement.buildingId, target);
-  const seconds = level?.buildDuration?.[target] ?? DEFAULT_BUILD_SECONDS;
+  const seconds =
+    debugBuildSeconds ?? level?.buildDuration?.[target] ?? DEFAULT_BUILD_SECONDS;
   const start = Date.parse(nowUtc);
 
   placements = placements.map((item) =>

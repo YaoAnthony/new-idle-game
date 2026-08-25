@@ -193,7 +193,11 @@ import {
   refreshJarFills,
   spendGoldFrom,
 } from "../Game/State/gold";
-import { jarLevelIds } from "../Game/State/buildings";
+import {
+  getDebugBuildSeconds,
+  jarLevelIds,
+  setDebugBuildSeconds,
+} from "../Game/State/buildings";
 import { farmStageOf, interactWithFarm } from "../Game/Systems/farming";
 import { placeHouse, stowHouse } from "../Game/Systems/house";
 import { travelTo } from "../Game/Systems/mapTravel";
@@ -787,6 +791,38 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
           const { furniture, gold } = result.detail;
           if (gold) return fail(`金库里还有 ${gold} 金币，先取出来`);
           return fail(`屋里还有 ${furniture} 件家具，先收进背包`);
+        },
+      }),
+      registerCommand({
+        name: "buildspeed",
+        usage: "buildspeed [秒|off]",
+        description:
+          "统一工期（调试）。dev 里默认 2 秒方便测试；off 恢复型号表里的真工期；不带参数看当前值",
+        handler: (args) => {
+          const arg = args[0];
+          if (!arg) {
+            const now = getDebugBuildSeconds();
+            return ok(
+              now === null
+                ? "当前用型号表里的真工期（木墙 3 秒、小屋 20 秒…）"
+                : `当前统一工期 ${now} 秒（/buildspeed off 恢复真工期）`,
+            );
+          }
+          if (arg === "off") {
+            setDebugBuildSeconds(null);
+            return ok("恢复型号表里的真工期");
+          }
+          const seconds = Number(arg);
+          if (!Number.isFinite(seconds) || seconds <= 0) {
+            return fail("秒数要是个正数，或者填 off");
+          }
+          setDebugBuildSeconds(seconds);
+          /*
+           * **只影响之后认领的工地**：已经在建的那块，完工时刻在认领
+           * 那一刻就写死了（`claimSite`），这正是"关掉游戏一天回来，
+           * 排队的工地不会自己建好"那条规矩的支点，不该为调试破例。
+           */
+          return ok(`统一工期 ${seconds} 秒（对**之后**认领的工地生效）`);
         },
       }),
       registerCommand({

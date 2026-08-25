@@ -573,11 +573,16 @@ function archedFront(
     );
   }
 
-  // 门洞侧壁：让洞看起来有进深，不是一张贴在墙上的黑纸
+  /*
+   * 门洞侧壁：让洞看起来有进深，不是一张贴在墙上的黑纸。
+   * **内缘必须和拱口齐平**（x = ±(r+0.05)，厚 0.1 全在墙体一侧）——
+   * 第一版摆在 ±r 上，把 2.6 的口子两边各吃掉 0.05：模型即碰撞之后，
+   * 这 5 厘米直接让 0.5 体型档的导航格心一个都放不进通道里。
+   */
   for (const sx of [-1, 1]) {
     parts.push(
       box([0.1, springY, 0.6], {
-        position: [sx * r, baseY + springY / 2, frontZ - 0.36],
+        position: [sx * (r + 0.05), baseY + springY / 2, frontZ - 0.36],
         color: PALETTE.dinerStoneDeep,
         castShadow: false,
       }),
@@ -605,7 +610,13 @@ function serviceCounter(z: number, width: number, baseY: number): Object3D[] {
    * 让开右边 1.2 米：既保住"拱口后面有个柜台"的读法，又留出一条明确的
    * 入口。这是引擎约束和设计稿冲突时的取舍，不是漏做。
    */
-  const shift = -0.62;
+  /*
+   * 让到 −0.8、宽度收到 1.0（拱宽 2.6 的左侧四成）：右边留出 **1.6 米**
+   * 通道。1.2 米那版人肉过得去，但导航网格按 0.5 一格采样，通道里
+   * 落不进一个格心——寻路答"进不去"，实测就是这么红的。通行宽度
+   * 要按"最大的体型档 + 一格余量"留，不是按玩家的 0.32 留。
+   */
+  const shift = -0.85;
   return [
     box([width, 0.9, 0.5], { position: [shift, baseY + 0.45, z], color: PALETTE.dinerWood }),
     box([width + 0.16, 0.1, 0.66], {
@@ -621,13 +632,19 @@ function serviceCounter(z: number, width: number, baseY: number): Object3D[] {
         castShadow: false,
       }),
     ),
+    /*
+     * 锅的 x 必须跟着 shift 走。柜台左移那次锅留在了老坐标——悬在半空，
+     * 而且正好堵在让出来的入口通道里（锅高 1.09，在身高带内）：
+     * 模型即碰撞之后，视觉上的"锅飘了"直接变成寻路上的"门进不去"，
+     * 期 B 的寻路用例就是这么红的。装饰错位从此不是小事。
+     */
     cylinder(0.2, 0.22, 0.24, 8, {
-      position: [-0.15, baseY + 1.12, z],
+      position: [shift + 0.32, baseY + 1.12, z],
       color: PALETTE.dinerIron,
       castShadow: false,
     }),
     cylinder(0.17, 0.17, 0.05, 8, {
-      position: [-0.15, baseY + 1.25, z],
+      position: [shift + 0.32, baseY + 1.25, z],
       color: PALETTE.dinerSoup,
       castShadow: false,
     }),
@@ -715,7 +732,7 @@ function dinerShell(width: number, depth: number): Object3D {
 
     // ---- 正面：拱形门洞 + 出餐台 ----
     ...archedFront(w, wallH, baseY, halfD, doorW, springY),
-    ...serviceCounter(halfD - 0.42, doorW - 1.3, baseY),
+    ...serviceCounter(halfD - 0.42, doorW - 1.7, baseY),
 
     /*
      * ---- 砌石横缝 ----

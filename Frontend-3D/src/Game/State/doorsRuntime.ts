@@ -25,11 +25,11 @@ import {
   setDoorGate,
   isPhasing,
   setOutdoorPass,
+  setStructureBlocker,
 } from "./worldRuntime";
 import { territoryStandingAt } from "./territory";
 import { listBuildings, rectOf } from "./buildings";
-import { findBuildingLevel } from "../../Buildings/index";
-import { buildingDoorAt } from "../../Buildings/placement";
+import { buildingsBlockAt } from "./world/buildingColliders";
 
 /**
  * 门的集合管理（和 petsRuntime 同一套摆法：Agent 类管一扇门怎么动，
@@ -262,6 +262,15 @@ export function initDoors(): void {
    *    且整个人都在门洞的 z 跨度里、且压的是西墙那条边。
    *    z 校验挡住"贴着南北墙外侧蹭"，x 校验挡住"从东墙穿进来"。
    */
+  /*
+   * 建筑的模型碰撞（期 B）。**穿行的角色整层豁免**——和它当初无视
+   * 矩形规则是同一条语义，只是矩形换成了模型。
+   */
+  setStructureBlocker((x, z, radius) => {
+    if (isPhasing()) return false;
+    return buildingsBlockAt(listBuildings(), x, z, radius);
+  });
+
   setOutdoorPass((x, z, radius) => {
     const map = getCurrentMap();
     const bounds = yardBoundsOf(map, getWorld().room.floorGrid);
@@ -312,30 +321,28 @@ export function initDoors(): void {
      *   走屋内分支，而屋内分支只看地板边界不看墙。这正是主屋那条
      *   "穿墙只能走门"规矩的推广。
      */
-    let insideBuilding = false;
     /*
-     * **穿行的角色（石傀儡）跳过这一整段。** 它就是为了到得了每一个
-     * 工地才穿的——被自己要盖的那批楼挡在外面是最没道理的一种卡住。
+     * 楼的挡人从这里搬走了（期 B，模型即碰撞）：现在由 isWalkable 顶部
+     * 的 structureBlocker 按**模型**判——门洞能走是因为那一段没有
+     * 三角形，"门心 1.5 米豁免"和"实心楼一票否决"两条手写规则整段退役。
+     *
+     * 这里只剩一个标记：人在某栋楼的**脚印**里时要跳过院子占用图。
+     * 脚印进占用图是给放置校验用的，通行不该在它上面二次上锁——
+     * 门槛死区那个老 bug 就是两头都拦出来的。
      */
-    for (const placement of isPhasing() ? [] : listBuildings()) {
+    let insideBuilding = false;
+    for (const placement of listBuildings()) {
       const rect = rectOf(placement);
-      const overlaps =
+      if (
         x + radius > rect.minX &&
         x - radius < rect.maxX &&
         z + radius > rect.minZ &&
-        z - radius < rect.maxZ;
-      if (!overlaps) continue;
-      insideBuilding = true;
-
-      const level = findBuildingLevel(placement.buildingId, placement.levelId);
-      if (!level?.interior) return false; // 实心的，没有门
-
-      // 门心一格半之内算"正对着门"。和主屋那条一样，宽松一点——
-      // 门口卡住比穿墙更让人恼火
-      const door = buildingDoorAt(placement);
-      if (Math.hypot(x - door.x, z - door.z) > 1.5) return false;
+        z - radius < rect.maxZ
+      ) {
+        insideBuilding = true;
+        break;
+      }
     }
-
 
     /*
      * 院子网格内的点：问**院子那张占用图**（院里的家具、房子脚印）。

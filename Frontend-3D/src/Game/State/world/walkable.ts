@@ -157,6 +157,20 @@ export function withPhasing<T>(fn: () => T): T {
   }
 }
 
+/**
+ * 建筑的**模型碰撞**（期 B，模型即碰撞）。由 doorsRuntime 注册——
+ * 它才知道场上有哪些楼、穿行豁免怎么判；这里只负责在每一次通行判定里
+ * 问一嘴。判的是 `buildingColliders` 那套 BVH：门洞能走是因为那一段
+ * 真的没有三角形，不再是"门心 1.5 米豁免"。
+ */
+let structureBlocker: ((x: number, z: number, radius: number) => boolean) | null = null;
+
+export function setStructureBlocker(
+  fn: ((x: number, z: number, radius: number) => boolean) | null,
+): void {
+  structureBlocker = fn;
+}
+
 let doorBlocker: ((gx: number, gy: number) => boolean) | null = null;
 
 export function setDoorBlocker(
@@ -306,6 +320,13 @@ export function isWalkable(
 ): boolean {
   // 穿行的角色不被活物挡。**双向**：它自己也没登记成障碍，见 petAgent
   if (!phasing && hitsCreature(x, z, radius, selfId)) return false;
+
+  /*
+   * 楼的模型碰撞。**放在分支之前**：室内、室外、边界三条路都要管——
+   * 出餐台是外壳模型的一部分却立在室内，只挂在室外分支上它在屋里
+   * 就成了幽灵（穿行豁免在注册的闭包里判，这里不重复判）。
+   */
+  if (structureBlocker?.(x, z, radius)) return false;
 
   /*
    * **太陡就站不住**（2026-08-12）。这一条挡的是"斜切岸壁溜进河里"：

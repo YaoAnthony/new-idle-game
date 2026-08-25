@@ -77,6 +77,7 @@ import {
 import { findDoorAgent, listDoors } from "../Game/State/doorsRuntime";
 import { getHeld } from "../Game/State/heldItem";
 import { debugPlacePet, getPets, spawnPet } from "../Game/State/petsRuntime";
+import { isWalkable, withPhasing } from "../Game/State/world/walkable";
 import {
   debugClearWeather,
   debugForceWeather,
@@ -1868,6 +1869,19 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       (
         window as unknown as { __run?: (input: string) => CommandResult }
       ).__run = runCommand;
+      /*
+       * 通行判定的探针口（模型即碰撞·期 B 验收时加的）。
+       *
+       * 为什么不让验收脚本自己 import：dev server 里动态 import
+       * `/src/...` 拿到的是**另一份模块实例**——它的 outdoorPass /
+       * structureBlocker 没人注册，室外一律答 false，测出来全是假阳性
+       * （连不带 ?t= 的裸 import 都踩了一遍）。probe 必须拿到**游戏正在
+       * 用的那一份单例**，唯一可靠的通道就是从这里塞出去。
+       */
+      (window as unknown as { __walk?: unknown }).__walk = {
+        isWalkable,
+        withPhasing,
+      };
     }
 
     const onResize = () => scene.resize();
@@ -1883,6 +1897,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       setScene(null);
       delete (window as unknown as { __scene?: RoomScene }).__scene;
       delete (window as unknown as { __run?: unknown }).__run;
+      delete (window as unknown as { __walk?: unknown }).__walk;
     };
   }, [loadedFromSave, mapEpoch]);
 

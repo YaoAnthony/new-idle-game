@@ -124,6 +124,39 @@ export function withDoorsOpen<T>(fn: () => T): T {
   }
 }
 
+/**
+ * **穿行模式**：这一段查询里，玩家摆出来的东西一律不算障碍。
+ *
+ * 打开它的是 `PetDefinition.ignoresObstacles`（今天只有石傀儡）。
+ * 和上面 `withDoorsOpen` 同一个写法，理由却不同：门是"到了要开一下"
+ * 的动作，而这里是**这个角色本来就不受那类碰撞约束**。
+ *
+ * 无视的：别的活物、玩家盖的建筑、院子那张占用图（家具与脚印）。
+ * 照旧管着的：地形站得住、领地边界、地图作者声明的实心布景、
+ * **主屋**——它无视的是"玩家摆出来的东西"，不是世界本身。
+ *
+ * 做成作用域开关而不是给 `isWalkable` 加参数：这条判定链有五个环节
+ * （这里、`outdoorPass`、占用图、导航采样、逐帧步进），加参数就要把
+ * 同一个布尔一路手传下去，漏掉任何一处都会得到一张自相矛盾的图——
+ * 寻路说能过、迈步说不能，人贴着墙原地抖。
+ */
+let phasing = false;
+
+export function isPhasing(): boolean {
+  return phasing;
+}
+
+/** 在穿行模式下跑一段查询 */
+export function withPhasing<T>(fn: () => T): T {
+  const previous = phasing;
+  phasing = true;
+  try {
+    return fn();
+  } finally {
+    phasing = previous;
+  }
+}
+
 let doorBlocker: ((gx: number, gy: number) => boolean) | null = null;
 
 export function setDoorBlocker(
@@ -271,7 +304,8 @@ export function isWalkable(
   /** 走路的人自己是谁（玩家传 PLAYER_OBSTACLE_ID，宠物传 petId），别被自己挡住 */
   selfId?: string,
 ): boolean {
-  if (hitsCreature(x, z, radius, selfId)) return false;
+  // 穿行的角色不被活物挡。**双向**：它自己也没登记成障碍，见 petAgent
+  if (!phasing && hitsCreature(x, z, radius, selfId)) return false;
 
   /*
    * **太陡就站不住**（2026-08-12）。这一条挡的是"斜切岸壁溜进河里"：
@@ -307,7 +341,13 @@ export function isWalkable(
    * 收起来的房子必须走这条——不然按**蓝图尺寸**算出来的矩形会变成
    * 一圈看不见的墙，人走到房子原来的位置上被挡住，而那儿明明是草地。
    */
-  if (!room || isHouseStowed(room)) {
+  /*
+   * 穿行的角色**只认主屋那一间**。踩在居民房、小店的地板上时走室外
+   * 判定，等于那栋楼不存在——不这么分的话它会走进一栋房子然后卡在
+   * 里面：进去那一步是穿墙进去的，出来那一步却要过屋内的地板边界。
+   */
+  const primaryRoomId = worldState.room.roomId;
+  if (!room || isHouseStowed(room) || (phasing && room.roomId !== primaryRoomId)) {
     return outdoorPass?.(x, z, radius) ?? false;
   }
 

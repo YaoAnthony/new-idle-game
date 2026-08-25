@@ -238,6 +238,11 @@ export const petDefinitions = [
     },
     /** 比舒舒宽一圈：它是一堵会走路的墙 */
     collisionRadius: 1.1,
+    /**
+     * 但这堵墙**穿得过别的墙**。半径 1.1 的家伙在一个越堆越满的院子里
+     * 迟早哪儿都去不了，而它的全部意义就是去工地。代价见类型声明。
+     */
+    ignoresObstacles: true,
   },
 ] satisfies PetDefinition[];
 

@@ -23,6 +23,7 @@ import {
   getWorld,
   setDoorBlocker,
   setDoorGate,
+  isPhasing,
   setOutdoorPass,
 } from "./worldRuntime";
 import { territoryStandingAt } from "./territory";
@@ -312,7 +313,11 @@ export function initDoors(): void {
      *   "穿墙只能走门"规矩的推广。
      */
     let insideBuilding = false;
-    for (const placement of listBuildings()) {
+    /*
+     * **穿行的角色（石傀儡）跳过这一整段。** 它就是为了到得了每一个
+     * 工地才穿的——被自己要盖的那批楼挡在外面是最没道理的一种卡住。
+     */
+    for (const placement of isPhasing() ? [] : listBuildings()) {
       const rect = rectOf(placement);
       const overlaps =
         x + radius > rect.minX &&
@@ -370,7 +375,16 @@ export function initDoors(): void {
       z + radius > houseRect.minZ &&
       z - radius < houseRect.maxZ;
 
-    const yard = insideBuilding || overlapsPrimary ? undefined : getRoom(map.outdoorRoomId);
+    /*
+     * 院子那张占用图里装的是家具和楼的脚印——同样是"玩家摆出来的东西"，
+     * 穿行时一并不问。主屋的脚印也在里面，但主屋的边界另有一段
+     * （本函数末尾的 `overlapsHouse` + 大门规则）在管，跳过这里不会
+     * 让它穿进客厅。
+     */
+    const yard =
+      isPhasing() || insideBuilding || overlapsPrimary
+        ? undefined
+        : getRoom(map.outdoorRoomId);
     if (yard) {
       const cell = worldToRoomCell(yard, x, z);
       if (

@@ -40,6 +40,7 @@ import {
   getRoom,
   getWorld,
   isWalkable,
+  withPhasing,
   removeCreatureObstacle,
   setCreatureObstacle,
 } from "./worldRuntime";
@@ -143,6 +144,15 @@ export class PetAgent {
   heading: number;
   /** 碰撞半径。0 = 不挡路的小团子 */
   readonly radius: number;
+  /**
+   * 无视碰撞体积（`PetDefinition.ignoresObstacles`，今天只有石傀儡）。
+   *
+   * 它有两个后果，一个在**它看别人**，一个在**别人看它**：
+   * 前者靠 `withPhasing` 包住它自己的每一次通行查询，后者靠**不登记**
+   * 成活物障碍。两边都要做——只做前者的话它会停在别人身上，
+   * 那位接下来每个候选落脚点都还压着它，当场卡死。
+   */
+  private readonly phasing: boolean;
   readonly speed: number;
   /**
    * 驻地：出生（或读档落位）的地方。乱走以它为圆心，不超过 `wanderRadius`。
@@ -212,6 +222,7 @@ export class PetAgent {
     const definition = findPetDefinition(definitionId);
     this.speed = definition?.behavior?.moveSpeed ?? 1.7;
     this.radius = definition?.collisionRadius ?? 0;
+    this.phasing = definition?.ignoresObstacles ?? false;
     this.sleepiness = definition?.behavior?.sleepiness ?? 0;
     this.napSeconds = definition?.behavior?.napSeconds ?? [60, 120];
     this.role = definition?.role ?? CreatureRole.Pet;
@@ -225,9 +236,7 @@ export class PetAgent {
       definition?.behavior?.thirstPerHour ?? DEFAULT_THIRST_PER_HOUR;
 
     // 挡路的活物从出现那一刻就要挡，等第一帧 tick 会被穿过去一次
-    if (this.radius > 0) {
-      setCreatureObstacle(this.petId, this.x, this.z, this.radius);
-    }
+    this.registerObstacle();
   }
 
   // ---- 生命周期 ----
@@ -273,6 +282,28 @@ export class PetAgent {
    * 走没走在路上。**用例读它判"让路生效了没有"**——直接看 `path.length`
    * 要把私有字段公开，而那会让任何人都能改路径。
    */
+  /**
+   * 把自己登记成活物障碍。**穿行的不登记**——单向穿行会让它变成一堵
+   * 会走路的幽灵墙：别人挡不住它，它却挡得住别人，而它停在谁身上，
+   * 谁就再也迈不出一步（每个候选点都还压着它）。
+   */
+  private registerObstacle(): void {
+    if (this.radius <= 0 || this.phasing) return;
+    setCreatureObstacle(this.petId, this.x, this.z, this.radius);
+  }
+
+  /**
+   * 在自己的通行规则下跑一段。穿行的角色包一层 `withPhasing`，
+   * 其余人原样调用（零开销、零行为变化）。
+   *
+   * 包在**入口**而不是每个 `isWalkable` 调用点上：这个类里有七处通行
+   * 查询，漏掉任何一处都会得到一张自相矛盾的图——寻路说能过、迈步说
+   * 不能，人贴着墙原地抖。包入口的话，以后新加的查询自动跟着对。
+   */
+  private phased<T>(fn: () => T): T {
+    return this.phasing ? withPhasing(fn) : fn();
+  }
+
   isMovingSomewhere(): boolean {
     return this.pathIndex < this.path.length;
   }
@@ -297,9 +328,7 @@ export class PetAgent {
     this.clearPath();
     this.errand = null;
     this.idleTimer = 1.5;
-    if (this.radius > 0) {
-      setCreatureObstacle(this.petId, this.x, this.z, this.radius);
-    }
+    this.registerObstacle();
   }
 
   // ---- 基础行为：睡 ----
@@ -364,10 +393,11 @@ export class PetAgent {
 
   tick(deltaSeconds: number, player: { x: number; z: number }): void {
     if (this.state === "hidden") return;
+    this.phased(() => this.tickInner(deltaSeconds, player));
+  }
 
-    if (this.radius > 0) {
-      setCreatureObstacle(this.petId, this.x, this.z, this.radius);
-    }
+  private tickInner(deltaSeconds: number, player: { x: number; z: number }): void {
+    this.registerObstacle();
 
     if (this.yieldCooldown > 0) this.yieldCooldown -= deltaSeconds;
 
@@ -547,7 +577,11 @@ export class PetAgent {
    *
    * 这个方法不改任何状态，只把 `trySeekSite` 的判断复述一遍。
    */
-  diagnoseSites(): {
+  diagnoseSites(): ReturnType<PetAgent["diagnoseSitesInner"]> {
+    return this.phased(() => this.diagnoseSitesInner());
+  }
+
+  private diagnoseSitesInner(): {
     errand: string;
     sites: Array<{ instanceId: string; verdict: string }>;
   } {
@@ -632,7 +666,7 @@ export class PetAgent {
         const tiny = findRoute(
           { x: this.x, z: this.z },
           { x: site.x, z: site.z },
-          { radius: 0.25, snapRings: 4 },
+          { radius: 0.25, snapRings: 4, phasing: this.phasing },
         );
         narrowOnly = Boolean(tiny && tiny.length >= 2);
       }
@@ -913,7 +947,7 @@ export class PetAgent {
     const route = findRoute(
       { x: this.x, z: this.z },
       { x, z },
-      { radius: this.radius, snapRings: 2 },
+      { radius: this.radius, snapRings: 2, phasing: this.phasing },
     );
     if (!route || route.length < 2) return false;
 
@@ -1036,6 +1070,10 @@ export class PetAgent {
    * 让完还在原地附近，玩家看着才像礼貌而不是受惊。
    */
   yieldAsideFrom(fromX: number, fromZ: number): void {
+    this.phased(() => this.yieldAsideFromInner(fromX, fromZ));
+  }
+
+  private yieldAsideFromInner(fromX: number, fromZ: number): void {
     // 冷却中、正忙着、或者本来就在走，都不打断
     if (this.yieldCooldown > 0) return;
     if (this.state === "work" || this.state === "eat" || this.state === "drink") return;
@@ -1115,8 +1153,13 @@ export class PetAgent {
         return;
       }
 
+      /*
+       * 逐帧的活物避让。`creatureBlockedAt` 住在 obstacles 里，读不到
+       * walkable 那个作用域开关（反过来 import 会成环），所以穿行在
+       * 这儿单独判一次——它压根不参与活物避让这一层。
+       */
       const squeeze = this.radius * 0.85;
-      if (creatureBlockedAt(nextX, nextZ, squeeze, this.petId)) {
+      if (!this.phasing && creatureBlockedAt(nextX, nextZ, squeeze, this.petId)) {
         this.waitBlocked(deltaSeconds);
         return;
       }

@@ -7,7 +7,7 @@ import {
   groundHeightAt,
   isWalkable,
 } from "../State/worldRuntime";
-import { withDoorsOpen } from "../State/world/walkable";
+import { withDoorsOpen, withPhasing } from "../State/world/walkable";
 import { withoutCreatures } from "../State/world/obstacles";
 
 /**
@@ -98,8 +98,16 @@ export type NavGrid = {
   height: Float32Array;
 };
 
-/** 每档体型一张。档数就是场上不同体型的种类数，今天是 2~3 张 */
-const cached = new Map<number, { key: unknown; grid: NavGrid }>();
+/**
+ * 每档体型一张，**穿行的另算一张**。
+ *
+ * 档数 = 场上不同体型的种类数（今天 2~3 张）+ 石傀儡那张。分开缓存是
+ * 硬要求：穿行那张图上金库和木墙都是可走的，普通生物拿到它会规划出
+ * 一条从金库中间穿过去的路，走到跟前才被迈步判定拦下——原地抖。
+ *
+ * 键是 `体型档|穿不穿`，不是单纯的体型档。
+ */
+const cached = new Map<string, { key: unknown; grid: NavGrid }>();
 
 /** 缓存作废：门开了、家具动了、换图了，导航都得重来（所有档一起） */
 export function invalidateNavGrid(): void {
@@ -116,13 +124,17 @@ function ensureListening(): void {
   on("door_toggled", () => invalidateNavGrid());
 }
 
-/** 当前地图、这一档体型的导航网格（按档缓存） */
-export function navGrid(radius: number = ACTOR_RADIUS): NavGrid {
+/** 当前地图、这一档体型的导航网格（按"体型档 + 穿不穿"缓存） */
+export function navGrid(
+  radius: number = ACTOR_RADIUS,
+  phasing = false,
+): NavGrid {
   ensureListening();
   const size = sizeClass(radius);
+  const slot = `${size}|${phasing ? "ghost" : "solid"}`;
   const map = getCurrentMap();
   const room = getWorld().room;
-  const hit = cached.get(size);
+  const hit = cached.get(slot);
   if (hit && hit.key === room && hit.grid.cell === CELL) {
     return hit.grid;
   }
@@ -152,22 +164,31 @@ export function navGrid(radius: number = ACTOR_RADIUS): NavGrid {
    * 的躲让交给上面一层每帧算。我们这儿那一层是 `creatureBlockedAt`，
    * 生物迈步时查一次、被挡就站着等（见 petAgent.waitBlocked）。
    */
+  /*
+   * 穿行那张图在 `withPhasing` 里烘：采样点还是 `isWalkable`，只是这一
+   * 遍里玩家盖的楼和院子的占用图都不算数。**必须烘成另一张**，
+   * 不能烘完再放宽——A* 读的就是这张位图。
+   */
+  const bake = () => {
+    for (let r = 0; r < rows; r += 1) {
+      for (let c = 0; c < cols; c += 1) {
+        const x = minX + (c + 0.5) * CELL;
+        const z = minZ + (r + 0.5) * CELL;
+        const i = r * cols + c;
+        walkable[i] = isWalkable(x, z, size, PLAYER_OBSTACLE_ID) ? 1 : 0;
+        height[i] = groundHeightAt(x, z);
+      }
+    }
+  };
   withDoorsOpen(() => {
     withoutCreatures(() => {
-      for (let r = 0; r < rows; r += 1) {
-        for (let c = 0; c < cols; c += 1) {
-          const x = minX + (c + 0.5) * CELL;
-          const z = minZ + (r + 0.5) * CELL;
-          const i = r * cols + c;
-          walkable[i] = isWalkable(x, z, size, PLAYER_OBSTACLE_ID) ? 1 : 0;
-          height[i] = groundHeightAt(x, z);
-        }
-      }
+      if (phasing) withPhasing(bake);
+      else bake();
     });
   });
 
   const grid: NavGrid = { minX, minZ, cols, rows, cell: CELL, walkable, height };
-  cached.set(size, { key: room, grid });
+  cached.set(slot, { key: room, grid });
   return grid;
 }
 
@@ -207,6 +228,11 @@ export type RouteOptions = {
    * 一次干脆的"去不了"，变成了一次莫名其妙的散步。
    */
   snapRings?: number;
+  /**
+   * 穿行（`PetDefinition.ignoresObstacles`）。玩家盖的楼、院子的占用图
+   * 都不算障碍，用的是另一张烘好的图。
+   */
+  phasing?: boolean;
 };
 
 /**
@@ -391,8 +417,12 @@ export function findRoute(
   to: { x: number; z: number },
   options: RouteOptions = {},
 ): Array<[number, number]> | null {
-  const { radius = ACTOR_RADIUS, snapRings = DEFAULT_SNAP_RINGS } = options;
-  const grid = navGrid(radius);
+  const {
+    radius = ACTOR_RADIUS,
+    snapRings = DEFAULT_SNAP_RINGS,
+    phasing = false,
+  } = options;
+  const grid = navGrid(radius, phasing);
   const start = nearestWalkable(grid, from.x, from.z, snapRings);
   const goal = nearestWalkable(grid, to.x, to.z, snapRings);
   if (start < 0 || goal < 0) return null;

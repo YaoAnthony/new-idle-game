@@ -77,7 +77,8 @@ import {
 import { findDoorAgent, listDoors } from "../Game/State/doorsRuntime";
 import { getHeld } from "../Game/State/heldItem";
 import { debugPlacePet, getPets, spawnPet } from "../Game/State/petsRuntime";
-import { isWalkable, withPhasing } from "../Game/State/world/walkable";
+import { groundHeightAt as walkGroundHeightAt, isWalkable, withPhasing } from "../Game/State/world/walkable";
+import { findRoute as navFindRoute } from "../Game/Systems/navigation";
 import {
   debugClearWeather,
   debugForceWeather,
@@ -1881,6 +1882,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       (window as unknown as { __walk?: unknown }).__walk = {
         isWalkable,
         withPhasing,
+        groundHeightAt: walkGroundHeightAt,
+        findRoute: navFindRoute,
       };
     }
 

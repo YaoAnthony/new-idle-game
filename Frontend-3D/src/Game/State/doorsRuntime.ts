@@ -25,11 +25,12 @@ import {
   setDoorGate,
   isPhasing,
   setOutdoorPass,
+  setStandingSurface,
   setStructureBlocker,
 } from "./worldRuntime";
 import { territoryStandingAt } from "./territory";
 import { listBuildings, rectOf } from "./buildings";
-import { buildingsBlockAt } from "./world/buildingColliders";
+import { buildingsBlockAt, buildingStandHeightAt } from "./world/buildingColliders";
 
 /**
  * 门的集合管理（和 petsRuntime 同一套摆法：Agent 类管一扇门怎么动，
@@ -270,6 +271,14 @@ export function initDoors(): void {
     if (isPhasing()) return false;
     return buildingsBlockAt(listBuildings(), x, z, radius);
   });
+
+  /*
+   * 模型站立面（期 C）。**不看穿行**：高度对谁都是真的，石傀儡穿墙
+   * 不等于悬空走。
+   */
+  setStandingSurface((x, z, base) =>
+    buildingStandHeightAt(listBuildings(), x, z, base),
+  );
 
   setOutdoorPass((x, z, radius) => {
     const map = getCurrentMap();

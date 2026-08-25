@@ -558,11 +558,12 @@ export function syncBuildingInteriors(): void {
     next[roomId] = {
       ...level.interior(style),
       roomId,
-      // 锚点 = 建筑的位置和朝向。房子挪走内景跟着走，一个字都不用另记
+      // 锚点 = 建筑的位置和朝向。房子挪走内景跟着走，一个字都不用另记。
+      // 地板抬 floorRaise：有台明的楼，室内要铺在台明**上**（期 C）
       anchor: {
         x: placement.x,
         z: placement.z,
-        elevation: placement.elevation,
+        elevation: placement.elevation + (level.floorRaise ?? 0),
         facing: placement.facing,
       },
     };

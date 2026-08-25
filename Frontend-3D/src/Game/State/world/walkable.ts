@@ -171,6 +171,19 @@ export function setStructureBlocker(
   structureBlocker = fn;
 }
 
+/**
+ * 模型站立面（期 C）。也由 doorsRuntime 注册，理由同 structureBlocker：
+ * 谁知道场上有哪些楼，谁来注册。**只在地形面上问**——室内地板、缘侧、
+ * 声明的固定件本来就是权威答案，模型层只补"大地上多出来的台面"。
+ */
+let standingSurface: ((x: number, z: number, base: number) => number) | null = null;
+
+export function setStandingSurface(
+  fn: ((x: number, z: number, base: number) => number) | null,
+): void {
+  standingSurface = fn;
+}
+
 let doorBlocker: ((gx: number, gy: number) => boolean) | null = null;
 
 export function setDoorBlocker(
@@ -285,7 +298,14 @@ export function roomIdAt(x: number, z: number): string {
  */
 export function groundHeightAt(x: number, z: number): number {
   const surface = groundSurfaceAt(currentGround(), x, z);
-  return surfaceElevationAt(surface, x, z);
+  const base = surfaceElevationAt(surface, x, z);
+  /*
+   * 地形面上再问一次**模型站立面**（期 C）：台明、门口石阶的高度从
+   * 模型推导，不再需要谁去声明 fixture。只有地形问——脚下已经是地板、
+   * 缘侧、固定件的，那些面就是权威，模型层不该越权盖过它们。
+   */
+  if (surface.kind !== GroundKind.Terrain) return base;
+  return standingSurface?.(x, z, base) ?? base;
 }
 
 /**

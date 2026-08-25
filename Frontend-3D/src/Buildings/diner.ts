@@ -1098,6 +1098,8 @@ export const diner: BuildingDefinition = {
       descriptionKey: "building.diner.l1.desc",
       // 稿子标的是 6×6，用户当场推翻——理由和算法见文件头
       footprint: { width: WIDTH, height: DEPTH },
+      /** = dinerShell 里的 baseY。室内地板铺在石台明上，进门不掉坑 */
+      floorRaise: 0.42,
       interior: (style) =>
         buildInterior(
           { width: WIDTH, depth: DEPTH, windows: true, wallHeight: WALL_H },

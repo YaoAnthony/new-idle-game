@@ -80,6 +80,45 @@ function colliderFor(
 }
 
 /**
+ * 站立面判定的最大高差。台明 0.42 + 余量——**高过它的面不是地**。
+ *
+ * 这个上限是整个推导的安全阀：向下打线打到什么都可能（屋顶、遮阳篷、
+ * 桌面），只有"比脚下的地高不超过一步再多一点"的面才配叫台面。
+ * 没有它，屋檐下的地面高度会变成屋顶高度，整栋楼在导航里成为高台。
+ */
+const MAX_STAND_ABOVE = 0.6;
+
+/**
+ * 这一点脚下的**模型站立面**有多高。没有比 `base` 高的可站面就答 `base`。
+ *
+ * 台明、门口石阶从此自动可站：`groundHeightAt` 在地形面上问一嘴这里，
+ * 答案进导航的 height 层，`canStepUp` 拿同一套迈步规则判连通——
+ * 「楼梯建完自带碰撞」那条老规矩的兑现处就是这几行。
+ *
+ * 判点不判圆，和 `groundHeightAt` 一个哲学：一个人只站在一个面上。
+ */
+export function buildingStandHeightAt(
+  placements: readonly BuildingPlacement[],
+  x: number,
+  z: number,
+  base: number,
+): number {
+  let best = base;
+  for (const placement of placements) {
+    const collider = colliderFor(placement, placements);
+    if (!collider) continue;
+    const b = collider.bounds;
+    if (x < b.minX || x > b.maxX || z < b.minZ || z > b.maxZ) continue;
+    const hit = collider.groundHitBelow(x, z, base + MAX_STAND_ABOVE + 0.05);
+    // 比脚下高一丁点以上才算"上了台"；打穿到地形之下的照旧不理
+    if (hit !== null && hit > best + 0.04 && hit <= base + MAX_STAND_ABOVE) {
+      best = hit;
+    }
+  }
+  return best;
+}
+
+/**
  * 这一点站着一个半径 `radius` 的人，被场上哪栋楼的**模型**挡住了吗。
  *
  * 广相两层：先撞每栋的包围盒（`capsuleBlocked` 自带），再下 BVH。

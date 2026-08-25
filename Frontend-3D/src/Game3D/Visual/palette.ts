@@ -180,6 +180,36 @@ export const PALETTE = {
   shopSign: "#d8b478",       // 招牌面板
   shopBlue: "#7b93a8",       // 蓝布：坐垫、小黑板边
 
+  /* ---- 1 级餐厅（期 8）：**从用户设计稿采样** ----
+   *
+   * 稿子的「配色参考」八格 +「材质参考」六格都**没标 hex**，这批是对着
+   * 图取的近似值。设定：暖心 / 乡村餐馆，木石为主材，配布帘、招牌与
+   * 暖色灯光。
+   *
+   * **不复用小店那一套。** 两者的绿瓦和木料乍看很近，但餐厅整体更暖更沉
+   * （苔绿瓦、米黄砌石、赤陶条纹），小店偏清爽（黄绿瓦、奶白灰泥、
+   * 亮橙条纹）。借最接近的色号顶上会让两栋楼在同一个院子里糊成一栋。
+   */
+  dinerRoof: "#6b8a4b",       // 苔绿瓦
+  dinerRoofDeep: "#4e6a37",   // 瓦的暗面、屋脊
+  dinerWall: "#e3d5b8",       // 米黄砌石墙
+  dinerWallCourse: "#d2c1a1", // 墙上的横向砌缝
+  dinerWood: "#8b6440",       // 木构架、门框、桌椅
+  dinerWoodDeep: "#5c4028",   // 木料暗面、栅栏、梁
+  dinerStone: "#9a968c",      // 石基座、烟囱
+  dinerStoneDeep: "#7d7970",  // 石缝、灶膛
+  dinerAwning: "#c9713e",     // 遮阳篷的赤陶条
+  dinerAwningLight: "#f0e3c9",// 遮阳篷的米白条
+  dinerSign: "#c9a877",       // 招牌木牌面
+  dinerSlate: "#3d4440",      // MENU 黑板
+  dinerIron: "#4c4a45",       // 铁艺挑臂、锅、灶具
+  dinerLamp: "#f2c46a",       // 灯笼与吊灯的暖光
+  dinerSoup: "#d9924a",       // 锅里的汤
+  dinerBread: "#cf9a58",      // 面包
+  dinerTomato: "#c2513c",     // 番茄
+  dinerLeaf: "#6f9350",       // 花箱的叶子
+  dinerBloom: "#e8c45c",      // 花箱的花
+
   /* ---- 旅行商人「小鱼人」（期 6）：**从用户设计稿采样** ----
    *
    * 稿子「配色参考」给了八个色块**没标 hex**，这批是对着图取的近似值。

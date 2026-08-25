@@ -195,6 +195,10 @@ const ZH: Record<string, string> = {
   "item.blueprint_fox_house": "阿茜的家·图纸",
   "item.blueprint_spirit_house": "薇尔的家·图纸",
 
+  "building.diner": "餐厅",
+  "building.diner.desc": "有灶有座的地方，院子才算有了人味。",
+  "building.diner.l1": "1 级餐厅",
+  "building.diner.l1.desc": "九乘七格，一口炖着的锅，门口两张露天桌。",
   "building.furniture_shop": "家具小店",
   "building.furniture_shop.desc": "邻居们想买你做的家具，于是有了这间铺子。",
   "building.furniture_shop.l1": "家具小店",

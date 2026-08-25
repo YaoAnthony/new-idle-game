@@ -1,5 +1,6 @@
 import { dinerTuning } from "core";
-import type { Object3D } from "three";
+import { Color } from "three";
+import type { MeshLambertMaterial, Object3D } from "three";
 import { PALETTE } from "../Game3D/Visual/palette.js";
 import { blob, box, cylinder, group } from "../Game3D/Visual/primitives.js";
 import { dinerInterior } from "./dinerInterior.js";
@@ -222,7 +223,8 @@ function windowPanes(
   paneH: number,
 ): Object3D[] {
   const out: Object3D[] = [];
-  const T = 0.09;
+  /** 边框中心离墙面多远。厚 0.10 → 占 0.07..0.17，是最凸的一层 */
+  const T = 0.12;
   const bar = 0.11;
   const put = (
     along: number,
@@ -238,25 +240,102 @@ function windowPanes(
         ? [sign * face + sign * depth, y + dy, cross + along]
         : [cross + along, y + dy, sign * face + sign * depth];
     const size: [number, number, number] =
-      axis === "x" ? [0.06, height, lengthAlong] : [lengthAlong, height, 0.06];
+      axis === "x" ? [0.1, height, lengthAlong] : [lengthAlong, height, 0.1];
     out.push(box(size, { position: pos, color, castShadow: shadow }));
   };
 
-  // 窗芯（暖光）压在墙外一点点，四条框再挑出去
-  put(0, 0, paneW, paneH, 0.04, PALETTE.dinerLamp, false);
+  /*
+   * **窗洞先凹进去**。玻璃之所以像玻璃，一半靠透明，另一半靠它后面有
+   * **进深**——一块贴在墙皮上的半透明板只会读成一层膜。这里先在墙面上
+   * 压一个暗色的浅龛（往里 0.06），玻璃再浮在龛口。
+   *
+   * 不真去掉墙：屋里那面墙是房间系统另画的（`buildInterior`），
+   * 外壳凿穿了也看不进去，只会露出房间的墙。暗底板是这个结构下最诚实的
+   * 做法，而且从屋外任何角度都成立。
+   *
+   * ## 深度必须一层层排在墙**外**
+   *
+   * 第一版把底板放在 `face − 0.03`、玻璃放在 `face + 0.02`——墙厚 0.16、
+   * 外表面在 `face + 0.08`，两样**整个埋在墙体里**，渲出来是个空窗框
+   * （用户看到的就是这个）。现在从墙面往外依次是：
+   * 暗底 0.08–0.11 → 中竖梃 0.085–0.115 → 玻璃 0.115–0.135 →
+   * 高光 0.14 → 边框 0.07–0.17（框最凸，压住所有层）。
+   * 每一层的面都错开，顺带避开砌缝条那个 0.10 的外表面。
+   */
+  const nichePos: [number, number, number] =
+    axis === "x" ? [sign * (face + 0.095), y, cross] : [cross, y, sign * (face + 0.095)];
+  const nicheSize: [number, number, number] =
+    axis === "x" ? [0.03, paneH, paneW] : [paneW, paneH, 0.03];
+  out.push(
+    box(nicheSize, {
+      position: nichePos,
+      color: PALETTE.dinerStoneDeep,
+      castShadow: false,
+    }),
+  );
+
+  /*
+   * **真玻璃**：半透明的淡青板（用户 2026-08-25 指出原来那块不透明的
+   * 暖黄方块"不是真玻璃"）。
+   *
+   * - 颜色用 `Color` 对象走 `ownMaterial`，拿到**独享材质**——
+   *   `flatMaterial` 是按颜色缓存共享的，在上面改 opacity 会把全场
+   *   同色的东西一起改透明。
+   * - `noOutline` 是硬要求：描边是反向壳（BackSide 放大一圈），
+   *   套在半透明件上会变成一圈脏边（jelly.ts 那次的结论）。
+   * - `depthWrite: false`，让后面的窗棂和龛正常透出来。
+   */
+  const glassPos: [number, number, number] =
+    axis === "x" ? [sign * (face + 0.125), y, cross] : [cross, y, sign * (face + 0.125)];
+  const glassSize: [number, number, number] =
+    axis === "x" ? [0.02, paneH, paneW] : [paneW, paneH, 0.02];
+  const glass = box(glassSize, {
+    position: glassPos,
+    color: new Color("#cfe3ea"),
+    castShadow: false,
+  });
+  const glassMaterial = glass.material as MeshLambertMaterial;
+  glassMaterial.transparent = true;
+  glassMaterial.opacity = 0.34;
+  glassMaterial.depthWrite = false;
+  glass.userData.noOutline = true;
+  glass.renderOrder = 1;
+  out.push(glass);
+
+  // 斜掠的一道高光。低多边形里"这是玻璃"的第二个凭据，比反射便宜得多
+  const streakPos: [number, number, number] =
+    axis === "x"
+      ? [sign * (face + 0.142), y + paneH * 0.1, cross - paneW * 0.17]
+      : [cross - paneW * 0.17, y + paneH * 0.1, sign * (face + 0.142)];
+  const streakSize: [number, number, number] =
+    axis === "x" ? [0.015, paneH * 0.72, paneW * 0.18] : [paneW * 0.18, paneH * 0.72, 0.015];
+  const streak = box(streakSize, {
+    position: streakPos,
+    rotation: [0, 0, 0.34],
+    color: new Color("#ffffff"),
+    castShadow: false,
+  });
+  const streakMaterial = streak.material as MeshLambertMaterial;
+  streakMaterial.transparent = true;
+  streakMaterial.opacity = 0.22;
+  streakMaterial.depthWrite = false;
+  streak.userData.noOutline = true;
+  streak.renderOrder = 2;
+  out.push(streak);
+
+  // 四条边框 + 中竖梃 + 窗台，都在玻璃外面
   put(0, paneH / 2 + bar / 2, paneW + bar * 2, bar, T, PALETTE.dinerWood);
   put(0, -paneH / 2 - bar / 2, paneW + bar * 2, bar, T, PALETTE.dinerWood);
   put(paneW / 2 + bar / 2, 0, bar, paneH, T, PALETTE.dinerWood);
   put(-paneW / 2 - bar / 2, 0, bar, paneH, T, PALETTE.dinerWood);
   /*
-   * 中竖梃。**深度要避开砌缝条的外表面**：缝条外表面在墙面外 0.10，
-   * 而 `T − 0.02 = 0.07` 的竖梃厚 0.06、外表面正好也是 0.10——两个面
-   * 重合，窗框和墙缝的交叉处会闪出一块网纹（实机贴脸看才发现）。
-   * 退到 0.055，既躲开缝条又缩在边框后面。
+   * 中竖梃排在**玻璃后面**（0.05..0.15 里的 0.05..0.15 段靠里那半）：
+   * 隔着玻璃看到的窗棂，比压在玻璃上更像回事。它厚 0.1、中心 0.10，
+   * 占 0.05..0.15——和砌缝条 0.10 的**外表面**不重合（那次网纹的成因）。
    */
-  put(0, 0, 0.07, paneH, T - 0.035, PALETTE.dinerWood, false);
+  put(0, 0, 0.07, paneH, T - 0.02, PALETTE.dinerWood, false);
   // 窗台
-  put(0, -paneH / 2 - bar, paneW + bar * 4, 0.1, T + 0.06, PALETTE.dinerWoodDeep, false);
+  put(0, -paneH / 2 - bar, paneW + bar * 4, 0.1, T + 0.05, PALETTE.dinerWoodDeep, false);
   return out;
 }
 
@@ -383,37 +462,61 @@ function hangingSign(x: number, y: number, z: number): Object3D {
 function menuBoard(x: number, z: number): Object3D {
   return placed(
     group("menu-board", [
+      /*
+       * 四条腿。**转角要取负号**：绕 +X 转正角度会把顶端推向 +z，
+       * 于是 z = +0.13 那两条腿的**上端往外张、下端并拢**——A 字架
+       * 倒成了 V 字（用户 2026-08-25："三角架搞反了"）。
+       * 负号之后上端收拢、下端外张，才站得住。
+       */
       ...[-1, 1].flatMap((s) =>
         [-0.22, 0.22].map((dx) =>
           box([0.055, 0.82, 0.055], {
             position: [dx, 0.41, s * 0.13],
-            rotation: [s * 0.15, 0, 0],
+            rotation: [-s * 0.22, 0, 0],
             color: PALETTE.dinerWood,
           }),
         ),
       ),
+      /*
+       * 板面挂在**朝街那一侧**（+z）的两条腿上，跟着它们的倾角 −0.22 走
+       * ——上端靠里、下端探出，正好是黑板该有的仰角。
+       */
       box([0.58, 0.66, 0.05], {
-        position: [0, 0.62, -0.1],
-        rotation: [-0.15, 0, 0],
+        position: [0, 0.6, 0.12],
+        rotation: [-0.22, 0, 0],
         color: PALETTE.dinerWood,
       }),
       box([0.48, 0.54, 0.03], {
-        position: [0, 0.62, -0.07],
-        rotation: [-0.15, 0, 0],
+        position: [0, 0.6, 0.15],
+        rotation: [-0.22, 0, 0],
         color: PALETTE.dinerSlate,
         castShadow: false,
       }),
       // 黑板上潦草的两行字 + 一只碗，只做剪影
-      ...[0.74, 0.62].map((y, i) =>
-        box([0.3 - i * 0.06, 0.035, 0.02], {
-          position: [0, y, -0.05],
-          rotation: [-0.15, 0, 0],
+      /*
+       * 粉笔字要沿**板面法线**往外推，不能只改 z。板绕 X 转了 −0.22，
+       * 法线是 (0, sin, cos)、板内的"上"是 (0, cos, −sin)——照这两个
+       * 方向摆才贴在板上。第一版只按 z 偏移，字全沉到板背面去了
+       * （渲出来黑板是空的）。
+       */
+      ...[0.13, 0.0].map((u, i) =>
+        box([0.3 - i * 0.06, 0.035, 0.015], {
+          position: [
+            0,
+            0.6 + Math.cos(0.22) * u + Math.sin(0.22) * 0.03,
+            0.15 - Math.sin(0.22) * u + Math.cos(0.22) * 0.03,
+          ],
+          rotation: [-0.22, 0, 0],
           color: PALETTE.dinerAwningLight,
           castShadow: false,
         }),
       ),
       blob(0.08, 0, {
-        position: [0, 0.47, -0.04],
+        position: [
+          0,
+          0.6 + Math.cos(0.22) * -0.15 + Math.sin(0.22) * 0.03,
+          0.15 - Math.sin(0.22) * -0.15 + Math.cos(0.22) * 0.03,
+        ],
         scale: [1, 0.5, 0.2],
         color: PALETTE.dinerAwningLight,
         castShadow: false,
@@ -603,9 +706,14 @@ function archedFront(
      * （内景做完才看见）。门樘的进深顶多就是墙厚，收到 0.2、
      * 基本待在墙体里，只在洞口露一线暗边。
      */
+    /*
+     * 深度 0.16、中心退到 `frontZ − 0.03`：整块缩在 0.16 厚的墙体里
+     * （墙占 frontZ ± 0.08）。0.2 深居中那一版的**外表面正好也在
+     * frontZ + 0.08**，和墙面共面 → 门边一整条闪烁的网纹。
+     */
     parts.push(
-      box([0.1, springY, 0.2], {
-        position: [sx * (r + 0.05), baseY + springY / 2, frontZ - 0.02],
+      box([0.1, springY, 0.16], {
+        position: [sx * (r + 0.05), baseY + springY / 2, frontZ - 0.03],
         color: PALETTE.dinerStoneDeep,
         castShadow: false,
       }),
@@ -989,15 +1097,22 @@ function dinerShell(width: number, depth: number): Object3D {
      * 0.16 厚的墙里，渲出来只剩一块凭空贴着的黄色方块。四条框各自在墙外
      * 0.09，怎么看都是一扇窗。
      */
-    ...[-1, 1].flatMap((sx) => sideWindow(sx, halfW, baseY + 1.8, -0.6)),
-    ...backWindow(-w * 0.28, baseY + 1.8, halfD),
+    /*
+     * 窗心高度 **1.5**（原来 1.8/1.95）。用户 2026-08-25："有点太高了"
+     * ——量了一下确实：原来窗台在台明上 1.47，而角色高 1.7 且站在台明
+     * **外面**的地上，窗台离他脚下 1.9 米，比他眼睛还高，人贴到墙根
+     * 只能看见窗框底。降到 1.5 之后窗台在台明上 0.9、离屋外地面 1.3，
+     * 是正常临街铺面的高度。
+     */
+    ...[-1, 1].flatMap((sx) => sideWindow(sx, halfW, baseY + 1.5, -0.6)),
+    ...backWindow(-w * 0.28, baseY + 1.5, halfD),
 
     /*
      * ---- 正面右侧的小窗 + 窗台 ----
      * 稿子上门右边有一扇带花箱的小窗。它平衡了立面：左边挂招牌、
      * 中间是拱门、右边如果什么都没有，整栋楼会往左倒。
      */
-    ...frontWindow(halfW - 1.6, baseY + 1.95, halfD),
+    ...frontWindow(halfW - 1.6, baseY + 1.5, halfD),
 
     /*
      * ---- 赤陶白条纹遮阳篷 ----

@@ -119,7 +119,9 @@ function signboard(node: Object3D, p: TownhousePalette, text: string, y: number,
   const board = new Mesh(
     new PlaneGeometry(w, h),
     new MeshLambertMaterial({
+      // 贴图可能是 null（headless 没有 canvas）：纯色牌子照样有形状和碰撞
       map: signboardTexture({ text, aspect: w / h, board: p.board, ink: "#3a2b1c" }),
+      color: p.board,
       flatShading: true,
       side: DoubleSide,
     }),

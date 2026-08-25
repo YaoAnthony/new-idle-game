@@ -268,8 +268,15 @@ export function initDoors(): void {
    * 矩形规则是同一条语义，只是矩形换成了模型。
    */
   setStructureBlocker((x, z, radius) => {
-    if (isPhasing()) return false;
-    return buildingsBlockAt(listBuildings(), x, z, radius);
+    /*
+     * 两类结构，两种穿行语义（期 D）：
+     * - **玩家盖的楼**：穿行的角色（石傀儡）整层豁免——他的活儿要求他
+     *   到得了每一个工地，见 golemPhasing。
+     * - **地图布景**（小镇的六家店）：谁都挡，穿行也不例外。它们是
+     *   世界本身，不是玩家摆出来的东西——和穿行不豁免地形是同一条线。
+     */
+    if (!isPhasing() && buildingsBlockAt(listBuildings(), x, z, radius)) return true;
+    return buildingsBlockAt(getCurrentMap().buildings ?? [], x, z, radius);
   });
 
   /*
@@ -415,19 +422,11 @@ export function initDoors(): void {
     }
 
     /*
-     * 室外的实心占地（小镇的店铺这类）。碰撞圆压到就不许过——
-     * 布景建筑能穿墙走过去的话，"这是一栋房子"的说服力当场归零。
+     * 小镇店铺这类布景的挡人也搬去 structureBlocker 了（期 D）：
+     * 按**模型**判，和玩家的楼一套机制。`map.outdoorBlockers` 还在——
+     * 但只剩镜头在用（禁入盒是取景约束，不是脚的碰撞），走路这边
+     * 不再读它。
      */
-    for (const blocker of map.outdoorBlockers ?? []) {
-      if (
-        x + radius > blocker.minX &&
-        x - radius < blocker.maxX &&
-        z + radius > blocker.minZ &&
-        z - radius < blocker.maxZ
-      ) {
-        return false;
-      }
-    }
 
     /*
      * **一堵墙都没有的房间没有边界**（小镇广场）。

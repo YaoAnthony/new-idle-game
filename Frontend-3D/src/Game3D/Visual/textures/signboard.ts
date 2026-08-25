@@ -28,7 +28,11 @@ export type SignConfig = {
   ink: string;
 };
 
-export function signboardTexture(config: SignConfig): CanvasTexture {
+/** 环境没有 2d canvas（jsdom）。问过一次就记住，别每块牌子都去踩一遍 */
+let canvasBroken = false;
+
+export function signboardTexture(config: SignConfig): CanvasTexture | null {
+  if (canvasBroken) return null;
   const key = `${config.text}|${config.aspect}|${config.board}|${config.ink}`;
   const cached = cache.get(key);
   if (cached) return cached;
@@ -38,8 +42,24 @@ export function signboardTexture(config: SignConfig): CanvasTexture {
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("招牌贴图拿不到 2d 上下文");
+  let ctx: CanvasRenderingContext2D | null = null;
+  try {
+    ctx = canvas.getContext("2d");
+  } catch {
+    ctx = null;
+  }
+  /*
+   * **拿不到 2d 上下文就答 null，不抛**（模型即碰撞·期 D 逼出来的）。
+   *
+   * headless 测试（jsdom）没有 canvas 实现，而碰撞体从视觉模型推导——
+   * 建模函数从此必须能在无 canvas 环境跑通。招牌贴图是纯装饰：
+   * 没有渲染器的环境根本不会把它画出来，缺它只是牌子变纯色，
+   * 抛异常却会让**整栋楼失去碰撞**。
+   */
+  if (!ctx) {
+    canvasBroken = true;
+    return null;
+  }
 
   // 牌底 + 一道浅木纹：纯色牌子看着像塑料片
   ctx.fillStyle = config.board;

@@ -38,6 +38,7 @@
 - `Backend` 不得复制一份独立的内容规则——要校验就读 `Core` 的类型和注册表。
 - **和 server 说话只能在 `Frontend-3D/src/Api/` 里**。`socket.emit` / `socket.on` / `NET_EVENTS` / `NET_PROTOCOL_VERSION` 出现在 `Api/` 之外就是违规；`Game/` 一律调 `Api/game/websocket` 导出的类型化函数。反向也不许：`Api/` 不得 import `Game/`（入站用回调交出去，别在 `Api/` 里发 EventBus）。`tests/netBoundary.test.ts` 会拦。
 - **世界的东西归世界，人的东西跟着人走**（`WorldSave` vs `PlayerSave`）。加字段前先想清楚它属于哪一边，联机时这条决定它落进谁的存档。
+- **模型即碰撞**（2026-08-25 起）。建筑与布景挡不挡人、站不站得上，由**视觉模型**推导（`meshCollision.ts` 建 BVH + `buildingColliders.ts` 定策略），不得再写手工碰撞矩形或往 `groundHeightAt` 加高度分支。推论：模型上的每一厘米都是碰撞语义——道具摆错位置会直接变成寻路故障（悬空的汤锅堵死过一扇门）；建模函数必须能在无 canvas / 无渲染器环境跑通（碰撞测试是 headless 的）；要豁免的网格（烟、特效）标 `userData.noCollide`；有石台明的楼在 `BuildingLevel.floorRaise` 声明台明高，室内地板才不会铺进石头里。
 - 发现无关的既有改动时，**只报告，不修改**。
 
 ## 关于 `.claude/rules/`

@@ -47,6 +47,20 @@ export const merchantDefinitions: MerchantDefinition[] = [
       "graphite",
     ],
   },
+  {
+    merchantId: "traveling_peddler",
+    /*
+     * 稀客卖的是**永久 QoL 升级**，不是消耗品。
+     *
+     * 一次性买断、不通胀：买了就永远有，不会变成"每天都要买的开销"。
+     * 这正是他和水獭的经济分工——水獭那边是经常性支出（吃饭），
+     * 这边是攒钱的目标。两种开销都有，金币才既有下限也有上限。
+     *
+     * 今天只有一把广口水壶。斧头、鱼竿、稀有种子都是**加内容不加机制**
+     * （`tool.power` 的语义已经通用），往这个数组里加一行就行。
+     */
+    stock: ["watering_can_wide"],
+  },
 ];
 
 export function findMerchantDefinition(

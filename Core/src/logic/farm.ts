@@ -65,3 +65,29 @@ export function farmActionAt(stage: FarmStage, holdingSeed: boolean): FarmAction
   // planted / growing：长着呢，没什么可做的
   return "none";
 }
+
+
+/**
+ * 以 `center` 为心、半径 `radius` 格之内的地块（含自己）。
+ *
+ * ## 用切比雪夫距离，不是欧氏
+ *
+ * 用户要的是"一次喷 9 个区域" = **3×3 的方块**。切比雪夫（取 dx、dz 里
+ * 大的那个）给的正好是方形范围；欧氏距离半径 1 只覆盖上下左右四格加自己，
+ * 是个十字，对不上。
+ *
+ * 半径 0 = 只有脚下这一格，正是空手／普通壶的行为。
+ */
+export function plotsWithinRadius<T extends { x: number; z: number }>(
+  center: { x: number; z: number },
+  plots: readonly T[],
+  radius: number,
+): T[] {
+  // 一格一米，所以格距就是世界坐标差。浮点位置用四舍五入落到格上
+  const r = Math.max(0, Math.round(radius));
+  return plots.filter((plot) => {
+    const dx = Math.abs(Math.round(plot.x - center.x));
+    const dz = Math.abs(Math.round(plot.z - center.z));
+    return Math.max(dx, dz) <= r;
+  });
+}

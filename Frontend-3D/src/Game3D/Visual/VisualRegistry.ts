@@ -28,7 +28,10 @@ import {
 } from "./recipes/creatures.js";
 import { buildCoinDragon } from "./recipes/dragon.js";
 import { buildOtterTrader } from "./recipes/otter.js";
+import { buildFishTrader } from "./recipes/fishTrader.js";
 import { buildFox } from "./recipes/fox.js";
+import { buildRaftCart } from "./recipes/raftCart.js";
+import { buildWateringCan } from "./recipes/wateringCan.js";
 import { buildSlime } from "./recipes/slime.js";
 import { buildSpirit } from "./recipes/spirit.js";
 import { buildShuShu } from "./recipes/shushu.js";
@@ -224,6 +227,9 @@ const REGISTRY: Record<string, VisualEntry> = {
   // 三位居民：**占位造型**（头顶问号圈），等用户给参考图后各自换正式配方
   slime_neighbor: { kind: "procedural", build: buildSlime },
   fox_neighbor: { kind: "procedural", build: buildFox },
+  fish_trader: { kind: "procedural", build: buildFishTrader },
+  raft_cart: { kind: "procedural", build: buildRaftCart },
+  watering_can_wide: { kind: "procedural", build: buildWateringCan },
   spirit_neighbor: { kind: "procedural", build: buildSpirit },
 
   // 墙饰

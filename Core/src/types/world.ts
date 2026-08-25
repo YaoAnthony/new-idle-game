@@ -13,6 +13,14 @@ import type { RegionId, RoomStyleId } from "./roomStyle.js";
 import type { WorldClockSave } from "./time.js";
 import type { WeatherSave } from "./weather.js";
 
+/** 旅行商人这一趟卖掉了什么（期 6）。见 `WorldSave.travelerStock` */
+export type TravelerStockSave = {
+  /** 哪一天的摊（绝对天数）。对不上就整份作废 */
+  day: number;
+  /** 这一趟已经卖掉的物品 id */
+  sold: string[];
+};
+
 /**
  * 一个世界日的事实汇编（报纸的素材，见 `WorldSave.dayFacts`）。
  *
@@ -166,6 +174,22 @@ export type WorldSave = {
    * 老存档没有这个字段，读出来当空数组。
    */
   dayFacts?: DayFactsSave[];
+
+  /**
+   * 旅行商人这一趟的摊子（期 6，save v31）。
+   *
+   * 只记**哪一天的摊**和**还剩什么**。为什么要存：限量是这个角色的命，
+   * 买光了关掉游戏再回来还得是买光的——不存的话重开一次就刷新库存，
+   * "错过就等下一趟"那份遗憾直接归零，他就成了一家开得比较少的杂货铺。
+   *
+   * 不存"抽到了什么"：那是 `hashSeed(种子 + worldDayId)` 的确定性结果，
+   * 同一天算多少次都一样，存下来只会多一份可能对不上的真相。
+   * 存的是**减法**——卖掉了哪几件。
+   *
+   * `day` 是绝对天数（`epochDayOf`）。换了一天就整份作废重抽，
+   * 所以不用清理旧数据。
+   */
+  travelerStock?: TravelerStockSave;
 
   /** 储物箱等容器的内容，键为 InventoryId */
   inventories: Record<string, InventorySave>;

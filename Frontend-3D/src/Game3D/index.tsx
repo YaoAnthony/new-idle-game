@@ -2,6 +2,7 @@ import { matchesAction } from "../Game/Input/bindings";
 import { readDebugProbe, toggleDebugMode } from "../Game/State/debugMode";
 import {
   ActionCategory,
+  tradingTuning,
   ActionPriority,
   CreatureRole,
   DayPhaseId,
@@ -86,6 +87,7 @@ import {
   getCounts,
   getHotbar,
   seedInitialInventory,
+  setSelectedStack,
   spoilExpiredFood,
 } from "../Game/State/inventory";
 import { startNeeds, tickNeeds } from "../Game/State/needs";
@@ -121,6 +123,12 @@ import {
   startDayRecord,
 } from "../Game/Systems/dayRecord";
 import { listResidents, startResidents } from "../Game/Systems/residents";
+import {
+  buyFromTraveler,
+  isTravelerHereToday,
+  travelerOfferToday,
+  travelerStockToday,
+} from "../Game/Systems/trading";
 import {
   debugSettleOnce,
   findShop,
@@ -1283,6 +1291,64 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
               1,
             ),
           ),
+      }),
+      registerCommand({
+        name: "hold",
+        usage: "hold <itemId> [数量]",
+        description:
+          "把某物品放进当前选中的快捷格并拿在手上（验证浇水/播种这类看手持的交互）",
+        arguments: [
+          { name: "物品", suggest: () => asSuggestions(itemDefinitions.map((i) => i.id)) },
+        ],
+        handler: (args) => {
+          const itemId = args[0] ?? "";
+          if (!findItemDefinition(itemId)) return fail(`没有这种物品：${itemId}`);
+          const count = Math.max(1, Number(args[1] ?? 1) || 1);
+          /*
+           * 直接改写选中格，不走 addItem：addItem 会挑"第一个空格"，
+           * 而手持读的是**选中格**——期 6 实测时种子被发进了别的格，
+           * 播种和范围浇水全测不了，这条指令就是那次补的。
+           */
+          setSelectedStack({ itemId, count });
+          return ok(`手上现在是 ${itemId} ×${count}`);
+        },
+      }),
+      registerCommand({
+        name: "traveler",
+        usage: "traveler [buy <itemId>]",
+        description:
+          "旅行商人小鱼人（期 6）：不带参数看班表和摊上剩什么，buy 买一件",
+        handler: (args) => {
+          if (args[0] === "buy") {
+            const result = buyFromTraveler(args[1] ?? "");
+            if (result.ok !== false) return ok(`买了 ${args[1]}，花了 ${result.gold}`);
+            const why: Record<string, string> = {
+              not_here: "他今天没出摊",
+              not_stocked: "摊上没有这件（买光了？）",
+              cant_afford: "钱不够",
+              no_value: "这件没有标价",
+            };
+            return fail(why[result.reason] ?? result.reason);
+          }
+          const clock = getClock();
+          return ok(
+            JSON.stringify(
+              {
+                今天: clock.worldDayId,
+                出摊: isTravelerHereToday(),
+                /*
+                 * 把"本趟原本摆什么"和"现在还剩什么"分开打：只看剩下的
+                 * 分不出"他没来"和"被买光了"，而那是两件事。
+                 */
+                本趟货单: travelerOfferToday(),
+                现在还剩: travelerStockToday(),
+                周期: `每 ${tradingTuning.travelerVisitEveryDays} 天`,
+              },
+              null,
+              1,
+            ),
+          );
+        },
       }),
       registerCommand({
         name: "shop",

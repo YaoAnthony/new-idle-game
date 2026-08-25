@@ -1202,6 +1202,29 @@ export const migrations: Migration[] = [
       return save;
     },
   },
+
+  /**
+   * v31（2026-08-24，小动物经济圈 · 期 6）：旅行商人这一趟的摊子。
+   *
+   * | 字段 | 是什么 |
+   * |------|------|
+   * | `WorldSave.travelerStock` | 稀客这一趟**已经卖掉了什么**（限量靠它跨存档） |
+   *
+   * 数据不用动：可选字段，缺省就是"还没遇到过他"。给个 `day: -1` 而不是
+   * 留空——那个哨兵值的意思是"这份记录不属于任何一天"，下次开摊时会
+   * 整份作废重来，正是老存档该有的行为。
+   *
+   * **联机不跟**（同 v30 的 dayFacts）：旅行商人是房主世界的事，
+   * 访客看到的摊子归房主，刷新切片不带它。
+   */
+  {
+    to: 31,
+    migrate: (save) => {
+      const world = save.ownWorld as unknown as Record<string, unknown>;
+      if (world) world.travelerStock ??= { day: -1, sold: [] };
+      return save;
+    },
+  },
 ];
 
 /**

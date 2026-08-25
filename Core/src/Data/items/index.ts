@@ -1256,6 +1256,28 @@ export const itemDefinitions = [
   //
   // 一律**不带 food 块**：生番茄、生鸡蛋、米都不能直接吃。
   // 否则啃生食材比做饭省事，厨房就成了可选玩法而不是必经之路。
+  /*
+   * 广口水壶（期 6）——旅行商人卖的第一件**永久 QoL 升级**。
+   *
+   * `tool.power: 3` 是**半径三米**。田（`farm_plot`）占地 3×2，相邻两块
+   * 田的中心距最大 3 米——半径 3 刚好装下以自己为中心的一圈邻田，
+   * 含自己 3×3 共九块，正是用户说的"第一次能喷 9 个区域"
+   * （为什么不是 1，详见 `ItemDefinition.tool.power` 的注释）。
+   *
+   * value 60 ≈ 满格任务打两天。定得起眼是有意的：它是"攒钱的目标"，
+   * 顺手就能买的东西不构成目标。
+   */
+  {
+    id: "watering_can_wide",
+    localizationKey: "item.watering_can_wide",
+    category: ItemCategory.Material,
+    stackLimit: 1,
+    rarity: Rarity.Rare,
+    origin: ItemOrigin.Otherworld,
+    value: 60,
+    visual: { id: "watering_can_wide" },
+    tool: { toolType: "watering_can", power: 3 },
+  },
   {
     /*
      * 番茄种子。本期只做这一对（种子 → 作物）——作物表和"商店卖种子"

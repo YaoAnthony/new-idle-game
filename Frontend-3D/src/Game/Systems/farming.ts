@@ -1,4 +1,5 @@
 import {
+  plotsWithinRadius,
   farmActionAt,
   farmStageAt,
   findItemDefinition,
@@ -8,7 +9,15 @@ import {
 
 import { pushSystemMessage } from "../State/chatLog";
 import { addItem, consumeSelectedOne, getSelectedStack } from "../State/inventory";
-import { findPlacement, setBuildingState } from "../State/buildings";
+import { findPlacement, listBuildings, setBuildingState } from "../State/buildings";
+/*
+ * **必须用世界时钟的 nowUtc，不能 new Date()**。原来这文件自带一个裸的
+ * `new Date().toISOString()`——真实时间流逝时两边一致，没人发现；但
+ * `/advance` 拨的是世界时钟的调试偏移，农田的"现在"却停在墙钟上：
+ * 表现为拨了三小时庄稼纹丝不动，而所有别的系统（天气、商人班表、
+ * 小店结算）都已经活在三小时之后。同一个世界里必须只有一个"现在"。
+ */
+import { nowUtc } from "../State/clock";
 
 /**
  * 农田的玩法：走过去按 F。**同一个键做不同的事，由地里的状态决定**——
@@ -17,10 +26,6 @@ import { findPlacement, setBuildingState } from "../State/buildings";
  * 阶段本身是 Core 算的（`farmStageAt`，从时间戳推），这一层只做
  * "按下去发生什么"和"从背包里拿走 / 放回去"。
  */
-
-function nowUtc(): string {
-  return new Date().toISOString();
-}
 
 function stateOf(instanceId: string): FarmState | undefined {
   const placement = findPlacement(instanceId);
@@ -77,8 +82,36 @@ export function interactWithFarm(instanceId: string): FarmResult {
   }
 
   if (action === "water") {
-    setBuildingState(instanceId, { wateredUtc: nowUtc(), stage: "growing" });
-    return { ok: true, did: "water" };
+    /*
+     * **手上那把壶决定浇几格**（期 6）。
+     *
+     * `tool.power` 是**半径**：缺省 0 = 只有脚下这块（空手、或者以后的
+     * 普通壶），广口壶是 1 = 含自己 3×3 共九格，正是用户说的"一次喷
+     * 9 个区域"。
+     *
+     * 只浇**真的需要浇的**：范围里已经浇过的、还空着没播种的、正在长的，
+     * 一律不碰。否则"顺手把空地也浇了"会让提示里的数字虚高，玩家以为
+     * 这把壶比实际更强。
+     */
+    const power = held ? (findItemDefinition(held.itemId)?.tool?.power ?? 0) : 0;
+    const nearby = plotsWithinRadius(
+      placement,
+      listBuildings().filter((item) => item.buildingId === "farm_plot"),
+      power,
+    );
+    const watered = nearby.filter(
+      (plot) => farmStageOf(plot.instanceId) === "thirsty",
+    );
+    const now = nowUtc();
+    for (const plot of watered) {
+      setBuildingState(plot.instanceId, { wateredUtc: now, stage: "growing" });
+    }
+    return {
+      ok: true,
+      did: "water",
+      // 只有一块时不报数——"浇了 1 块"是句废话
+      detail: watered.length > 1 ? `浇了 ${watered.length} 块` : undefined,
+    };
   }
 
   if (action === "harvest") {

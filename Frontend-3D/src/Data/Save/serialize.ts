@@ -46,6 +46,10 @@ import {
 } from "../../Game/State/gold";
 import { shelfOwnerIds } from "../../Game/Systems/shopkeeping";
 import {
+  restoreTravelerStock,
+  snapshotTravelerStock,
+} from "../../Game/Systems/trading";
+import {
   pruneOrphanStorages,
   restoreStorages,
   snapshotStorages,
@@ -203,6 +207,7 @@ export function serializeGameSave(previous?: GameSave): GameSave {
 
       // 「昨日事实」（报纸素材，最多两条）。世界的事跟着世界走
       dayFacts: getDayFacts(),
+      travelerStock: snapshotTravelerStock(),
 
       progression: {
         unlockedFeatureIds: getUnlockedFeatures(),
@@ -365,6 +370,7 @@ export function hydrateGameSave(save: GameSave): void {
   restoreSignalCounts(save.ownWorld.progression.signalCounts);
   restorePoolMisses(save.ownWorld.progression.poolMisses);
   restoreDayFacts(save.ownWorld.dayFacts);
+  restoreTravelerStock(save.ownWorld.travelerStock);
 
   // 行动最后恢复：它可能立刻结算并发奖励，需要背包已经就位
   restoreActionEntries(save.player.actionEntries);

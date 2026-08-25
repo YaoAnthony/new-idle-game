@@ -5,6 +5,7 @@ import {
   hashSeed,
   itemDefinitions,
   tradingTuning,
+  travelerTuning,
   untradableItemIds,
 } from "core";
 
@@ -40,6 +41,7 @@ import { recordGoldFact } from "./dayRecord";
  */
 
 export const OTTER_PET_ID = "pet-otter";
+export const FISH_PET_ID = "pet-fish-trader";
 export const DRAGON_PET_ID = "pet-dragon";
 
 /** worldDayId（"2026-08-24"）→ 绝对天数。周期取模用它，纯函数可测 */
@@ -99,7 +101,12 @@ export function startTrading(): () => void {
   if (detach) return detach;
   // 开机先对齐一次：读档回来可能正好是他不该在的日子
   syncTraderPresence();
-  const offDay = on("world_day_changed", () => syncTraderPresence());
+  syncTravelerPresence();
+  const offDay = on("world_day_changed", () => {
+    syncTraderPresence();
+    // 稀客也在这条上对齐（期 6）。他的班表是 8 天，水獭是 3 天
+    syncTravelerPresence();
+  });
   detach = () => {
     offDay();
     detach = null;
@@ -186,4 +193,109 @@ export function buyItem(itemId: string): TradeResult {
   addItem(itemId, 1);
   recordGoldFact(-price);
   return { ok: true, gold: price };
+}
+
+
+// ---- 旅行商人「小鱼人」（期 6）----
+
+/**
+ * 这一天他出不出摊。**固定周期**，和水獭同一条判据。
+ *
+ * 理由和水獭一样：可预期让玩家能规划"下周他来，我先攒着"。
+ * **惊喜来自摊上有什么，不来自他来不来**——两个都随机的话，他就是
+ * 一家开得比较少的杂货铺。周期 8 天，和水獭的 3 天拉开一密一疏。
+ */
+export function isTravelerScheduledOn(worldDayId: string): boolean {
+  return epochDayOf(worldDayId) % tradingTuning.travelerVisitEveryDays === 0;
+}
+
+export function isTravelerHereToday(): boolean {
+  return isTravelerScheduledOn(getClock().worldDayId);
+}
+
+/** 他的全部货单（注册表里那份），今天摆哪几件从这里抽 */
+function travelerCatalog(): string[] {
+  return [...(findMerchantDefinition("traveling_peddler")?.stock ?? [])];
+}
+
+/**
+ * 这一趟摆出来的清单（**不扣已售**）。确定性抽签——同一天反复开关面板
+ * 必须抽出同一批，否则玩家会重开面板刷货。
+ */
+export function travelerOfferToday(): string[] {
+  const worldDayId = getClock().worldDayId;
+  const seed = hashSeed(`traveler_stock|${worldDayId}`);
+  return drawDeterministic(travelerCatalog(), travelerTuning.drawCount, seed);
+}
+
+/*
+ * 已售记录。**只存减法**——抽到什么是确定性算出来的，存下来只会多一份
+ * 可能对不上的真相（见 `WorldSave.travelerStock` 的注释）。
+ */
+let soldThisTrip: { day: number; sold: string[] } = { day: -1, sold: [] };
+
+function currentTrip(): { day: number; sold: string[] } {
+  const today = epochDayOf(getClock().worldDayId);
+  // 换了一天整份作废重抽，所以不用清理旧数据
+  if (soldThisTrip.day !== today) soldThisTrip = { day: today, sold: [] };
+  return soldThisTrip;
+}
+
+/** 摊上现在还剩什么。面板读它 */
+export function travelerStockToday(): string[] {
+  if (!isTravelerHereToday()) return [];
+  const trip = currentTrip();
+  const left = [...travelerOfferToday()];
+  for (const itemId of trip.sold) {
+    const at = left.indexOf(itemId);
+    if (at >= 0) left.splice(at, 1);
+  }
+  return left;
+}
+
+/**
+ * 从稀客手里买一件。全有或全无（买东西的语义）。
+ *
+ * 和水獭那条 `buyItem` 分开写，不是复制粘贴：他多两条水獭没有的规矩
+ * ——**限量**（买过就没了）和**只在出摊日**。合成一个函数就要在里面
+ * 长出 `if (merchantId === ...)`，而那正是"剧情零代码"那条纪律拦的东西。
+ */
+export function buyFromTraveler(itemId: string): TradeResult {
+  if (!isTravelerHereToday()) return { ok: false, reason: "not_here" };
+  if (!travelerStockToday().includes(itemId)) {
+    return { ok: false, reason: "not_stocked" };
+  }
+  const price = buyPriceOf(itemId);
+  if (price <= 0) return { ok: false, reason: "no_value" };
+  if (getGold() < price) return { ok: false, reason: "cant_afford" };
+
+  const spent = spendGoldFrom(price);
+  if (!spent.ok) return { ok: false, reason: "cant_afford" };
+  addItem(itemId, 1);
+  currentTrip().sold.push(itemId);
+  recordGoldFact(-price);
+  return { ok: true, gold: price };
+}
+
+/** 他在不在场的同步。和水獭那条同构，挂在同一个 world_day_changed 上 */
+export function syncTravelerPresence(): void {
+  const here = isTravelerHereToday();
+  const inWorld = Boolean(getPet(FISH_PET_ID));
+  if (here && !inWorld) {
+    spawnPet(FISH_PET_ID, "fish_trader");
+  } else if (!here && inWorld) {
+    removePet(FISH_PET_ID);
+  }
+}
+
+// ---- 存档 ----
+
+export function snapshotTravelerStock(): { day: number; sold: string[] } {
+  return { day: soldThisTrip.day, sold: [...soldThisTrip.sold] };
+}
+
+export function restoreTravelerStock(
+  saved: { day: number; sold: string[] } | undefined,
+): void {
+  soldThisTrip = saved ? { day: saved.day, sold: [...saved.sold] } : { day: -1, sold: [] };
 }

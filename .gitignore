@@ -42,3 +42,8 @@ node_modules.zip
 # 生成物一次重跑就整份重写，跟踪它等于每改一句话就在 diff 里翻出两千行噪音。
 # 源真相是那几份 .md；要看网页版自己跑一下脚本。
 Frontend-3D/gpt设计稿/金币与商店/HTML/index.html
+
+# 装 agent skill 时生成的**机器专属**软链。真内容在 Frontend-3D/.agents/
+# 下（那份跟踪），这里每个条目都是一条指向本机绝对路径的 symlink，
+# 提交了对别人就是死链。`npx skills add` 会照 skills-lock.json 重新生成。
+Frontend-3D/.claude/skills/

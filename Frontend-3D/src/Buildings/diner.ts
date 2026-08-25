@@ -594,14 +594,26 @@ function archedFront(
  * 一个空拱门是门廊，拱门里横一条台子就是柜台。
  */
 function serviceCounter(z: number, width: number, baseY: number): Object3D[] {
+  /*
+   * **柜台不占满门洞，往左让出一条道。**
+   *
+   * 稿子上正面那个拱是出餐窗，门开在背面（见后视图）；而这套引擎的门
+   * 永远在正面（`buildingDoorAt` 用 `footprint.height / 2`）。照稿子把
+   * 柜台横满拱口的话，实机里玩家是从柜台**中间穿过去**进屋的——它没有
+   * 碰撞，所以走得通，但看着像穿模。
+   *
+   * 让开右边 1.2 米：既保住"拱口后面有个柜台"的读法，又留出一条明确的
+   * 入口。这是引擎约束和设计稿冲突时的取舍，不是漏做。
+   */
+  const shift = -0.62;
   return [
-    box([width, 0.9, 0.5], { position: [0, baseY + 0.45, z], color: PALETTE.dinerWood }),
+    box([width, 0.9, 0.5], { position: [shift, baseY + 0.45, z], color: PALETTE.dinerWood }),
     box([width + 0.16, 0.1, 0.66], {
-      position: [0, baseY + 0.95, z],
+      position: [shift, baseY + 0.95, z],
       color: PALETTE.dinerWoodDeep,
     }),
     // 台面上：两摞碗 + 一口小锅
-    ...[-0.55, -0.22].map((x, i) =>
+    ...[-1.05, -0.72].map((x, i) =>
       blob(0.15, 0, {
         position: [x, baseY + 1.04 + i * 0.02, z],
         scale: [1, 0.42, 1],
@@ -610,12 +622,12 @@ function serviceCounter(z: number, width: number, baseY: number): Object3D[] {
       }),
     ),
     cylinder(0.2, 0.22, 0.24, 8, {
-      position: [0.55, baseY + 1.12, z],
+      position: [-0.15, baseY + 1.12, z],
       color: PALETTE.dinerIron,
       castShadow: false,
     }),
     cylinder(0.17, 0.17, 0.05, 8, {
-      position: [0.55, baseY + 1.25, z],
+      position: [-0.15, baseY + 1.25, z],
       color: PALETTE.dinerSoup,
       castShadow: false,
     }),
@@ -703,7 +715,7 @@ function dinerShell(width: number, depth: number): Object3D {
 
     // ---- 正面：拱形门洞 + 出餐台 ----
     ...archedFront(w, wallH, baseY, halfD, doorW, springY),
-    ...serviceCounter(halfD - 0.42, doorW - 0.3, baseY),
+    ...serviceCounter(halfD - 0.42, doorW - 1.3, baseY),
 
     /*
      * ---- 砌石横缝 ----

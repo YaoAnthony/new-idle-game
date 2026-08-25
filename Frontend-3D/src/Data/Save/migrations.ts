@@ -1225,6 +1225,30 @@ export const migrations: Migration[] = [
       return save;
     },
   },
+
+  /**
+   * v32（2026-08-25，小动物经济圈 · 期 7）：报纸。
+   *
+   * | 字段 | 是什么 |
+   * |------|------|
+   * | `WorldSave.newspaper` | 报名、出到第几期、**最新那一期的定稿** |
+   *
+   * 数据不用动：老存档给 `{ issued: 0 }` = 还没送过打印机，一期都没出过。
+   * 报名留空，报头会退到据点的名字（不开洞）。
+   *
+   * **联机不跟。** 报纸是这个家的私事，做客的人翻别人家的家务事很奇怪
+   * ——所以 `WorldRefreshSlices` 和 `WORLD_REFRESH_KEYS` **两处都不加**。
+   * `net.ts` 那句编译期断言拦的是"加了类型忘了加白名单"，拦不住"本该
+   * 两处都不加却加了一处"，这条注释就是那个位置的守卫。
+   */
+  {
+    to: 32,
+    migrate: (save) => {
+      const world = save.ownWorld as unknown as Record<string, unknown>;
+      if (world) world.newspaper ??= { issued: 0 };
+      return save;
+    },
+  },
 ];
 
 /**

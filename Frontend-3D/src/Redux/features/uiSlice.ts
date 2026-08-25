@@ -31,6 +31,7 @@ export type PanelId =
   | "building"
   | "storage"
   | "shopShelf"
+  | "newspaper"
   | "reward"
   | "chest"
   | "escMenu";

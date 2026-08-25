@@ -1,0 +1,145 @@
+/*
+ * 报纸的版式（期 7）。**当一件版式作品做，不是普通面板。**
+ *
+ * 用户 2026-08-24：「报纸要搞得像报纸的 UI，而不是搞个很垃圾的，做旧」。
+ * 所以这一份**刻意不用**全场那套 `ui-*` 样式——那套是奶油底 + 圆角 +
+ * 粉彩描边，是"可爱 HUD"的语言，而报纸要的是相反的东西：
+ *
+ * | 全场 HUD | 报纸 |
+ * |---|---|
+ * | 圆角 | **直角**（圆角是这一版里唯一致命的破绽） |
+ * | 粉彩描边 | **粗横线 / 双线** |
+ * | 无衬线 | **衬线**（`--font-serif`） |
+ * | 奶油底 | **泛黄的纸** + 噪点 + 印色偏移 |
+ * | 卡片并列 | **分栏**，栏间一道细竖线 |
+ *
+ * 圆角那条要说一句：卡片式布局在别处是对的，但报纸上出现一个圆角，
+ * 整份东西立刻退回"网页面板"。宁可在这一份里把 border-radius 全部写死为 0。
+ */
+
+.news-sheet {
+  /* 泛黄的纸。两层径向渐变叠一层极淡的噪点，做出"不是纯色"的旧感 */
+  background-color: #efe7d2;
+  background-image:
+    radial-gradient(circle at 18% 12%, rgba(255, 252, 240, 0.9), transparent 45%),
+    radial-gradient(circle at 82% 88%, rgba(196, 178, 140, 0.35), transparent 55%);
+  color: #2f2a22;
+  font-family: var(--font-serif);
+  border-radius: 0;
+  /*
+   * 边缘微微不齐：四条边用略微不同的粗细和颜色，比一圈均匀的框更像
+   * 裁下来的纸。不用 clip-path 剪锯齿——那在小屏上会把内容也切掉。
+   */
+  border-top: 1px solid #cdbf9e;
+  border-left: 1px solid #d3c6a6;
+  border-right: 2px solid #b9aa87;
+  border-bottom: 2px solid #b5a380;
+  box-shadow:
+    0 10px 26px rgba(0, 0, 0, 0.42),
+    inset 0 0 60px rgba(150, 130, 92, 0.14);
+}
+
+/* 噪点：一层极淡的斜纹，只在纸上，不影响文字可读性 */
+.news-sheet::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.055;
+  background-image: repeating-linear-gradient(
+    45deg,
+    #4a4033 0 1px,
+    transparent 1px 3px
+  );
+}
+
+/* ---- 报头 ---- */
+.news-masthead {
+  border-bottom: 3px double #3b3428;
+  padding-bottom: 0.35rem;
+}
+
+.news-title {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  /*
+   * 印色略有偏移：一层极淡的红影错开半个像素。真正的活字印刷套色不准
+   * 就是这个样子，而它比任何滤镜都便宜。
+   */
+  text-shadow: 0.6px 0.4px 0 rgba(150, 60, 40, 0.22);
+}
+
+/* ---- 版块分隔 ---- */
+.news-rule {
+  border: 0;
+  border-top: 2px solid #3b3428;
+  margin: 0.45rem 0;
+}
+
+.news-rule--thin {
+  border-top: 1px solid #8c8069;
+}
+
+/* ---- 分栏：栏间一道细竖线 ---- */
+.news-columns {
+  display: grid;
+  grid-template-columns: 1fr 1.25fr;
+  gap: 0.85rem;
+}
+
+.news-columns > * + * {
+  border-left: 1px solid #a89b7f;
+  padding-left: 0.85rem;
+}
+
+/*
+ * 小屏**减栏不减字号**（横屏 667×375 是硬约束）。报纸是密排版式，
+ * 字号缩到读不清就失去意义了——宁可两栏并一栏纵向滚。
+ */
+@media (max-width: 720px) {
+  .news-columns {
+    grid-template-columns: 1fr;
+  }
+  .news-columns > * + * {
+    border-left: 0;
+    border-top: 1px solid #a89b7f;
+    padding-left: 0;
+    padding-top: 0.6rem;
+  }
+}
+
+.news-kicker {
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  color: #6d6350;
+  border-bottom: 1px solid #b5a98d;
+  padding-bottom: 2px;
+  margin-bottom: 4px;
+}
+
+.news-headline {
+  font-size: clamp(17px, 2.9vmin, 25px);
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.news-body {
+  font-size: clamp(11px, 1.65vmin, 13px);
+  line-height: 1.75;
+  /* 正文首行缩进两格，中文排版的基本礼貌 */
+  text-indent: 2em;
+}
+
+.news-list {
+  font-size: clamp(11px, 1.6vmin, 13px);
+  line-height: 1.7;
+}
+
+/* 广告版：报纸底部那条，用反白强调 */
+.news-ad {
+  border: 1px solid #3b3428;
+  border-left-width: 5px;
+  padding: 0.35rem 0.6rem;
+  font-size: clamp(11px, 1.6vmin, 13px);
+}

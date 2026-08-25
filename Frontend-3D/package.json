@@ -5,9 +5,9 @@
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
-    "predev": "node scripts/generate-music-registry.mjs",
+    "predev": "node scripts/generate-music-registry.mjs && node scripts/generate-font-subset.mjs",
     "dev": "vite",
-    "prebuild": "node scripts/generate-music-registry.mjs",
+    "prebuild": "node scripts/generate-music-registry.mjs && node scripts/generate-font-subset.mjs",
     "build": "tsc -b && vite build",
     "test": "vitest run",
     "test:watch": "vitest",

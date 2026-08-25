@@ -31,6 +31,7 @@ import { buildOtterTrader } from "./recipes/otter.js";
 import { buildFishTrader } from "./recipes/fishTrader.js";
 import { buildFox } from "./recipes/fox.js";
 import { buildRaftCart } from "./recipes/raftCart.js";
+import { buildNewsPrinter } from "./recipes/newsPrinter.js";
 import { buildWateringCan } from "./recipes/wateringCan.js";
 import { buildSlime } from "./recipes/slime.js";
 import { buildSpirit } from "./recipes/spirit.js";
@@ -230,6 +231,7 @@ const REGISTRY: Record<string, VisualEntry> = {
   fish_trader: { kind: "procedural", build: buildFishTrader },
   raft_cart: { kind: "procedural", build: buildRaftCart },
   watering_can_wide: { kind: "procedural", build: buildWateringCan },
+  news_printer: { kind: "procedural", build: buildNewsPrinter },
   spirit_neighbor: { kind: "procedural", build: buildSpirit },
 
   // 墙饰

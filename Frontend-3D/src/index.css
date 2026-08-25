@@ -2,6 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ---- 中文衬线：报纸专用（期 7）----
+ *
+ * **报纸"像不像"有一大半在中文衬线上。** 整个项目此前一句 font-family
+ * 都没写，全靠系统默认的无衬线——那个字面放进报头，无论版式怎么做旧，
+ * 读起来都是"一个仿报纸的网页"，不是一份报纸。
+ *
+ * `GameSerif` 由 `scripts/generate-font-subset.mjs` 从思源宋体切子集
+ * 生成。**字体源文件不在仓库里**（体积 + 授权都该由你决定怎么放），
+ * 脚本找不到源文件时会跳过并打一行说明，这时下面的系统衬线栈接管。
+ *
+ * 兜底那几个不是摆设：报纸里会出现**玩家自己打的字**（报名、行动名
+ * "写完 assignment2"），那些字不在 t.ts 里、切不进子集，必须优雅退到
+ * 系统衬线——否则一行里两种字，看着像 bug。
+ */
+@font-face {
+  font-family: "GameSerif";
+  src: url("/font/serif-subset.woff2") format("woff2");
+  font-display: swap;
+}
+
+:root {
+  --font-serif: "GameSerif", "Songti SC", "SimSun", "Noto Serif CJK SC", serif;
+}
+
 :root {
   font-synthesis: none;
   text-rendering: optimizeLegibility;

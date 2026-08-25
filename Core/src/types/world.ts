@@ -13,6 +13,50 @@ import type { RegionId, RoomStyleId } from "./roomStyle.js";
 import type { WorldClockSave } from "./time.js";
 import type { WeatherSave } from "./weather.js";
 
+/**
+ * 一期报纸的定稿（期 7）。
+ *
+ * **定稿之后不再变**：同一天反复打开必须是同一份。所以它是存下来的
+ * 一份快照，不是每次打开现算——现算的话"水獭这回想要什么"那一栏
+ * 会在他走了之后凭空变空，而报纸上印过的字不该自己改。
+ */
+export type NewspaperIssue = {
+  /** 第几期。创刊号是 1 */
+  number: number;
+  /** 哪一天出的 */
+  worldDayId: string;
+  /** 报道的是哪一天（通常是前一天） */
+  aboutDayId: string;
+  /**
+   * 隔了几天没出（离线回来时 > 1）。头条那句"这几天"靠它——
+   * 不补发往期，但要**认得出你离开过**（动森村民那句"好久不见"）。
+   */
+  spanDays: number;
+  /** 头条。`headlinePriority` 挑出来的那一条 */
+  headline: { kind: string; subject?: string } | null;
+  weatherId: string;
+  /** 邻居动态：搬来了谁、谁买了你的东西 */
+  neighbors: Array<{ kind: string; subject?: string }>;
+  goldIn: number;
+  goldOut: number;
+  actions: Array<{ name: string; minutes: number }>;
+  /** 广告版：水獭这回想要什么（决策 30）。定稿时抄一份，之后不跟着变 */
+  wanted: string[];
+};
+
+/** 报纸这一摊（期 7）。见 `WorldSave.newspaper` */
+export type NewspaperSave = {
+  /**
+   * 报名的「XXX」部分，玩家自己取。空 = 还没取过——报头会退到据点的名字，
+   * 不开洞。
+   */
+  name?: string;
+  /** 出到第几期。期号递增，不因为离线跳号 */
+  issued: number;
+  /** 最新一期。**只有一份**——每日内容不补发，往回翻明确不做 */
+  latest?: NewspaperIssue;
+};
+
 /** 旅行商人这一趟卖掉了什么（期 6）。见 `WorldSave.travelerStock` */
 export type TravelerStockSave = {
   /** 哪一天的摊（绝对天数）。对不上就整份作废 */
@@ -190,6 +234,16 @@ export type WorldSave = {
    * 所以不用清理旧数据。
    */
   travelerStock?: TravelerStockSave;
+
+  /**
+   * 报纸（期 7，save v32）。
+   *
+   * **联机不跟**：报纸是这个家的私事，做客的人翻别人家的家务事很奇怪
+   * （施工文档里把这条列成了刻意不做的一项）。所以 `WorldRefreshSlices`
+   * 和 `WORLD_REFRESH_KEYS` 两处都不加——`net.ts` 那句编译期断言只拦
+   * "加了类型忘了加白名单"，拦不住"两处都不该加却加了一处"。
+   */
+  newspaper?: NewspaperSave;
 
   /** 储物箱等容器的内容，键为 InventoryId */
   inventories: Record<string, InventorySave>;

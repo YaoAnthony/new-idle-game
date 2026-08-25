@@ -57,6 +57,20 @@ const SHAPE: string[] = [
   // 期 6：旅行商人这一趟卖掉了什么。联机不跟——摊子是房主世界的事
   "ownWorld.travelerStock.day",
   "ownWorld.travelerStock.sold[]",
+  /*
+   * 期 7 报纸。**联机不跟**——报纸是这个家的私事，做客的人翻别人家的
+   * 家务事很奇怪，所以 WorldRefreshSlices 和 WORLD_REFRESH_KEYS 两处都
+   * 没加。net.ts 那句编译期断言拦的是"加了类型忘了加白名单"，
+   * 拦不住"本该两处都不加"，这几行清单就是那个位置的守卫。
+   *
+   * **`latest` 里面那一层不在这个守卫的射程内**：全新存档还没出过报，
+   * 指纹走不进去。这个缺口是可接受的——一期报纸每天重新编一份，
+   * 字段变了最多影响当天那一版，第二天自愈；而背包、建筑那种长期
+   * 累积的形状变了就是永久损坏，那些才是这个守卫真正要挡的东西。
+   */
+  "ownWorld.newspaper.issued",
+  "ownWorld.newspaper.name",
+  "ownWorld.newspaper.latest",
   "ownWorld.doors",
   "ownWorld.droppedItems[]",
   "ownWorld.gramophones{}",

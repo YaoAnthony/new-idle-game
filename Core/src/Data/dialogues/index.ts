@@ -137,6 +137,32 @@ export const dialogueDefinitions: DialogueDefinition[] = [
    * 没有分工的话玩家只会觉得"来了三个 NPC"，不是"来了三位邻居"。
    */
   /*
+   * 收下打印机、问你报纸叫什么（期 7）。
+   *
+   * **说话的是薇尔**。三位里她是那个"有文明、会做装备"的一支——
+   * 印刷机这种东西递给史莱姆或者狐狸都不成立，只有她会两眼放光。
+   *
+   * 最后一个节点 `emitEventId: "paper_named"`：那一句说完之后弹命名框，
+   * 玩家取完名字才算真的开张。
+   */
+  {
+    id: "reporter_names_the_paper",
+    localizationKey: "dlg.reporter_names_the_paper",
+    speakerNameKey: "pet.spirit_neighbor",
+    entryNodeId: "n1",
+    nodes: {
+      n1: { nodeId: "n1", speaker: "npc", localizationKey: "dlg.reporter_names_the_paper.n1", nextNodeId: "n2" },
+      n2: { nodeId: "n2", speaker: "npc", localizationKey: "dlg.reporter_names_the_paper.n2", nextNodeId: "n3" },
+      n3: { nodeId: "n3", speaker: "npc", localizationKey: "dlg.reporter_names_the_paper.n3", nextNodeId: "n4" },
+      n4: {
+        nodeId: "n4",
+        speaker: "npc",
+        localizationKey: "dlg.reporter_names_the_paper.n4",
+        emitEventId: "paper_named",
+      },
+    },
+  },
+  /*
    * 三位住齐之后来求购（期 5）。**说话的是狐狸阿茜**：三位里她最快人快语，
    * 由她开口最不别扭——史莱姆讲话软，让他提"生意"会读成撒娇；精灵斯文，
    * 让她提会读成客套。角色的分工在这里第一次真的派上用场。

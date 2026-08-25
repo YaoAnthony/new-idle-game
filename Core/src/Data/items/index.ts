@@ -307,6 +307,37 @@ export const itemDefinitions = [
       surfaceGrid: { width: 4, height: 2 },
     },
   },
+  /*
+   * 报纸打印机（期 7）——**送给播报员的那台**。
+   *
+   * ⚠️ 造型没有设计稿，是我按现有木料语言做的（`recipes/newsPrinter.ts`），
+   * 图来了换那个文件即可。
+   *
+   * `origin: Real` 是关键的一笔：它是**现实世界的东西**，而这正是它
+   * 能成为礼物的理由——薇尔那一支有文明，但没有印刷机。
+   *
+   * 为什么是家具不是道具：它要能摆在屋里、看得见、走过去按 F。
+   * "我送出去的那台机器就在他家桌上"这件事本身就是回报。
+   */
+  {
+    id: "furniture_news_printer",
+    localizationKey: "item.furniture_news_printer",
+    category: ItemCategory.Furniture,
+    stackLimit: 1,
+    rarity: Rarity.Rare,
+    origin: ItemOrigin.Real,
+    value: 45,
+    visual: { id: "news_printer" },
+    placement: {
+      surface: PlacementSurface.Floor,
+      footprint: { width: 1, height: 1 },
+      capabilities: [],
+      floorLayer: FloorLayer.Object,
+      blocksMovement: true,
+      surfaceHeight: 0.62,
+      surfaceGrid: { width: 2, height: 2 },
+    },
+  },
   {
     /**
      * 床头柜（2026-08-23，用户要的临时家具）。**纯装饰**：不挂任何

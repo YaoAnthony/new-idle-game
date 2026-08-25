@@ -143,6 +143,31 @@ export const storyRules: StoryRule[] = [
   },
 
   /*
+   * 报纸（期 7）。**用送礼当解锁开关，这是全蓝图第一次。**
+   *
+   * `gift_given` 信号早就在（"递出去了，不分档位"），把它用在最有性格
+   * 的角色身上是对的：薇尔想要一台打印机，你把它送过去——这比"造好就
+   * 自动解锁"有分量得多。
+   *
+   * 两条规则分开写而不是一条：**送礼**和**取好名字**是两件事，中间隔着
+   * 一个玩家要动手的输入框。合成一条的话，玩家还没取名报纸就开始出了，
+   * 报头只能开个洞。
+   */
+  {
+    id: "newspaper_gift_received",
+    triggers: [{ signal: "gift_given", subject: "furniture_news_printer" }],
+    effects: [
+      { kind: "start_dialogue", dialogueId: "reporter_names_the_paper", delayMs: 800 },
+    ],
+  },
+  {
+    // 对话最后那个节点的 emitEventId 发这个；名字由面板存进 WorldSave
+    id: "newspaper_started",
+    triggers: [{ signal: "dialogue_event", subject: "paper_named" }],
+    effects: [{ kind: "unlock_feature", featureId: "newspaper" }],
+  },
+
+  /*
    * 三位住齐 → 他们来问能不能买你的家具 → 递给你小店的图纸（期 5）。
    *
    * `signalCount: 3` 查的是**不带 subject 的那个键**（`resident_moved_in`），

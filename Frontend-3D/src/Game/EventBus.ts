@@ -283,6 +283,8 @@ export type GameEvents = {
   storage_open_requested: { instanceId: string; furnitureId: string };
   /** 家具小店的上架面板（期 5）。从建筑管理面板那一颗按钮发出 */
   shelf_open_requested: { instanceId: string };
+  /** 今日报纸（期 7）。出刊那天早上自动弹一次，之后从侧边栏开 */
+  newspaper_open_requested: Record<string, never>;
   /**
    * 玩家按 F 请求打开每日任务面板。不带 instanceId——
    * 进度是全家一份（WorldSave.dailyBoard），哪台机器打开的都一样。
@@ -362,6 +364,18 @@ export type GameEvents = {
 type Listener<T> = (payload: T) => void;
 
 const listeners = new Map<keyof GameEvents, Set<Listener<never>>>();
+
+/*
+ * 开发期探针：`window.__bus.count("building_completed")` 数某个事件挂了
+ * 几个监听。查"一次操作被记了两遍"这类问题时，第一件要分清的就是
+ * **事件发了两次**还是**监听挂了两个**，而从外面完全看不出来。
+ */
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  (window as unknown as Record<string, unknown>).__bus = {
+    count: (kind: string) => listeners.get(kind as keyof GameEvents)?.size ?? 0,
+    kinds: () => [...listeners.keys()],
+  };
+}
 
 export function on<K extends keyof GameEvents>(
   event: K,

@@ -50,6 +50,10 @@ import {
   snapshotTravelerStock,
 } from "../../Game/Systems/trading";
 import {
+  restoreNewspaper,
+  snapshotNewspaper,
+} from "../../Game/Systems/newspaper";
+import {
   pruneOrphanStorages,
   restoreStorages,
   snapshotStorages,
@@ -208,6 +212,7 @@ export function serializeGameSave(previous?: GameSave): GameSave {
       // 「昨日事实」（报纸素材，最多两条）。世界的事跟着世界走
       dayFacts: getDayFacts(),
       travelerStock: snapshotTravelerStock(),
+      newspaper: snapshotNewspaper(),
 
       progression: {
         unlockedFeatureIds: getUnlockedFeatures(),
@@ -371,6 +376,7 @@ export function hydrateGameSave(save: GameSave): void {
   restorePoolMisses(save.ownWorld.progression.poolMisses);
   restoreDayFacts(save.ownWorld.dayFacts);
   restoreTravelerStock(save.ownWorld.travelerStock);
+  restoreNewspaper(save.ownWorld.newspaper);
 
   // 行动最后恢复：它可能立刻结算并发奖励，需要背包已经就位
   restoreActionEntries(save.player.actionEntries);

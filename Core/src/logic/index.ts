@@ -23,6 +23,7 @@ export * from "./projectile.js";
 export * from "./housePlacementCheck.js";
 export * from "./roomAnchor.js";
 export * from "./roomGeometry.js";
+export * from "./newspaper.js";
 export * from "./shopkeeping.js";
 export * from "./storyAudit.js";
 export * from "./territory.js";

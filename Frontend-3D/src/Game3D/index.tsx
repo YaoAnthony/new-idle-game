@@ -57,6 +57,7 @@ import { BuildingPanel } from "../Components/BuildingPanel/BuildingPanel";
 import { StationPanel } from "../Components/StationPanel/StationPanel";
 import { StoragePanel } from "../Components/StoragePanel/StoragePanel";
 import { ShopShelfPanel } from "../Components/ShopShelfPanel/ShopShelfPanel";
+import { NewspaperPanel } from "../Components/NewspaperPanel/NewspaperPanel";
 import {
   parseEnum,
   registerCommand,
@@ -105,6 +106,7 @@ import {
 import {
   getEventProgress,
   getUnlockedFeatures,
+  isFeatureUnlocked,
 } from "../Game/Systems/events";
 import {
   buildCandidatePool,
@@ -129,6 +131,13 @@ import {
   travelerOfferToday,
   travelerStockToday,
 } from "../Game/Systems/trading";
+import {
+  issueToday,
+  latestIssue,
+  paperName,
+  setPaperName,
+  startNewspaper,
+} from "../Game/Systems/newspaper";
 import {
   debugSettleOnce,
   findShop,
@@ -375,6 +384,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
     const stopResidents = isRemoteWorldActive() ? () => {} : startResidents();
     // 家具小店的隔夜结算（期 5）。做客时不跑：别人的店别人结
     const stopShopkeeping = isRemoteWorldActive() ? () => {} : startShopkeeping();
+    // 报纸出刊（期 7）。做客时不跑：报纸是房主家的私事
+    const stopNewspaper = isRemoteWorldActive() ? () => {} : startNewspaper();
     // 把手上拿的东西 / 坐姿汇进 participants 的 appearance 层。
     // 那是给渲染和（将来的）网络读的投影，见 Systems/participantSync
     const stopParticipantSync = startParticipantSync();
@@ -1314,6 +1325,57 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
         },
       }),
       registerCommand({
+        name: "news",
+        usage: "news [open|issue|name <报名>]",
+        description:
+          "报纸（期 7）：不带参数看最新一期的摘要，open 打开版面，issue 立刻出一期，name 改报名",
+        handler: (args) => {
+          if (args[0] === "name") {
+            const wanted = args.slice(1).join(" ").trim();
+            if (!wanted) return fail("要叫什么？");
+            setPaperName(wanted);
+            return ok(`报名改成「${paperName()}${"晨报"}」`);
+          }
+          if (args[0] === "open") {
+            emit("newspaper_open_requested", {});
+            return ok("打开报纸");
+          }
+          if (args[0] === "issue") {
+            const issued = issueToday();
+            if (!issued) {
+              /*
+               * 出不了刊有两个原因，**分开报**：还没解锁 vs 今天已经出过。
+               * 合成一句"出不了"会让人去翻剧情，而实际上只是今天看过了。
+               */
+              return ok(
+                isFeatureUnlocked("newspaper")
+                  ? "今天这一期已经出过了（一天只出一版）"
+                  : "报纸还没开张——把打印机送给薇尔",
+              );
+            }
+            return ok(`第 ${issued.number} 期出刊`);
+          }
+          const latest = latestIssue();
+          if (!latest) return ok("还没出过报纸");
+          return ok(
+            JSON.stringify(
+              {
+                报名: paperName() || "(还没取)",
+                期号: latest.number,
+                出刊日: latest.worldDayId,
+                报道: latest.aboutDayId,
+                隔了几天: latest.spanDays,
+                头条: latest.headline,
+                邻居动态: latest.neighbors.length,
+                今日想要: latest.wanted,
+              },
+              null,
+              1,
+            ),
+          );
+        },
+      }),
+      registerCommand({
         name: "traveler",
         usage: "traveler [buy <itemId>]",
         description:
@@ -1658,6 +1720,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       stopTrading();
       stopResidents();
       stopShopkeeping();
+      stopNewspaper();
       stopParticipantSync();
       stopBath();
       stopDailyRollover();
@@ -1778,6 +1841,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       <DailyBoardPanel />
       <StoragePanel />
       <ShopShelfPanel />
+      <NewspaperPanel />
       <DialoguePanel />
       <ActionHub />
       {/*

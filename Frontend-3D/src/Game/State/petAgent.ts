@@ -32,6 +32,8 @@ import { findBuildingLevel } from "../../Buildings/index";
 import { getClock } from "./clock";
 import {
   creatureBlockedAt,
+  creatureBlockingAt,
+  PLAYER_OBSTACLE_ID,
   doorGateBlocks,
   getCurrentMap,
   getCurrentMapId,
@@ -102,6 +104,23 @@ function gridToWorldXZ(room: RoomSave, cell: GridPosition): [number, number] {
   return [p.x, p.z];
 }
 
+/**
+ * 按 petId 找同伴。**由 `petsRuntime` 在启动时注入**，不在这里 import。
+ *
+ * 反过来引会成环：`petsRuntime` 本来就 import 了 `PetAgent`。ESM 能容忍
+ * 环，但那让"谁依赖谁"变得要靠猜；注入一个函数则把方向写在明面上——
+ * 名册归 `petsRuntime` 管，个体只是被告知怎么找人。
+ *
+ * 只有"让路"用它：一只生物要请另一只挪开，除此之外个体之间不互相认识。
+ */
+let peerLookup: ((petId: string) => PetAgent | undefined) | null = null;
+
+export function setPeerLookup(
+  lookup: (petId: string) => PetAgent | undefined,
+): void {
+  peerLookup = lookup;
+}
+
 export class PetAgent {
   // ---- 身份 ----
   readonly petId: string;
@@ -154,6 +173,13 @@ export class PetAgent {
   private busyTimer = 0;
   /** 路被活物挡住已经等了多久 */
   private blockedFor = 0;
+  /**
+   * 刚被请着让过路，这段时间内不再被请第二次。
+   *
+   * 没有这个冷却的话，两只互相挡着的生物会一人一帧地请对方让路，
+   * 谁都走不掉——让路必须是**一次性的动作**，不是持续协商。
+   */
+  private yieldCooldown = 0;
   private errand: Errand = null;
 
   /** 陪你的还是干活的。干活的不吃不喝不亲近 */
@@ -243,6 +269,27 @@ export class PetAgent {
   }
 
   /** 调试用：瞬移过去并回到发呆。只有 /pet 命令经 petsRuntime 调它 */
+  /**
+   * 走没走在路上。**用例读它判"让路生效了没有"**——直接看 `path.length`
+   * 要把私有字段公开，而那会让任何人都能改路径。
+   */
+  isMovingSomewhere(): boolean {
+    return this.pathIndex < this.path.length;
+  }
+
+  /** 当前这条路的终点。让路的方向对不对靠它验 */
+  debugPathTarget(): { x: number; z: number } | null {
+    if (this.pathIndex >= this.path.length) return null;
+    const [x, z] = this.path[this.path.length - 1];
+    return { x, z };
+  }
+
+  /** 用例摆状态用（"正在干活的不让路"这类判据要先把他摆成那个状态） */
+  debugSetState(state: PetActivity): void {
+    this.state = state;
+    this.clearPath();
+  }
+
   debugPlace(x: number, z: number): void {
     this.x = x;
     this.z = z;
@@ -321,6 +368,8 @@ export class PetAgent {
     if (this.radius > 0) {
       setCreatureObstacle(this.petId, this.x, this.z, this.radius);
     }
+
+    if (this.yieldCooldown > 0) this.yieldCooldown -= deltaSeconds;
 
     this.decayNeeds(deltaSeconds);
     this.driftMood(deltaSeconds);
@@ -471,8 +520,14 @@ export class PetAgent {
         return true;
       }
 
+      /*
+       * 把**楼占多大**也传进去：落脚点只在楼外面找。不传的话前几圈
+       * 采样点全落在楼里，等于把候选数从三十几个砍到八个。
+       */
+      const blocked =
+        Math.max(level?.footprint.width ?? 2, level?.footprint.height ?? 2) / 2;
       // 排不出路 = 这块地他过不去（门太窄、地没解锁）。换下一块
-      if (!this.seekNear(target.x, target.z, reach)) continue;
+      if (!this.seekNear(target.x, target.z, reach, blocked)) continue;
 
       this.state = "wander";
       this.errand = { kind: "build", instanceId: target.instanceId };
@@ -480,6 +535,117 @@ export class PetAgent {
       return true;
     }
     return false;
+  }
+
+  /**
+   * **为什么不去建**：逐块工地报原因（调试用）。
+   *
+   * 用户 2026-08-25 报"石傀儡不过来建造"，而当时完全没有工具能回答这个
+   * 问题——`/buildings` 连工地都不显示，`trySeekSite` 里那句"去不了就
+   * 跳过"是静默的。三种原因（有人认领了 / 已经站到了 / 排不出路）
+   * 从外面长得一模一样：他就是站着不动。
+   *
+   * 这个方法不改任何状态，只把 `trySeekSite` 的判断复述一遍。
+   */
+  diagnoseSites(): {
+    errand: string;
+    sites: Array<{ instanceId: string; verdict: string }>;
+  } {
+    const errand =
+      this.errand?.kind === "build" ? this.errand.instanceId : (this.errand?.kind ?? "(空)");
+    return { errand, sites: this.listSiteVerdicts() };
+  }
+
+  private listSiteVerdicts(): Array<{ instanceId: string; verdict: string }> {
+    return listSites().map((site) => {
+      if (site.construction?.workerId && site.construction.workerId !== this.petId) {
+        return { instanceId: site.instanceId, verdict: `别人在建（${site.construction.workerId}）` };
+      }
+      const level = findBuildingLevel(
+        site.buildingId,
+        site.construction?.targetLevelId ?? site.levelId,
+      );
+      const reach =
+        this.radius +
+        0.9 +
+        Math.max(level?.footprint.width ?? 2, level?.footprint.height ?? 2) / 2;
+      const distance = Math.hypot(site.x - this.x, site.z - this.z);
+      if (distance <= reach) {
+        return { instanceId: site.instanceId, verdict: `够得着（距离 ${distance.toFixed(1)} ≤ ${reach.toFixed(1)}）` };
+      }
+      /*
+       * 这里**真的去排一次路**（和 `trySeekSite` 走同一个 `seekNear`），
+       * 排完把路撤掉——只有真排一次才知道过不过得去，估算不算数。
+       */
+      const savedPath = this.path;
+      const savedIndex = this.pathIndex;
+      const blocked =
+        Math.max(level?.footprint.width ?? 2, level?.footprint.height ?? 2) / 2;
+      const reachable = this.seekNear(site.x, site.z, reach, blocked);
+      this.path = savedPath;
+      this.pathIndex = savedIndex;
+      if (reachable) {
+        return {
+          instanceId: site.instanceId,
+          verdict: `走得到（距离 ${distance.toFixed(1)}）`,
+        };
+      }
+      /*
+       * 去不了的话，**分清是"没地方站"还是"站得下但走不过去"**。
+       * 两者的修法完全不同：前者要放宽落脚点的搜法，后者是地图或
+       * 障碍物的问题。只报一句"排不出路"的话，这两条路要各试一遍。
+       */
+      let standable = 0;
+      let tried = 0;
+      const inner = blocked + this.radius;
+      const RINGS = 4;
+      const DIRECTIONS = 12;
+      for (let ring = 0; ring <= RINGS; ring += 1) {
+        const d = inner >= reach ? reach : inner + ((reach - inner) * ring) / RINGS;
+        const spokes = d <= 0.01 ? 1 : DIRECTIONS;
+        const phase = (ring * Math.PI) / DIRECTIONS;
+        for (let spoke = 0; spoke < spokes; spoke += 1) {
+          const angle = phase + (spoke * Math.PI * 2) / spokes;
+          tried += 1;
+          if (
+            isWalkable(
+              site.x + Math.cos(angle) * d,
+              site.z + Math.sin(angle) * d,
+              this.radius,
+              this.petId,
+            )
+          ) {
+            standable += 1;
+          }
+        }
+      }
+      /*
+       * 走不过去时再问一句：**换个小个子过得去吗**。
+       *
+       * 过得去 = 路太窄（石傀儡半径 1.1 要 2.2 米净宽，而院子里的过道
+       * 未必有）；过不去 = 那片地压根和这儿不连通（地没开、被墙围死）。
+       * 两者的修法完全不同：前者是把过道让开或者换个小工人，
+       * 后者是那块地根本不该能下单。
+       */
+      let narrowOnly = false;
+      if (standable > 0) {
+        const tiny = findRoute(
+          { x: this.x, z: this.z },
+          { x: site.x, z: site.z },
+          { radius: 0.25, snapRings: 4 },
+        );
+        narrowOnly = Boolean(tiny && tiny.length >= 2);
+      }
+      return {
+        instanceId: site.instanceId,
+        verdict:
+          standable === 0
+            ? `**没地方站**（环带 ${inner.toFixed(1)}~${reach.toFixed(1)}，${tried} 个候选点一个都站不下，半径 ${this.radius}）`
+            : narrowOnly
+              ? `**路太窄**（小个子过得去，他半径 ${this.radius} 过不去；${standable}/${tried} 个落脚点可站）`
+              : `**那片地不连通**（小个子也过不去；${standable}/${tried} 个落脚点可站，距离 ${distance.toFixed(1)}）`,
+      };
+    });
   }
 
   /** 站定、转向工地、认领它。认领那一刻才开始走进度 */
@@ -771,14 +937,41 @@ export class PetAgent {
    * 第一次起作用**——大家伙够不到的地方直接不是候选。真一个都没有
    * （比如工地在屋里、他进不去），返回 false，调用方就当这活儿他干不了。
    */
-  private seekNear(targetX: number, targetZ: number, reach: number): boolean {
+  private seekNear(
+    targetX: number,
+    targetZ: number,
+    reach: number,
+    /**
+     * 目标本身占多大（半径，米）。给了就**只在它外面找落脚点**——
+     * 里面那几圈横竖站不下，试也是白试。
+     */
+    blockedRadius = 0,
+  ): boolean {
+    /*
+     * ## 只在"站得下的那条环带"里采样
+     *
+     * 原来是从 0 到 reach 均分五圈。对一颗小摆件没问题，对一栋楼是灾难：
+     * 狐狸家 3×3、reach = 半径 1.1 + 0.9 + 占地半宽 1.5 = 3.5，而他至少要
+     * 站在 1.5 + 1.1 = 2.6 之外——**前三圈全在房子里**，真正可用的只有最外
+     * 那一圈 8 个点。挡掉几个就整栋楼都去不了，而外面看到的只是
+     * "石傀儡站着不动"。
+     *
+     * 现在从 `blockedRadius + 自己的半径` 起步、到 reach 为止均分，
+     * 采样点全落在可能站得住的那条环带里；方向也从 8 加到 12，
+     * 因为环带窄了，只能靠角度铺开。
+     */
+    const inner = blockedRadius > 0 ? blockedRadius + this.radius : 0;
     const RINGS = 4;
-    const DIRECTIONS = 8;
+    const DIRECTIONS = 12;
     for (let ring = 0; ring <= RINGS; ring += 1) {
-      const distance = (reach * ring) / RINGS;
-      // 最里圈就是目标点本身，只试一次
-      const spokes = ring === 0 ? 1 : DIRECTIONS;
-      // 每圈错开半个扇区，免得所有圈的候选点排成八条直线
+      const distance =
+        inner >= reach
+          ? // 环带被压没了（楼太大 / reach 太小）：退回只试最远那一圈
+            reach
+          : inner + ((reach - inner) * ring) / RINGS;
+      // 目标点本身只在没有体积时才值得试一次
+      const spokes = distance <= 0.01 ? 1 : DIRECTIONS;
+      // 每圈错开半个扇区，免得所有圈的候选点排成几条直线
       const phase = (ring * Math.PI) / DIRECTIONS;
       for (let spoke = 0; spoke < spokes; spoke += 1) {
         const angle = phase + (spoke * Math.PI * 2) / spokes;
@@ -792,20 +985,80 @@ export class PetAgent {
   }
 
   /**
-   * 前面暂时过不去：**原地等**，等太久才放弃重打算。
+   * 前面暂时过不去：**先请对方让一让，还不行才原地等，等太久才放弃**。
    *
-   * 挡路的是活物还是没开的门，处理是一样的——两者都会自己让开
-   * （人走开 / 门推开），所以"等"永远是第一选择，绕路是等不到才做的事。
+   * 原来只有"等 + 放弃"两档。那对门是对的（门会自己被推开），对生物
+   * 不对：**挡路的那位没有任何理由挪开**。一只站在路口的史莱姆能让
+   * 石傀儡等满 2.5 秒、然后把整个工地扔掉——而外面看到的只是
+   * "石傀儡不来建造"（用户 2026-08-25 报的就是这个）。
+   *
+   * 所以中间插一档：认出挡路的是谁，请他让开。让路是**一次性动作**
+   * 不是持续协商——请过的人进冷却，否则两只互相挡着的会一人一帧地
+   * 请对方，谁都走不掉。
    */
   private waitBlocked(deltaSeconds: number): void {
     this.moving = false;
     this.blockedFor += deltaSeconds;
+
+    if (this.blockedFor > 0.35 && this.pathIndex < this.path.length) {
+      this.askBlockerToYield();
+    }
+
     if (this.blockedFor > 2.5) {
       this.blockedFor = 0;
       this.clearPath();
       this.errand = null;
       this.state = "idle";
       this.idleTimer = 2 + Math.random() * 3;
+    }
+  }
+
+  /**
+   * 请挡在下一个路点上的那位让开。
+   *
+   * **不请玩家**：他自己会走，而且被 NPC 推着走很怪。也不请正在忙的
+   * （吃、睡、干活）——那会把他从活里拽出来，代价比等一等大。
+   */
+  private askBlockerToYield(): void {
+    const [tx, tz] = this.path[this.pathIndex];
+    const who = creatureBlockingAt(tx, tz, this.radius * 0.85, this.petId);
+    if (!who || who === PLAYER_OBSTACLE_ID) return;
+    peerLookup?.(who)?.yieldAsideFrom(this.x, this.z);
+  }
+
+  /**
+   * 有人要过，往旁边挪一步。
+   *
+   * 挪的方向是**背对来人**：他从哪边来，我就往反方向让。原地打转或者
+   * 随便挑一边的话，有一半概率让到对方要去的方向上，等于没让。
+   *
+   * 挪的距离只有一步多（1.4 米）——让路是"侧身"不是"逃跑"，
+   * 让完还在原地附近，玩家看着才像礼貌而不是受惊。
+   */
+  yieldAsideFrom(fromX: number, fromZ: number): void {
+    // 冷却中、正忙着、或者本来就在走，都不打断
+    if (this.yieldCooldown > 0) return;
+    if (this.state === "work" || this.state === "eat" || this.state === "drink") return;
+    if (this.state === "sleeping" || this.state === "hidden") return;
+    if (this.pathIndex < this.path.length) return;
+
+    const away = Math.atan2(this.x - fromX, this.z - fromZ);
+    const STEP = 1.4;
+    /*
+     * 先试正背方向，不行就左右各偏 45°、90°。八个方向全试不到就算了
+     * ——那说明他自己也被围着，让不出来。
+     */
+    for (const turn of [0, 0.79, -0.79, 1.57, -1.57, 2.36, -2.36, Math.PI]) {
+      const angle = away + turn;
+      const x = this.x + Math.sin(angle) * STEP;
+      const z = this.z + Math.cos(angle) * STEP;
+      if (!isWalkable(x, z, this.radius, this.petId)) continue;
+      if (!this.startPathTo(x, z)) continue;
+      this.state = "wander";
+      this.errand = null;
+      this.yieldCooldown = 3;
+      emit("pet_changed", { petId: this.petId, reason: "yield" });
+      return;
     }
   }
 

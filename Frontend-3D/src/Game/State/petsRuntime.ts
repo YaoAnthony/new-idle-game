@@ -8,7 +8,9 @@ import {
   type PetSave,
 } from "core";
 import { emit } from "../EventBus";
-import { PetAgent, type PetActivity } from "./petAgent";
+import { PetAgent, type PetActivity,
+  setPeerLookup,
+} from "./petAgent";
 import { getWorld, roomIdAt } from "./worldRuntime";
 
 /**
@@ -37,6 +39,12 @@ export function getPets(): PetAgent[] {
 export function getPet(petId: string): PetAgent | undefined {
   return pets.get(petId);
 }
+
+/*
+ * 把"按 id 找同伴"交给个体（让路要用）。名册归这里管，`PetAgent` 只是
+ * 被告知怎么找人——反过来让它 import 这个文件会成环。
+ */
+setPeerLookup(getPet);
 
 export function setPetAffection(petId: string, stage: AffectionStage): void {
   const pet = pets.get(petId);

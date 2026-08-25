@@ -109,6 +109,39 @@ export function creatureBlockedAt(
   return hitsCreature(x, z, radius, selfId);
 }
 
+/**
+ * **是谁挡的。** 同 `creatureBlockedAt`，但回的是那位的 id 而不是布尔。
+ *
+ * 让路要用：被挡的一方得知道该请谁挪开。只回布尔的话，堵在门口的邻居
+ * 和一堵墙对被挡者来说没有区别——而现在的行为是等 2.5 秒然后**把整个活
+ * 都扔了**（`waitBlocked`），一只站着不动的史莱姆能让石傀儡永远建不成楼。
+ *
+ * 撞上好几个时回**最近**那个：请错人没意义，得请真正堵着的那位。
+ */
+export function creatureBlockingAt(
+  x: number,
+  z: number,
+  radius: number,
+  selfId: string,
+): string | null {
+  if (ignoreCreatures) return null;
+  let best: string | null = null;
+  let bestGap = Infinity;
+  for (const [id, obstacle] of creatureObstacles) {
+    if (id === selfId) continue;
+    const gap = radius + obstacle.radius;
+    const dx = x - obstacle.x;
+    const dz = z - obstacle.z;
+    const d2 = dx * dx + dz * dz;
+    if (d2 >= gap * gap) continue;
+    if (d2 < bestGap) {
+      bestGap = d2;
+      best = id;
+    }
+  }
+  return best;
+}
+
 export function setActorFootprint(x: number, z: number, radius: number): void {
   // 玩家同时也是一个圆形活物障碍：大猫溜达时不该从人身上碾过去。
   // 反过来玩家自己的 isWalkable 会传 PLAYER_OBSTACLE_ID 把自己排除掉

@@ -2,6 +2,7 @@ import { matchesAction } from "../Game/Input/bindings";
 import { readDebugProbe, toggleDebugMode } from "../Game/State/debugMode";
 import {
   ActionCategory,
+  constructionProgress,
   tradingTuning,
   ActionPriority,
   CreatureRole,
@@ -673,16 +674,33 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
           { name: "格Y" },
           { name: "朝向", suggest: () => asSuggestions(["north", "east", "south", "west"]) },
         ],
-        usage: "build <buildingId> <gx> <gy> [facing]",
-        description: "在领地里盖一栋。坐标是**院子格号**，给的是占地左上角",
+        usage: "build <buildingId> <gx> <gy> [facing] [site]",
+        description:
+          "在领地里盖一栋。坐标是**院子格号**（占地左上角）。末尾加 site = 落工地等石傀儡来建，不加 = 当场成品",
         handler: (args) => {
           const spot = parseYardCell(args[1], args[2]);
-          if (!spot) return fail("用法：build <型号> <格X> <格Y> [朝向]");
-          const facing = toFacing(parseEnum(args[3] ?? "north", FACINGS, "朝向"));
+          if (!spot) return fail("用法：build <型号> <格X> <格Y> [朝向] [site]");
+          /*
+           * `site` 可以出现在第 4 或第 5 位——朝向是可选的。用"末尾是不是
+           * site"来判，比要求玩家把朝向补齐友好。
+           *
+           * 这个开关是查"石傀儡不来建造"时补的：`/build` 一直走当场成品
+           * 那条路（不传 asSite），所以**根本造不出工地**，整条施工链在
+           * 调试台上摸不到。真游戏走选址面板是落工地的。
+           */
+          const asSite = args.includes("site");
+          const facingArg = args[3] === "site" ? "north" : (args[3] ?? "north");
+          const facing = toFacing(parseEnum(facingArg, FACINGS, "朝向"));
           // 家是地图自带的，不是盖出来的（04 文档）；型号还在，只是这个口不开
           if (args[0] === "house") return fail("家已经有了");
-          const result = placeBuildingAtCell(args[0] ?? "", spot, facing);
-          if (result.ok !== false) return ok(`盖好了：${result.instanceId}`);
+          const result = placeBuildingAtCell(args[0] ?? "", spot, facing, { asSite });
+          if (result.ok !== false) {
+            return ok(
+              asSite
+                ? `工地落好了：${result.instanceId}（等石傀儡来建）`
+                : `盖好了：${result.instanceId}`,
+            );
+          }
           return fail(whyBuild(result.reason));
         },
       }),
@@ -770,20 +788,67 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
         },
       }),
       registerCommand({
+        name: "golem",
+        usage: "golem",
+        description:
+          "石傀儡为什么不去建：他的状态 + 每块工地逐条报原因（有人建了 / 够得着 / 排不出路）",
+        handler: () => {
+          const golem = getPets().find((pet) => pet.role === CreatureRole.Worker);
+          if (!golem) return fail("场上没有工人");
+          return ok(
+            JSON.stringify(
+              {
+                /*
+                 * 三样先摆出来：**沉睡**（零件不全就永远不醒）、**状态**
+                 * （work 说明他正在建）、**位置**。石傀儡不动的原因里，
+                 * "他压根没启动"和"他去不了"是完全不同的两件事，
+                 * 而从画面上看都是一尊站着的石像。
+                 */
+                沉睡: golem.dormant,
+                状态: golem.state,
+                位置: `${golem.x.toFixed(1)}, ${golem.z.toFixed(1)}`,
+                ...(() => {
+                  const d = golem.diagnoseSites();
+                  return { 手上的活: d.errand, 工地: d.sites };
+                })(),
+              },
+              null,
+              1,
+            ),
+          );
+        },
+      }),
+      registerCommand({
         name: "buildings",
         usage: "buildings",
-        description: "列出领地上的建筑：等级、位置（格号 + 世界坐标）、能升到哪几级",
+        description:
+          "列出领地上的建筑：等级、位置（格号 + 世界坐标）、能升到哪几级；**工地额外标出谁在建、建到几成**",
         handler: () => {
           const list = listBuildings();
           if (list.length === 0) return ok("领地上还没有建筑");
+          const now = getClock().sample.nowUtc;
           return ok(
             list
               .map((placement) => {
                 const level = findBuildingLevel(placement.buildingId, placement.levelId);
                 const cell = worldToYardCell(placement);
                 const next = upgradeOptions(placement.instanceId);
+                /*
+                 * **施工状态要打出来。** 这一栏是查"石傀儡不来建造"时补的：
+                 * 在此之前这条指令对工地一个字都不提——有没有工地、谁认领了、
+                 * 建到几成，全看不见，只能从"楼有没有变出来"倒推。
+                 * 而那恰恰是这类问题最需要分清的三件事。
+                 */
+                const site = placement.construction;
+                const state = site
+                  ? site.workerId
+                    ? `施工中 ${(constructionProgress(placement, now) * 100).toFixed(0)}%（${site.workerId}）`
+                    : "工地·排队中（没人认领）"
+                  : next.length
+                    ? "可升→" + next.join("/")
+                    : "满级";
                 // 格号和世界坐标**都打**：调试时不用心算
-                return `${placement.instanceId} ${t(level?.localizationKey ?? "")}(${placement.levelId}) 格(${cell.x},${cell.y}) 世界(${placement.x},${placement.z}) ${next.length ? "可升→" + next.join("/") : "满级"}`;
+                return `${placement.instanceId} ${t(level?.localizationKey ?? "")}(${placement.levelId}) 格(${cell.x},${cell.y}) 世界(${placement.x},${placement.z}) ${state}`;
               })
               .join(" · "),
           );

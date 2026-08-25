@@ -111,12 +111,13 @@ export function placeBuildingAtCell(
   buildingId: string,
   cell: { x: number; y: number },
   facing: Facing,
+  options: { asSite?: boolean } = {},
 ): BuildingActionResult {
   const definition = findBuilding(buildingId);
   if (!definition) return { ok: false, reason: "unknown_building" };
   const center = cellToCenter(cell, definition.levels[0].footprint, facing);
   if (!center) return { ok: false, reason: "no_yard" };
-  return placeBuilding(buildingId, center.x, center.z, facing);
+  return placeBuilding(buildingId, center.x, center.z, facing, options);
 }
 
 export function moveBuildingToCell(

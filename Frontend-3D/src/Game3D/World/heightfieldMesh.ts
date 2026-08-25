@@ -47,6 +47,35 @@ export function buildHeightfieldMesh(
     scratch.offsetHSL(0, 0, (hash01(seed) - 0.5) * jitter);
   };
 
+  /**
+   * **空间连续的噪声**（0..1），按世界坐标取样、双线性插值。
+   *
+   * 草色原来直接拿逐格的 `hash01(seed)` 挑档——那是**白噪声**：每一格
+   * 独立掷一次色子，相邻格毫无关系。渲出来就是一米一个硬色块的棋盘，
+   * 用户 2026-08-25 说的"地板拼接"就是它（掠射角下那些格边还会闪）。
+   *
+   * 低多边形要的是**大块的平色面**，不是逐面随机。改成按 `SPLOTCH` 米
+   * 尺度取样之后，同一片色会连着铺开好几格，读起来是草甸的深浅，
+   * 而不是贴图没对齐。逐格的微抖动留着（`jitter`），但那是同色系内的
+   * 明度差，不会切出边。
+   */
+  const SPLOTCH = 7;
+  const splotch = (x: number, z: number, salt: number): number => {
+    const fx = x / SPLOTCH;
+    const fz = z / SPLOTCH;
+    const x0 = Math.floor(fx);
+    const z0 = Math.floor(fz);
+    const tx = fx - x0;
+    const tz = fz - z0;
+    // smoothstep：线性插值会在格心留下菱形的棱
+    const sx = tx * tx * (3 - 2 * tx);
+    const sz = tz * tz * (3 - 2 * tz);
+    const corner = (cx: number, cz: number) => hash01(cx * 127.1 + cz * 311.7 + salt);
+    const top = corner(x0, z0) + (corner(x0 + 1, z0) - corner(x0, z0)) * sx;
+    const bottom = corner(x0, z0 + 1) + (corner(x0 + 1, z0 + 1) - corner(x0, z0 + 1)) * sx;
+    return top + (bottom - top) * sz;
+  };
+
   for (let row = 0; row < rows - 1; row += 1) {
     for (let column = 0; column < columns - 1; column += 1) {
       const i00 = row * columns + column;
@@ -98,11 +127,16 @@ export function buildHeightfieldMesh(
         paint(style.grassLight, seed, 0.05);
         scratch.offsetHSL(0.02, -0.08, 0.04);
       } else {
-        // 草地三档：暗斑打散大面积、高处微微发亮（远丘要比河谷亮）
+        /*
+         * 草地三档。**挑哪一档按空间噪声，不按逐格白噪声**——
+         * 后者是那片棋盘的成因（见 `splotch` 的注释）。
+         * 同一块斑连着铺好几格，深浅读起来是草甸不是马赛克。
+         */
         const uplift = Math.min(0.5, Math.max(0, (average - style.baseY) * 0.35));
-        if (hash01(seed * 1.7) < 0.16) paint(style.grassDark, seed, 0.04);
-        else if (uplift > 0.12 || hash01(seed * 3.1) < 0.1) paint(style.grassLight, seed, 0.05);
-        else paint(style.grass, seed, 0.05);
+        const patch = splotch(x0, z0, 0);
+        if (patch < 0.3) paint(style.grassDark, seed, 0.025);
+        else if (uplift > 0.12 || patch > 0.72) paint(style.grassLight, seed, 0.03);
+        else paint(style.grass, seed, 0.03);
         scratch.offsetHSL(0, 0, uplift * 0.05);
       }
 

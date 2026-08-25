@@ -19,7 +19,13 @@ import { setRemoteWorldActive } from "../src/Game/Multiplayer/worldLock";
 
 /** 餐厅在空院子里落得下的点（同 derivedCollision） */
 const SPOT = { x: -6, z: 0 };
-/** 院子地形标高 / 台明顶 = 标高 + 0.42 */
+/**
+ * 院子地形标高 / 台明顶 = 标高 + 0.42。
+ *
+ * 室内地板比台明**再高 1 厘米**（`floorRaise: 0.43`）——两个面完全等高
+ * 会 z-fighting，见 diner.ts 那一段。所以"进门不掉坑"那条用例的判据是
+ * 门里门外**相差 1 厘米以内**，不是严格相等。
+ */
 const TERRAIN = -0.45;
 const PLINTH_TOP = TERRAIN + 0.42;
 
@@ -68,8 +74,8 @@ test("standing_室内地板铺在台明上_进门不掉坑", () => {
   const inside = groundHeightAt(SPOT.x, SPOT.z);
   const doorway = groundHeightAt(SPOT.x + 0.7, SPOT.z + 3.5);
 
-  expect(inside).toBeCloseTo(PLINTH_TOP, 2);
-  expect(doorway).toBeCloseTo(inside, 2);
+  expect(inside).toBeCloseTo(PLINTH_TOP, 1);
+  expect(Math.abs(doorway - inside), "门里门外高差不超过 1 厘米").toBeLessThanOrEqual(0.011);
 });
 
 test("standing_寻路上得了台_迈步规则自动把台明接进连通图", () => {

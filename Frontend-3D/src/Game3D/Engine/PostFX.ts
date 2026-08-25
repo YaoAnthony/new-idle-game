@@ -69,9 +69,24 @@ export function createPostFX(
 ): PostFXHandle {
   const lowEnd = detectLowEnd(renderer);
 
+  /*
+   * **MSAA 必须在 composer 上开**（2026-08-25 用户报"到处是锯齿"）。
+   *
+   * 这里原来写死 `multisampling: 0`，而 `WebGLRenderer({ antialias: true })`
+   * 只管**默认帧缓冲**——一旦走后处理，画面是渲进 composer 自己的
+   * render target 的，那个 true 一点作用都没有。也就是说整个游戏其实
+   * 一直在**无硬件抗锯齿**下跑，全靠 SMAA 这种形态学 AA 事后描边。
+   *
+   * SMAA 补不上的正是这个项目最多的东西：低多边形的长斜边、
+   * 地形逐格的颜色硬边、远处密林的高频枝干。它按亮度找边，
+   * 低对比的接缝直接漏掉，而且完全不管时间上的闪烁。
+   *
+   * 4× 够用（低多边形没有复杂着色，瓶颈在带宽不在采样），
+   * 上限跟着设备走。低端机整条后处理链本来就 bypass，不受影响。
+   */
   const composer = new EffectComposer(renderer, {
     frameBufferType: HalfFloatType,
-    multisampling: 0,
+    multisampling: lowEnd ? 0 : Math.min(4, renderer.capabilities.maxSamples ?? 0),
   });
 
   composer.addPass(new RenderPass(scene, camera));

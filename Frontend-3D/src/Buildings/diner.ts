@@ -2,6 +2,7 @@ import { dinerTuning } from "core";
 import type { Object3D } from "three";
 import { PALETTE } from "../Game3D/Visual/palette.js";
 import { blob, box, cylinder, group } from "../Game3D/Visual/primitives.js";
+import { dinerInterior } from "./dinerInterior.js";
 import { buildInterior } from "./interiors.js";
 import type { BuildingDefinition } from "./types.js";
 
@@ -112,12 +113,19 @@ function tiledRoof(width: number, depth: number, ridgeY: number, eaveY: number):
      * 坡就是一块绿板。加粗到 0.14 并压深一档颜色之后才读得出"这是瓦"。
      * 五道而不是三道：坡变陡之后坡面变长，三道会显得稀。
      */
+    /*
+     * 偏移量 0.13 是算出来的，不是试出来的：瓦面厚 0.13（半厚 0.065），
+     * 而沿**世界 Y** 抬 h 米在斜面法向上只有 h·cos(pitch) 的净距。
+     * pitch 48° → cos 0.67，原来的 0.07 只换来 0.047 < 0.065——瓦垄
+     * 有一半埋在瓦面里，整片屋顶是抖动的条纹。0.13 × 0.67 = 0.087，
+     * 干净地浮在面上。
+     */
     for (const t of [0.1, 0.23, 0.36, 0.5, 0.64, 0.77, 0.9]) {
       parts.push(
         box([roofW, 0.05, 0.14], {
           position: [
             0,
-            (ridgeY + eaveY) / 2 + (0.5 - t) * rise * 0.92 + 0.07,
+            (ridgeY + eaveY) / 2 + (0.5 - t) * rise * 0.92 + 0.13,
             (dir * depth) / 4 + dir * (t - 0.5) * slopeDepth * 0.92 * Math.cos(pitch),
           ],
           rotation: [dir * pitch, 0, 0],
@@ -240,8 +248,13 @@ function windowPanes(
   put(0, -paneH / 2 - bar / 2, paneW + bar * 2, bar, T, PALETTE.dinerWood);
   put(paneW / 2 + bar / 2, 0, bar, paneH, T, PALETTE.dinerWood);
   put(-paneW / 2 - bar / 2, 0, bar, paneH, T, PALETTE.dinerWood);
-  // 中竖梃：一格玻璃太大，读起来像灯箱
-  put(0, 0, 0.07, paneH, T - 0.02, PALETTE.dinerWood, false);
+  /*
+   * 中竖梃。**深度要避开砌缝条的外表面**：缝条外表面在墙面外 0.10，
+   * 而 `T − 0.02 = 0.07` 的竖梃厚 0.06、外表面正好也是 0.10——两个面
+   * 重合，窗框和墙缝的交叉处会闪出一块网纹（实机贴脸看才发现）。
+   * 退到 0.055，既躲开缝条又缩在边框后面。
+   */
+  put(0, 0, 0.07, paneH, T - 0.035, PALETTE.dinerWood, false);
   // 窗台
   put(0, -paneH / 2 - bar, paneW + bar * 4, 0.1, T + 0.06, PALETTE.dinerWoodDeep, false);
   return out;
@@ -546,11 +559,16 @@ function archedFront(
   }
 
   // 楔形石：沿拱线摆一圈，每块朝着圆心转
-  const STONES = 11;
+  /*
+   * **15 块 × 0.42 宽**。第一版 11 块 0.3 宽：拱线周长 π×1.41 ≈ 4.4 米，
+   * 每块占 0.40 米却只有 0.30 宽——中间留着 1 厘米的缝，渲出来是一圈
+   * 虚线，不是拱券。宽度必须**大于弧长间距**才拼得成连续的券。
+   */
+  const STONES = 15;
   for (let i = 0; i < STONES; i += 1) {
     const t = (Math.PI * (i + 0.5)) / STONES;
     parts.push(
-      box([0.3, 0.22, T + 0.08], {
+      box([0.42, 0.24, T + 0.08], {
         position: [
           Math.cos(t) * (r + 0.11),
           baseY + springY + Math.sin(t) * (r + 0.11),
@@ -580,9 +598,14 @@ function archedFront(
    * 这 5 厘米直接让 0.5 体型档的导航格心一个都放不进通道里。
    */
   for (const sx of [-1, 1]) {
+    /*
+     * 进深 0.6 那一版从**屋里**看是两根杵在门内侧半米的灰柱子
+     * （内景做完才看见）。门樘的进深顶多就是墙厚，收到 0.2、
+     * 基本待在墙体里，只在洞口露一线暗边。
+     */
     parts.push(
-      box([0.1, springY, 0.6], {
-        position: [sx * (r + 0.05), baseY + springY / 2, frontZ - 0.36],
+      box([0.1, springY, 0.2], {
+        position: [sx * (r + 0.05), baseY + springY / 2, frontZ - 0.02],
         color: PALETTE.dinerStoneDeep,
         castShadow: false,
       }),
@@ -688,8 +711,19 @@ function dinerShell(width: number, depth: number): Object3D {
       position: [0, baseY / 2, 0],
       color: PALETTE.dinerStone,
     }),
+    /*
+     * 台明的**脚线**。原来摆在 `baseY − 0.05`（高 0.1）——顶面正好也落在
+     * baseY，和台明主体的顶面**完全共面**，于是整块台面是一片抖动的
+     * 横条纹（用户 2026-08-25 说的"地板拼接导致锯齿"就是它）。
+     *
+     * 脚线本来就该在**底下**：挪到 y 0.05，压在地面那一圈。
+     *
+     * 通用教训：两块盒子的面只要落在同一个平面上就会 z-fighting，
+     * 低多边形建模里"贴一层薄板做装饰"是最容易踩的写法——薄板要么
+     * 整个埋进去、要么整个挑出来，**不许齐平**。
+     */
     box([w + plinth * 2 + 0.12, 0.1, d + plinth * 2 + 0.12], {
-      position: [0, baseY - 0.05, 0],
+      position: [0, 0.05, 0],
       color: PALETTE.dinerStoneDeep,
     }),
     /*
@@ -738,9 +772,19 @@ function dinerShell(width: number, depth: number): Object3D {
      * ---- 砌石横缝 ----
      *
      * 第一版两道 0.06 的浅条，渲出来几乎看不见（正视图上墙是一整片奶油
-     * 色）。这一版四道、加粗到 0.1、并且压到墙面外侧，让它自己投一点影
-     * ——稿子上那面墙是看得出石块层理的。
+     * 色）。这一版四道、加粗到 0.1，让它自己投一点影——稿子上那面墙是
+     * 看得出石块层理的。
+     *
+     * **厚度和位置必须让缝条完全待在墙体里侧以外**（2026-08-25 用户报
+     * "门口有几条杠横过去"）。原来 0.19 深、居中压在 0.16 厚的墙上，
+     * 两头各戳出 1.5 厘米——朝外那头是想要的浮雕，**朝里那头从门洞
+     * 看过去就是横在门口的几条浅色杠**。现在改成 0.16 深、外移 0.02：
+     * 内缘缩回墙体内，外缘照旧挑出 2 厘米。
+     *
+     * 通用教训：任何"贴在墙上的装饰"都要问一句它**背面戳到哪儿去了**。
      */
+    // 缝条：深 0.16、朝外偏 0.02。SEAM_D/SEAM_OUT 两个数被下面四处共用
+    
     ...[1.0, 2.0, 3.0].flatMap((y) => {
       /*
        * 正面的横缝要**绕开门洞**。第一版横穿整面墙——肉眼看是拱洞里悬着
@@ -760,29 +804,29 @@ function dinerShell(width: number, depth: number): Object3D {
       const front =
         holeHalf <= 0
           ? [
-              box([w + 0.04, 0.07, 0.19], {
-                position: [0, baseY + y, halfD],
+              box([w + 0.04, 0.07, 0.16], {
+                position: [0, baseY + y, halfD + 0.02],
                 color: PALETTE.dinerWallCourse,
                 castShadow: false,
               }),
             ]
           : [-1, 1].map((sx) =>
-              box([segW, 0.07, 0.19], {
-                position: [sx * (holeHalf + 0.12 + segW / 2), baseY + y, halfD],
+              box([segW, 0.07, 0.16], {
+                position: [sx * (holeHalf + 0.12 + segW / 2), baseY + y, halfD + 0.02],
                 color: PALETTE.dinerWallCourse,
                 castShadow: false,
               }),
             );
       return [
       ...front,
-      box([w + 0.04, 0.07, 0.19], {
-        position: [0, baseY + y, -halfD],
+      box([w + 0.04, 0.07, 0.16], {
+        position: [0, baseY + y, -halfD - 0.02],
         color: PALETTE.dinerWallCourse,
         castShadow: false,
       }),
-      ...[-halfW, halfW].map((x) =>
-        box([0.19, 0.07, d + 0.04], {
-          position: [x, baseY + y, 0],
+      ...[-1, 1].map((sx) =>
+        box([0.16, 0.07, d + 0.04], {
+          position: [sx * (halfW + 0.02), baseY + y, 0],
           color: PALETTE.dinerWallCourse,
           castShadow: false,
         }),
@@ -793,21 +837,21 @@ function dinerShell(width: number, depth: number): Object3D {
        * 不然三层竖缝对齐又成了砖柱。
        */
       ...Array.from({ length: 6 }, (_, i) =>
-        box([0.07, 0.9, 0.19], {
+        box([0.07, 0.9, 0.16], {
           position: [
             -w / 2 + (w / 6) * (i + (y === 2.0 ? 0.2 : 0.7)),
             baseY + y - 0.48,
-            -halfD,
+            -halfD - 0.02,
           ],
           color: PALETTE.dinerWallCourse,
           castShadow: false,
         }),
       ),
-      ...[-halfW, halfW].flatMap((x) =>
+      ...[-1, 1].flatMap((sx) =>
         Array.from({ length: 5 }, (_, i) =>
-          box([0.19, 0.9, 0.07], {
+          box([0.16, 0.9, 0.07], {
             position: [
-              x,
+              sx * (halfW + 0.02),
               baseY + y - 0.48,
               -d / 2 + (d / 5) * (i + (y === 2.0 ? 0.2 : 0.7)),
             ],
@@ -989,13 +1033,17 @@ function dinerShell(width: number, depth: number): Object3D {
       const stripeW = awningW / 9;
       const reach = 1.55;
       const tilt = 0.34;
-      return blob(stripeW / 2, 0, {
+      /*
+       * 垂片用**扁盒子**不用 blob。blob 在这个尺寸（半径 0.25）下只有
+       * 六七个分段，渲出来是一排六边形纸杯挂在篷子下面（用户看到的
+       * 那排"杯子"）。布篷的垂边本来就是直裁的，方片反而对。
+       */
+      return box([stripeW * 0.92, 0.26, 0.05], {
         position: [
           -awningW / 2 + stripeW * (i + 0.5),
-          baseY + springY + doorW / 2 + 0.34 - Math.sin(tilt) * reach * 0.52 - 0.12,
-          halfD + Math.cos(tilt) * reach - 0.06,
+          baseY + springY + doorW / 2 + 0.34 - Math.sin(tilt) * reach * 0.52 - 0.16,
+          halfD + Math.cos(tilt) * reach - 0.04,
         ],
-        scale: [1, 0.9, 0.14],
         color: i % 2 === 0 ? PALETTE.dinerAwning : PALETTE.dinerAwningLight,
         castShadow: false,
       });
@@ -1056,6 +1104,15 @@ function dinerShell(width: number, depth: number): Object3D {
     // ---- 露天桌凳：正面左手边的台明上 ----
     patioSet(-halfW + 1.7, halfD + 1.15),
 
+    /*
+     * ---- 室内陈设 ----
+     *
+     * 跟外壳同一棵树。理由是碰撞：期 B 起碰撞从**这棵树**推导，摆进
+     * 房间的 placedFurniture 是另一套系统（格子占用），而灶台、餐桌
+     * 这些是"楼自带的"、玩家挪不走的东西，归外壳管才对得上。
+     */
+    ...dinerInterior(halfW, halfD, baseY, wallH),
+
     // ---- 木栅栏：围住台明的左右两侧，正面留出门口 ----
     ...[-1, 1].flatMap((sx) =>
       [0, 1, 2, 3, 4].map((i) =>
@@ -1098,8 +1155,15 @@ export const diner: BuildingDefinition = {
       descriptionKey: "building.diner.l1.desc",
       // 稿子标的是 6×6，用户当场推翻——理由和算法见文件头
       footprint: { width: WIDTH, height: DEPTH },
-      /** = dinerShell 里的 baseY。室内地板铺在石台明上，进门不掉坑 */
-      floorRaise: 0.42,
+      /**
+       * 室内地板的高度 = 台明高（dinerShell 的 `baseY` 0.42）**再加 1 厘米**。
+       *
+       * 那 1 厘米不是笔误：台明顶和室内地板是两套系统各画各的
+       * （外壳的盒子 vs 房间的地板面），高度**完全相等**的话两个面共面，
+       * 屋里整片地板会抖成条纹。抬 1 厘米谁也压不着谁，而这个高差
+       * 小于任何一条迈步判定，玩家跨进门感觉不到。
+       */
+      floorRaise: 0.43,
       interior: (style) =>
         buildInterior(
           { width: WIDTH, depth: DEPTH, windows: true, wallHeight: WALL_H },

@@ -11,6 +11,7 @@ import {
   worldToRoomCell,
   worldToRoomLocal,
   type GroundMap,
+  siteLevelAt,
 } from "core";
 import { hitsCreature } from "./obstacles.js";
 import { worldState } from "./state.js";
@@ -238,6 +239,21 @@ export function roomIdAt(x: number, z: number): string {
 export function groundHeightAt(x: number, z: number): number {
   const surface = groundSurfaceAt(currentGround(), x, z);
   return surfaceElevationAt(surface, x, z);
+}
+
+/**
+ * 一栋**楼**该坐在多高。见 Core 的 `siteLevelAt`。
+ *
+ * 落楼、挪楼、读档都问这个，不要问 `groundHeightAt`——那栋楼**自己铺的
+ * 地板**会盖住地形，答案永远等于它上一次的标高。`ignoreSurfaceIds`
+ * 就是用来把自己那块摘掉的（新落的楼还没铺，不用传）。
+ */
+export function siteHeightAt(
+  x: number,
+  z: number,
+  ignoreSurfaceIds?: ReadonlySet<string>,
+): number {
+  return siteLevelAt(currentGround(), x, z, ignoreSurfaceIds);
 }
 
 /**

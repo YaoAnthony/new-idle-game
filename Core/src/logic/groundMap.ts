@@ -110,7 +110,7 @@ export function buildGroundMap(
     // 室内地板上"的老公理——见 MapDefinition.floorLevel 的注释）；
     // 矩形从房本地经锚点转到世界，房子挪走地板跟着走
     surfaces.push({
-      surfaceId: `floor:${room.roomId}`,
+      surfaceId: floorSurfaceId(room.roomId),
       kind: GroundKind.Floor,
       roomId: room.roomId,
       floorIndex: room.floor ?? 0,
@@ -240,6 +240,49 @@ export function surfaceElevationAt(
   if (span === 0) return slope.toElevation;
   const t = Math.min(1, Math.max(0, (coord - slope.from) / span));
   return slope.fromElevation + (slope.toElevation - slope.fromElevation) * t;
+}
+
+/**
+ * 一栋**楼**该坐在多高。和 `groundLevelAt` 只差一件事：
+ * `ignoreSurfaceIds` 里的面**当作不存在**。
+ *
+ * ## 为什么需要"无视某些面"
+ *
+ * 带内景的楼会在自己脚下铺一块地板面，而那块地板的标高来自这栋楼
+ * 自己的落点标高。重新问"我该多高"时问到的是**自己刚铺的那块地板**
+ * ——一个自洽但和地形完全无关的循环：标高永远等于上一次的标高。
+ *
+ * 实测过（2026-08-25）：院子那一带地形 −0.45，房子却按 0 渲染，悬空
+ * 45 厘米；同院子的金库、木墙全对，因为它们不铺地板。反过来在高处
+ * 建就会被埋。
+ *
+ * ## 为什么不是"一律跳过室内地板"
+ *
+ * 第一版就是那么写的，太粗：玩家自家屋子的地板、缘侧、平台都是**真实
+ * 的承托**，在上面放东西就该坐在上面。要排除的只有"这栋楼自己产生的
+ * 那块地面"，所以由调用方点名，不由这里猜。
+ *
+ * 新落的楼没有 id 可点——它还没铺地板，传空集就是对的。
+ */
+export function siteLevelAt(
+  ground: GroundMap,
+  x: number,
+  z: number,
+  ignoreSurfaceIds?: ReadonlySet<string>,
+): number {
+  for (const surface of ground.surfaces) {
+    if (ignoreSurfaceIds?.has(surface.surfaceId)) continue;
+    if (surface.rect === null || contains(surface.rect, x, z)) {
+      return surfaceElevationAt(surface, x, z);
+    }
+  }
+  // 兜底面 rect === null，永远命中；走到这儿只能是手拼的坏数据
+  throw new Error("GroundMap 没有兜底面（terrain）");
+}
+
+/** 室内地板面的 id。`buildGroundMap` 那边和这里必须是同一个写法 */
+export function floorSurfaceId(roomId: string): string {
+  return `floor:${roomId}`;
 }
 
 /** 这个点脚下的承托面有多高（世界 Y）。旧 groundHeightAt 的新答案 */

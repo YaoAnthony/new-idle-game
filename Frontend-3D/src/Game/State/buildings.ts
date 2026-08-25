@@ -15,6 +15,7 @@ import {
   type RemoveCheck,
   type RoomSave,
   type UpgradeCheck,
+  floorSurfaceId,
 } from "core";
 
 import { emit } from "../EventBus";
@@ -32,6 +33,40 @@ import {
   getWorld,
   replaceRooms,
 } from "./worldRuntime";
+import { siteHeightAt } from "./world/walkable";
+
+/**
+ * 这栋楼该坐在多高。
+ *
+ * **必须在把它加进 `placements` 之前采**：带内景的楼（居民房、小店、
+ * 餐厅）会给自己铺一块室内地板面，而 `groundHeightAt` 优先答地板不答
+ * 地形——先加后采会问到它自己刚铺的那块地板，永远拿到锚点的旧标高。
+ *
+ * ## 为什么这一行值得单独存在
+ *
+ * 原来这里写死 `elevation: 0`。带内景的楼因此在自己脚下铺出一块标高 0
+ * 的地板，`groundHeightAt` 问到那块地板答 0，视图照 0 渲染——
+ * **一个自洽但和地形无关的循环**。院子那一带地形是 -0.45，于是房子
+ * 悬空 0.45 米（用户 2026-08-25 报的绿房子浮空就是它）。
+ *
+ * 反过来在高处建就会陷进去：地形 +2，楼还按 0 摆，埋掉两米。
+ * 用户当时的预判完全正确。
+ *
+ * 不带内景的楼（金库、木墙）一直是对的——它们不铺地板，
+ * `groundHeightAt` 直接答地形。这也是为什么同一个院子里只有房子浮空。
+ */
+function groundElevationFor(
+  x: number,
+  z: number,
+  ignore?: ReadonlySet<string>,
+): number {
+  return siteHeightAt(x, z, ignore);
+}
+
+/** 这些楼自己铺的那几块地板。采标高时要当它们不存在 */
+function ownFloorIds(items: readonly BuildingPlacement[]): ReadonlySet<string> {
+  return new Set(items.map((item) => floorSurfaceId(interiorRoomId(item))));
+}
 
 /**
  * 玩家在领地里建的建筑：**唯一的读写口**。
@@ -187,7 +222,8 @@ export function placeBuilding(
     buildingId,
     x,
     z,
-    elevation: 0,
+    // 落地时采一次地形；写死 0 会让带内景的楼浮空或陷进地里（见上面那段）
+    elevation: groundElevationFor(x, z),
     facing,
     // 新建出来就是**初始等级**（levels[0]）
     levelId: firstLevel,
@@ -333,8 +369,18 @@ export function moveBuilding(
   });
   if (check.ok === false) return { ok: false, reason: check.reason };
 
+  /*
+   * 挪楼**也要重新采一次高度**。不采的话，从低处挪到高处的楼会带着
+   * 旧标高走，看起来像陷进了山坡。
+   *
+   * 自己那块地板此刻还铺在旧位置上，多半够不着新落点——但"多半"不是
+   * 保证（原地微调、大楼重叠都够得着），所以照样点名摘掉。
+   */
+  const nextElevation = groundElevationFor(x, z, ownFloorIds([placement]));
   placements = placements.map((item) =>
-    item.instanceId === instanceId ? { ...item, x, z, facing: nextFacing } : item,
+    item.instanceId === instanceId
+      ? { ...item, x, z, facing: nextFacing, elevation: nextElevation }
+      : item,
   );
   // 内景锚点跟着走——走进去还是那间屋，家具还在原来的格上
   syncBuildingInteriors();
@@ -594,7 +640,26 @@ export function restoreBuildings(saved: BuildingPlacement[] | undefined): void {
    * 未知的**等级**不丢（findBuildingLevel 会退回初始等级并告警），
    * 因为那栋楼本身还在，只是那一级的内容没了。
    */
-  placements = (saved ?? []).filter((item) => findBuilding(item.buildingId));
+  /*
+   * **落地高度每次读档都重算一遍。**
+   *
+   * 不是"老存档修一次就行"：地形本身会变（以后改地图、挖河、垫高院子），
+   * 存下来的标高就过期了。既然它是**位置的函数**、算一次只要几微秒，
+   * 那就别把它当作需要迁移的状态——每次读档现算，永远和当下的地形一致。
+   *
+   * 这也顺手修好了 2026-08-25 之前存的档：那时候 `placeBuilding` 写死
+   * `elevation: 0`，带内景的房子全部悬空 0.45 米。
+   *
+   * 采样必须在 `syncBuildingInteriors()` **之前**——`siteHeightAt` 跳过
+   * 室内地板，所以顺序其实无所谓，但摆在前面读起来更像回事：先知道
+   * 自己站多高，再照这个高度铺地板。
+   */
+  const kept = (saved ?? []).filter((item) => findBuilding(item.buildingId));
+  const ownFloors = ownFloorIds(kept);
+  placements = kept.map((item) => ({
+    ...item,
+    elevation: groundElevationFor(item.x, item.z, ownFloors),
+  }));
   syncIdCounters(placements.map((item) => item.instanceId));
   syncBuildingInteriors();
   emit("world_changed", { reason: "buildings" });

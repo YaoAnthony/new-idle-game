@@ -68,8 +68,14 @@ export class BuildingsView {
       /*
        * 踩地形高度，不是一律 y=0。领地里有起伏，一排等高的建筑在坡上
        * 会半截埋进土里——和围栏的桩子同一条理由。
+       *
+       * 读**存下来的标高**而不是在这儿现问 `groundHeightAt`：带内景的楼
+       * 会在自己脚下铺一块地板面，`groundHeightAt` 优先答那块地板，于是
+       * 壳和地板必然对得上、却可以一起偏离地形（2026-08-25 的绿房子浮空
+       * 就是这么来的）。标高由 `placeBuilding`/`restoreBuildings` 用
+       * `siteHeightAt` 统一定，这里只负责照着摆。
        */
-      node.position.y = groundHeightAt(placement.x, placement.z);
+      node.position.y = placement.elevation;
       applyState(node, placement.state);
 
       /*

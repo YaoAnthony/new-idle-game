@@ -724,12 +724,40 @@ function dinerShell(width: number, depth: number): Object3D {
      * 色）。这一版四道、加粗到 0.1、并且压到墙面外侧，让它自己投一点影
      * ——稿子上那面墙是看得出石块层理的。
      */
-    ...[1.0, 2.0, 3.0].flatMap((y) => [
-      box([w + 0.04, 0.07, 0.19], {
-        position: [0, baseY + y, halfD],
-        color: PALETTE.dinerWallCourse,
-        castShadow: false,
-      }),
+    ...[1.0, 2.0, 3.0].flatMap((y) => {
+      /*
+       * 正面的横缝要**绕开门洞**。第一版横穿整面墙——肉眼看是拱洞里悬着
+       * 几道浅色横条（截图里那几道我以为是柜台背景的线就是它），期 A 的
+       * 胶囊测试更是直接判门口被挡。模型即碰撞之后，"门洞能走"完全靠
+       * 那一段真的没有三角形，穿洞的装饰条再薄也是墙。
+       * 洞的半宽随高度走拱线：拱脚以下是门宽，拱脚以上收圆。
+       */
+      const rel = baseY + y - (baseY + springY);
+      const holeHalf =
+        rel <= 0
+          ? doorW / 2
+          : rel >= doorW / 2
+            ? 0
+            : Math.sqrt((doorW / 2) ** 2 - rel * rel);
+      const segW = w / 2 - holeHalf - 0.12;
+      const front =
+        holeHalf <= 0
+          ? [
+              box([w + 0.04, 0.07, 0.19], {
+                position: [0, baseY + y, halfD],
+                color: PALETTE.dinerWallCourse,
+                castShadow: false,
+              }),
+            ]
+          : [-1, 1].map((sx) =>
+              box([segW, 0.07, 0.19], {
+                position: [sx * (holeHalf + 0.12 + segW / 2), baseY + y, halfD],
+                color: PALETTE.dinerWallCourse,
+                castShadow: false,
+              }),
+            );
+      return [
+      ...front,
       box([w + 0.04, 0.07, 0.19], {
         position: [0, baseY + y, -halfD],
         color: PALETTE.dinerWallCourse,
@@ -771,7 +799,8 @@ function dinerShell(width: number, depth: number): Object3D {
           }),
         ),
       ),
-    ]),
+    ];
+    }),
 
     /*
      * ---- 木构架 ----

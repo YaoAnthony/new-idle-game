@@ -167,7 +167,7 @@ import {
   listSites,
   removeBuilding,
 } from "../../Game/State/buildings";
-import { findBuildingLevel } from "../../Buildings/index";
+import { findBuilding, findBuildingLevel } from "../../Buildings/index";
 import { buildingInteractReach } from "../../Buildings/placement";
 import { goldInJar } from "../../Game/State/buildingCommands";
 import { getResting, isResting } from "../../Game/State/posture";
@@ -1635,7 +1635,16 @@ export class RoomScene {
 
     /*
      * 建筑的气泡：在建的说"施工中"（没有可执行动作，不给按键标签），
-     * 建好的说"看看这栋"。
+     * 建好的**直接报这栋楼的名字**——餐厅就说"餐厅"，家具店就说
+     * "家具小店"。
+     *
+     * 原来一律是"看看这栋"（`build.hint.manage`）。用户 2026-08-25：
+     * "很奇怪，餐厅就说餐厅"。确实：气泡是玩家和这个物件的第一句话，
+     * 报一句放之四海皆准的空话，等于什么都没说；而**名字同时就是
+     * 那句话该有的全部信息**——这块碑管的是哪栋楼，一看就知道。
+     *
+     * 名字直接取型号的 `localizationKey`（i18n 表里本来就有），不新增
+     * 一套"气泡专用名"。加新楼自动就有名字，忘不了。
      */
     for (const building of listBuildings()) {
       const level = findBuildingLevel(
@@ -1654,11 +1663,16 @@ export class RoomScene {
         { x: this.controller.x, z: this.controller.z },
       );
       if (distance >= HINT_RADIUS) continue;
+      const definition = findBuilding(building.buildingId);
       const target: HintTarget = {
         instanceId: building.instanceId,
         hint: building.construction
           ? { localizationKey: "build.hint.site" }
-          : { localizationKey: "build.hint.manage", action: "interact" },
+          : {
+              // 查不到型号只可能是内容表被删过一行，退回旧文案而不是空气泡
+              localizationKey: definition?.localizationKey ?? "build.hint.manage",
+              action: "interact",
+            },
         world: new Vector3(at.x, at.y, at.z),
       };
       hintByKey.set(`building:${building.instanceId}`, target);

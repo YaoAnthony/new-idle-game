@@ -111,6 +111,58 @@ export function buildingStelePoint(
 /** 石碑离正面墙多远。要在台明上、又不挡门前那条道 */
 export const STELE_OUT = 0.55;
 
+/**
+ * 一栋楼**在哪儿能操作**：交互点离探针多远、气泡该挂在哪。
+ *
+ * ## 只有一个答案，两处调它
+ *
+ * 这件事原来在 `RoomScene` 的 `refreshInteractTarget` 和 `refreshHints`
+ * 里**各写了一遍**（都是矩形最近边）。2026-08-25 把交互改成"只在石碑
+ * 跟前"时只改了前者，气泡那份没动——进屋按 F 没反应，头上却还飘着
+ * "F 看看这栋"。**提示和动作对不上比两个都错更糟**：玩家会以为按键坏了。
+ * 放在这里而不是场景里，是因为它本来就是摆放几何，而且这儿测得到。
+ *
+ * ## 走得进去的楼：石碑 + **人不能在占地里**
+ *
+ * 光量到石碑不够。墙才 0.16 厚、碑在墙外 0.55，**贴着正面墙站在屋里
+ * 离碑只有 1.1 米**，照样够得着——用例扫内景逐格量出来的。
+ * 所以再加一条硬规矩：人站在占地里，这栋楼一律不算候选。
+ * 这才是用户要的那句"只有在石碑面前才能调整，进去就没有了"。
+ *
+ * 判"人在不在里面"用**角色自己的位置**，不用探针：探针在身前 0.45 米，
+ * 站在门外正对着门时它已经进屋了，拿它判会把门外也一起禁掉。
+ *
+ * ## 实心的小件照旧
+ *
+ * 金库、木墙、农田没有"里面"，量到占地矩形最近边、气泡挂楼心。
+ * 走到罐子跟前按 F 本来就该开面板。
+ */
+export function buildingInteractReach(
+  placement: BuildingPlacement,
+  probe: { x: number; z: number },
+  self: { x: number; z: number },
+): { distance: number; world: { x: number; y: number; z: number } } {
+  const stele = buildingStelePoint(placement);
+  if (stele) {
+    const rect = buildingRect(placement);
+    const inside =
+      self.x > rect.minX && self.x < rect.maxX && self.z > rect.minZ && self.z < rect.maxZ;
+    return {
+      distance: inside
+        ? Number.POSITIVE_INFINITY
+        : Math.hypot(stele.x - probe.x, stele.z - probe.z),
+      world: { x: stele.x, y: 1.2, z: stele.z },
+    };
+  }
+  const rect = buildingRect(placement);
+  const dx = Math.max(rect.minX - probe.x, 0, probe.x - rect.maxX);
+  const dz = Math.max(rect.minZ - probe.z, 0, probe.z - rect.maxZ);
+  return {
+    distance: Math.hypot(dx, dz),
+    world: { x: placement.x, y: 1.5, z: placement.z },
+  };
+}
+
 /** 门外 `distance` 远的一点（落点、铺装中心都用它） */
 export function buildingDoorOutward(
   placement: BuildingPlacement,

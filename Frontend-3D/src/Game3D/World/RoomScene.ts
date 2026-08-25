@@ -168,6 +168,7 @@ import {
   removeBuilding,
 } from "../../Game/State/buildings";
 import { findBuildingLevel } from "../../Buildings/index";
+import { buildingStelePoint } from "../../Buildings/placement";
 import { goldInJar } from "../../Game/State/buildingCommands";
 import { getResting, isResting } from "../../Game/State/posture";
 import { pruneOrphanStorages } from "../../Game/State/storage";
@@ -1435,10 +1436,28 @@ export class RoomScene {
         building.construction?.targetLevelId ?? building.levelId,
       );
       if (!level) continue;
-      const rect = buildingRectWorld(building, level.footprint);
-      const dx = Math.max(rect.minX - probeX, 0, probeX - rect.maxX);
-      const dz = Math.max(rect.minZ - probeZ, 0, probeZ - rect.maxZ);
-      const distance = Math.hypot(dx, dz);
+      /*
+       * **走得进去的楼只在门口那块石碑跟前才算数**（2026-08-25）。
+       *
+       * 原来一律按占地矩形最近边算距离，而人**站在屋里那个距离恒等于 0**；
+       * 建筑又排在候选循环的第一位，`bestDistance` 一上来就被压成 0，
+       * 后面的家具、灶台、货架再也不可能更近——**进了店就什么都点不了**。
+       * 用户报的"整个房子里面都能编辑，里面的功能就做不了了"是这个，
+       * 而它比设计不妥更严重：是个把内景功能整体废掉的 bug。
+       *
+       * 实心的小件（金库、木墙、农田）没有"里面"，照旧整块占地——
+       * 走到罐子跟前按 F 本来就该开面板，收成一个点反而要绕着找。
+       */
+      const stele = buildingStelePoint(building);
+      let distance: number;
+      if (stele) {
+        distance = Math.hypot(stele.x - probeX, stele.z - probeZ);
+      } else {
+        const rect = buildingRectWorld(building, level.footprint);
+        const dx = Math.max(rect.minX - probeX, 0, probeX - rect.maxX);
+        const dz = Math.max(rect.minZ - probeZ, 0, probeZ - rect.maxZ);
+        distance = Math.hypot(dx, dz);
+      }
       if (distance < bestDistance) {
         bestDistance = distance;
         best = { kind: "building", instanceId: building.instanceId };

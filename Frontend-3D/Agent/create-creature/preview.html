@@ -51,6 +51,7 @@
       } from "three";
       import { buildVisual } from "../../src/Game3D/Visual/VisualRegistry.ts";
       import { findBuilding } from "../../src/Buildings/index.ts";
+      import { buildPlacedBuilding } from "../../src/Buildings/placement.ts";
 
       const params = new URLSearchParams(location.search);
       const ids = (params.get("ids") ?? "otter_trader").split(",").filter(Boolean);
@@ -108,7 +109,25 @@
           const definition = findBuilding(entry.id);
           const level =
             definition?.levels.find((l) => l.levelId === levelId) ?? definition?.levels[0];
-          visual = level?.build() ?? null;
+          /*
+           * 走 `buildPlacedBuilding` 而不是 `level.build()`：**台上看到的
+           * 必须和实机是同一棵树**。有些部件不是配方自己长的，而是
+           * 摆放层统一挂的（今天是门口的管理石碑），直接调 build()
+           * 会漏掉它们——石碑做完在台子上死活看不见，就是这么来的。
+           */
+          visual = level
+            ? buildPlacedBuilding({
+                instanceId: `preview-${entry.id}`,
+                buildingId: entry.id,
+                x: 0,
+                z: 0,
+                elevation: 0,
+                // Facing 是**字符串**枚举。给 0 会让 FACING_ROTATION 查空，
+                // rotation.y 变 NaN，整栋楼直接从场里消失（踩过）
+                facing: "north",
+                levelId: level.levelId,
+              })
+            : null;
           if (!visual) console.error("没有这个建筑或等级:", entry.id, levelId);
         } else {
           visual = buildVisual(entry.id);

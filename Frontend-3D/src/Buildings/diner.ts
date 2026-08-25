@@ -1210,7 +1210,8 @@ function dinerShell(width: number, depth: number): Object3D {
     }),
 
     // ---- MENU 黑板：门右手边的台明上 ----
-    menuBoard(doorW / 2 + 1.35, halfD + 1.05),
+    // 黑板再往右让 0.5：门右现在还立着一块管理石碑，两样挤在一起看着乱
+    menuBoard(doorW / 2 + 1.9, halfD + 1.05),
 
     // ---- 花箱：侧面一只（正面那只已经挂到窗台上了）----
     planter(-halfW - 0.55, -1.4, 2.2, Math.PI / 2),

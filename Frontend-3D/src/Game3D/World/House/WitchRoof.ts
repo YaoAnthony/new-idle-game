@@ -34,10 +34,21 @@ import { createQuadMesh, faced, type Quad } from "../quadMesh.js";
  * 屋里天花仍是平顶：尖帽是外观，不做挑高（见 04 文档 H6）。
  */
 
-/** 峰高（世界 y，从室内地板算） */
+/**
+ * 峰高（世界 y，从室内地板算）与屋脊偏西量的**默认值**，按主屋
+ * （9×12、墙高 3）定的。
+ *
+ * 做成可覆盖是因为这顶帽子后来要**给小一号的楼复用**（家具小店 6×6）：
+ * 8 米的峰扣在 6 米宽的铺子上是根烟囱不是屋顶。尺寸小的楼按宽度比例
+ * 缩一缩就对了——形状是同一个，只是尺度不同，这正是"风格一致"该有的
+ * 复用方式（照抄色号只会在下次改色时走散）。
+ */
 const PEAK_Y = 8;
 /** 屋脊离西檐多远（房本地 x）。峰偏西是这个剪影的全部 */
 const RIDGE_FROM_WEST = 1.5;
+
+/** 这顶帽子的尺度。不给就用主屋那一套 */
+export type WitchRoofScale = { peakY?: number; ridgeFromWest?: number };
 /** 檐口向外挑 */
 const EAVE = 0.6;
 /** 东坡的弧：指数越大越"翘" */
@@ -55,13 +66,16 @@ const GABLE_STONE = "#a89f8c";
 export function witchRoofProfile(
   width: number,
   wallHeight: number,
+  scale: WitchRoofScale = {},
 ): (x: number) => number {
+  const peakY = scale.peakY ?? PEAK_Y;
+  const ridgeFromWest = scale.ridgeFromWest ?? RIDGE_FROM_WEST;
   const halfW = width / 2;
   const base = wallHeight + 0.15;
-  const ridgeX = -halfW + RIDGE_FROM_WEST;
+  const ridgeX = -halfW + ridgeFromWest;
   const westEave = -halfW - EAVE;
   const eastEave = halfW + EAVE;
-  const rise = PEAK_Y - base;
+  const rise = peakY - base;
   return (x: number): number => {
     if (x <= ridgeX) {
       // 西坡：直线
@@ -77,17 +91,19 @@ export function witchRoofProfile(
 export function buildWitchRoof(
   room: RoomSave,
   wallHeight: number,
+  scale: WitchRoofScale = {},
 ): { roof: Object3D; ridgeHeight: number } {
   const width = room.floorGrid.width;
   const depth = room.floorGrid.height;
   const halfW = width / 2;
   const halfD = depth / 2;
-  const ridgeX = -halfW + RIDGE_FROM_WEST;
+  const peakY = scale.peakY ?? PEAK_Y;
+  const ridgeX = -halfW + (scale.ridgeFromWest ?? RIDGE_FROM_WEST);
   const westEave = -halfW - EAVE;
   const eastEave = halfW + EAVE;
   const zNear = -halfD - EAVE;
   const zFar = halfD + EAVE;
-  const profile = witchRoofProfile(width, wallHeight);
+  const profile = witchRoofProfile(width, wallHeight, scale);
 
   const roof = new Object3D();
   roof.name = "roof-witch";
@@ -231,11 +247,11 @@ export function buildWitchRoof(
   roof.add(
     box([0.22, 0.18, zFar - zNear], {
       color: PALETTE.woodDark,
-      position: [ridgeX, PEAK_Y + 0.04, 0],
+      position: [ridgeX, peakY + 0.04, 0],
     }),
   );
 
-  return { roof, ridgeHeight: PEAK_Y + 0.2 };
+  return { roof, ridgeHeight: peakY + 0.2 };
 }
 
 /** 烟囱在东坡上的位置：0 = 屋脊，1 = 东檐 */

@@ -76,6 +76,12 @@ export type Vec3 = [number, number, number];
 type ShapeOptions = {
   position?: Vec3;
   rotation?: Vec3;
+  /**
+   * 非等比缩放。**补在这一层而不是各配方自己造轮子**：水獭、小龙都各写过
+   * 一个带 scale 的局部 `ball()`，狐狸是第三个——与其造第四个，不如把它
+   * 归位。压扁的团子（脚掌、肚皮、眼睛）是低模里最常用的一招。
+   */
+  scale?: Vec3;
   color: ColorRepresentation | Color;
   castShadow?: boolean;
   receiveShadow?: boolean;
@@ -90,6 +96,7 @@ type ShapeOptions = {
 };
 
 function applyCommon(mesh: Mesh, options: ShapeOptions): Mesh {
+  if (options.scale) mesh.scale.set(...options.scale);
   if (options.position) mesh.position.set(...options.position);
   if (options.rotation) mesh.rotation.set(...options.rotation);
 

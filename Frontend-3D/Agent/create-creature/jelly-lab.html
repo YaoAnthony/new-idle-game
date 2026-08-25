@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8" />
+    <title>果冻材质对照台</title>
+    <style>
+      html, body { margin: 0; overflow: hidden; background: #e8ddc6; }
+      #hint {
+        position: fixed; left: 10px; top: 8px; z-index: 9;
+        font: 12px/1.5 ui-monospace, monospace; color: #4a3520; white-space: pre;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="hint"></div>
+    <!--
+      果冻材质对照台（一次性）。三种做法并排，**同一个几何、同一套灯光、
+      和 Engine/Renderer.ts 同一套色调映射与曝光**——不然对照会骗人。
+
+      选定一种之后这个文件删掉，留下的是 src/Game3D/Visual/jelly.ts。
+
+      ?kinds=  哪几种（默认三种全上）
+      ?view=   front / side / angle / top
+      ?phase=  day / night   ← 夜里差别最大，边缘光是不是在发光看这个
+      ?t=      推进几秒（不跑 rAF，面板隐藏时 rAF 会被节流住）
+    -->
+    <script type="module">
+      import {
+        ACESFilmicToneMapping,
+        AmbientLight,
+        BoxGeometry,
+        Color,
+        DirectionalLight,
+        GridHelper,
+        Mesh,
+        MeshBasicMaterial,
+        MeshLambertMaterial,
+        Object3D,
+        PerspectiveCamera,
+        Scene,
+        IcosahedronGeometry,
+        SphereGeometry,
+        PMREMGenerator,
+        Vector3,
+        WebGLRenderer,
+      } from "three";
+      import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+      import { buildJelly } from "../../src/Game3D/Visual/jelly.ts";
+
+      const params = new URLSearchParams(location.search);
+      const KINDS = (params.get("kinds") ?? "translucent,fresnel,transmission").split(",");
+      // ?rims=0.35,0.5,0.7 → 每一只用不同的边缘光强度（扫参数用，和 kinds 一一对应）
+      const RIMS = (params.get("rims") ?? "").split(",").filter(Boolean).map(Number);
+      // ?rough=0.05,0.1,0.7 与 ?thick=0.5,1.5,0.5 → 扫透射档的物理参数
+      const ROUGH = (params.get("rough") ?? "").split(",").filter(Boolean).map(Number);
+      const THICK = (params.get("thick") ?? "").split(",").filter(Boolean).map(Number);
+      const LABEL = { translucent: "A 半透+内核", fresnel: "B A+菲涅尔", transmission: "C 真折射" };
+      const SLIME = "#8fd0a0";
+
+      const renderer = new WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+      renderer.toneMapping = ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.15;
+      const width = Number(params.get("w")) || window.innerWidth || 1280;
+      const height = Number(params.get("h")) || window.innerHeight || 720;
+      renderer.setSize(width, height, false);
+      document.body.appendChild(renderer.domElement);
+
+      const scene = new Scene();
+      const camera = new PerspectiveCamera(38, width / height, 0.05, 100);
+
+      /*
+       * `?env=1` 给场景一张环境贴图。
+       *
+       * **这是那张 pmndrs demo 里最要紧的一行**（他们用的是 1MB 的
+       * dancing_hall HDRI）。透射材质折射的是"周围的世界"——场景里没有
+       * 环境贴图的话，它只能折射背景色，渲出来就是一颗死沉的玻璃弹珠。
+       *
+       * 这里用 three 自带的 RoomEnvironment：**程序化生成，不下任何文件**，
+       * 就是一个摆着几盏面光源的白盒子。比 HDRI 素，但足够回答
+       * "有没有环境差多少"这个问题。
+       */
+      if (params.get("env") === "1") {
+        const pmrem = new PMREMGenerator(renderer);
+        scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+        pmrem.dispose();
+      }
+
+      const floor = new Mesh(
+        new BoxGeometry(14, 0.1, 10),
+        new MeshLambertMaterial({ color: "#c09a6a", flatShading: true }),
+      );
+      floor.position.y = -0.05;
+      scene.add(floor);
+      const grid = new GridHelper(12, 24, "#5b4332", "#8a7050");
+      grid.position.y = 0.003; // Object3D.position 是只读属性，只能改它的分量
+      scene.add(grid);
+
+      /*
+       * 身后立一排色块。**半透明的东西必须有背景才看得出透没透**——
+       * 空背景前的半透明球和不透明球长得一模一样，这是对照台最容易
+       * 白做的一件事。
+       */
+      // 每只身后**各一根**。第一版三根挤在中间，只有中间那只挡得住，
+      // 左右两只身后是空背景——透没透完全看不出来，对照白做了一轮。
+      const SPACING = 1.1;
+      const POST_COLORS = ["#c4553f", "#3f6cc4", "#e0c020"];
+
+      const built = [];
+      KINDS.forEach((kind, index) => {
+        const x = (index - (KINDS.length - 1) / 2) * SPACING;
+
+        const post = new Mesh(
+          new BoxGeometry(0.3, 0.95, 0.14),
+          new MeshLambertMaterial({ color: POST_COLORS[index % POST_COLORS.length] }),
+        );
+        post.position.set(x, 0.475, -0.42);
+        scene.add(post);
+        const root = new Object3D();
+
+        /*
+         * `?facet=1` 换成**带切面的不规则球**。
+         *
+         * 参考图（pmndrs 那只果冻方块）里那些长条白光，是表面的折痕和
+         * 微微起伏把反射切碎造出来的。光滑的球只能得到一个圆点高光，
+         * 这是我们和那张图差距最大的一处——**而且它和低模是一路的**：
+         * 切面越明显越像宝石/果冻，不需要真实感材质。
+         *
+         * 做法是二十面体细分两次（顶点分布均匀，不像 UV 球两极堆在一起），
+         * 再按顶点方向轻微扰动，最后 flatShading 让每个三角形自成一面。
+         */
+        let geometry;
+        if (params.get("facet") === "1") {
+          geometry = new IcosahedronGeometry(0.22, 2);
+          const pos = geometry.attributes.position;
+          for (let i = 0; i < pos.count; i += 1) {
+            const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+            // 固定的伪随机：同一个顶点每次跑出来一样，对照才可比
+            const n = Math.sin(x * 21.3 + y * 13.7 + z * 31.1) * 0.5 + 0.5;
+            const k = 1 + (n - 0.5) * 0.13;
+            pos.setXYZ(i, x * k, y * k, z * k);
+          }
+          geometry.computeVertexNormals();
+        } else {
+          geometry = new SphereGeometry(0.22, 28, 20);
+        }
+
+        // 压扁的球 = 一坨软的。和占位史莱姆同尺寸（半径 0.22）
+        const body = buildJelly(geometry, kind, {
+          color: SLIME,
+          opacity: 0.7,
+          rimColor: "#eaffef",
+          rimPower: 2.4,
+          rimStrength: RIMS[index] ?? 0.6,
+          flatShading: params.get("facet") === "1",
+          physical: {
+            roughness: ROUGH[index],
+            thickness: THICK[index],
+          },
+        });
+        body.scale.set(1, 0.9, 1);
+        body.position.y = 0.22;
+        root.add(body);
+
+        // 眼睛：不透明、不描边。有眼睛才看得出"这是个活物不是个球"
+        for (const side of [-1, 1]) {
+          const eye = new Mesh(
+            new SphereGeometry(0.03, 14, 10),
+            new MeshLambertMaterial({ color: "#2b2320" }),
+          );
+          eye.position.set(side * 0.075, 0.25, 0.185);
+          eye.userData.noOutline = true;
+          root.add(eye);
+          const spark = new Mesh(
+            new SphereGeometry(0.01, 8, 6),
+            new MeshBasicMaterial({ color: "#ffffff" }),
+          );
+          spark.position.set(side * 0.066, 0.262, 0.206);
+          spark.userData.noOutline = true;
+          root.add(spark);
+        }
+
+        root.position.set(x, 0, 0);
+        scene.add(root);
+        built.push({ kind, root });
+      });
+
+      const ambient = new AmbientLight("#ffffff", 1);
+      scene.add(ambient);
+      const sun = new DirectionalLight("#fff2d8", 1);
+      sun.position.set(2.5, 4, 3);
+      scene.add(sun);
+
+      function setPhase(phase) {
+        const night = phase === "night";
+        scene.background = new Color(night ? "#252e42" : "#e8ddc6");
+        ambient.color = new Color(night ? "#6b7aa1" : "#ffffff");
+        ambient.intensity = night ? 0.5 : 1;
+        sun.intensity = night ? 0.12 : 1;
+      }
+
+      const DIST = Math.max(2.0, (KINDS.length - 1) * SPACING * 0.8 + 1.75);
+      const VIEWS = {
+        front: new Vector3(0, 0.5, DIST),
+        side: new Vector3(DIST, 0.5, 0),
+        angle: new Vector3(DIST * 0.5, DIST * 0.5, DIST * 0.72),
+        top: new Vector3(0.01, DIST * 1.1, 0.01),
+      };
+      function frame(view) {
+        camera.position.copy(VIEWS[view] ?? VIEWS.angle);
+        camera.lookAt(new Vector3(0, 0.3, 0));
+        camera.updateProjectionMatrix();
+      }
+      const render = () => renderer.render(scene, camera);
+
+      document.getElementById("hint").textContent = KINDS
+        .map((k, i) => (LABEL[k] ?? k)
+          + (RIMS[i] !== undefined ? ` rim=${RIMS[i]}` : "")
+          + (ROUGH[i] !== undefined ? ` rough=${ROUGH[i]}` : "")
+          + (THICK[i] !== undefined ? ` thick=${THICK[i]}` : ""))
+        .join("    ");
+
+      setPhase(params.get("phase") ?? "day");
+      frame(params.get("view") ?? "angle");
+      render();
+
+      window.__lab = {
+        scene, camera, renderer, built, setPhase, frame, render,
+        shot(quality = 0.85) {
+          render();
+          return renderer.domElement.toDataURL("image/jpeg", quality);
+        },
+      };
+    </script>
+  </body>
+</html>

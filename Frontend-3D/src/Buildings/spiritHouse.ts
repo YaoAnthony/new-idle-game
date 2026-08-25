@@ -1,5 +1,6 @@
 import { residentTuning } from "core";
 import { buildInterior } from "./interiors.js";
+import { PALETTE } from "../Game3D/Visual/palette.js";
 import { buildResidentHut } from "./residentHut.js";
 import type { BuildingDefinition } from "./types.js";
 
@@ -7,8 +8,9 @@ import type { BuildingDefinition } from "./types.js";
  * 精灵的家（期 4）。图纸是他自己送的（到来对话的效果），
  * 建成那一刻 `Systems/residents` 把他搬进来。
  *
- * ⚠️ 造型是**占位壳**（`residentHut.ts`，屋顶和门牌染他的颜色）——
- * 用户还没给参考图。图到了把 `build` 换成正式配方，其余零改动。
+ * 造型走共用的小屋构造器（`residentHut.ts`）。用户 2026-08-24 说
+ * 三栋房子我看着设计、能进去参观就行——所以没有设计稿，性格靠屋顶配色
+ * 和门口那件小物区分。
  *
  * 不打 `instantBuild`：邻居的房子一辈子建一次，石傀儡走过来把它
  * 盖起来的那段演出正是"给邻居安家"该有的仪式。
@@ -31,7 +33,13 @@ export const spiritHouse: BuildingDefinition = {
       // 图纸白送，房子的工钱是你的：白得一栋楼就没有"给邻居安家"的付出感
       buildCost: [{ itemId: "gold", quantity: residentTuning.houseBuildGold }],
       buildDuration: {},
-      build: () => buildResidentHut("#c6b8e0"),
+      build: () => buildResidentHut({
+        // 薇尔：橄榄绿的瓦 + 灰泥墙，门口一株小树苗
+        roof: PALETTE.elfCloak,
+        roofDeep: PALETTE.elfCloakDeep,
+        wall: PALETTE.shopWall,
+        charm: "sapling",
+      }),
     },
   ],
 };

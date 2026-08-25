@@ -50,9 +50,22 @@
         WebGLRenderer,
       } from "three";
       import { buildVisual } from "../../src/Game3D/Visual/VisualRegistry.ts";
+      import { findBuilding } from "../../src/Buildings/index.ts";
 
       const params = new URLSearchParams(location.search);
       const ids = (params.get("ids") ?? "otter_trader").split(",").filter(Boolean);
+      /*
+       * `?buildings=furniture_shop` —— **建筑也上这个台子**。
+       *
+       * 建筑本来只能在真场景里看，而真场景要先走出屋子、拨白天、调机位，
+       * 每改一版折腾一轮。它们和生物一样是"一个 id → 一个 Object3D"，
+       * 摆在同一个台子上就行，顺带白拿人高标尺（一栋房子该多高，
+       * 光看数字是没概念的）。
+       *
+       * `?level=l2` 看升级后的样子。
+       */
+      const buildingIds = (params.get("buildings") ?? "").split(",").filter(Boolean);
+      const levelId = params.get("level") ?? "l1";
       const spacing = Number(params.get("spacing") ?? 1.2);
       const showRuler = params.get("ruler") !== "0";
 
@@ -69,28 +82,42 @@
       const camera = new PerspectiveCamera(38, width / height, 0.05, 100);
 
       // 地面 + 半米格线：脚有没有陷进去、占地多大，一眼可见
+      const groundSize = buildingIds.length > 0 ? 40 : 14;
       const floor = new Mesh(
-        new BoxGeometry(14, 0.1, 10),
+        new BoxGeometry(groundSize, 0.1, groundSize * 0.72),
         new MeshLambertMaterial({ color: "#c09a6a", flatShading: true }),
       );
       floor.position.y = -0.05;
       scene.add(floor);
-      const grid = new GridHelper(12, 24, "#5b4332", "#8a7050");
+      const grid = new GridHelper(groundSize - 2, groundSize - 2, "#5b4332", "#8a7050");
       grid.position.y = 0.003;
       scene.add(grid);
 
-      const rowWidth = Math.max(1, (ids.length - 1) * spacing);
+      const entries = [
+        ...ids.map((id) => ({ id, kind: "creature" })),
+        ...buildingIds.map((id) => ({ id, kind: "building" })),
+      ];
+      // 建筑比生物大一个量级，行距得跟着放
+      const step = buildingIds.length > 0 ? Math.max(spacing, 8) : spacing;
+      const rowWidth = Math.max(1, (entries.length - 1) * step);
       const built = [];
-      ids.forEach((id, index) => {
-        const x = (index - (ids.length - 1) / 2) * spacing;
-        const visual = buildVisual(id);
-        if (!visual) {
-          console.error("没有这个视觉配方:", id);
-          return;
+      entries.forEach((entry, index) => {
+        const x = (index - (entries.length - 1) / 2) * step;
+        let visual = null;
+        if (entry.kind === "building") {
+          const definition = findBuilding(entry.id);
+          const level =
+            definition?.levels.find((l) => l.levelId === levelId) ?? definition?.levels[0];
+          visual = level?.build() ?? null;
+          if (!visual) console.error("没有这个建筑或等级:", entry.id, levelId);
+        } else {
+          visual = buildVisual(entry.id);
+          if (!visual) console.error("没有这个视觉配方:", entry.id);
         }
+        if (!visual) return;
         visual.position.set(x, 0, 0);
         scene.add(visual);
-        built.push({ id, visual });
+        built.push({ id: entry.id, visual });
       });
 
       /*
@@ -140,8 +167,10 @@
        * 机位。**四视图是主力**——参考图给的就是正/侧/背，要对着核。
        * `all` 把四个角度并排渲进同一张，省得截四次。
        */
-      const DIST = Math.max(2.0, rowWidth * 0.8 + 1.9);
-      const EYE = 0.55;
+      const DIST = buildingIds.length > 0
+        ? Math.max(9, rowWidth * 0.8 + 9)
+        : Math.max(2.0, rowWidth * 0.8 + 1.9);
+      const EYE = buildingIds.length > 0 ? 1.6 : 0.55;
       const VIEWS = {
         front: new Vector3(0, EYE, DIST),
         back: new Vector3(0, EYE, -DIST),
@@ -152,7 +181,7 @@
       };
       function frame(view) {
         camera.position.copy(VIEWS[view] ?? VIEWS.angle);
-        camera.lookAt(new Vector3(0, 0.38, 0));
+        camera.lookAt(new Vector3(0, buildingIds.length > 0 ? 1.2 : 0.38, 0));
         camera.updateProjectionMatrix();
       }
 

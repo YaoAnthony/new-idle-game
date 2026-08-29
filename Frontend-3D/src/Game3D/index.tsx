@@ -50,6 +50,7 @@ import { GameSettingsModal } from "../Components/GameSettings/GameSettingsModal"
 import { SleepOverlay } from "../Components/SleepOverlay/SleepOverlay";
 import { HudColumn } from "../Components/Hud/HudColumn";
 import { HudTopCenter } from "../Components/Hud/HudTopCenter";
+import { CoinFlight } from "../Components/NeedsHud/CoinFlight";
 import { BuildProgress } from "../Components/BuildProgress/BuildProgress";
 import { BuildShopPanel } from "../Components/BuildShopPanel/BuildShopPanel";
 import { TradePanel } from "../Components/TradePanel/TradePanel";
@@ -2030,6 +2031,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       {/* 建筑选址的确认条（B17）。没在选址时它自己 null */}
       <BuildingPlacePanel />
       <HudTopCenter />
+      {/* 金币飞行演出层（收银台领钱）。纯演出，钱在事件前已入账 */}
+      <CoinFlight />
       {/* 消息面板挂在游戏里而不是 App 里：消息记录属于**这个世界**，
           标题界面上还没有世界，开个输入框对着空气打字没有意义 */}
       <ChatPanel />

@@ -125,7 +125,11 @@ import {
   seedInitialFurniture,
 } from "../../Game/State/worldRuntime";
 import { findRoute } from "../../Game/Systems/navigation";
-import { findShop } from "../../Game/Systems/shopkeeping";
+import {
+  claimRevenue,
+  findShop,
+  pendingRevenueOf,
+} from "../../Game/Systems/shopkeeping";
 import {
   shopCrateLocal,
   shopRegisterLocal,
@@ -1831,15 +1835,20 @@ export class RoomScene {
     for (const spot of this.shopSpots()) {
       const distance = Math.hypot(spot.x - probeX, spot.z - probeZ);
       if (distance >= HINT_RADIUS) continue;
+      /*
+       * 收银台的词随抽屉换：有钱 → "领取收益"（带按键），没钱 →
+       * 报状态不给按键（"F 领取"按了没反应是句假话——灶眼那条的规矩）。
+       */
+      const hasPending =
+        spot.spot === "register" && pendingRevenueOf(spot.instanceId) > 0;
       const target: HintTarget = {
         instanceId: `${spot.instanceId}:${spot.spot}`,
-        hint: {
-          localizationKey:
-            spot.spot === "crate" ? "hint.shop_crate" : "hint.shop_register",
-          // 收银台的领取在功能 D 接上之前先只报状态，不给按键标签——
-          // "F 领取"按了没反应是句假话
-          action: spot.spot === "crate" ? "interact" : undefined,
-        },
+        hint:
+          spot.spot === "crate"
+            ? { localizationKey: "hint.shop_crate", action: "interact" }
+            : hasPending
+              ? { localizationKey: "hint.shop_register_claim", action: "interact" }
+              : { localizationKey: "hint.shop_register_empty" },
         world: new Vector3(spot.x, spot.y + 1.15, spot.z),
       };
       hintByKey.set(`shop:${spot.spot}`, target);
@@ -2243,8 +2252,27 @@ export class RoomScene {
           emit("shelf_open_requested", {
             instanceId: this.interactTarget.instanceId,
           });
+        } else {
+          /*
+           * 收银台：把抽屉里的钱领进金库。**先入账再演出**——
+           * claimRevenue 返回真正进账的数额（金库满了会少于抽屉里的），
+           * 飞的金币只是那笔账的可视化，掉一帧也不丢钱。
+           */
+          const amount = claimRevenue(this.interactTarget.instanceId);
+          if (amount > 0) {
+            const spot = this.shopSpots().find((s) => s.spot === "register");
+            if (spot) {
+              this.projectScratch.set(spot.x, spot.y + 1.0, spot.z);
+              this.projectScratch.project(this.rig.camera);
+              const rect = this.container.getBoundingClientRect();
+              emit("coin_fly_requested", {
+                amount,
+                x: rect.left + ((this.projectScratch.x + 1) / 2) * rect.width,
+                y: rect.top + ((1 - this.projectScratch.y) / 2) * rect.height,
+              });
+            }
+          }
         }
-        // register 的领取在收银台那期接（功能 D）——先让气泡报状态
       } else {
         /**
          * 对话选哪一段是**这只宠物的内容**，不是交互系统的逻辑——

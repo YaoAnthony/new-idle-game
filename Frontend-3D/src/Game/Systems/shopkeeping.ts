@@ -146,28 +146,68 @@ export function settleDaysFor(instanceId: string, days: number): SoldEntry[] {
       slot ? { itemId: slot.itemId, count: slot.count } : null,
     );
     /*
-     * 金库的空位是**逐天重算**的：这一天卖出去的钱当天就入账，
-     * 明天的空位因此变小。一次性算的话，十天的货会按第一天的空位放行。
+     * 卖出的钱**进收银台抽屉，不直接进金库**（2026-08-30，用户定的
+     * 交互：开店的人要走到收银台点一下，看着金币飞进金币条）。所以
+     * 结算不再看金库空位——钱在抽屉里躺着，装不装得进金库是**领取
+     * 那一刻**的问题。原来"逐天重算金库空位"的那套跟着退役：抽屉
+     * 没有上限，它就是店自己的钱盒。
      */
     const sold = settleDay({
       slots,
       customers,
       priceFor: priceOf,
-      revenueCap: Math.max(0, getGoldCapacity() - getGold()),
+      revenueCap: Number.POSITIVE_INFINITY,
     });
-    // 卖光了、或者金库塞不下了，都停在这里。两个上限都看得见
+    // 卖光了就收工
     if (sold.length === 0) break;
 
     removeSold(instanceId, sold);
-    depositGoldTo(totalRevenue(sold));
     all.push(...sold);
+  }
+
+  if (all.length > 0) {
+    const state = (findPlacement(instanceId)?.state ?? {}) as ShopState;
+    setBuildingState(instanceId, {
+      pendingRevenue: (state.pendingRevenue ?? 0) + totalRevenue(all),
+    });
   }
 
   return all;
 }
 
-/** 建筑状态里记的"结算到哪天了" */
-type ShopState = { lastSettledDay?: number };
+/**
+ * 建筑状态里记的账。
+ *
+ * `pendingRevenue` 存在 `placement.state`——那块本来就在存档里
+ * （lastSettledDay 一直住这），**不用抬存档版本**；联机也跟着
+ * WorldSave 的建筑切片走，做客看到的抽屉里的钱是房主的，对。
+ */
+type ShopState = { lastSettledDay?: number; pendingRevenue?: number };
+
+/** 收银台抽屉里攒着的钱（隔夜卖货的收入，等玩家来领） */
+export function pendingRevenueOf(instanceId: string): number {
+  const state = (findPlacement(instanceId)?.state ?? {}) as ShopState;
+  return state.pendingRevenue ?? 0;
+}
+
+/**
+ * 领取收益：抽屉 → 金库。**装不下的留在抽屉里**，不凭空蒸发——
+ * 金库满了是玩家看得见的状态（金币条顶满），下次腾出空位再来领。
+ * 返回真正入账的数额，UI 拿它决定飞几枚金币。
+ */
+export function claimRevenue(instanceId: string): number {
+  const pending = pendingRevenueOf(instanceId);
+  if (pending <= 0) return 0;
+
+  const room = Math.max(0, getGoldCapacity() - getGold());
+  const amount = Math.min(pending, room);
+  if (amount <= 0) return 0;
+
+  depositGoldTo(amount);
+  recordGoldFact(amount);
+  setBuildingState(instanceId, { pendingRevenue: pending - amount });
+  return amount;
+}
 
 /**
  * 翻篇时结算。
@@ -190,8 +230,7 @@ function settleOnNewDay(): void {
   const sold = settleDaysFor(instanceId, today - last);
   if (sold.length === 0) return;
 
-  // 钱已经在 settleDaysFor 里逐天入过账了（空位要逐天重算），这里只记账
-  recordGoldFact(totalRevenue(sold));
+  // 钱在收银台抽屉里等着领（claimRevenue 入账时才记金币流水），这里只发头条
   /*
    * 一件一条，**带上买主**——报纸（期 7）要写"谁买走了什么"，
    * 那句话正是这套挂机经营唯一的人味来源。只记总额的话，

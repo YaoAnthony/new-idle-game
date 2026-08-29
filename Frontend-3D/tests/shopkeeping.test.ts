@@ -22,7 +22,9 @@ import { travelTo } from "../src/Game/Systems/mapTravel";
 import {
   budgetToday,
   canShelve,
+  claimRevenue,
   findShop,
+  pendingRevenueOf,
   settleDaysFor,
   shelfCapacityOf,
   shelfIdFor,
@@ -238,19 +240,64 @@ test("shopkeeping_贵过全天预算的货不会卖_也不会消失", () => {
   expect(budgetToday()).toBeLessThan(60);
 });
 
-test("shopkeeping_金库满着时不成交_货和钱都不损失", () => {
-  // Arrange：一位客人 + 满架的货，金库灌满
+test("shopkeeping_金库满着照样成交_钱囤在抽屉里等着领", () => {
+  /*
+   * **这条的断言被 2026-08-30 的收银台改版翻过来了。**
+   *
+   * 旧版：金库满 → 不成交（防"卖成空气"——钱溢出而货真没了）。
+   * 新版：结算进的是收银台抽屉，抽屉没有上限，金库满不满是**领取
+   * 那一刻**的事——所以照样成交，钱一分不丢地躺在抽屉里，领取被
+   * 金库空位卡住（见下一条用例）。"不把货卖成空气"这个保护目标
+   * 没有变，只是钱的安身处从"金库空位"换成了"抽屉"。
+   */
   spawnPet("pet-slime", "slime_neighbor");
   addToStorage(shelfIdFor("shop-1"), "furniture_chair", 5);
   depositGoldTo(getGoldCapacity());
   expect(getGoldCapacity() - getGold()).toBe(0);
 
-  // Act
   const sold = settleDaysFor("shop-1", 5);
 
-  // Assert：一件都没卖，货原样在架上
-  expect(sold).toEqual([]);
-  expect(
-    shelfSlotsOf("shop-1").reduce((sum, slot) => sum + (slot?.count ?? 0), 0),
-  ).toBe(5);
+  expect(sold.length).toBeGreaterThan(0);
+  const revenue = sold.reduce((sum, entry) => sum + entry.price, 0);
+  expect(pendingRevenueOf("shop-1")).toBe(revenue); // 钱都在抽屉里
+  expect(claimRevenue("shop-1")).toBe(0); // 金库满，领不动
+  expect(pendingRevenueOf("shop-1")).toBe(revenue); // 也一分没蒸发
+});
+
+
+test("shopkeeping_卖货的钱进收银台抽屉_领取才入金库", () => {
+  /*
+   * 2026-08-30 的交互改版：结算不再直接入金库——开店的人要走到收银台
+   * 点一下，看着金币飞进金币条。这条钉住"钱在抽屉里不在金库里"。
+   */
+  spawnPet("pet-slime", "slime_neighbor");
+  addToStorage(shelfIdFor("shop-1"), "furniture_chair", 2);
+
+  const sold = settleDaysFor("shop-1", 1);
+  const revenue = sold.reduce((sum, entry) => sum + entry.price, 0);
+
+  expect(revenue).toBeGreaterThan(0);
+  expect(pendingRevenueOf("shop-1")).toBe(revenue);
+  expect(getGold()).toBe(0); // 还没领，金库一分没动
+
+  const claimed = claimRevenue("shop-1");
+  expect(claimed).toBe(revenue);
+  expect(getGold()).toBe(revenue);
+  expect(pendingRevenueOf("shop-1")).toBe(0);
+  // 领第二次不该再出钱
+  expect(claimRevenue("shop-1")).toBe(0);
+});
+
+test("shopkeeping_金库装不下的留在抽屉里_不蒸发", () => {
+  spawnPet("pet-slime", "slime_neighbor");
+  addToStorage(shelfIdFor("shop-1"), "furniture_chair", 2);
+  settleDaysFor("shop-1", 1);
+  const pending = pendingRevenueOf("shop-1");
+  expect(pending).toBeGreaterThan(1);
+
+  // 把金库塞到只剩 1 个空位
+  depositGoldTo(getGoldCapacity() - 1);
+
+  expect(claimRevenue("shop-1")).toBe(1); // 只领得进 1
+  expect(pendingRevenueOf("shop-1")).toBe(pending - 1); // 其余还躺在抽屉里
 });

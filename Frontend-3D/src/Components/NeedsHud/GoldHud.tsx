@@ -69,7 +69,8 @@ export function GoldHud() {
   const capRef = useCountUp(state.capacity, groupDigits);
 
   return (
-    <div className="relative flex h-[34px] items-center pr-[15px]">
+    // data-gold-hud：金币飞行演出（CoinFlight）的终点靠它找这根管子
+    <div className="relative flex h-[34px] items-center pr-[15px]" data-gold-hud>
       {/* ---- 玻璃管 ---- */}
       <div
         className="relative flex h-[30px] min-w-[116px] items-center overflow-hidden rounded-full border-[3px] border-[#5a4324] pl-4 pr-7"

@@ -258,6 +258,15 @@ export type GameEvents = {
   auto_step_changed: { step: import("core").AutoStepKind };
   /** 日记本的历史变了（记了一笔/补发了奖励/读档）。UI 整棵重读 */
   diary_changed: Record<string, never>;
+
+  /**
+   * 收银台领了钱，请 UI 放金币飞行演出。
+   *
+   * `x/y` 是收银台投影到屏幕上的像素点（RoomScene 算好递过来——UI 层
+   * 拿不到相机）。**钱在发事件之前已经入账**：动画是纯演出，错过、
+   * 关掉、崩了都不丢钱，和开箱那条同一纪律。
+   */
+  coin_fly_requested: { amount: number; x: number; y: number };
   /** 场景 → 计划器：这一步的身体部分完成了（走到了/没路可走原地算到） */
   auto_step_arrived: { step: import("core").AutoStepKind };
   /**

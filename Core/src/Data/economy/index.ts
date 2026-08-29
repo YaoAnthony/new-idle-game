@@ -152,8 +152,13 @@ export const shopkeepingTuning = {
   budgetPerResidentPerDay: 15,
   /** 各级的货位数。键是 levelId，和 `BuildingDefinition.levels` 对齐 */
   shelfSlotsByLevel: { l1: 6, l2: 12 } as Record<string, number>,
-  /** 盖起小店要多少钱。图纸是邻居送的，工钱自付（同居民房那条道理） */
-  buildGold: 40,
+  /**
+   * 盖起小店要多少钱。**测试期免费**（2026-08-30，用户定的）：
+   * 经营循环（上架→隔夜卖→收银台领钱）正在搭，验证它得先有店；
+   * 40 金的门槛此刻只挡开发不挡任何设计问题。上线前恢复收费时
+   * 只改这个数——40 那版的理由还成立（图纸邻居送、工钱自付）。
+   */
+  buildGold: 0,
   /** 升到 l2 多少钱。占位值 */
   upgradeGold: 90,
 } as const;

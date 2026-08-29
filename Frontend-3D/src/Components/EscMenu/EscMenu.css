@@ -16,8 +16,8 @@
   overscroll-behavior: contain;
   pointer-events: auto;
   contain: layout paint;
-  color: rgba(255, 255, 255, 0.92);
-  background: rgba(0, 0, 0, 0.35);
+  color: #2b3b36;
+  background: rgb(24 14 8 / 0.42);
 }
 
 .esc-panel {
@@ -39,10 +39,16 @@
 .esc-panel__background {
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(circle at 80% 8%, rgba(226, 191, 102, 0.2), transparent 30%),
-    radial-gradient(circle at 25% 0%, rgba(119, 158, 255, 0.14), transparent 32%),
-    linear-gradient(180deg, rgba(21, 22, 28, 0.96), rgba(8, 10, 16, 0.97));
+  /*
+   * 一块实的纸白，**没有渐变没有光晕**。
+   *
+   * 原来是"近黑玻璃 + 两团彩色光晕"，那是这个项目的第三套设计语言。
+   * 上一版只把最下面那个 rgba(8,10,16,.97) 换成了白，但顶上还压着一层
+   * `linear-gradient(180deg, rgba(21,22,28,.96), #fdfbf7)`——上半截仍是
+   * 近黑，抽屉顶部照旧透着 3D 场景。改配色时只盯着"最像底色的那一条"
+   * 是不够的，多层背景要整条一起看。
+   */
+  background: #fdfbf7;
 }
 
 .esc-panel__content {
@@ -56,19 +62,14 @@
   overflow-y: auto;
 }
 
-/* 斜切高光 + 细网格。低多边形画风里这层纹理让面板不像一块纯色贴纸 */
-.esc-panel__content::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    linear-gradient(115deg, transparent 0 28%, rgba(255, 255, 255, 0.055) 28.2% 28.5%, transparent 28.7%),
-    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
-  background-size: auto, 34px 34px, 34px 34px;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.95), rgba(0, 0, 0, 0.2));
-}
+/*
+ * 斜切高光 + 细网格那层纹理**整条去掉**。
+ *
+ * 它是给深色玻璃底配的：暗底上一道斜光和一层细网格读起来是"材质"。
+ * 换成纸白底之后，同样这层变成一道横穿面板的浅色斜线加一片方格——
+ * 实拍里它就是一条莫名其妙的划痕（截图上从右上贯到左下那道）。
+ * 纹理是依附底色存在的，底色换了它不能原样留着。
+ */
 
 .esc-profile,
 .esc-stats,
@@ -93,8 +94,8 @@
   height: clamp(46px, 6vh, 58px);
   border: 1px solid rgba(238, 221, 173, 0.58);
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.82);
+  background: #eae4d8;
+  color: #2b3b36;
   font-size: clamp(18px, 2.4vh, 22px);
   overflow: hidden;
 }
@@ -112,7 +113,10 @@
   font-size: clamp(18px, 2.35vh, 22px);
   line-height: 1.1;
   font-weight: 800;
-  color: #ffffff;
+  /* 原来是 #ffffff。底从近黑玻璃换成纸白之后，白字白底等于没有——
+     换配色时纯色（不带 alpha）的那几个最容易漏，因为它们不在
+     "rgba(255,255,255,x)" 那一批里，批量替换扫不到 */
+  color: #2b3b36;
 }
 
 .esc-profile__text span {
@@ -120,7 +124,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: clamp(10px, 1.35vh, 12px);
-  color: rgba(237, 220, 166, 0.82);
+  color: #8a9a94;
 }
 
 .esc-close {
@@ -129,10 +133,10 @@
   width: clamp(30px, 4.2vh, 34px);
   height: clamp(30px, 4.2vh, 34px);
   font-size: clamp(12px, 1.65vh, 14px);
-  border: 1px solid rgba(238, 221, 173, 0.32);
+  border: 1px solid rgba(74, 107, 124, 0.30);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.82);
+  background: #e2ddd3;
+  color: #2b3b36;
   cursor: pointer;
 }
 
@@ -142,9 +146,9 @@
   gap: clamp(7px, 1vh, 10px);
   margin-top: clamp(12px, 2vh, 20px);
   padding: clamp(8px, 1.5vh, 13px) 0;
-  border-top: 1px solid rgba(238, 221, 173, 0.18);
-  border-bottom: 1px solid rgba(238, 221, 173, 0.18);
-  background: rgba(255, 255, 255, 0.045);
+  border-top: 1px solid rgba(74, 107, 124, 0.16);
+  border-bottom: 1px solid rgba(74, 107, 124, 0.16);
+  background: #f4efe6;
 }
 
 .esc-stats div {
@@ -157,12 +161,12 @@
 .esc-section-title span {
   font-size: clamp(9.5px, 1.25vh, 11px);
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.48);
+  color: #8a9a94;
 }
 
 .esc-stats strong {
   font-size: clamp(15px, 2vh, 18px);
-  color: #f1d890;
+  color: #4a6b7c;
 }
 
 .esc-current {
@@ -180,13 +184,13 @@
 .esc-section-title em {
   font-style: normal;
   font-size: clamp(11px, 1.4vh, 13px);
-  color: #f1d890;
+  color: #4a6b7c;
 }
 
 .esc-current__body {
   margin-top: clamp(5px, 0.8vh, 8px);
   font-size: clamp(12px, 1.6vh, 14px);
-  color: rgba(255, 255, 255, 0.78);
+  color: #4a5a54;
 }
 
 .esc-grid {
@@ -209,9 +213,9 @@
   border: 1px solid rgba(238, 221, 173, 0.25);
   border-radius: 6px;
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.035)),
+    linear-gradient(145deg, #eae4d8, #f4efe6),
     rgba(0, 0, 0, 0.12);
-  color: rgba(255, 255, 255, 0.9);
+  color: #2b3b36;
   font-size: clamp(11px, 1.4vh, 13px);
   cursor: pointer;
   overflow: hidden;
@@ -221,7 +225,7 @@
 .esc-tile:focus-visible {
   border-color: color-mix(in srgb, var(--tile-accent) 68%, white);
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.05)),
+    linear-gradient(145deg, #e2ddd3, #f4efe6),
     rgba(0, 0, 0, 0.18);
   outline: none;
 }
@@ -244,15 +248,15 @@
   margin-top: auto;
   padding-top: clamp(10px, 1.7vh, 16px);
   font-size: clamp(10px, 1.3vh, 12px);
-  color: rgba(255, 255, 255, 0.48);
+  color: #8a9a94;
 }
 
 .esc-footer span {
   padding: 2px 7px;
-  border: 1px solid rgba(238, 221, 173, 0.32);
+  border: 1px solid rgba(74, 107, 124, 0.30);
   border-radius: 4px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.75);
+  color: #4a5a54;
 }
 
 .esc-footer em {

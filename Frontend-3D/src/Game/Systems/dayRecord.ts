@@ -59,9 +59,11 @@ export function recordActionFact(
   name: string,
   minutes: number,
   gained?: string,
+  category?: string,
 ): void {
-  todayFacts().actions.push({ name, minutes, gained });
+  todayFacts().actions.push({ name, minutes, gained, category });
 }
+
 
 /** 记一笔金币进出（期 2/3 接）。amount 正负都收，分别落进 in/out */
 export function recordGoldFact(amount: number): void {

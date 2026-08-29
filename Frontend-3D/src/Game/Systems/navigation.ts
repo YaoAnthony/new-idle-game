@@ -1,4 +1,4 @@
-import { MAX_STEP_DOWN, canStepUp, yardBoundsOf } from "core";
+import { MAX_STEP_DOWN, canStepUp, navBoundsOf } from "core";
 import { on } from "../EventBus";
 import {
   PLAYER_OBSTACLE_ID,
@@ -139,8 +139,14 @@ export function navGrid(
     return hit.grid;
   }
 
-  // 覆盖范围 = 可走边界（室内房间本来就在它里面）
-  const bounds = yardBoundsOf(map, room.floorGrid);
+  /*
+   * 覆盖范围 = **导航边界**，不是可走边界（室内房间本来就在它里面）。
+   *
+   * 两者在据点这张图上差一个数量级：可走范围是整块地形（225×215），
+   * 按 0.5 米格距要烤 19.5 万格、83ms，而它每次 world_changed 都作废。
+   * 导航只需要盖住有内容的那一片。见 `MapDefinition.navRect`。
+   */
+  const bounds = navBoundsOf(map, room.floorGrid);
   const minX = bounds.minX - CELL;
   const minZ = bounds.minZ - CELL;
   const cols = Math.ceil((bounds.maxX - bounds.minX) / CELL) + 2;

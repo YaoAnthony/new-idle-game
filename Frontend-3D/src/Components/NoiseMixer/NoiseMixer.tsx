@@ -60,18 +60,18 @@ export function NoiseMixer() {
      * 不自己定位也不自己定宽：它排在左上角那一列里（时钟 → 需求条 →
      * 这块），位置由 flex 算、宽度和皮肤由 HudPanel 统一给。
      */
-    <HudPanel className="mixer hud-panel--mixer">
+    <HudPanel skin="paper" className="mixer hud-panel--mixer">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="mixer__title text-[13px] font-bold text-[var(--ink)]">
+        <span className="mixer__title text-[13px] font-black text-[#795548]">
           {t("ui.mixer.title")}
         </span>
-        <span className="mixer__hint text-[10px] text-[var(--ink-soft)]">
+        <span className="mixer__hint text-[10px] font-bold text-[#BCAAA4]">
           {t("ui.mixer.hint")}
         </span>
       </div>
 
       {channels.length === 0 ? (
-        <div className="py-3 text-center text-[11px] text-[var(--ink-soft)]">
+        <div className="py-3 text-center text-[11px] font-bold text-[#BCAAA4]">
           {t("ui.mixer.empty")}
         </div>
       ) : (
@@ -126,8 +126,8 @@ function MixerRow({ channel }: { channel: MixerChannelView }) {
         </button>
 
         <span
-          className={`min-w-0 flex-1 truncate text-[11px] ${
-            muted ? "text-[var(--ink-soft)] line-through" : "text-[var(--ink)]"
+          className={`min-w-0 flex-1 truncate text-[11px] font-bold ${
+            muted ? "text-[#BCAAA4] line-through" : "text-[#5D4037]"
           }`}
         >
           {label}

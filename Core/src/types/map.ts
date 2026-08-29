@@ -388,6 +388,22 @@ export type MapDefinition = {
   walkableRect?: { minX: number; maxX: number; minZ: number; maxZ: number };
 
   /**
+   * **自动寻路烘焙的范围**。不给就等于 `walkableRect`。
+   *
+   * 为什么要和可走范围分开：可走范围答的是"身体能去哪"，据点这张图
+   * 是**整块地形**（225×215）；而导航网格是一张 0.5 米格距的位图，
+   * 同样的范围要烤 19.5 万格。实测从 2.4 万格的 13ms 涨到 8.3 万... 83ms，
+   * 而它在每次 `world_changed` / `door_toggled` 后重烤——宠物开个门就
+   * 卡 5 帧，headless 用例更是直接超时（golemPhasing 6.7 秒）。
+   *
+   * 两者的语义本来就不一样：**没有寻路不等于不能去**。玩家推摇杆
+   * 走得到地形的任何角落，只是 `/go`、跑腿、宠物这些"帮你走"的功能
+   * 只在有内容的那一片里管用。以后哪片地做出内容了就把这个矩形推过去，
+   * 一行数据。
+   */
+  navRect?: { minX: number; maxX: number; minZ: number; maxZ: number };
+
+  /**
    * **室内地板比院子地面高多少**（世界单位）。和式住宅的"床高"。
    *
    * 坐标系约定：**世界 y=0 就是室内地板**，院子在 `-floorLevel`。

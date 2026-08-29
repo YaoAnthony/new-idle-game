@@ -25,6 +25,8 @@ import {
 import { itemDefinitions } from "core";
 import { t } from "../../i18n/t";
 import { usePanel } from "../PanelStack/usePanel";
+import { GoldChip } from "./GoldChip";
+import { PurchaseConfirm, type PurchaseRequest } from "./PurchaseConfirm";
 
 /**
  * 石傀儡的铺子：对着醒着的他按 F 打开。**没有对话这一步**
@@ -66,11 +68,13 @@ type Card = {
   icon?: string;
   cost: MaterialNeed[];
   /**
-   * 卡片底下那个动词。**不能省**：建筑那格点下去拿到的是一张**图纸**，
-   * 不是一堵墙——不写清楚的话玩家点完会去地上找墙，找不到就当是 bug。
-   * 地块那格是当场生效，动词也就不一样。
+   * 确认框上那个动词。**不再印在卡片上**（用户 2026-08-25："要图纸也没有
+   * 必要"）——一屏六张卡就把同一句话印六遍，而它真正该出现的时机是玩家
+   * 正要掏钱那一下。挪进确认框之后，它旁边还能跟一句 `noteKey` 把话说全。
    */
   actionKey: string;
+  /** 买完那条绿条的后半句。图纸是"放进背包了"，开地是"开好了" */
+  receiptKey: string;
   onAction: () => void;
 };
 
@@ -94,6 +98,19 @@ export function BuildShopPanel() {
    */
   const [revision, setRevision] = useState(0);
   const bump = () => setRevision((n) => n + 1);
+  /** 正在问"真要买吗"的那一笔。null = 没在问 */
+  const [pending, setPending] = useState<PurchaseRequest | null>(null);
+  /**
+   * 刚买完那条回执（存的是名字的 key）。
+   *
+   * 要有这一条是因为**买完之后画面上什么都没变**：图纸进了背包，而背包
+   * 这会儿是关着的；扣掉的金币在面板外面。玩家点完确认只看到框消失了，
+   * 分不清是买成了还是点空了。
+   */
+  const [receipt, setReceipt] = useState<{
+    nameKey: string;
+    receiptKey: string;
+  } | null>(null);
 
   useEffect(() => {
     const refresh = () => setHave(materialCounts());
@@ -121,6 +138,21 @@ export function BuildShopPanel() {
     };
   }, [setOpen]);
 
+  /*
+   * 回执飘 3 秒。清理写在 effect 里而不是 setTimeout 里直接 setState：
+   * 面板中途被关掉时定时器要跟着取消，否则回调会对着已卸载的组件写 state。
+   */
+  useEffect(() => {
+    if (!receipt) return;
+    const timer = setTimeout(() => setReceipt(null), 3000);
+    return () => clearTimeout(timer);
+  }, [receipt]);
+
+  // 面板关掉时把没答完的那个问句一起收走，免得下次开面板它还挂在那儿
+  useEffect(() => {
+    if (!open) setPending(null);
+  }, [open]);
+
   if (!open) return null;
 
   const buyBlueprint = (blueprintItemId: string, cost: MaterialNeed[]) => {
@@ -137,6 +169,26 @@ export function BuildShopPanel() {
     if (!buyPlot(plotId).ok) return;
     pushSystemMessage(`${t(nameKey)}${t("ui.build_shop.territory.done")}`);
     // world_changed 那条订阅会把清单和余额一起刷了
+  };
+
+  /**
+   * 点卡片**不再直接买**，只是把这一笔摆出来问一句。
+   *
+   * 真正掏钱的是 `card.onAction`，它被包在这里的 confirm 里——
+   * 于是"扣钱"这件事全项目只有一条路径经过确认框，加新分类也绕不过去。
+   */
+  const ask = (card: Card) => {
+    setPending({
+      icon: card.icon,
+      nameKey: card.nameKey,
+      cost: card.cost,
+      actionKey: card.actionKey,
+      confirm: () => {
+        card.onAction();
+        setPending(null);
+        setReceipt({ nameKey: card.nameKey, receiptKey: card.receiptKey });
+      },
+    });
   };
 
   // 读一下 revision：它存在的意义就是让下面这两个列表跟着世界变化重算
@@ -176,9 +228,24 @@ export function BuildShopPanel() {
             {t("ui.build_shop")}
           </span>
         </div>
+        {/*
+          关闭按钮**骑在面板右上角上**，不是蹲在面板里面。
+
+          原来是 `right-5 top-5`——面板的上内边距只有 36px，而按钮占
+          20..56px，正好压在货架那圈框线上（出图一看就是个错位的疙瘩）。
+          往里挪要给整块面板加一截上内边距，左栏跟着空一块；往外骑既解决
+          碰撞，又和上面那块牌匾是同一个手法：**挂件都挂在面板边上**。
+
+          骑出去用的是**负偏移（-18px = 半个按钮）不是 translate**。
+          第一版写的是 `-translate-y-1/2 translate-x-1/2`，而
+          `.ui-wood-btn:hover` 自己有一条 `transform: translateY(-1px)`
+          ——同一个属性，后者把定位那份整个顶掉：鼠标一放上去按钮当场
+          弹回角里，移开又飘回来。**定位归 inset，transform 留给动效**，
+          两者一旦共用一个属性就永远是这个下场。
+        */}
         <button
           type="button"
-          className="ui-wood-btn absolute right-5 top-5 grid h-9 w-9 place-items-center text-[16px]"
+          className="ui-wood-btn absolute -right-[18px] -top-[18px] grid h-9 w-9 place-items-center text-[16px]"
           aria-label={t("ui.close")}
           onClick={() => setOpen(false)}
         >
@@ -188,6 +255,22 @@ export function BuildShopPanel() {
         <div className="mt-1 flex min-h-0 gap-3">
           {/* ---- 左：分类栏 ---- */}
           <nav className="flex w-[86px] shrink-0 flex-col gap-1.5 pt-0.5 sm:w-[104px]">
+            {/*
+              余额排在分类**上面**，是左栏的第一项。
+
+              **不能用绝对定位挂在面板角上**——上一版写的是
+              `absolute left-5 top-4`，而左栏正好从那个位置开始，
+              胶囊直接压在「建筑」那一格上（出图才看出来）。
+              面板顶上那一条已经被牌匾和关闭按钮占满了，没有第三个位置
+              可以塞东西；排进列里就永远不会撞，屏幕多窄都一样。
+
+              放左栏也讲得通：钱和分类都是"你在哪儿、你有什么"这类
+              导航信息，货架才是货。
+            */}
+            <div className="mb-1 flex justify-center">
+              <GoldChip amount={have.get("gold") ?? 0} size="chip" />
+            </div>
+
             {categories.map((category) => (
               <button
                 key={category.id}
@@ -213,17 +296,39 @@ export function BuildShopPanel() {
               // 列数不写死：列宽和图框都从 --shop-art 推，见 index.css
               <div className="ui-shop-grid">
                 {active.cards.map((card) => (
-                  <ShopCard key={card.key} card={card} have={have} />
+                  <ShopCard
+                    key={card.key}
+                    card={card}
+                    have={have}
+                    onPick={() => ask(card)}
+                  />
                 ))}
               </div>
             )}
           </div>
         </div>
 
-        <div className="mt-2.5 text-center text-[11px] leading-snug text-[var(--ink-soft)]">
-          {t(active.hintKey)}
+        {/*
+          回执**顶掉**常驻提示那一行，不另占一行：底下多一条的话，面板高度
+          会在买东西的那 3 秒里跳一下，货架跟着往上缩。同一个位置换内容，
+          买完那下画面是稳的。
+        */}
+        <div className="mt-2.5 grid min-h-[18px] place-items-center text-center text-[11px] leading-snug">
+          {receipt ? (
+            <span className="ui-shop-receipt px-3 py-1 font-bold">
+              ✓ {t(receipt.nameKey)} · {t(receipt.receiptKey)}
+            </span>
+          ) : (
+            <span className="text-[var(--ink-soft)]">{t(active.hintKey)}</span>
+          )}
         </div>
       </div>
+
+      <PurchaseConfirm
+        request={pending}
+        have={have}
+        onClose={() => setPending(null)}
+      />
     </div>
   );
 }
@@ -234,13 +339,23 @@ export function BuildShopPanel() {
  * 整块可按而不是角上挂一个小按钮：横屏基准是 iPhone SE，一根手指去够
  * 44px 的按钮本来就勉强；而卡片本身就是那件东西，按它是最自然的动作。
  */
-function ShopCard({ card, have }: { card: Card; have: Map<string, number> }) {
+function ShopCard({
+  card,
+  have,
+  onPick,
+}: {
+  card: Card;
+  have: Map<string, number>;
+  onPick: () => void;
+}) {
   const affordable = canAfford(card.cost);
+  const costs = card.cost.filter((need) => need.quantity > 0);
   return (
     <button
       type="button"
       disabled={!affordable}
-      onClick={card.onAction}
+      // 按下去只是"我看上这个了"，掏钱在确认框里
+      onClick={onPick}
       title={card.descKey ? t(card.descKey) : undefined}
       className={[
         "ui-shop-card flex flex-col items-center gap-1 px-2 pb-2 pt-2",
@@ -266,24 +381,26 @@ function ShopCard({ card, have }: { card: Card; have: Map<string, number> }) {
         )}
       </span>
 
-      {/* 价钱逐项列出：够的绿、不够的红。数组就是数组，不合并成一句话 */}
+      {/*
+        价钱逐项列出：够的绿、不够的红。数组就是数组，不合并成一句话。
+
+        **数量为 0 的项直接不算数**：金库现在的造价是 `[{gold: 0}]`
+        （期 2 的占位），照直画就是一枚金币配一个 0，读起来像"卖零块钱"，
+        而它的意思是"不要材料"。
+      */}
       <span className="flex flex-wrap items-center justify-center gap-1">
-        {card.cost.length === 0 && (
-          <span className="ui-shop-price ui-shop-price--ok text-[11px] font-bold">
+        {costs.length === 0 && (
+          <span className="ui-shop-price ui-shop-price--ok text-[15px] font-bold">
             {t("ui.build_shop.free")}
           </span>
         )}
-        {card.cost.map((need) => (
+        {costs.map((need) => (
           <PricePill
             key={need.itemId}
             need={need}
             owned={have.get(need.itemId) ?? 0}
           />
         ))}
-      </span>
-
-      <span className="text-[10px] font-bold tracking-wide text-[var(--ink-soft)]">
-        {t(card.actionKey)}
       </span>
     </button>
   );
@@ -298,16 +415,24 @@ function PricePill({ need, owned }: { need: MaterialNeed; owned: number }) {
   const enough = owned >= need.quantity;
   const icon = materialIconUrl(need.itemId);
   return (
+    /*
+     * **价钱是这张卡上第二重要的信息**（第一是那张图），字号原来 11px、
+     * 图标 13px，比卡片上任何别的东西都小——用户点名说"不如把金币数字和
+     * 金币 icon 弄大一点"。现在 15px / 20px：它和名字一个量级，
+     * 扫货架时一眼落得上去。
+     *
+     * 卡片下面那行动词删掉之后腾出来的高度，正好给它。
+     */
     <span
       className={[
-        "ui-shop-price inline-flex items-center gap-0.5 text-[11px] font-bold",
+        "ui-shop-price inline-flex items-center gap-1 text-[15px] font-bold",
         enough ? "ui-shop-price--ok" : "ui-shop-price--short",
       ].join(" ")}
       // 图标看不出是什么的时候，指上去还有名字和"手上有多少"
       title={`${t(materialNameKey(need.itemId))} ${need.quantity}（${owned}）`}
     >
       {icon ? (
-        <img src={icon} alt="" className="h-[13px] w-[13px] object-contain" />
+        <img src={icon} alt="" className="h-[20px] w-[20px] object-contain" />
       ) : (
         <span>{t(materialNameKey(need.itemId))}</span>
       )}
@@ -346,6 +471,7 @@ function buildCards(
       icon: buildingIcon(buildingId, first.levelId),
       cost,
       actionKey: "ui.build_shop.buy",
+      receiptKey: "ui.build_shop.bought",
       onAction: () => buy(item.id, cost),
     });
   }
@@ -364,6 +490,7 @@ function terrainCards(unlock: (plotId: string, nameKey: string) => void): Card[]
       icon: byId.get(plotId)?.icon,
       cost: [...plotCost()],
       actionKey: "ui.build_shop.territory.buy",
+      receiptKey: "ui.build_shop.territory.opened",
       onAction: () => unlock(plotId, nameKey),
     };
   });

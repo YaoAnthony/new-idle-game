@@ -1,0 +1,2 @@
+- [日记本 scale-to-fit 的可读性天花板](project_diary_bookplanner_scale.md) — 只压高度卡在 0.434 硬顶救不动；等比例压宽高能到 0.68 但不分断点会把大屏放大 38%
+- [翻页箭头热区吞按钮](project_diary_navarrow_zindex_trap.md) — 已解决：箭头挪进 Modal 的 overlay 层，和书页不共享 stacking context，不是调 z-index 赢的

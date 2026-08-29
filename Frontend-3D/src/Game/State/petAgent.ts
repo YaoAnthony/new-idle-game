@@ -11,7 +11,7 @@ import {
   findPlaceableItem,
   footprintCells,
   roomCellToWorld,
-  yardBoundsOf,
+  navBoundsOf,
   type GridPosition,
   type PetSave,
   type RoomSave,
@@ -908,7 +908,18 @@ export class PetAgent {
    */
   private randomFreeSpot(): [number, number] | null {
     const map = getCurrentMap();
-    const bounds = yardBoundsOf(map, getWorld().room.floorGrid);
+    /*
+     * 抽点范围用**导航范围**不是可走范围。
+     *
+     * 可走范围现在是整块地形（225×215）——上面那段注释已经算过这笔账：
+     * 可落脚的地方"只占其中不到 3%，均匀抽 24 次有一半机会一个都中不了，
+     * 表现就是石傀儡走一段呆站十几秒"。范围再放大 8.4 倍，命中率跟着掉
+     * 一个数量级，不限驻地半径的宠物基本就不动了。
+     *
+     * 而且语义上也该是导航范围：宠物是**在有内容的地方过日子**，
+     * 不该自己溜达到没做完的山里去。
+     */
+    const bounds = navBoundsOf(map, getWorld().room.floorGrid);
     let minX = bounds.minX + this.radius;
     let maxX = bounds.maxX - this.radius;
     let minZ = bounds.minZ + this.radius;

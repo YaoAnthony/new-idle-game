@@ -37,7 +37,9 @@
     "google-auth-library": "^10.9.0",
     "i18next": "^26.3.6",
     "idb": "^8.0.3",
+    "lucide-react": "^1.34.0",
     "motion": "^11.18.2",
+    "page-flip": "2.0.7",
     "phaser": "^3.90.0",
     "phaser-raycaster": "^0.10.11",
     "postprocessing": "^6.39.4",
@@ -48,7 +50,7 @@
     "react-i18next": "^17.0.9",
     "react-icons": "^5.7.0",
     "react-markdown": "^10.1.0",
-    "react-pageflip": "^2.0.3",
+    "react-pageflip": "2.0.3",
     "react-redux": "^9.3.0",
     "react-router-dom": "^7.18.1",
     "react-router-hash-link": "^2.4.3",
@@ -86,6 +88,7 @@
     "gh-pages": "^6.3.0",
     "globals": "^15.15.0",
     "jsdom": "^25.0.1",
+    "playwright": "^1.62.1",
     "postcss": "^8.5.19",
     "tailwindcss": "^3.4.19",
     "typescript": "~5.6.2",
@@ -111,5 +114,8 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
     }
+  },
+  "overrides": {
+    "page-flip": "2.0.7"
   }
 }

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>观察台 · Vintage Book Todo</title>
+    <!--
+      原稿用的两样字体，设计稿阶段先走 CDN：
+      - Nunito：原稿 font-['Nunito'] 指定的拉丁字体
+      - 霞鹜文楷：中文，Nunito 不含中文，不给兜底会静默退回系统字
+
+      正式版要走 scripts/generate-font-subset.mjs 那条本地子集化流水线
+      （AGENTS.md：本地核心循环必须在没有网络的情况下正常运行）。
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-gb-web@latest/style.css"
+    />
+    <style>
+      /* 原稿用到但没定义的两个工具类 */
+      .scrollbar-hide::-webkit-scrollbar { display: none; }
+      .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      .hide-number-arrows::-webkit-outer-spin-button,
+      .hide-number-arrows::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+      .hide-number-arrows { -moz-appearance: textfield; }
+      /* Nunito 不含中文，跟一份中文手写体在后面兜底 */
+      body { font-family: "Nunito", "LXGW WenKai GB", "Kaiti SC", sans-serif; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/preview-ui.tsx"></script>
+  </body>
+</html>

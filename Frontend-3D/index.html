@@ -13,6 +13,31 @@
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no"
     />
     <title>frontend</title>
+    <!--
+      日记本用的两样字体（用户设计稿的语言）。
+      **CDN 只是过渡**：AGENTS.md 要求"本地核心循环必须在没有网络的情况下
+      正常运行"，正式版要走 scripts/generate-font-subset.mjs 那条本地
+      子集化流水线。Nunito 不含中文，所以后面跟一份中文手写体兜底——
+      不兜的话玩家自己打的字会静默退回系统字，一行两种字。
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-gb-web@latest/style.css"
+    />
+    <style>
+      /* 原稿用到但项目里没定义的两个工具类 */
+      .scrollbar-hide::-webkit-scrollbar { display: none; }
+      .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      .hide-number-arrows::-webkit-outer-spin-button,
+      .hide-number-arrows::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+      .hide-number-arrows { -moz-appearance: textfield; }
+    </style>
   </head>
   <body>
     <div id="root"></div>

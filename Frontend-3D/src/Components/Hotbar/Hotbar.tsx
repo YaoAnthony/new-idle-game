@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { on } from "../../Game/EventBus";
+import { FaBoxOpen } from "react-icons/fa6";
+import { emit, on } from "../../Game/EventBus";
 import {
   getHotbar,
   getSelectedHotbarIndex,
@@ -8,6 +9,7 @@ import {
 } from "../../Game/State/inventory";
 import { isTouchMode } from "../../Game/State/touchMode";
 import { ItemTooltip, SlotCell, useTooltip } from "../Inventory/slots";
+import { t } from "../../i18n/t";
 
 /**
  * 快捷栏：8 个真实槽位。数字键 1-8 或点击**只换选中格**。
@@ -96,6 +98,32 @@ export function Hotbar() {
                 size={touch ? 38 : 62}
               />
             ))}
+
+            {/*
+              触摸端在最右边多挂一格：**开背包**。
+
+              手机上没有 B 键，而原来唯一的入口是右下角动作按钮堆里那个箱子
+              图标——那一堆是"对着世界做事"的动词（转方向/扔/交互），
+              开背包是看自己的东西，混在里面既不好找也不好按。挂在快捷栏尾巴上
+              才对得上：快捷栏本来就是背包露在外面的那八格，"还有更多"
+              自然就在这一排的末尾。
+
+              桌面端不加：那边 B 键就是入口，多一个格子只会让八格变九格，
+              数字键和格子的一一对应当场糊掉。
+            */}
+            {touch && (
+              <button
+                type="button"
+                className="ui-slot grid place-items-center text-[16px] text-[var(--ink-soft)]"
+                style={{ width: 38, height: 38 }}
+                aria-label={t("ui.backpack")}
+                onPointerDown={() =>
+                  emit("ui_panel_requested", { panel: "backpack" })
+                }
+              >
+                <FaBoxOpen />
+              </button>
+            )}
           </div>
           {/*
             操作提示行已删除。它把 B/F/Q/R/滚轮/右键六件事一次性糊在屏幕

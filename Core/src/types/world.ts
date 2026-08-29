@@ -78,7 +78,22 @@ export type DayFactsSave = {
    * 做完的行动。报纸"昨日行动"版块。
    * `gained` 是那次开箱开出的东西（期 2 起）；休息这类不开箱的没有。
    */
-  actions: Array<{ name: string; minutes: number; gained?: string }>;
+  actions: Array<{
+    name: string;
+    minutes: number;
+    gained?: string;
+    /**
+     * 这条属于哪类行动（`ActionCategory`）。
+     *
+     * 记它是为了**事后补发奖励**：断线/换设备的时候行动可能已经完成、
+     * 奖励却没结上，日记本右页给这种条目留了一颗可以点的星。补发要知道
+     * 按哪条 `ActionDefinition` 开箱——尤其是"休息"那类本来就 `noChest`，
+     * 没有分类的话它会长出一颗永远点不出东西的星。
+     *
+     * 老档没有这个字段：读出来 undefined，那些条目按"补发不了"处理。
+     */
+    category?: string;
+  }>;
   /** 当天的天气 id。报纸"天气"版块 */
   weatherId?: string;
   /** 金币进出总额。报纸"市场行情"版块 */

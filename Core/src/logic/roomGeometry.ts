@@ -119,6 +119,20 @@ export function outdoorDeckRect(
  * 所以这里继续按原点房 rect 展开，得到的正是那块世界固定的地理矩形。
  * 房子挪到边上导致"离边界很近"是选址校验的事，不该反过来让边界跟房跑。
  */
+/**
+ * 自动寻路要烘的范围。**声明了 `navRect` 就用它，否则退回可走范围。**
+ *
+ * 分出这一层是因为两者会差一个数量级：据点的可走范围是整块地形，
+ * 而导航网格按 0.5 米烤，同样的矩形要 19.5 万格。见 `MapDefinition.navRect`
+ * 的注释——没有寻路不等于不能去。
+ */
+export function navBoundsOf(
+  map: Pick<MapDefinition, "yardMargin" | "yardMargins" | "walkableRect" | "navRect">,
+  floorGrid: { width: number; height: number },
+): DeckRect {
+  return map.navRect ?? yardBoundsOf(map, floorGrid);
+}
+
 export function yardBoundsOf(
   map: Pick<MapDefinition, "yardMargin" | "yardMargins" | "walkableRect">,
   floorGrid: { width: number; height: number },

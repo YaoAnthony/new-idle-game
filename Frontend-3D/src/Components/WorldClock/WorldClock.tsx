@@ -66,7 +66,7 @@ export function WorldClock() {
   const weather = getWeather();
   const tint = PHASE_TINT[clock.phase];
 
-  // 当天进度条：从凌晨 4 点的 rollover 起算
+  // 当天进度条：从 rollover 起算（现在是 00:00，见 Core/Data/time）
   const dayPercent = Math.round(clock.dayProgress * 100);
 
   return (

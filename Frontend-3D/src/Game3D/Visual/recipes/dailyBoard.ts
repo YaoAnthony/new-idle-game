@@ -1,3 +1,4 @@
+import { dailyBoardDefinition } from "core";
 import { MathUtils, type Object3D } from "three";
 import { PALETTE } from "../palette.js";
 import { box, cylinder, group, sphere } from "../primitives.js";
@@ -10,8 +11,9 @@ import { box, cylinder, group, sphere } from "../primitives.js";
  *
  *   - **圆顶 + 波浪遮阳棚**：屋里其他家具全是方木头，这台是圆的；
  *     桃白相间的扇形棚是它的招牌（也是进度条配色在世界里的锚点）。
- *   - **胸前一块黑板**：贴着今天的四张小纸条 + 四颗进度豆豆——
- *     机器本体就在讲"每天四件事"这个玩法，不用读说明。
+ *   - **胸前一块黑板**：贴着几张手写小纸条 + 一排进度豆豆——
+ *     机器本体就在讲"每天几件事"这个玩法，不用读说明。
+ *     **豆豆的颗数按 `taskCount` 推导**（纸条不是，见下面的注释）。
  *   - **下巴上一个吐奖励的圆嘴**：满格时番茄从这里滚出来（阶段 4 的
  *     动画锚点，节点名 daily-board-spout）。
  *   - **侧面一把发条钥匙**：说明它是"机器"而不是柜子。
@@ -125,14 +127,33 @@ export function buildDailyBoard(): Object3D {
     notes.push(paper, pin, line1, line2);
   }
 
-  // 黑板下沿一排四颗进度豆豆（静态装饰；真进度在顶部 HUD——
-  // 两处都动态就要双向同步，装饰豆用 HUD 的四色调就够传达"四格"）
-  const pips = [PALETTE.boardPeach, PALETTE.boardButter, PALETTE.boardMint, PALETTE.boardPeachLight].map(
-    (color, index) =>
-      sphere(0.022, 12, 10, {
-        color,
-        position: [(index - 1.5) * 0.075, 0.335, 0.3],
-      }),
+  /*
+   * 黑板下沿一排进度豆豆。**静态装饰，真进度在顶部 HUD**——
+   * 两处都动态就要双向同步，摆两台机器还要各自对账；装饰豆只负责
+   * 传达"每天就这么几格"。
+   *
+   * **颗数按 `taskCount` 推导，不写死**。原来是四颗写死的数组，
+   * 上限从 4 调到 5 的那一刻它就和进度条对不上了——而这种错不会报，
+   * 只会让玩家数着机器上的豆豆去对 HUD，然后觉得哪里怪怪的。
+   *
+   * 上面那四张小纸条**不跟着变**：它们是"有人在这儿写过东西"的氛围，
+   * 不是计数器。挤成一列五张只会让黑板看着乱，而且没人会去数便签。
+   */
+  const PIP_COLORS = [
+    PALETTE.boardPeach,
+    PALETTE.boardButter,
+    PALETTE.boardMint,
+    PALETTE.boardPeachLight,
+    PALETTE.boardCream,
+  ];
+  const pipCount = dailyBoardDefinition.taskCount;
+  // 间距随颗数收窄，保证整排始终落在 0.44 宽的黑板里（留 0.06 的边）
+  const pipGap = Math.min(0.075, 0.38 / Math.max(1, pipCount));
+  const pips = Array.from({ length: pipCount }, (_, index) =>
+    sphere(0.022, 12, 10, {
+      color: PIP_COLORS[index % PIP_COLORS.length],
+      position: [(index - (pipCount - 1) / 2) * pipGap, 0.335, 0.3],
+    }),
   );
 
   // ---- 吐奖励的圆嘴 + 托盘 ----

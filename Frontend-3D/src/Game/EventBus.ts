@@ -211,6 +211,8 @@ export type GameEvents = {
   };
   /** 行动清单增删（分类卡角标要重算） */
   action_entries_changed: Record<string, never>;
+  /** 事后补记的每日额度变了（用掉一格 / 跨天归零 / 读档） */
+  action_log_changed: { reason: "logged" | "reset" | "restored" };
   /** 系列任务变了（建/改/删链或节点、节点完成、结项）。UI 整棵重读，不做增量 */
   action_chains_changed: { reason: string };
   /**
@@ -238,10 +240,26 @@ export type GameEvents = {
   /** 饥饿 / 疲劳变化 */
   needs_changed: Record<string, never>;
   /**
-   * 跨过世界日（凌晨 4 点 rollover）。
+   * 跨过世界日（rollover，见 Core/Data/time；现在是 00:00）。
    * 天气据此重掷当天日程，每日限额据此刷新。
    */
   world_day_changed: { worldDayId: string; previousWorldDayId: string };
+
+  /**
+   * 自动生活（专注期间角色自己过日子）换了一步。
+   *
+   * 计划器（`Systems/autoLife`）→ 场景（RoomScene）方向：场景收到后负责
+   * **身体部分**——寻路走过去、摆姿势；走到了回 `auto_step_arrived`，
+   * 计划器再开演出计时、到点结算效果（吃饭扣真库存）。
+   *
+   * 决策和执行隔一条事件总线是用户点名的形状：以后 NPC 慰问、浇水
+   * 都是"表里加一行 + 场景多认一种步子"，两头独立生长。
+   */
+  auto_step_changed: { step: import("core").AutoStepKind };
+  /** 日记本的历史变了（记了一笔/补发了奖励/读档）。UI 整棵重读 */
+  diary_changed: Record<string, never>;
+  /** 场景 → 计划器：这一步的身体部分完成了（走到了/没路可走原地算到） */
+  auto_step_arrived: { step: import("core").AutoStepKind };
   /**
    * 一栋楼**真的完工了**（finishSite 那一刻；下单、认领都不算）。
    * 剧情信号 building_completed 由 story.ts 从这里翻译——State 层

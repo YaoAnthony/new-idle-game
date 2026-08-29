@@ -32,3 +32,5 @@ export * from "./terrainBake.js";
 export * from "./storyTriggers.js";
 export * from "./weather.js";
 export * from "./actionChains.js";
+export * from "./autoLife.js";
+export * from "./classifyAction.js";

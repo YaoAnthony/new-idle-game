@@ -24,11 +24,7 @@ import {
   startChainNodeAction,
   type StartNodeResult,
 } from "../../Game/Systems/actionChains";
-import {
-  canAfford,
-  findSupportingFurniture,
-  getActiveAction,
-} from "../../Game/Systems/actions";
+import { canAfford, getActiveAction } from "../../Game/Systems/actions";
 import { t } from "../../i18n/t";
 import { CHAIN_COLORS, CHAIN_ICONS, chainColor, chainEmoji } from "./chainVisuals";
 
@@ -64,7 +60,6 @@ const START_FAIL_TEXT: Record<Exclude<StartNodeResult, "ok">, string> = {
   locked: "前置还没做完",
   completed: "已经做过了",
   busy: "已有进行中的行动",
-  no_furniture: "缺少支撑家具",
   tired: "精力不够",
 };
 
@@ -479,12 +474,11 @@ function NodeRow({
   const priority = actionPriorityDefinitions.find((p) => p.id === node.priority);
   const definition = findActionByCategory(chain.category);
 
-  // 解锁但开始不了的三种现实阻碍（和「锁定」视觉分开）
+  // 解锁但开始不了的两种现实阻碍（和「锁定」视觉分开）。
+  // 「缺家具」那条 2026-08-28 取消了，见 `findSupportingFurniture` 的注释
   let blocker: string | null = null;
   if (state === "available") {
     if (getActiveAction()) blocker = START_FAIL_TEXT.busy;
-    else if (findSupportingFurniture(chain.category) === null)
-      blocker = START_FAIL_TEXT.no_furniture;
     else if (definition && !canAfford(definition, node.priority))
       blocker = START_FAIL_TEXT.tired;
   }

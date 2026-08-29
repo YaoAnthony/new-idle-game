@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FaArrowsRotate, FaBoxOpen, FaHand, FaRegHandScissors } from "react-icons/fa6";
+import { FaArrowsRotate, FaHand, FaRegHandScissors } from "react-icons/fa6";
 import { emit, on } from "../../Game/EventBus";
 import { t } from "../../i18n/t";
 import "./Mobile.css";
@@ -61,15 +61,16 @@ export function TouchActions() {
         </button>
       )}
 
-      <button
-        type="button"
-        className="touch-button touch-button--small"
-        aria-label={t("ui.backpack")}
-        onPointerDown={() => emit("ui_panel_requested", { panel: "backpack" })}
-      >
-        <FaBoxOpen />
-      </button>
+      {/*
+        开背包那个按钮**挪到快捷栏最右边去了**（2026-08-25）。
 
+        这一堆是"对着世界做事"的动词——转方向、扔出去、按 F 交互，
+        都指向屏幕里那个人。开背包是看自己的东西，混在里面既不好找、
+        又占掉一格右拇指的黄金位置。快捷栏本来就是背包露出来的八格，
+        "还有更多"挂在那一排的末尾才读得通。
+
+        两处都留一个的话就是同一块面板两个入口，手机屏幕上没有这个余量。
+      */}
       <button
         type="button"
         className="touch-button touch-button--small"

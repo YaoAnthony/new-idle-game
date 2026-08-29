@@ -47,20 +47,21 @@ export function FocusCard() {
 
   return (
     /*
-     * 这张卡原来是深色玻璃（bg-black/70 + 白字），换奶油马卡龙皮肤时
-     * 漏掉了。平时看不太出来，但白噪音台就浮在它旁边，一浅一深挨着
-     * 才暴露——所以跟着换过来，两块面板是同一次专注里的同一件事。
+     * 皮 = 日记本语言的琥珀卡（名额条那块 #FFF8E1/#FFE082 的皮）：
+     * 它是自动生活演出时段的主卡，暖一档才压得住整屏。
+     * 「提前结束」按日记本删除键的规矩：静止时灰底灰字，悬停才翻红——
+     * 危险动作不该在静止时就喊叫。
      */
-    <div className="ui-bar ui-dash relative px-5 py-3 text-center">
-      <div className="text-[15px] font-bold text-[var(--ink)]">
+    <div className="paper-card--amber relative px-5 py-3 text-center">
+      <div className="text-[15px] font-black text-[#5D4037]">
         {active.customName}
       </div>
-      <div className="mt-0.5 text-[13px] font-bold text-[var(--peach-deep)]">
+      <div className="mt-0.5 text-[15px] font-black tracking-wide text-[#F57F17]">
         {formatMs(remaining)}
       </div>
       <button
         type="button"
-        className="ui-tab mt-2 px-2.5 py-0.5 text-[12px]"
+        className="mt-2 cursor-pointer rounded-full bg-[#F5F5F5] px-3 py-1 text-[12px] font-black text-[#BCAAA4] shadow-[0_3px_0_#E0E0E0] transition-colors hover:bg-[#EF5350] hover:text-white hover:shadow-[0_3px_0_#C62828] active:translate-y-[3px] active:shadow-none"
         onClick={cancelAction}
       >
         {t("ui.action.stop_early")}
@@ -69,20 +70,9 @@ export function FocusCard() {
   );
 }
 
-/**
- * 专注时的全屏暗角。**不能进顶部那一栈**——它是铺满屏幕的氛围层，
- * 塞进 flex 列会被当成一个有宽高的兄弟项，把下面的卡挤走。
+/*
+ * 这里曾有一层全屏暗角（FocusVignette），2026-08-29 删了。
+ *
+ * 暗角的前提是"专注时画面退场"；自动生活把前提反过来了——专注恰恰是
+ * 角色实时演出的时段（挂机陪伴，画面就是产品），压暗它等于把戏台灯关了。
  */
-export function FocusVignette() {
-  const [active, setActive] = useState(() => Boolean(getActiveAction()));
-
-  useEffect(
-    () => on("action_changed", ({ status }) => setActive(status === "started")),
-    [],
-  );
-
-  if (!active) return null;
-  return (
-    <div className="pointer-events-none absolute inset-0 z-10 shadow-[inset_0_0_140px_rgb(0_0_0_/_0.45)]" />
-  );
-}

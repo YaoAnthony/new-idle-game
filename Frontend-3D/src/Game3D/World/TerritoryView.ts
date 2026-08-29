@@ -4,7 +4,7 @@ import { on } from "../../Game/EventBus";
 import {
   allPlots,
   hasTerritory,
-  isInsideTerritory,
+  isInsideTerritoryStrict,
   ownedBoundaryEdges,
 } from "../../Game/State/territory";
 import { groundHeightAt } from "../../Game/State/worldRuntime";
@@ -136,7 +136,9 @@ export class TerritoryView {
       // 用格心问一次就够：一块地要么整块开了要么整块锁着
       const centerX = (plot.rect.minX + plot.rect.maxX) / 2;
       const centerZ = (plot.rect.minZ + plot.rect.maxZ) / 2;
-      if (isInsideTerritory(centerX, centerZ)) continue;
+      // strict：不吃 `/territory free` 的旁路。围栏和杂草是领地的**可视化**，
+      // 该说真话——开了旁路仍然看得见边界在哪，只是能走过去
+      if (isInsideTerritoryStrict(centerX, centerZ)) continue;
 
       for (let x = plot.rect.minX; x < plot.rect.maxX; x += GRASS_STEP) {
         for (let z = plot.rect.minZ; z < plot.rect.maxZ; z += GRASS_STEP) {

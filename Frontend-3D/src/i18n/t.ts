@@ -115,11 +115,34 @@ const ZH: Record<string, string> = {
   "building.wood_wall.l2": "木墙 · 加固",
   "building.wood_wall.l2.desc": "料更足、更高，柱头包了铁箍。",
   "material.gold": "金币",
-  "ui.build_shop": "要盖点什么",
-  "ui.build_shop.buy": "要图纸",
+  // 牌匾是**名词**：它标的是"这是谁的铺子"，不是跟玩家搭话。
+  // 原来写的是「要盖点什么」——一句问话，每次开面板都问一遍，读第二次就多余了。
+  // 和另外两个商人同一个命名法（阿獭的收购摊 / 泡泡的浮筏摊）
+  "ui.build_shop": "石傀儡的工坊",
+  // 确认框上那个按钮。原来这句是印在**每张卡底下**的（「要图纸」），
+  // 一屏六张卡就重复六遍；现在挪到确认框里，说一次，而且是在玩家真要掏钱那一刻
+  "ui.build_shop.buy": "买下",
   "ui.build_shop.free": "不要材料",
   "ui.build_shop.empty": "他现在什么也盖不了。",
   "ui.build_shop.hint": "拿上图纸，走到想盖的地方按 F。",
+  // ---- 确认框 ----
+  // 「点一下就扣钱」在这块面板上尤其伤：地块是不可撤销的，图纸也退不掉
+  "ui.build_shop.confirm.cancel": "再想想",
+  /*
+   * 确认框里**没有说明文字**。
+   *
+   * 这里一度写过「买到手的是图纸。拿上它走到想盖的地方按 F……」，
+   * 用户当场否掉：游戏界面不是说明书。那件事货架底下那行
+   * `ui.build_shop.hint` 已经常驻讲着，讲一次就够；
+   * "钱够不够"由价钱标红和按钮变灰讲，不用字。
+   */
+  /*
+   * 买完那条绿条上的后半句。**建筑和地块必须分开说**：
+   * 买图纸是往背包里放一件东西，开地是当场把地圈进来、背包里什么都没多。
+   * 共用一句的话，开完地会看到"放进背包了"——玩家会去背包里找那块地。
+   */
+  "ui.build_shop.bought": "图纸放进背包了",
+  "ui.build_shop.territory.opened": "开好了",
   // 左边分类栏那两格。**是名词不是动词**——它标的是"这一格里是什么"，
   // 按下去不发生任何事，只是换一架货
   "ui.build_shop.tab.build": "建筑",
@@ -140,6 +163,12 @@ const ZH: Record<string, string> = {
   "build.panel.max": "已经是最高等级了。",
   "build.panel.working": "正在施工，先让它建完。",
   "build.panel.upgrade_to": "升到",
+  "build.panel.name": "名称",
+  "build.panel.about": "介绍",
+  "build.panel.staff": "员工",
+  "build.panel.staff_none": "还没有员工",
+  "build.panel.plans": "升级方案",
+  "build.panel.no_art": "施工图还没画好",
   "build.panel.upgrade": "升级",
   "build.panel.move": "迁移",
   "build.panel.remove": "拆除",
@@ -439,6 +468,12 @@ const ZH: Record<string, string> = {
   "ui.daily.pool_title": "我的清单",
   "ui.daily.pool_count": "清单里有 {count} 条",
   "ui.daily.pool_empty": "还什么都没写。写几条你想坚持的事吧。",
+  /*
+   * 右栏（今天要做的）**不能复用左栏那句**。两栏并排显示一模一样的
+   * "还什么都没写"，读起来像同一个组件渲染了两遍——而它们讲的其实是
+   * 两件事：左边是"清单空着"，右边是"清单空着所以今天没抽出东西"。
+   */
+  "ui.daily.today_empty": "清单里写几条，今天就有得抽了。",
   "ui.daily.pool_full": "清单满了（上限 {limit} 条）",
   "ui.daily.add_placeholder": "比如：喝八杯水",
   "ui.daily.add": "加进清单",
@@ -551,17 +586,42 @@ const ZH: Record<string, string> = {
   "ui.action.title": "行动",
   "ui.action.pick_category": "选择一个行动类型",
   "ui.action.enter": "点击进入",
-  "ui.action.locked": "缺少对应家具",
   "ui.action.unlocked_hint": "新功能已解锁",
 
   "ui.action.pick_entry": "选择一个现实里要做的行动",
   "ui.action.add": "添加行动",
   "ui.action.empty_title": "还没有行动",
   "ui.action.empty_hint": "先添加一个你现实里想做的事",
+  /*
+   * 空态要讲清楚**两种用法**，因为这一屏正是玩家第一次决定"我要怎么用
+   * 这个系统"的地方——而它有两条路：先计划（写下来、坐下来做）和
+   * 事后记录（做完了回头记一笔）。只写"先添加一个"的话，记录型的人
+   * 会以为自己得先假装计划一遍。
+   */
+  "ui.action.empty_two_ways":
+    "写下想做的事，坐下来做完它；或者做完了再回来记一笔——两种拿到的一样多。",
   "ui.action.list_footer_empty":
     "添加后会出现在这里，点击开始后角色会在房间里使用家具行动",
   "ui.action.list_footer": "开始后，角色会在房间里使用家具行动",
   "ui.action.start": "开始",
+  /*
+   * 事后补记（P 路径）的文案。
+   *
+   * 「开始」和「已经做完了」是**同一张表单的两个出口**：计划型的人写好
+   * 条目坐下来做，记录型的人做完了才回头记一笔。两者拿一样的奖励，
+   * 区别只在结算发生在做之前还是做之后。
+   */
+  "ui.action.log_done": "已经做完了",
+  "ui.action.log_row": "记一笔",
+  "ui.action.log_quota": "今天还能补记 {left} 件",
+  "ui.action.log_quota_out": "今天的补记额度用完了",
+  "ui.action.log_hint": "没开计时器也做完了的事，记一笔照样算",
+  "ui.action.log_fail_count": "今天的补记额度用完了，明天见",
+  "ui.action.log_fail_minutes": "今天补记的总时长到顶了",
+  "ui.action.log_fail_busy": "手上还有进行中的行动",
+  "ui.action.log_fail_tired": "精力不够。补记和亲手做扣一样的精力",
+  "ui.action.log_fail_unknown": "找不到对应的行动",
+  "ui.action.log_fail_duration": "时长超出这类行动的范围",
   "ui.action.delete": "删除",
 
   "ui.action.form_title": "添加行动",

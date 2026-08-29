@@ -247,12 +247,27 @@ export const BRIDGE_SURFACES: GroundSurface[] = BRIDGES.map((bridge) => {
  * 形状按顺序叠加，后画的赢：两块大陆 → 北丘 → 两块滩台。
  * 约 1.5 万格 × 5 个形状，启动烤一次，几十毫秒。
  */
+/**
+ * **整块地形的范围。**往北往西推到 -170 / -160，把山脉整个装进来。
+ *
+ * 一个常量两处共用：高度场烤这么大，可走矩形（`walkableRect`）也用它。
+ * 两边各写一份数字的话，迟早出现"地形画到那儿、人走不过去"——
+ * z 方向就这么差过 3 米（地块画到 -27，可走矩形停在 -24），
+ * 玩家买下的地永远有一条边进不去。**边界只该有一个来源。**
+ */
+export const TERRAIN_BOUNDS = {
+  minX: -170,
+  maxX: 55,
+  minZ: -160,
+  maxZ: 55,
+} as const;
+
 export const baseHeightfield = bakeHeightfield({
-  // 范围往北往西推到 -170/-160，把山脉整个装进来。**格距只能是 1.0**：
+  // 范围见 TERRAIN_BOUNDS。**格距只能是 1.0**：
   // 试过 1.5（地形网格能少一半），岸壁 1.2 米宽在 1.5 格上采样就软了，
   // headless "往河里走会被岸壁拦住" 当场红。三角形的账另外算：
   // 网格化器跳过全在水下的格（见 heightfieldMesh），那部分谁也看不见
-  ...terrainGrid({ minX: -170, maxX: 55, minZ: -160, maxZ: 55 }, 1),
+  ...terrainGrid(TERRAIN_BOUNDS, 1),
   base: RIVER_BED_Y,
   shapes: [
     { shapeId: "west-land", outline: WEST_LAND as [number, number][], elevation: YARD_Y, falloff: BANK_FALLOFF },

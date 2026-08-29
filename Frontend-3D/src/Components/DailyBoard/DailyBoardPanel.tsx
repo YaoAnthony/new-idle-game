@@ -16,6 +16,9 @@ import {
 } from "../../Game/Systems/dailyTasks";
 import { t } from "../../i18n/t";
 import { usePanel } from "../PanelStack/usePanel";
+import { DailyProgressBar } from "./DailyProgressBar";
+import { Modal } from "../Modal/Modal";
+import { NoteSeal } from "../Modal/seals";
 
 /**
  * 每日任务面板（按 F 打开机器）。左边"我的清单"（自由文本增删），
@@ -71,7 +74,11 @@ export function DailyBoardPanel() {
     if (open) getToday();
   });
 
-  if (!open) return null;
+  /*
+   * **不能在这儿早退。** 原来 `if (!open) return null` 直接不渲染，
+   * 而现在挂载与否归 Modal 管（它要留着播 exit 动画）。这里早退的话
+   * 关闭动画永远看不到，而且 Modal 连 open=false 都收不到。
+   */
 
   const pool = getPool();
   // peek 而不是 getToday()：抽签在上面的 effect 里做，render 只读
@@ -94,36 +101,46 @@ export function DailyBoardPanel() {
   };
 
   return (
-    <div
-      className="absolute inset-0 z-40 grid min-h-0 place-items-center bg-black/45 px-6 py-7"
-      onPointerDown={(event) => {
-        if (event.target === event.currentTarget) setOpen(false);
-      }}
+    /*
+     * 外壳交给 `Modal`（同心厚框 + 印章绽开），和行动面板同一套。
+     * **不要写成 `{open && <Modal/>}`**：那样一关就整个卸载，exit 动画
+     * 没机会播。open 是 Modal 的入参，挂不挂载由它按相位自己决定。
+     *
+     * 原来那两层（遮罩 + ui-action-panel）连同悬空牌匾一起没了。牌匾是
+     * `-translate-y-1/2` 挂在面板边缘外的，一半悬空、而且是全屏最饱和的
+     * 黄——比任何可点的东西都抢眼。标题改成落在内容里的一行粗体字。
+     */
+    <Modal
+      open={open}
+      onClose={() => setOpen(false)}
+      seal={<NoteSeal />}
+      frameColor="#c96a4e"
+      paperColor="#fdfbf7"
+      label={t("ui.daily.title")}
     >
-      <div
-        className="ui-action-panel relative flex max-h-full min-h-0 flex-col px-7 pb-6 pt-9"
-        style={{ width: "min(920px,94vw)" }}
-      >
-        {/* 牌匾 + 关闭，和行动面板同一套外壳语言 */}
-        <div className="ui-plaque absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2 px-9 py-2">
-          <span className="text-[20px] font-bold tracking-[0.25em] text-[#7a5a1d]">
-            {t("ui.daily.title")}
-          </span>
-        </div>
-        <button
-          type="button"
-          className="ui-wood-btn absolute right-5 top-5 grid h-9 w-9 place-items-center text-[16px]"
-          aria-label={t("ui.close")}
-          onClick={() => setOpen(false)}
-        >
-          ✕
-        </button>
+      <div className="flex h-full flex-col px-4 pb-3 pt-3">
+        <header className="mb-2.5 flex shrink-0 items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[20px] font-extrabold tracking-[0.06em] text-[#2b3b36]">
+              {t("ui.daily.title")}
+            </div>
+            {/* 副标题不再套 ❧…❧ 那对花括——那是填充物，不是信息 */}
+            <div className="truncate text-[12px] text-[#8a9a94]">
+              {t("ui.daily.subtitle")}
+            </div>
+          </div>
+          <button
+            type="button"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-[17px] font-bold"
+            style={{ background: "#eae4d8", color: "#4a5a54" }}
+            aria-label={t("ui.close")}
+            onClick={() => setOpen(false)}
+          >
+            ✕
+          </button>
+        </header>
 
-        <div className="mb-3 mt-1 text-center text-[13px] tracking-wide text-[var(--ink-soft)]">
-          ❧ {t("ui.daily.subtitle")} ❧
-        </div>
-
-        <div className="flex min-h-0 gap-4">
+        <div className="flex min-h-0 flex-1 gap-4">
           {/* ---- 左：我的清单 ---- */}
           <section className="flex min-h-0 flex-1 flex-col">
             <header className="mb-1.5 flex items-baseline justify-between px-1">
@@ -137,7 +154,10 @@ export function DailyBoardPanel() {
               </span>
             </header>
 
-            <div className="ui-paper ui-scroll min-h-[220px] flex-1 overflow-y-auto p-3">
+            {/* min-h-0 而不是 min-h-[220px]：写死 220 的话矮屏上它不肯缩，
+                把下面的输入行整个顶出屏幕。flex-1 + overflow 已经保证了
+                "高屏上长满、矮屏上滚动" */}
+            <div className="ui-paper ui-scroll min-h-0 flex-1 overflow-y-auto p-3">
               {pool.length === 0 ? (
                 <div className="grid h-full place-items-center px-6 text-center text-[13px] leading-relaxed text-[var(--ink-soft)]">
                   {t("ui.daily.pool_empty")}
@@ -171,7 +191,7 @@ export function DailyBoardPanel() {
 
             <div className="mt-2.5 flex gap-2">
               <input
-                className="ui-input min-w-0 flex-1 px-3 py-2 text-[14px] outline-none"
+                className="ui-input min-h-11 min-w-0 flex-1 px-3 py-2 text-[14px] outline-none"
                 placeholder={t("ui.daily.add_placeholder")}
                 maxLength={dailyBoardDefinition.textLimit}
                 value={draft}
@@ -187,7 +207,8 @@ export function DailyBoardPanel() {
               />
               <button
                 type="button"
-                className="ui-green-btn shrink-0 px-4 py-2 text-[14px] font-bold"
+                /* min-h-11 = 44px，触摸目标下限。py-2 算出来是 43，差一像素 */
+                className="ui-green-btn min-h-11 shrink-0 px-4 py-2 text-[14px] font-bold"
                 disabled={pool.length >= limit}
                 onClick={submit}
               >
@@ -207,28 +228,23 @@ export function DailyBoardPanel() {
               <span className="text-[15px] font-bold text-[var(--ink)]">
                 {t("ui.daily.today_title")}
               </span>
-              {/* 进度豆豆：满格换奶黄。和机器胸前那排、顶部 HUD 同一语言 */}
-              <span className="flex items-center gap-1">
-                {Array.from({ length: board.goal }, (_, index) => (
-                  <span
-                    key={index}
-                    className={`h-2.5 w-2.5 rounded-full transition-colors ${
-                      index < board.progress
-                        ? "bg-[var(--peach-deep)]"
-                        : "bg-[var(--cream-3)]"
-                    }`}
-                  />
-                ))}
-                <span className="ml-1 text-[12px] tabular-nums text-[var(--ink-soft)]">
+              {/* 分段进度条：空格子也画出来，一眼数得出今天一共几格。
+                  和顶部 HUD 共用同一个组件（见 DailyProgressBar 的注释） */}
+              <span className="flex items-center gap-1.5">
+                <DailyProgressBar progress={board.progress} goal={board.goal} />
+                <span className="text-[12px] tabular-nums text-[var(--ink-soft)]">
                   {board.progress} / {board.goal}
                 </span>
               </span>
             </header>
 
-            <div className="ui-paper ui-scroll min-h-[220px] flex-1 overflow-y-auto p-3">
+            {/* min-h-0 而不是 min-h-[220px]：写死 220 的话矮屏上它不肯缩，
+                把下面的输入行整个顶出屏幕。flex-1 + overflow 已经保证了
+                "高屏上长满、矮屏上滚动" */}
+            <div className="ui-paper ui-scroll min-h-0 flex-1 overflow-y-auto p-3">
               {today.length === 0 ? (
                 <div className="grid h-full place-items-center px-6 text-center text-[13px] leading-relaxed text-[var(--ink-soft)]">
-                  {t("ui.daily.pool_empty")}
+                  {t("ui.daily.today_empty")}
                 </div>
               ) : (
                 <ul className="flex flex-col gap-2">
@@ -279,7 +295,7 @@ export function DailyBoardPanel() {
               )}
             </div>
 
-            <div className="mt-2.5 min-h-[34px] px-1 text-center text-[12px] leading-relaxed text-[var(--ink-soft)]">
+            <div className="mt-2 px-1 text-center text-[12px] leading-relaxed text-[var(--ink-soft)]">
               {board.claimed
                 ? "今天的奖励已经领过啦，明天见 ✨"
                 : today.length < board.goal
@@ -291,6 +307,6 @@ export function DailyBoardPanel() {
           </section>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }

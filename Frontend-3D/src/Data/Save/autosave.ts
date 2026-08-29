@@ -118,6 +118,15 @@ export function startAutosave(): () => void {
       if (reason !== "restored") schedule();
     }),
     on("action_changed", () => schedule()),
+    /*
+     * 补记走的不是 `action_changed`（它没有"进行中"这个状态，见
+     * Systems/actions 里 logCompletedAction 的注释），所以额度这条要单独订。
+     * 漏了它的后果是：补记完关掉游戏，箱子里的东西在、额度却回到没用过——
+     * 下次进来又能补满一天。
+     */
+    on("action_log_changed", ({ reason }) => {
+      if (reason !== "restored") schedule();
+    }),
     on("kitchen_changed", () => schedule()),
     on("held_changed", () => schedule()),
     on("posture_changed", () => schedule()),

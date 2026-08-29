@@ -6,7 +6,7 @@ import type {
 } from "./base.js";
 import type { FurnitureCapability, PlacedFurnitureInstanceId } from "./furniture.js";
 import type { RewardDefinition } from "./events.js";
-import type { UtcTimestamp } from "./time.js";
+import type { UtcTimestamp, WorldDayId } from "./time.js";
 
 export enum ActionCategory {
   Exercise = "exercise",
@@ -87,6 +87,60 @@ export type ActionDefinition = {
    * "谁会发声"就是一个字段，不填就是这件事做起来没声音。
    */
   audioProfileId?: AudioProfileId | null;
+};
+
+/**
+ * 事后补记的每日额度（挂 `PlayerSave.actionLog`）。
+ *
+ * ---- 为什么需要"补记"这条路 ----
+ *
+ * 行动系统原本只有一条路：建条目 → 点开始 → **坐着等计时器烧完** → 开箱。
+ * 这条路只服务提前规划的人（MBTI 里的 J）。而另一半人是做完了才回头看
+ * 自己干了什么（P）——他昨晚写了两小时论文但没开计时器，那两小时在游戏里
+ * 等于没发生。补记就是给这一半人的入口：**同样的事、同样的奖励，
+ * 只是结算发生在事后**。
+ *
+ * ---- 为什么补记要有额度、而计时器那条不用 ----
+ *
+ * 坐在那儿花掉的 45 分钟**本身就是代价**，真实时间挡住了刷。补记没有
+ * 任何代价——一句话就是一个箱子，不封顶的话它立刻变成全游戏最优解，
+ * 而且会把认真用计时器的人显得像傻子。
+ *
+ * 额度按**天**算而不是按小时/冷却：现实里"今天做了什么"本来就是按天
+ * 回想的，跨天归零和玩家的心理节奏对得上；冷却则会逼玩家守着表补记，
+ * 那正好是这套工具想避免的东西。
+ */
+export type ActionLogSave = {
+  worldDayId: WorldDayId;
+  /** 今天补记了几件 */
+  count: number;
+  /** 今天补记的总分钟数。件数拦不住"一天补五个八小时"，这个拦得住 */
+  minutes: number;
+};
+
+/** 日记里"做完了"的一条：右页渲染的最小事实 */
+export type DiaryDoneSave = {
+  name: string;
+  minutes: number;
+  /** 开箱开出来的东西。没有 = 还没发奖（右页那颗可点的星就看它） */
+  gained?: string;
+  /** 行动分类（ActionCategory）。补发奖励要凭它找定义 */
+  category?: string;
+};
+
+/**
+ * 玩家的日记本（v35）。
+ *
+ * `startedOn`：**开启日记的那一天**（第一次写下东西的 worldDayId）。
+ * 左页的日期序列从它排到今天——历史有多长由玩家玩了多久决定，
+ * 不再是写死的"过去 7 天"。
+ *
+ * `days` 稀疏：只存有内容的天，升序。没记录的日子不占条目，
+ * 翻到就渲染空页——"只记录修改过的内容"是用户点名的形状。
+ */
+export type DiarySave = {
+  startedOn: WorldDayId;
+  days: Array<{ day: WorldDayId; done: DiaryDoneSave[] }>;
 };
 
 /**
@@ -189,4 +243,14 @@ export type ActionProcessSave = {
    * 读档时要按当初那个重要级结算奖励倍率。缺省按"普通"。
    */
   priority?: ActionPriority;
+  /**
+   * 从日记本左页哪一条计划发起的（`PlayerActionEntry.entryId`）。
+   *
+   * **必须存**，理由和 `chainRef` 一样：行动会在离线期间完成，读档补结算
+   * 时要凭它把那条计划从清单里划掉。不存的话完成之后计划还赖在左页上，
+   * 同一件事在左右两页各出现一次——这正是 2026-08-28 报上来的那个 bug。
+   *
+   * 缺省 undefined = 不是从计划起的（命令行、系列任务节点、旧存档）。
+   */
+  entryId?: string;
 };

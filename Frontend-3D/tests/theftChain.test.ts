@@ -24,6 +24,7 @@ import {
   startStorySystem,
 } from "../src/Game/Systems/story";
 import { restoreDayFacts } from "../src/Game/Systems/dayRecord";
+import { getClock } from "../src/Game/State/clock";
 import {
   buyItem,
   epochDayOf,
@@ -215,7 +216,15 @@ test("trading_不在班表的日子_水獭被日同步送走", () => {
 
   syncTraderPresence();
 
-  // 今天在不在班表上是日期决定的；两种都合法，但**状态必须和班表一致**
-  const shouldBeHere = isOtterScheduledOn(new Date().toISOString().slice(0, 10));
+  /*
+   * 今天在不在班表上是日期决定的；两种都合法，但**状态必须和班表一致**。
+   *
+   * 问的必须是**世界日**，不能是 `new Date().toISOString()`。后者是 UTC 日期，
+   * 而 `syncTraderPresence` 走的是 `getClock().worldDayId`（本地日历日）——
+   * 两者在本地时间跨过 UTC 零点之后就错开一天（多伦多是每天 20:00 之后），
+   * 于是这条测试每天晚上都会挂，白天又是好的。原来就是这么写的，只是
+   * 平时不在那个时段跑，没人撞上。
+   */
+  const shouldBeHere = isOtterScheduledOn(getClock().worldDayId);
   expect(Boolean(getPet("pet-otter"))).toBe(shouldBeHere);
 });

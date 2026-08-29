@@ -25,8 +25,16 @@ export type PanelId =
   | "chat"
   | "settings"
   | "daily"
+  /** 日记本（行动的新入口）。和 actions 并存到迁移完成为止 */
+  | "diary"
   | "station"
   | "buildShop"
+  /*
+   * 石傀儡工坊里的"确认买下"小框。**单独占一层**，不是 buildShop 的内部状态：
+   * ESC 该先退掉确认框、货架还留着，而"哪一层在最上面"只有面板栈知道。
+   * 不入栈的话 ESC 会把整块面板一起关掉，玩家只是想说"这件先不买"。
+   */
+  | "purchase"
   | "trade"
   | "building"
   | "storage"

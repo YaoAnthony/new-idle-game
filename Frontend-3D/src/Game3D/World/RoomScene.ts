@@ -1,4 +1,4 @@
-import { BodyPosture, CreatureRole, DayPhaseId, Facing, FurnitureCapability, constructionProgress, isConstructionQueued, WeatherKind, anchorOf, anchorRectToWorld, findItemDefinition, findPetDefinition, roomCellToWorld, type DeckRect, type WeatherDefinition, yardBoundsOf } from "core";
+import { BodyPosture, CreatureRole, DayPhaseId, Facing, FurnitureCapability, constructionProgress, isConstructionQueued, WeatherKind, anchorOf, anchorRectToWorld, findItemDefinition, findPetDefinition, roomCellToWorld, type AutoStepKind, type DeckRect, type WeatherDefinition, yardBoundsOf, navBoundsOf } from "core";
 import { isHouseStowed } from "core";
 import type { InteractHint, PlacedFurniture, RoomSave } from "core";
 import {
@@ -472,7 +472,18 @@ export class RoomScene {
      */
     {
       const map = getCurrentMap();
-      const walkable = yardBoundsOf(map, { width: this.built.size.width, height: this.built.size.depth });
+      /*
+       * 铺**导航范围**不是可走范围。
+       *
+       * 这块场是 1 米一个 texel 的 DataTexture，而 `update()` **每帧**都要
+       * 把整张网格插值一遍再上传。按可走范围（整块地形 225×215 再各加
+       * 60 边距）算是 346×336 = 11.6 万 texel，每帧 11.6 万次浮点 +
+       * 116KB 上传；按导航范围只有 4 万出头。雾天才开，但雾天是要连着
+       * 下一整天的。
+       *
+       * 语义上也对：驱雾的是灯和房子，它们都在有内容的那片里。
+       */
+      const walkable = navBoundsOf(map, { width: this.built.size.width, height: this.built.size.depth });
       /*
        * 毯子要铺得比可走范围**大一圈**（每边 +60）。第一版就铺到可走边界，
        * 从空中看是一块白矩形硬切在绿林子里——雾毯在边上突然没了，
@@ -661,6 +672,17 @@ export class RoomScene {
         if (status === "started") this.beginFocusSequence();
         else this.endFocusSequence();
       }),
+    );
+
+    /*
+     * 自动生活的**身体部分**（脑子在 Systems/autoLife 的计划器里）。
+     *
+     * 收到一步就把角色送过去，到位回 `auto_step_arrived`；演出计时和
+     * 效果结算（吃饭扣真库存）都归计划器。两头只认这两个事件，互相不
+     * import——以后加浇水、NPC 慰问，这里 switch 多一个 case 而已。
+     */
+    this.offEventListeners.push(
+      on("auto_step_changed", ({ step }) => this.performAutoStep(step)),
     );
 
     /*
@@ -1224,6 +1246,97 @@ export class RoomScene {
       }
     }
     return false;
+  }
+
+  /**
+   * 执行自动生活的一步（走位层）。
+   *
+   * 离座三件套（cancelScriptedWalk / activity=null / standUp）和
+   * `endFocusSequence` 是同一批动作，但**不能直接调它**——那个函数还会
+   * `enabled = true` 把输入还给玩家、`exitFocus` 把镜头拉回去，而自动
+   * 生活期间行动还在跑：输入必须仍旧锁着，镜头也不该抽搐。
+   */
+  private performAutoStep(step: AutoStepKind): void {
+    const action = getActiveAction();
+    if (!action) return;
+
+    if (step === "work") {
+      // 回工位：走的就是行动开始那条路（寻路 + 坐下 + desk 活动层）
+      this.beginFocusSequence();
+      return;
+    }
+
+    // 离座（见函数头：不是 endFocusSequence）
+    this.controller.cancelScriptedWalk();
+    this.controller.activity = null;
+    standUp("action");
+
+    const from = { x: this.controller.x, z: this.controller.z };
+    const arrived = () => emit("auto_step_arrived", { step });
+
+    if (step === "eat") {
+      /*
+       * 去炊具旁。目标 = 最近一件带 Cooking 能力的家具；一件都没有就
+       * 原地视同到位——吃这个动作的**效果**不依赖走位（计划器结算），
+       * 走位只是演出，缺了演出不能缺了饭。
+       */
+      const { placedFurniture, room } = getWorld();
+      let goal: { x: number; z: number } | null = null;
+      let goalDistance = Number.POSITIVE_INFINITY;
+      for (const placed of placedFurniture) {
+        const definition = getDefinition(placed.furnitureId);
+        if (
+          !definition?.placement.capabilities.includes(
+            FurnitureCapability.Cooking,
+          )
+        ) {
+          continue;
+        }
+        const world = roomCellToWorld(
+          room,
+          placed.placement.gridPosition.x,
+          placed.placement.gridPosition.y,
+        );
+        const distance = Math.hypot(world.x - from.x, world.z - from.z);
+        if (distance < goalDistance) {
+          goalDistance = distance;
+          goal = world;
+        }
+      }
+      if (!goal) {
+        arrived();
+        return;
+      }
+      const points = findRoute(from, goal);
+      if (!points) {
+        arrived();
+        return;
+      }
+      const face = goal;
+      this.controller.walkAlong(points, () => {
+        this.controller.faceToward(face.x, face.z);
+        arrived();
+      });
+      return;
+    }
+
+    /*
+     * 溜达：驻地（当前位置）周围抽一个能走的点。抽不中就原地站会儿——
+     * 溜达本来就没有目的地，"没走成"也是一种溜达。
+     */
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 2 + Math.random() * 3;
+      const goal = {
+        x: from.x + Math.cos(angle) * radius,
+        z: from.z + Math.sin(angle) * radius,
+      };
+      const points = findRoute(from, goal);
+      if (!points) continue;
+      this.controller.walkAlong(points, arrived);
+      return;
+    }
+    arrived();
   }
 
   /** 行动开始：A* 走到支撑家具旁的空格，面向家具，进入专注 */
@@ -2827,7 +2940,12 @@ export class RoomScene {
   } {
     const map = getCurrentMap();
     const { width, depth } = this.built.size;
-    const bounds = yardBoundsOf(map, { width, height: depth });
+    /*
+     * 框**导航范围**：可走范围现在一直伸到山脚，按它取景半径 200 米，
+     * 镜头退到雾外面什么细节都看不清（下面那段注释早就记着这个症状）。
+     * 想看远处用 `around` 指名道姓。
+     */
+    const bounds = navBoundsOf(map, { width, height: depth });
 
     /*
      * 取景：默认框整张图（可走范围外接圆放宽 30%）；给了 around 就框

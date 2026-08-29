@@ -49,7 +49,7 @@ import { on } from "../src/Game/EventBus";
  *
  * 三条要害：
  * 1. **抽签必须确定性**。用 Math.random 的话，玩家反复开关面板就能一直
- *    重抽，直到抽到最容易的那四条——抽签机制当场失效；
+ *    重抽，直到抽到最容易的那几条——抽签机制当场失效；
  * 2. **打勾不可撤销、不可重复**。进度是共享的，撤销会把别人已经看到的
  *    进度条拽回去；重复点击加两分同理；
  * 3. **跨天惰性归零**。没有后台定时器，谁来读谁顺手检查日期，
@@ -486,7 +486,7 @@ describe("单条任务奖励", () => {
     const capacity = getGoldCapacity();
     const ids = seedPool(GOAL);
 
-    // 打满一整板：4 条单条 + 满格那份，总额远超 l1 罐的容量
+    // 打满一整板：每条单条奖 + 满格那份，总额远超 l1 罐的容量
     for (const id of ids) completeDailyTask(id);
 
     // 余额封顶在容量上，多的丢掉（明话提示在 depositGoldTo 里发）

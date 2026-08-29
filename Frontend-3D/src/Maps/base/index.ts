@@ -6,6 +6,7 @@ import {
   BRIDGE_SURFACES,
   FLOOR_LEVEL,
   baseHeightfield,
+  TERRAIN_BOUNDS,
 } from "./terrain.js";
 
 /**
@@ -53,7 +54,29 @@ export const baseMapDefinition: MapDefinition = {
    * 房子身上摘下来变成地图自己的数。默认的家换成 9×12 的小屋之后，
    * 按房子推会让东桥走不到头、A 列领地出界。
    */
-  walkableRect: { minX: -36, maxX: 45, minZ: -24, maxZ: 47 },
+  /*
+   * 可走范围 = **整块地形**（用户 2026-08-27 定：以后整张图都要能探索）。
+   *
+   * 原来是手写的 `{ -36, 45, -24, 47 }`，比地形小一大圈——北边差 3 米、
+   * 西边差 4 米，而领地地块正好画到那之外：`north_yard` / `north_grove` /
+   * `northwest_wood` / `east_bridge` 都到 z=-27，`west_meadow` 等到 x=-40。
+   * 结果是买下来的地有一条边永远走不进去，而且没有任何提示——玩家撞上
+   * 一堵看不见的墙（用户实测：(-4,-23) 能到、-24 过不去）。
+   *
+   * **悬崖和河不用这个矩形来拦**：地形只要比 47° 陡，`isStandable` 自己
+   * 就说不（岸壁那条规则）。矩形只是最外圈的兜底。
+   */
+  walkableRect: TERRAIN_BOUNDS,
+
+  /*
+   * 自动寻路只烤**有内容的那一片**：领地八块地 + 两座桥 + 河对岸的镇子。
+   *
+   * 比可走范围小得多是刻意的——见 `MapDefinition.navRect`。四条边分别
+   * 卡在：西 -40（`west_meadow` / `northwest_wood` 的西界）、北 -27
+   * （四块北地的北界）、东 45（东桥走到头）、南 47（南岸）。
+   * 也就是说**领地开到哪，寻路就管到哪**，一格不多。
+   */
+  navRect: { minX: -40, maxX: 45, minZ: -27, maxZ: 47 },
 
   floorLevel: FLOOR_LEVEL,
 

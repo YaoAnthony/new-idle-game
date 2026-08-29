@@ -22,7 +22,7 @@ import {
   isNodeUnlocked,
   markNodeCompleted,
 } from "../State/actionChains";
-import { canAfford, findSupportingFurniture, getActiveAction, startAction } from "./actions";
+import { canAfford, getActiveAction, startAction } from "./actions";
 
 /**
  * 系列任务和行动系统的缝合层：从链节点发起行动、行动完成时回链打勾发奖。
@@ -40,7 +40,6 @@ export type StartNodeResult =
   | "locked"       // 前置没做完
   | "completed"    // 已经做过（一次性）
   | "busy"         // 已有进行中的行动（同一时刻只能做一件事，规则不变）
-  | "no_furniture" // 该分类的支撑家具还没摆
   | "tired";       // 精力不够
 
 /**
@@ -58,7 +57,6 @@ export function startChainNodeAction(ref: ActionChainRef): StartNodeResult {
 
   const definition = findActionByCategory(chain.category);
   if (!definition) return "missing";
-  if (findSupportingFurniture(chain.category) === null) return "no_furniture";
   if (!canAfford(definition, node.priority)) return "tired";
 
   const ok = startAction(

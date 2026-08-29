@@ -45,7 +45,6 @@ const START_FAIL: Record<Exclude<StartNodeResult, "ok">, string> = {
   locked: "前置还没做完，这一环还锁着",
   completed: "这一环已经做过了（一次性）",
   busy: "已经有进行中的行动了，同一时刻只能做一件事",
-  no_furniture: "该分类的支撑家具还没摆，先去摆一件",
   tired: "精力不够，先休息",
 };
 

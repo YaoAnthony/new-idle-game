@@ -130,7 +130,7 @@ export function removeTask(taskId: string): boolean {
  *
  * 返回今天抽中的那几条。抽签结果确定性（种子 = 玩家 + 世界日），
  * 同一天反复开关面板抽出来的永远是同一批，否则玩家会一直重开面板
- * 直到抽到最容易的四条。
+ * 直到抽到最容易的那几条。
  */
 export function getToday(): readonly DailyTaskDraw[] {
   return ensureToday().draws;

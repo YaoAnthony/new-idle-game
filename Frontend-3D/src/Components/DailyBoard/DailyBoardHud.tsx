@@ -6,6 +6,7 @@ import {
   hasDailyBoardMachine,
 } from "../../Game/Systems/dailyTasks";
 import { t } from "../../i18n/t";
+import { DailyProgressBar } from "./DailyProgressBar";
 
 /**
  * 顶部的今日任务进度条（V0.11）。
@@ -115,25 +116,12 @@ export function DailyBoardHud() {
           {t("ui.daily.hud_title")}
         </span>
 
-        <span className="flex items-center gap-1">
-          {Array.from({ length: board.goal }, (_, index) => {
-            const filled = index < board.progress;
-            return (
-              <span
-                key={index}
-                className={[
-                  "h-2.5 w-2.5 rounded-full transition-colors duration-300",
-                  filled
-                    ? full
-                      ? "bg-[#7a5a1d]"
-                      : "bg-[var(--peach-deep)]"
-                    : "bg-[var(--cream-3)]",
-                  index === popIndex ? "daily-hud__pip--pop" : "",
-                ].join(" ")}
-              />
-            );
-          })}
-        </span>
+        <DailyProgressBar
+          progress={board.progress}
+          goal={board.goal}
+          popIndex={popIndex}
+          size="hud"
+        />
 
         <span className="text-[12px] font-bold tabular-nums text-[var(--ink-soft)]">
           {board.progress}

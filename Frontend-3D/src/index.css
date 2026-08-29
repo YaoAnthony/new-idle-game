@@ -207,10 +207,20 @@ input {
   content: "";
   position: absolute;
   inset: 4px;
-  border: 2px dashed var(--dash, var(--peach));
+  /*
+   * **虚线全部拿掉**（2026-08-27 统一语言）。
+   *
+   * 项目里有五处不同的东西都描着 2px 虚线：HUD 卡、快捷栏、背包内衬、
+   * 清单纸、表单只读行。虚线本来的意思是"临时 / 可编辑 / 未确定"，
+   * 五处都用等于它什么也不表示；而在 375px 高的基准机上，那么多虚线
+   * 是一片实打实的高频噪点，扫一眼全是碎点。
+   *
+   * 留一道极浅的实线内衬：层次还在，噪点没了。
+   */
+  border: 1px solid var(--dash, rgb(255 255 255 / 0.5));
   border-radius: inherit;
   pointer-events: none;
-  opacity: 0.65;
+  opacity: 0.5;
 }
 
 /* 物品格子 */
@@ -349,14 +359,23 @@ input {
 
 /* 内衬：格子和详情卡都躺在它上面。比外壳更浅，做出"凹进去"的层次 */
 .ui-parchment {
-  border: 2px dashed var(--line-deep);
+  /* 虚线 → 无边。凹陷感靠底色本身比外面浅一档，不靠描边（见 .ui-dash） */
+  border: none;
   border-radius: 16px;
-  background: linear-gradient(180deg, #fffdf8 0%, var(--cream-2) 100%);
-  box-shadow: inset 0 2px 8px rgb(227 174 144 / 0.22);
+  background: #f4efe6;
 }
 
 /* 分类页签 */
 .ui-tab {
+  /*
+   * 44px 是 iOS/Android 通行的最小触摸目标，写在类上而不是每个调用点
+   * 各自加一遍——背包那排页签有七个，漏一个就是一个点不准的按钮。
+   * 这是横屏手游，指尖接触面直径就有 40 多 px，32 高的胶囊真的点空。
+   */
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 2px solid var(--line-deep);
   border-radius: 999px;
   background: linear-gradient(180deg, var(--cream) 0%, var(--cream-3) 100%);
@@ -569,6 +588,144 @@ input {
   }
 }
 
+/* ---- 日记本（2026-08-27）---- */
+
+/*
+ * 输入框的占位文字要**单独设色**：`::placeholder` 不继承 `color`，
+ * 不设的话吃浏览器默认的蓝灰，压在牛皮纸上几乎看不见（实拍验证过）。
+ */
+.diary-input::placeholder {
+  color: rgba(70, 52, 30, 0.45);
+}
+
+/* 翻页库自己控制最外层那个元素的 class/style，页面的纸质要挂在内层 */
+.diary-book .stf__item {
+  overflow: hidden;
+}
+
+/* ---- 面板外壳 Modal（2026-08-27）---- */
+
+/*
+ * 同心三层的几何。**三个 inset 是一套，改一个就要一起算。**
+ *
+ *   modal-card   inset: --modal-outer          外壳（一道窄白边）
+ *   modal-frame  inset: 5px（相对 card）        中间那整圈高饱和色
+ *   modal-paper  inset: --modal-outer + --modal-frame-w   白内胆
+ *
+ * `modal-paper` 是 `modal-card` 的**兄弟**不是子元素——它要独立做 layout
+ * 动画（从 50×50 的小方块长成内胆），套在里面的话会被父级的 transform
+ * 一起缩放，绽开时字会先糊成一团再清晰。
+ *
+ * 边框厚度按**高度**分档：40px 的框在 375 高的基准机上要吃掉 80px，
+ * 内容区只剩 215px。断点判高度不判宽度的理由见 .ui-panel-pad。
+ */
+.modal-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 外壳离屏幕边的距离 / 中间那圈色的厚度 */
+  --modal-outer: 14px;
+  --modal-frame-w: 12px;
+}
+
+@media (min-height: 460px) {
+  .modal-stage {
+    --modal-outer: 40px;
+    --modal-frame-w: 25px;
+  }
+}
+
+.modal-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgb(24 14 8 / 0.42);
+  /* 遮罩自己不吃点击：关闭判定在 .modal-stage 上（点中它本身才算点在外面） */
+  pointer-events: none;
+}
+
+.modal-card {
+  position: relative;
+  z-index: 1;
+  /* 还没展开时就是一枚小方章 */
+  width: 150px;
+  height: 150px;
+  /* 最外圈那道窄边。默认跟内胆同色，给了 edgeColor 就是第三层 */
+  background: var(--modal-edge, var(--modal-paper));
+  will-change: transform;
+}
+
+/*
+ * 展开态靠 [data-phase] 切成 absolute + inset。
+ *
+ * **这一步不能用 scale 做**：scale 会把那道窄白边和中间那圈色一起放大，
+ * 5px 的边变成 40px 的边，同心厚框的比例整个垮掉。改成真的换布局盒，
+ * 由 motion 的 layout 动画去插值——边框厚度因此全程不变。
+ */
+.modal-stage[data-phase="expand"] .modal-card,
+.modal-stage[data-phase="exit"] .modal-card {
+  position: absolute;
+  inset: var(--modal-outer);
+  width: auto;
+  height: auto;
+}
+
+.modal-frame {
+  position: absolute;
+  inset: 5px;
+  background: var(--modal-frame);
+  will-change: transform;
+}
+
+.modal-paper {
+  position: absolute;
+  z-index: 2;
+  inset: calc(var(--modal-outer) + var(--modal-frame-w));
+  background: var(--modal-paper);
+  overflow: hidden;
+  will-change: transform;
+}
+
+/* 没展开时它是印章底下那个 50×50 的小白块 */
+.modal-stage[data-phase="idle"] .modal-paper,
+.modal-stage[data-phase="entry"] .modal-paper,
+.modal-stage[data-phase="spin"] .modal-paper {
+  inset: auto;
+  width: 50px;
+  height: 50px;
+}
+
+.modal-content {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+}
+
+/*
+ * 外壳外面那一层。**默认不吃指针**：它铺满整个 stage，吃的话点空白处
+ * 就关不掉面板了（关闭判定是"点中 stage 本身"）。子元素自己开。
+ */
+.modal-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.modal-seal {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 50px;
+  height: 50px;
+  z-index: 3;
+  border-radius: 50%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 /* ---- 每日任务进度条（V0.11）---- */
 
 /**
@@ -578,21 +735,26 @@ input {
  * 而这里要的是**同一个状态下的一段表演**（放大再回落）。回弹曲线和
  * 快捷栏选中格同一条（cubic-bezier(0.34,1.56,0.64,1)），
  * 整个界面的"弹"是同一种弹。
+ *
+ * **主要往上长（scaleY 1.7）而不是等比放大**：进度条改成分段条之后，
+ * 格子是并排贴着的，等比放大 1.85 会让它压到左右两格身上，看着像
+ * 挤了一下而不是弹了一下。竖向长出槽外反而正是"这一格刚亮"的读法。
+ * 横向那点 1.08 只是别让它显得被拉瘦。
  */
-@keyframes daily-pip-pop {
+@keyframes daily-seg-pop {
   0% {
-    transform: scale(1);
+    transform: scaleY(1) scaleX(1);
   }
   45% {
-    transform: scale(1.85);
+    transform: scaleY(1.7) scaleX(1.08);
   }
   100% {
-    transform: scale(1);
+    transform: scaleY(1) scaleX(1);
   }
 }
 
-.daily-hud__pip--pop {
-  animation: daily-pip-pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
+.daily-seg--pop {
+  animation: daily-seg-pop 420ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /**
@@ -644,6 +806,91 @@ input {
   flex-direction: column;
   flex: 0 1 auto;
   min-height: 0;
+}
+
+/* ----------------------------------------------------------------
+ * 日记本语言的 HUD 卡（2026-08-29 换皮第一批：FocusCard + 白噪音台）。
+ *
+ * 数值逐字取自 `BookPlanner.tsx`（用户钦定的设计稿）：白卡 =
+ * `bg-white border-2 #EEEEEE rounded-[20px]`；琥珀卡 = 名额条那块
+ * `bg-[#FFF8E1] border-4 #FFE082` 的皮。硬投影（0_Npx_0_实色）是这套
+ * 语言的签名，代替旧皮的柔光渐变。
+ *
+ * 老的 `.ui-bar`/`.ui-dash` 先留着——时钟、需求条、快捷栏还穿着它，
+ * 按"专注时看得见的优先"分批换，全换完再拆旧皮。
+ * ---------------------------------------------------------------- */
+
+.paper-card {
+  border: 2px solid #eeeeee;
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow:
+    0 4px 0 #e0e0e0,
+    0 10px 24px rgb(0 0 0 / 0.08);
+  font-family: "Nunito", "LXGW WenKai GB", "Kaiti SC", sans-serif;
+}
+
+/* 琥珀变体：给"此刻正在进行"的那张主卡用（专注倒计时） */
+.paper-card--amber {
+  border: 4px solid #ffe082;
+  border-radius: 24px;
+  background: #fff8e1;
+  box-shadow:
+    0 6px 0 #ffe082,
+    0 12px 24px rgb(0 0 0 / 0.08);
+  font-family: "Nunito", "LXGW WenKai GB", "Kaiti SC", sans-serif;
+}
+
+/* ---- 调音台在新皮下的部件（作用域限定，别的地方不受影响） ---- */
+
+.paper-card .mixer__row {
+  background: #f5f5f5;
+  box-shadow: inset 0 -2px 0 #e0e0e0;
+}
+
+.paper-card .mixer__mute {
+  border: 2px solid #eeeeee;
+  background: #ffffff;
+}
+
+.paper-card .mixer__meter {
+  background: #66bb6a;
+}
+
+.paper-card .mixer__rows {
+  scrollbar-color: #e0e0e0 transparent;
+}
+
+.paper-card .mixer__rows::-webkit-scrollbar-thumb {
+  background: #e0e0e0;
+}
+
+.paper-card .mixer__slider::-webkit-slider-runnable-track {
+  border: none;
+  background: #ffecb3;
+}
+
+.paper-card .mixer__slider::-moz-range-track {
+  border: none;
+  background: #ffecb3;
+}
+
+.paper-card .mixer__slider::-webkit-slider-thumb {
+  /* 无边框轨道 6px，滑块 14px：往上提 4px 居中 */
+  margin-top: -4px;
+  width: 14px;
+  height: 14px;
+  border: none;
+  background: #ffca28;
+  box-shadow: 0 2px 0 #ff8f00;
+}
+
+.paper-card .mixer__slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  background: #ffca28;
+  box-shadow: 0 2px 0 #ff8f00;
 }
 
 /* ---- 白噪音台（专注时的左侧调音板） ---- */
@@ -840,6 +1087,36 @@ input {
  * （和 .ui-book 换 book_bg.png 是同一套路子）。
  */
 
+/*
+ * 面板的内外边距。**断点判高度不判宽度。**
+ *
+ * 这是横屏游戏，基准机 iPhone SE 是 667×375——**宽得很、矮得要命**。
+ * Tailwind 的 `sm:`/`md:` 全是宽度断点，667 宽随便命中，于是"手机上收紧
+ * 边距"这类写法在这个项目里等于没写。真正稀缺的是高度，所以按高度分档。
+ *
+ * 矮屏这一档不是"稍微紧一点"，是**功能性的**：每日任务面板原来外 28 内
+ * 36/24，光边距吃掉 116px，底下的输入框被顶到 bottom=405（视口才 375），
+ * 玩家在基准机上根本写不了清单。
+ */
+.ui-panel-pad {
+  padding: 10px 16px;
+}
+
+.ui-panel-inset {
+  /* 上边留给压在边缘上的牌匾，比左右厚 */
+  padding: 26px 18px 14px;
+}
+
+@media (min-height: 460px) {
+  .ui-panel-pad {
+    padding: 28px 24px;
+  }
+
+  .ui-panel-inset {
+    padding: 36px 28px 24px;
+  }
+}
+
 .ui-action-panel {
   background: linear-gradient(180deg, var(--cream) 0%, var(--cream-2) 55%, var(--cream-3) 100%);
   border: 4px solid var(--line);
@@ -875,15 +1152,10 @@ input {
   transition: transform 140ms cubic-bezier(0.34, 1.56, 0.64, 1), filter 110ms ease-out;
 }
 
-.ui-action-card::before {
-  content: "";
-  position: absolute;
-  inset: 5px;
-  border: 2px dashed var(--peach);
-  border-radius: 15px;
-  pointer-events: none;
-  opacity: 0.55;
-}
+/*
+ * 原来这里有一圈 5px 内缩的桃色虚线。连同其它四处虚线一起去掉——
+ * 分类卡现在是实心色块，再套一圈虚线只会把色块切成两半。
+ */
 
 .ui-action-card:hover {
   transform: translateY(-4px);
@@ -919,17 +1191,16 @@ input {
 
 /* 信纸区：虚线框 + 浅色横线，空着时也不显得秃 */
 .ui-paper {
-  background-color: #fffdf8;
-  background-image: repeating-linear-gradient(
-    180deg,
-    transparent 0,
-    transparent 43px,
-    var(--cream-3) 43px,
-    var(--cream-3) 44px
-  );
-  border: 2px dashed var(--line-deep);
-  border-radius: 18px;
-  box-shadow: inset 0 2px 8px rgb(227 174 144 / 0.2);
+  /*
+   * 拟物的三件套全去掉：信纸横线（repeating-linear-gradient）、虚线边、
+   * 内阴影。它们叠在一起是"手账风"，而这个项目同时还有深色玻璃和棕木
+   * 羊皮纸两套语言——三套并存才是"丑"的根因，统一比精修任何一套都重要。
+   *
+   * 剩下的是一块比外面深一档的实底：凹陷层次还在，噪点没了。
+   */
+  background: #f4efe6;
+  border: none;
+  border-radius: 16px;
 }
 
 /*
@@ -1014,6 +1285,17 @@ input {
   padding-inline: 0;
 }
 
+/*
+ * 右上角第三个槽位（日记本）。
+ * 齿轮在最外、行动在中间、日记本再往左一格——间距和前两个同一套变量算，
+ * 不写死像素，`--hud-btn` 或 `--hud-gap` 一调三个一起跟。
+ */
+.hud-corner-btn--inner-2 {
+  right: calc(var(--hud-edge) + 2 * var(--hud-btn) + 2 * var(--hud-gap));
+  width: var(--hud-btn);
+  padding-inline: 0;
+}
+
 /* 选中态（捏脸页的槽位标签用）：亮起来，和 .ui-slot--selected 一个语言 */
 .ui-wood-btn--active {
   border-color: #fffdf8;
@@ -1085,8 +1367,8 @@ input {
 
 /* 只读行（使用家具：自动选中，不给改） */
 .ui-readonly-row {
-  background: rgb(255 233 212 / 0.55);
-  border: 2px dashed var(--line-deep);
+  background: #f4efe6;
+  border: none;
   border-radius: 14px;
   color: var(--ink-soft);
 }
@@ -1235,13 +1517,20 @@ input {
 
 /*
  * 买不起的样子。**不用 opacity 直接调透明**：那会把卡片连同底下的货架
- * 一起洗淡，读起来像"这张卡没加载出来"。抽掉颜色 + 压暗一点，
- * 是"东西在那儿，只是你还买不起"。
+ * 一起洗淡，读起来像"这张卡没加载出来"。
+ *
+ * **褪色只作用在图上，不作用在整张卡**（2026-08-26 改）。原来是整卡
+ * `saturate(0.35)`，价钱标签跟着一起洗——而价钱里现在有一枚满饱和的
+ * 金币，被洗成灰绿色，看起来像图挂了。褪的该是**货**（"东西在那儿，
+ * 只是你还买不起"），价钱恰恰是这时候最该看清的那个东西。
  */
 .ui-shop-card--broke {
   cursor: not-allowed;
-  filter: saturate(0.35) brightness(0.98);
   box-shadow: 0 3px 0 var(--line);
+}
+
+.ui-shop-card--broke .ui-shop-card__art {
+  filter: saturate(0.3) brightness(0.97);
 }
 
 /* 图的底托：一小块浅色圆角，让不同画风的图标看起来是同一套 */
@@ -1257,10 +1546,39 @@ input {
   border-radius: 12px;
 }
 
+/*
+ * 价钱标签。**内边距跟着字号一起长过**（1px 7px → 3px 10px）：
+ * 只把字调大、留白不动的话，数字会顶到胶囊的上下边，看着像被挤爆了。
+ */
 .ui-shop-price {
   border-radius: 999px;
-  padding: 1px 7px;
-  line-height: 1.5;
+  padding: 3px 10px;
+  line-height: 1.4;
+}
+
+/* 确认框里那一档：同一个胶囊再放大一号，它在那儿是主角 */
+.ui-shop-price--lg {
+  font-size: 20px;
+  padding: 6px 14px;
+}
+
+/*
+ * 买完那条回执。用薄荷绿而不是弹个新面板——
+ * 玩家的目光这会儿正落在刚关掉的确认框那个位置，货架底下这一条就在
+ * 视线往回收的路上。绿是全局"成事了"的颜色（够钱的价钱标签也是它）。
+ */
+.ui-shop-receipt {
+  border-radius: 999px;
+  background: var(--mint);
+  color: #1f5a49;
+  animation: shop-receipt-in 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes shop-receipt-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px) scale(0.94);
+  }
 }
 
 .ui-shop-price--ok {

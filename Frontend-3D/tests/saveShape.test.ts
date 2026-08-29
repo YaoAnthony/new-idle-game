@@ -96,7 +96,19 @@ const SHAPE: string[] = [
   "ownWorld.worldId",
   "player.actionChains[]",
   "player.actionEntries[]",
+  /*
+   * v33：事后补记的每日额度。版本已抬、迁移已补（那条是空的，理由写在
+   * migrations 里）。**联机不跟**——它挂在 PlayerSave 上跟着人走，
+   * 做客时用掉的还是自己那份，不属于 WorldRefreshSlices 那一层。
+   */
+  "player.actionLog",
   "player.activeActionProcess",
+  /*
+   * v35：日记本（完整历史，稀疏天数组）。版本已抬、迁移已补（空的，
+   * 理由在 migrations：dayFacts 那两天来源可疑，不搬）。联机不跟——
+   * 跟着人走，做客翻开的也是自己的。
+   */
+  "player.diary",
   "player.avatar.bodyId",
   "player.avatar.bottomId",
   "player.avatar.colors",

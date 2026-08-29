@@ -17,6 +17,8 @@ import { eatFromWare } from "../../Game/Systems/servedDish";
 import { presentedItemId, servedDish } from "../../Game/Systems/servedDish";
 import { isTouchMode } from "../../Game/State/touchMode";
 import { t } from "../../i18n/t";
+import { Modal } from "../Modal/Modal";
+import { BagSeal } from "../Modal/seals";
 import { DragGhost, ItemIcon, SlotCell } from "../Inventory/slots";
 import { usePanel } from "../PanelStack/usePanel";
 
@@ -119,24 +121,28 @@ export function Backpack() {
 
   const tabHasAny = visible.some((stack) => stack && matchesTab(stack.itemId));
 
-  if (!open) return <DragGhost />;
+  /*
+   * **不能在这儿早退。** 原来关着就只渲染 DragGhost，而现在挂载与否归
+   * Modal 管（它要留着播 exit 动画）。这里早退的话 Modal 连 open=false
+   * 都收不到，关闭动画一帧也不会有。DragGhost 本来就在下面渲染着。
+   */
 
   return (
     <>
       {/*
-       * 压暗背景：面板占住正中间，暗一层才看得出焦点在面板上。
-       * 点空白处也能关——和 Esc 一样是兜底出口。
-       *
-       * z-40 而不是 20：这是**全屏遮罩式模态**，按仓库既有分层
-       * （HUD 和侧栏 z-30、全屏覆盖 z-40、拖拽幽灵 z-50）该压过 HUD。
-       * 原来 z-20 会被右上角的设置按钮（z-30）盖住关闭按钮——
-       * 窄屏上两者正好重叠，点不到 ×。
-       */}
-      <div
-        className="absolute inset-0 z-40 grid place-items-center bg-black/40 p-3"
-        onPointerDown={(event) => {
-          if (event.target === event.currentTarget) setOpen(false);
-        }}
+        外壳交给 `Modal`（同心厚框 + 印章绽开），和行动、每日任务同一套。
+        原来那层遮罩、z-40 分层、点空白关闭全部搬进 `.modal-stage`。
+        **`instant`：背包一局要开几十次**，1.8 秒的绽开仪式在这儿会从
+        "有质感"变成"卡"。仪式留给不常开的面板。
+      */}
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        seal={<BagSeal />}
+        frameColor="#7a5aa8"
+        paperColor="#fdfbf7"
+        label={t("ui.backpack")}
+        instant
       >
         {/*
           `min-h-0` 不能省：外层是 grid 居中，而 grid 项的 `min-height` 默认是
@@ -144,7 +150,13 @@ export function Backpack() {
           `max-h-full`**。横屏手机（高 414）上实测面板撑到 603px，底部整排
           格子被裁在屏幕外，而且因为面板自己没超出，内层的 overflow 也不触发。
         */}
-        <div className="ui-pack flex max-h-full min-h-0 w-[min(1100px,96vw)] flex-col p-3 sm:p-4">
+        {/*
+          尺寸交给外壳。原来这里自己写死 `w-[min(1100px,96vw)]` + `max-h-full`
+          ——那是"自己就是最外层"时的算法，现在它装在 Modal 的内胆里，
+          按视口算出来的宽度比内胆还宽，右边的 ✕ 和容量数字直接被裁掉。
+          `.ui-pack` 那层奶油渐变底也去掉：内胆已经是底了，两层叠着是脏色。
+        */}
+        <div className="flex h-full min-h-0 w-full flex-col p-3">
           {/*
            * 标题行。**窄屏拆成两行**：标题+关闭一行、页签自己一行。
            * 挤在一行的话页签会换行，把标题顶得上下不着边。
@@ -162,7 +174,7 @@ export function Backpack() {
               {/* 窄屏时关闭按钮跟着标题走，宽屏时排到最右 */}
               <button
                 type="button"
-                className="ui-wood-btn grid h-8 w-8 shrink-0 place-items-center text-[16px] font-bold sm:hidden"
+                className="ui-wood-btn grid h-11 w-11 shrink-0 place-items-center text-[16px] font-bold sm:hidden"
                 aria-label={t("ui.close")}
                 onClick={() => setOpen(false)}
               >
@@ -207,7 +219,7 @@ export function Backpack() {
 
             <button
               type="button"
-              className="ui-wood-btn hidden h-8 w-8 shrink-0 place-items-center text-[16px] font-bold sm:grid"
+              className="ui-wood-btn hidden h-11 w-11 shrink-0 place-items-center text-[16px] font-bold sm:grid"
               aria-label={t("ui.close")}
               onClick={() => setOpen(false)}
             >
@@ -296,7 +308,7 @@ export function Backpack() {
             </span>
           </div>
         </div>
-      </div>
+      </Modal>
 
       <DragGhost />
     </>

@@ -18,18 +18,26 @@ import type { CSSProperties, ReactNode } from "react";
 export function HudPanel({
   /** 虚线颜色。时钟按时段染色（凌晨桃、白天蓝、夜里紫），别的用默认桃色 */
   dash,
+  /**
+   * `paper` = 日记本语言的白卡（2026-08-29 起的新皮）。
+   * 缺省还是奶油皮——换皮是分批的（专注时看得见的先换），
+   * 时钟和需求条还穿着旧的，全换完这个开关和旧皮一起拆。
+   */
+  skin,
   className = "",
   children,
 }: {
   dash?: string;
+  skin?: "paper";
   className?: string;
   children: ReactNode;
 }) {
+  const shell = skin === "paper" ? "paper-card" : "ui-bar ui-dash";
   return (
     <div
       // relative 是 .ui-dash 那圈虚线要的定位锚点——它自己不设 position
       // （设了会顶掉别处的 absolute，见 index.css 里那段注释）
-      className={`hud-panel ui-bar ui-dash relative ${className}`}
+      className={`hud-panel ${shell} relative ${className}`}
       style={dash ? ({ "--dash": dash } as CSSProperties) : undefined}
     >
       {children}

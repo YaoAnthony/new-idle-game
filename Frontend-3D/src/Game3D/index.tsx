@@ -50,7 +50,6 @@ import { GameSettingsModal } from "../Components/GameSettings/GameSettingsModal"
 import { SleepOverlay } from "../Components/SleepOverlay/SleepOverlay";
 import { HudColumn } from "../Components/Hud/HudColumn";
 import { HudTopCenter } from "../Components/Hud/HudTopCenter";
-import { FocusVignette } from "../Components/ActionHub/FocusCard";
 import { BuildProgress } from "../Components/BuildProgress/BuildProgress";
 import { BuildShopPanel } from "../Components/BuildShopPanel/BuildShopPanel";
 import { TradePanel } from "../Components/TradePanel/TradePanel";
@@ -102,7 +101,6 @@ import {
 } from "../Game/Systems/kitchen";
 import { setupTestRoom } from "../Game/Systems/testRoom";
 import {
-  findSupportingFurniture,
   getLastActionEnd,
   startAction,
 } from "../Game/Systems/actions";
@@ -127,6 +125,7 @@ import {
   factsOfYesterday,
   startDayRecord,
 } from "../Game/Systems/dayRecord";
+import { startAutoLife } from "../Game/Systems/autoLife";
 import { listResidents, startResidents } from "../Game/Systems/residents";
 import {
   buyFromTraveler,
@@ -164,6 +163,8 @@ import {
   resetTerritory,
   unlockPlotById,
   unlockablePlotIds,
+  isTerritoryGateBypassed,
+  setTerritoryGateBypassed,
 } from "../Game/State/territory";
 import { pushSystemMessage } from "../Game/State/chatLog";
 import {
@@ -211,6 +212,8 @@ import {
   registerDailyCommands,
   startDailyRollover,
 } from "../Game/Systems/dailyCommands";
+import { registerActionCommands } from "../Game/Systems/actionCommands";
+import { DiaryPanel } from "../Components/Diary/DiaryPanel";
 import { registerChainCommands } from "../Game/Systems/chainCommands";
 import { isRemoteWorldActive } from "../Game/Multiplayer/session";
 import { describeSoundscape, startSoundscape } from "./Engine/Soundscape";
@@ -346,6 +349,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
     const stopClock = startClock();
     // 昨日事实（报纸素材）：翻页时把新的一天开出来、记下天气
     const stopDayRecord = startDayRecord();
+    // 自动生活：专注开始就接管日程（脑子；身体在 RoomScene 的驱动器里）
+    const stopAutoLife = startAutoLife();
     initAutoWalk();
     /*
      * 做客（世界是房主的）时不跑天气重掷：天气属于世界，重掷是**改世界**。
@@ -415,6 +420,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       // 联机：/host /join /leave /who（M1 的入口形态，见 Multiplayer/commands）
       ...registerNetCommands(),
       // 每日任务：正式交互在机器面板上，命令行是验收工具兼调试入口
+      ...registerActionCommands(),
       ...registerDailyCommands(),
       ...registerChainCommands(),
       registerCommand({
@@ -1001,11 +1007,15 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       registerCommand({
         name: "territory",
         arguments: [
-          { name: "动作", suggest: () => asSuggestions(["list", "unlock", "reset"]) },
+          {
+            name: "动作",
+            suggest: () => asSuggestions(["list", "unlock", "reset", "free"]),
+          },
           { name: "地块", suggest: () => asSuggestions(unlockablePlotIds()) },
         ],
-        usage: "territory [list|unlock <id>|reset]",
-        description: "领地：看格盘 / 开一块地 / 回到开局（正式驱动接上前的调试入口）",
+        usage: "territory [list|unlock <id>|reset|free [on|off]]",
+        description:
+          "领地：看格盘 / 开一块地 / 回到开局 / 临时停掉区块限制（调试）",
         handler: (args) => {
           const action = args[0] ?? "list";
 
@@ -1022,7 +1032,17 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
               const { minX, maxX, minZ, maxZ } = plot.rect;
               return `${plot.plotId} ${state}  x ${minX}..${maxX} / z ${minZ}..${maxZ}`;
             });
-            return ok(lines.join(" · "));
+            /*
+             * 旁路开着的话**必须在这儿说出来**。
+             *
+             * 一个看不见的调试开关是陷阱：格盘照旧报"锁定"（那是真的，
+             * 旁路不改拥有关系），而人却能走过去——不提示的话，下次看到
+             * 这一幕的人会以为领地系统坏了，然后去查一个根本没坏的东西。
+             */
+            const banner = isTerritoryGateBypassed()
+              ? "⚠ 区块限制已临时停用（/territory free off 恢复）\n"
+              : "";
+            return ok(banner + lines.join(" · "));
           }
 
           if (action === "reset") {
@@ -1030,7 +1050,36 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
             return ok(`回到开局：${ownedPlotIds().join(", ")}`);
           }
 
-          if (action !== "unlock") return fail("用法：territory [list|unlock <id>|reset]");
+          /*
+           * `free`：**临时把区块限制整个停掉**，用来通测地图。
+           *
+           * 不带参数是切换，也可以写死 on / off。三条性质在
+           * `State/territory` 的注释里：只活在运行时（刷新即恢复）、
+           * 不改「拥有」只跳过判定、做客时拒绝。
+           */
+          if (action === "free") {
+            if (isRemoteWorldActive()) {
+              return fail(
+                "做客时不能开：领地判定同时管着家具能摆在哪，带着它在别人家摆东西会把调试开关的后果写进房主的存档",
+              );
+            }
+            const raw = (args[1] ?? "").toLowerCase();
+            const next =
+              raw === "on" ? true : raw === "off" ? false : !isTerritoryGateBypassed();
+            if (raw && raw !== "on" && raw !== "off") {
+              return fail("用法：territory free [on|off]（不带参数是切换）");
+            }
+            setTerritoryGateBypassed(next);
+            return ok(
+              next
+                ? "区块限制已停：整张图随便走、随便建。围栏还画在真实边界上，好让你看得出越了哪条线。**刷新页面就恢复，不进存档。**"
+                : "区块限制恢复了。",
+            );
+          }
+
+          if (action !== "unlock") {
+            return fail("用法：territory [list|unlock <id>|reset|free [on|off]]");
+          }
 
           const plotId = args[1];
           if (!plotId) return fail(`用法：territory unlock <id>，现在可开：${unlockablePlotIds().join(", ") || "（没有）"}`);
@@ -1253,11 +1302,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
           ) as ActionPriority;
           const name = args.slice(3).join(" ") || `调试·${definition.id}`;
 
-          if (findSupportingFurniture(definition.category) === null) {
-            return fail(
-              `屋里没有支撑「${definition.id}」的家具（要 ${definition.requiredFurnitureCapabilities.join(" / ")}）`,
-            );
-          }
+          // 家具门槛 2026-08-28 取消（见 `findSupportingFurniture` 的注释）
           const started = startAction(definition.id, name, seconds, priority);
           if (!started) return fail("起不来：已经有行动在跑，或者精力不够");
           return ok(
@@ -1832,6 +1877,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       stopNeeds();
       stopWeather();
       stopDayRecord();
+      stopAutoLife();
       stopClock();
     };
   }, [loadedFromSave]);
@@ -1963,6 +2009,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       <NewspaperPanel />
       <DialoguePanel />
       <ActionHub />
+      <DiaryPanel />
       {/*
         左上角这一列：时钟在上、需求条在下，交给同一个 flex 列排。
         两者的高度都会变（时钟的天气行文案长短不一、需求条的条目数会随
@@ -1983,7 +2030,6 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       {/* 建筑选址的确认条（B17）。没在选址时它自己 null */}
       <BuildingPlacePanel />
       <HudTopCenter />
-      <FocusVignette />
       {/* 消息面板挂在游戏里而不是 App 里：消息记录属于**这个世界**，
           标题界面上还没有世界，开个输入框对着空气打字没有意义 */}
       <ChatPanel />

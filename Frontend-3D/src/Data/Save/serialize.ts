@@ -79,6 +79,11 @@ import {
   snapshotActionEntries,
 } from "../../Game/Systems/actions";
 import {
+  restoreActionLog,
+  snapshotActionLog,
+} from "../../Game/State/actionLog";
+import { restoreDiary, snapshotDiary } from "../../Game/State/diary";
+import {
   getDiscoveredRecipeIds,
   restoreDiscoveredRecipes,
 } from "../../Game/Systems/crafting";
@@ -152,6 +157,8 @@ export function serializeGameSave(previous?: GameSave): GameSave {
       discoveredRecipeIds: getDiscoveredRecipeIds(),
       // 行动清单跟着玩家走——这是你现实里要做的事，不属于哪间屋子
       actionEntries: snapshotActionEntries(),
+      actionLog: snapshotActionLog(),
+      diary: snapshotDiary(),
       // 正在做的那条也跟着人走（v12 从 WorldSave 搬来，见 PlayerSave 的注释）
       activeActionProcess: snapshotAction(),
       // 每日任务的池子和今日抽签跟着玩家走：做客时看到的还是自己的待办
@@ -380,6 +387,8 @@ export function hydrateGameSave(save: GameSave): void {
 
   // 行动最后恢复：它可能立刻结算并发奖励，需要背包已经就位
   restoreActionEntries(save.player.actionEntries);
+  restoreActionLog(save.player.actionLog);
+  restoreDiary(save.player.diary);
   // 链要在行动**之前**就位：restoreAction 会把离线期间已到点的行动
   // 当场补结算，带 chainRef 的那条要立刻回链上打勾——链还没恢复就打，
   // 勾会打在空气里，奖励发了、树却停在原地

@@ -41,6 +41,43 @@ function unlockedSet(): ReadonlySet<string> {
   return new Set(getUnlockedFeatures());
 }
 
+/**
+ * 调试开关：**临时把领地限制整个停掉**（`/territory free`）。
+ *
+ * ---- 三条必须写死的性质 ----
+ *
+ * 1. **只活在运行时，绝不进存档。** 它不是"解锁了地"，是"这一局先别拦
+ *    我"。真写进存档的话，一份被临时关过闸的档看起来和正常档一模一样，
+ *    而 `ownedPlotIds()` 仍然报着老数据——以后谁读这份档都会以为领地系统
+ *    坏了。刷新页面就恢复，这是想要的行为不是缺陷。
+ *
+ * 2. **不改「拥有」，只跳过「判定」。** `ownedPlotIds()` / `unlockablePlotIds()`
+ *    照旧说真话，围栏也照旧画在真实边界上（见下面的 strict 变体）。
+ *    测地图时看得见真边界、同时能走过去，比"边界凭空消失"有用得多。
+ *
+ * 3. **做客时不许开。** 领地判定同时管着家具能摆在哪；带着这个开关在别人
+ *    家里摆东西，房主那边会收到落在他领地外的家具并如实存下来——把调试
+ *    开关的后果写进了别人的存档。这是唯一一处硬拒绝。
+ */
+let gateBypassed = false;
+
+export function isTerritoryGateBypassed(): boolean {
+  return gateBypassed;
+}
+
+/**
+ * 开关闸门。返回是否真的变了（没变就不用惊动地图重建）。
+ *
+ * 变了要发 `world_changed`：导航网格采样 `isWalkable`，不重算的话
+ * `/go` 还按老边界寻路——人能走过去，自动寻路却说"到不了"。
+ */
+export function setTerritoryGateBypassed(next: boolean): boolean {
+  if (gateBypassed === next) return false;
+  gateBypassed = next;
+  emit("world_changed", { reason: "territory" });
+  return true;
+}
+
 export function hasTerritory(): boolean {
   return territoryOf() !== undefined;
 }
@@ -66,6 +103,20 @@ export function allPlots(): PlotDefinition[] {
  * 领地是据点独有的概念，不该让别的图为它付一次判断。
  */
 export function isInsideTerritory(x: number, z: number): boolean {
+  if (gateBypassed) return true;
+  const definition = territoryOf();
+  if (!definition) return true;
+  return coreIsInside(definition, unlockedSet(), x, z);
+}
+
+/**
+ * 同上，但**不吃调试旁路**——给"画真实边界"的地方用（`TerritoryView`）。
+ *
+ * 围栏和杂草是领地的**可视化**，它们该说真话：开了旁路之后仍然看得见
+ * 边界在哪，只是能走过去。让可视化也跟着旁路走的话，边界凭空消失，
+ * 测地图时反而不知道自己越了哪条线。
+ */
+export function isInsideTerritoryStrict(x: number, z: number): boolean {
   const definition = territoryOf();
   if (!definition) return true;
   return coreIsInside(definition, unlockedSet(), x, z);
@@ -76,6 +127,8 @@ export function isInsideTerritory(x: number, z: number): boolean {
  * 没有领地的图恒 `outside`——整图能走能建，领地这套概念在那儿不存在。
  */
 export function territoryStandingAt(x: number, z: number): TerritoryStanding {
+  // 旁路时一律当"自己的地"：locked 是唯一会拦人的取值（doorsRuntime）
+  if (gateBypassed) return "owned";
   const definition = territoryOf();
   if (!definition) return "outside";
   return coreStandingAt(definition, unlockedSet(), x, z);
@@ -88,6 +141,7 @@ export function rectInsideTerritory(rect: {
   minZ: number;
   maxZ: number;
 }): boolean {
+  if (gateBypassed) return true;
   const definition = territoryOf();
   if (!definition) return true;
   return coreRectInside(definition, unlockedSet(), rect);

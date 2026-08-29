@@ -1,5 +1,10 @@
 import type { AnchorId, InventoryId, PlayerId, WorldPosition } from "./base.js";
-import type { ActionProcessSave, PlayerActionEntry } from "./actions.js";
+import type {
+  ActionLogSave,
+  ActionProcessSave,
+  DiarySave,
+  PlayerActionEntry,
+} from "./actions.js";
 import type { AvatarConfig } from "./avatar.js";
 import type { DailyTasksSave } from "./dailyTasks.js";
 import type { ActionChainSave } from "./actions.js";
@@ -105,6 +110,29 @@ export type PlayerSave = {
    * 纯新增可选字段：老存档读出来是 undefined → 空池子，不需要迁移。
    */
   dailyTasks?: DailyTasksSave;
+
+  /**
+   * 事后补记用掉的每日额度（2026-08-25）。
+   *
+   * 跟着玩家走，和上面的 `actionEntries` 同一个理由：补记的是**你现实里
+   * 做过的事**，不属于哪间屋子；去朋友家做客用掉的还是自己那份。
+   *
+   * 纯新增可选字段：老存档读出来是 undefined → 今天还没补记过，
+   * 不需要迁移。
+   */
+  actionLog?: ActionLogSave;
+
+  /**
+   * 日记本（v35，2026-08-29）。**挂在玩家身上，不挂在世界上**——
+   * 用户原话"联机可不能用的是别人的日记"：做客时翻开的必须还是
+   * 自己的历史。
+   *
+   * 结构是**稀疏数组**：只存有内容的那些天（用户点名的形状），
+   * 翻到没记录的日子渲染空页即可，不用为每一天占一条。不修剪——
+   * 它就是"完整的历史"这个需求的存放处；`dayFacts` 那份两天的
+   * 修剪版继续归报纸，两者职责不同不合并。
+   */
+  diary?: DiarySave;
 
   /**
    * 正在进行的那一个行动。

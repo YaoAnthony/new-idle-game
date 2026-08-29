@@ -1,4 +1,4 @@
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { unlockAudio } from "../../Game3D/Engine/AudioEngine";
 import {
@@ -33,6 +33,7 @@ import {
   getWeather,
 } from "../../Game/State/weather";
 import { t } from "../../i18n/t";
+import { Modal } from "../Modal/Modal";
 import { usePanel } from "../PanelStack/usePanel";
 import {
   LANGUAGE_CHOICES,
@@ -65,7 +66,6 @@ const CHANNELS: Array<{ id: AudioChannel; labelKey: string }> = [
 const LOCALE_KEY = "idle-home:locale";
 
 export function GameSettingsModal() {
-  const reduceMotion = useReducedMotion();
   // 挡屏面板，开关挂在全局面板栈上
   const [open, setOpen] = usePanel("settings");
   const [tab, setTab] = useState<SettingsTabId>("world");
@@ -180,33 +180,31 @@ export function GameSettingsModal() {
         <img src="/icons/button/setting.png" alt="" />
       </motion.button>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            className="absolute inset-0 z-40 grid place-items-center bg-black/55 p-4 backdrop-blur-[2px]"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: reduceMotion ? 0 : 0.14 }}
-            onClick={() => setOpen(false)}
-          >
-            <motion.section
-              className="pixel-panel flex max-h-[min(680px,92dvh)] w-[min(760px,94vw)] flex-col overflow-hidden bg-[#f0dfad] text-[#3a281d]"
-              role="dialog"
-              aria-label={t("ui.settings.title")}
-              initial={reduceMotion ? false : { opacity: 0, y: 10, scale: 0.99 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
-              transition={{ duration: reduceMotion ? 0 : 0.18 }}
-              onClick={(event) => event.stopPropagation()}
-            >
-              <header className="flex items-center justify-between border-b-2 border-[#8a6239] px-5 py-3">
+      {/*
+        外壳交给 `Modal`，和行动 / 每日任务 / 背包同一套。原来这块是**第三套
+        设计语言**——棕木羊皮纸（#f0dfad 底、深木描边、方角），和奶油手账、
+        深色玻璃并存。三套语言同时活着才是"丑"的根因，比任何单屏的精修
+        都要紧。48 处硬编码棕色已经按角色映射到统一色板。
+        
+        `instant`：设置是随手开关的东西，不该每次看一遍绽开仪式。
+      */}
+      <Modal
+        open={open}
+        onClose={() => setOpen(false)}
+        frameColor="#4a6b7c"
+        paperColor="#fdfbf7"
+        label={t("ui.settings.title")}
+        instant
+      >
+        <div className="flex h-full flex-col overflow-hidden text-[#2b3b36]">
+              <header className="flex items-center justify-between border-b-2 border-[#e2ddd3] px-5 py-3">
                 <h2 className="m-0 text-[clamp(16px,2.6vw,20px)] font-black">
                   {t("ui.settings.title")}
                 </h2>
                 <button
                   type="button"
-                  className="grid size-8 place-items-center border-2 border-[#5b3c29] bg-[#dfc485] text-[#513321] transition-colors hover:bg-[#eed79d]"
+                  /* size-11 = 44px 触摸下限。原来 32×32，手指点不准 */
+                  className="grid size-11 place-items-center border-2 border-[#e2ddd3] bg-[#eae4d8] text-[#2b3b36] transition-colors hover:bg-[#eae4d8]"
                   aria-label={t("ui.settings.close")}
                   onClick={() => setOpen(false)}
                 >
@@ -215,7 +213,7 @@ export function GameSettingsModal() {
               </header>
 
               <nav
-                className="flex flex-wrap gap-1.5 border-b-2 border-[#8a6239] bg-[#e5cc93] p-2"
+                className="flex flex-wrap gap-1.5 border-b-2 border-[#e2ddd3] bg-[#f4efe6] p-2"
                 aria-label={t("ui.settings.title")}
               >
                 {SETTINGS_TABS.map((entry) => (
@@ -224,10 +222,11 @@ export function GameSettingsModal() {
                     type="button"
                     aria-pressed={tab === entry.id}
                     className={[
-                      "min-h-8 cursor-pointer border-2 border-[#7a5235] px-3 text-[13px] font-extrabold transition-colors",
+                      // min-h-11 = 44px 触摸下限。原来 32 高，五个页签排一行更难点
+                      "min-h-11 cursor-pointer border-2 border-[#e2ddd3] px-3 text-[13px] font-extrabold transition-colors",
                       tab === entry.id
-                        ? "bg-[#d9ad68] text-[#2c2119]"
-                        : "bg-[#f0dfad] text-[#6b4c33] hover:bg-[#eed79d]",
+                        ? "bg-[#4a6b7c] text-[#fdfbf7]"
+                        : "bg-[#fdfbf7] text-[#6b7a75] hover:bg-[#eae4d8]",
                     ].join(" ")}
                     onClick={() => setTab(entry.id)}
                   >
@@ -236,7 +235,15 @@ export function GameSettingsModal() {
                 ))}
               </nav>
 
-              <div className="flex-1 overflow-y-auto px-5 py-4 text-[13px]">
+              {/*
+                **min-h-0 缺一不可。** flex 子项的 min-height 默认是 auto，
+                所以光有 flex-1 + overflow-y-auto 它照样不肯缩到内容高度以下：
+                面板设了 max-h 和 overflow-hidden，多出来的部分被裁掉——
+                在 375 高的基准机上，「世界」页天气那一行整排被切在屏幕外
+                （实测 bottom=396），三种天气一个都点不到，而且没有滚动条
+                提示还有东西。加上 min-h-0 它才真的开始滚。
+              */}
+              <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 text-[13px]">
                 {tab === "world" && (
                   <div className="flex flex-col gap-5">
                     <section>
@@ -246,7 +253,7 @@ export function GameSettingsModal() {
                           <button
                             key={entry.phase}
                             type="button"
-                            className="flex min-h-[52px] cursor-pointer flex-col items-center justify-center gap-1 border-2 border-[#7a5235] bg-[#e5cc93] font-extrabold transition-colors hover:bg-[#eed79d]"
+                            className="flex min-h-[52px] cursor-pointer flex-col items-center justify-center gap-1 border-2 border-[#e2ddd3] bg-[#f4efe6] font-extrabold transition-colors hover:bg-[#eae4d8]"
                             onClick={() => debugJumpToPhase(entry.phase)}
                           >
                             <span aria-hidden="true">{entry.icon}</span>
@@ -270,10 +277,10 @@ export function GameSettingsModal() {
                               type="button"
                               aria-pressed={active}
                               className={[
-                                "flex cursor-pointer flex-col items-start gap-0.5 border-2 border-[#7a5235] p-2 text-left transition-colors",
+                                "flex cursor-pointer flex-col items-start gap-0.5 border-2 border-[#e2ddd3] p-2 text-left transition-colors",
                                 active
-                                  ? "bg-[#d9ad68]"
-                                  : "bg-[#e5cc93] hover:bg-[#eed79d]",
+                                  ? "bg-[#4a6b7c] text-[#fdfbf7]"
+                                  : "bg-[#f4efe6] hover:bg-[#eae4d8]",
                               ].join(" ")}
                               onClick={() => chooseWeather(choice.id)}
                             >
@@ -283,7 +290,7 @@ export function GameSettingsModal() {
                                   ? t("ui.settings.weather_auto")
                                   : t(`weather.${choice.id}`)}
                               </span>
-                              <span className="text-[11px] text-[#6b4c33]">
+                              <span className="text-[11px] text-[#6b7a75]">
                                 {t(choice.descKey)}
                               </span>
                             </button>
@@ -302,7 +309,7 @@ export function GameSettingsModal() {
                         <span>{t("ui.settings.mute")}</span>
                         <input
                           type="checkbox"
-                          className="size-4 accent-[#8d5d34]"
+                          className="size-4 accent-[#e2ddd3]"
                           checked={settings.muted}
                           onChange={(event) =>
                             update({ muted: event.target.checked })
@@ -338,14 +345,14 @@ export function GameSettingsModal() {
 
                     <section className="flex flex-col gap-2">
                       <SectionTitle>{t("ui.settings.music_now")}</SectionTitle>
-                      <p className="m-0 text-[12px] text-[#6b4c33]">
+                      <p className="m-0 text-[12px] text-[#6b7a75]">
                         {currentTrackLabel() ??
                           t("ui.settings.music_none")}
                         {currentAlbumLabel() ? ` · ${currentAlbumLabel()}` : ""}
                       </p>
                       <button
                         type="button"
-                        className="w-fit cursor-pointer border-2 border-[#7a5235] bg-[#e5cc93] px-3 py-1.5 font-extrabold transition-colors hover:bg-[#eed79d]"
+                        className="w-fit cursor-pointer border-2 border-[#e2ddd3] bg-[#f4efe6] px-3 py-1.5 font-extrabold transition-colors hover:bg-[#eae4d8]"
                         onClick={() => setMusicMode(cycleMusicMode())}
                       >
                         {t("ui.settings.music_mode")}：
@@ -364,15 +371,15 @@ export function GameSettingsModal() {
                         type="button"
                         aria-pressed={locale === choice.id}
                         className={[
-                          "flex cursor-pointer items-center gap-3 border-2 border-[#7a5235] p-2.5 text-left transition-colors",
+                          "flex cursor-pointer items-center gap-3 border-2 border-[#e2ddd3] p-2.5 text-left transition-colors",
                           locale === choice.id
-                            ? "bg-[#d9ad68]"
-                            : "bg-[#e5cc93] hover:bg-[#eed79d]",
+                            ? "bg-[#4a6b7c] text-[#fdfbf7]"
+                            : "bg-[#f4efe6] hover:bg-[#eae4d8]",
                         ].join(" ")}
                         onClick={() => chooseLocale(choice.id)}
                       >
                         <span
-                          className="grid size-8 shrink-0 place-items-center border-2 border-[#7a5235] bg-[#f0dfad] font-black"
+                          className="grid size-8 shrink-0 place-items-center border-2 border-[#e2ddd3] bg-[#fdfbf7] font-black"
                           aria-hidden="true"
                         >
                           {choice.icon}
@@ -381,7 +388,7 @@ export function GameSettingsModal() {
                           <span className="font-extrabold">
                             {t(choice.titleKey)}
                           </span>
-                          <span className="text-[11px] text-[#6b4c33]">
+                          <span className="text-[11px] text-[#6b7a75]">
                             {t(choice.subtitleKey)}
                           </span>
                         </span>
@@ -392,7 +399,7 @@ export function GameSettingsModal() {
 
                 {tab === "controls" && (
                   <div className="flex flex-col gap-5">
-                    <p className="m-0 text-[12px] text-[#6b4c33]">
+                    <p className="m-0 text-[12px] text-[#6b7a75]">
                       {t("ui.settings.rebind_hint")}
                     </p>
 
@@ -411,10 +418,10 @@ export function GameSettingsModal() {
                               <button
                                 type="button"
                                 className={[
-                                  "min-w-[104px] cursor-pointer border-2 border-[#65452f] px-2 py-1 font-mono text-[12px] font-extrabold transition-colors",
+                                  "min-w-[104px] cursor-pointer border-2 border-[#8a9a94] px-2 py-1 font-mono text-[12px] font-extrabold transition-colors",
                                   capturing === action
-                                    ? "animate-pulse bg-[#d9ad68]"
-                                    : "bg-[#e5cc93] hover:bg-[#eed79d]",
+                                    ? "animate-pulse bg-[#4a6b7c]"
+                                    : "bg-[#f4efe6] hover:bg-[#eae4d8]",
                                 ].join(" ")}
                                 onClick={() => setCapturing(action)}
                               >
@@ -430,7 +437,7 @@ export function GameSettingsModal() {
 
                     <button
                       type="button"
-                      className="w-fit cursor-pointer border-2 border-[#7a5235] bg-[#e5cc93] px-3 py-1.5 font-extrabold transition-colors hover:bg-[#eed79d]"
+                      className="w-fit cursor-pointer border-2 border-[#e2ddd3] bg-[#f4efe6] px-3 py-1.5 font-extrabold transition-colors hover:bg-[#eae4d8]"
                       onClick={() => {
                         resetBindings();
                         setNotice(null);
@@ -444,7 +451,7 @@ export function GameSettingsModal() {
                 {tab === "debug" && (
                   <section className="flex flex-col gap-2">
                     <SectionTitle>{t("ui.settings.commands")}</SectionTitle>
-                    <p className="m-0 text-[12px] text-[#6b4c33]">
+                    <p className="m-0 text-[12px] text-[#6b7a75]">
                       {t("ui.settings.commands_hint")}
                     </p>
                     <div className="flex flex-col gap-1.5">
@@ -456,7 +463,7 @@ export function GameSettingsModal() {
                           <code className="font-mono text-[12px] font-extrabold">
                             {command.usage}
                           </code>
-                          <p className="m-0 text-[11px] text-[#6b4c33]">
+                          <p className="m-0 text-[11px] text-[#6b7a75]">
                             {command.description}
                           </p>
                         </div>
@@ -468,23 +475,29 @@ export function GameSettingsModal() {
 
               {notice ? (
                 <p
-                  className="m-0 border-t-2 border-[#8a6239] bg-[#e3c98e] px-5 py-2 text-[12px] font-extrabold"
+                  className="m-0 border-t-2 border-[#e2ddd3] bg-[#eae4d8] px-5 py-2 text-[12px] font-extrabold"
                   role="status"
                 >
                   {notice}
                 </p>
               ) : null}
-            </motion.section>
-          </motion.div>
-        )}
-      </AnimatePresence>
+        </div>
+      </Modal>
     </>
   );
 }
 
+/*
+ * 分区标题（时间 / 天气 / 语言）。
+ *
+ * 用 #6b7a75 不用 #e2ddd3：后者是**描边色**，当文字色使就是浅底上的
+ * 更浅字，几乎读不出来。色号映射时把原来的深棕 #8a6239 连同一批边框
+ * 一起换成了描边色——单看色号"角色对得上"，放回上下文才发现它这儿
+ * 承担的是文字不是边。
+ */
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="mb-2 mt-0 text-[12px] font-black tracking-widest text-[#8a6239]">
+    <h3 className="mb-2 mt-0 text-[12px] font-black tracking-widest text-[#6b7a75]">
       {children}
     </h3>
   );

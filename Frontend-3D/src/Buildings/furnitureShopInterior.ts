@@ -42,37 +42,12 @@ function wallShelf(x: number, z: number, length: number, rotY: number): Object3D
         castShadow: false,
       }),
     ),
-    // 台面上的商品剪影：一盏小灯、一摞布、一只小凳
-    cylinder(0.07, 0.09, 0.16, 6, {
-      position: [-length * 0.3, 1.04, 0],
-      color: PALETTE.wallTrim,
-      castShadow: false,
-    }),
-    blob(0.09, 0, {
-      position: [-length * 0.3, 1.18, 0],
-      scale: [1, 0.7, 1],
-      color: "#d9b26a",
-      castShadow: false,
-    }),
-    box([0.26, 0.18, 0.26], {
-      position: [length * 0.05, 1.05, 0],
-      color: "#8f6f9e",
-      castShadow: false,
-    }),
-    box([0.24, 0.05, 0.24], {
-      position: [length * 0.32, 0.985, 0],
-      color: PALETTE.woodLight,
-      castShadow: false,
-    }),
-    ...[-1, 1].flatMap((sx) =>
-      [-1, 1].map((sz) =>
-        box([0.04, 0.14, 0.04], {
-          position: [length * 0.32 + sx * 0.08, 0.9, sz * 0.08],
-          color: PALETTE.woodDark,
-          castShadow: false,
-        }),
-      ),
-    ),
+    /*
+     * 台面上原来摆着一批**假商品剪影**（小灯/布堆/小凳），2026-08-30 删了：
+     * 台面现在归**真货**（玩家上架什么就摆什么，见 shopDisplayAnchors /
+     * BuildingsView.refreshShopGoods）。假的和真的挤同一张台面会穿模；
+     * 没货时的空架子也不是缺陷——"店还没进货"本来就该看得出来。
+     */
   ]);
   node.position.set(x, 0, z);
   node.rotation.y = rotY;
@@ -91,29 +66,10 @@ function displayTable(x: number, z: number): Object3D {
         }),
       ),
     ),
-    // 迷你椅（商品）
-    box([0.3, 0.06, 0.3], { position: [-0.38, 0.72, 0.05], color: PALETTE.woodDark }),
-    ...[-1, 1].flatMap((sx) =>
-      [-1, 1].map((sz) =>
-        box([0.045, 0.16, 0.045], {
-          position: [-0.38 + sx * 0.12, 0.63, 0.05 + sz * 0.12],
-          color: PALETTE.woodDark,
-          castShadow: false,
-        }),
-      ),
-    ),
-    box([0.06, 0.34, 0.3], { position: [-0.51, 0.9, 0.05], color: PALETTE.woodDark }),
-    // 迷你落地灯（商品）
-    cylinder(0.02, 0.02, 0.42, 5, {
-      position: [0.42, 0.77, -0.08],
-      color: PALETTE.woodDark,
-      castShadow: false,
-    }),
-    cylinder(0.13, 0.09, 0.14, 6, {
-      position: [0.42, 1.02, -0.08],
-      color: PALETTE.wallTrim,
-      castShadow: false,
-    }),
+    /*
+     * 迷你椅/迷你落地灯这两件"样品"删了，理由同墙架的假商品剪影：
+     * 台面归真货（shopDisplayAnchors 的最后一个位就是这张桌）。
+     */
   ]);
   node.position.set(x, 0, z);
   return node;
@@ -134,6 +90,39 @@ export function shopCrateLocal(halfW: number, _halfD: number): { x: number; z: n
 export function shopRegisterLocal(halfW: number, halfD: number): { x: number; z: number } {
   // 门右手边的柜台（收银台）
   return { x: halfW - 1.55, z: halfD - 1.55 };
+}
+
+/** 展示位：一个锚点 + 摆得下多大（超过就等比缩，见 refreshShopGoods） */
+export type ShopDisplayAnchor = {
+  x: number;
+  z: number;
+  y: number;
+  /** 水平方向允许的最大占地（米）。真货比这大就整体缩到装下 */
+  maxSize: number;
+};
+
+/**
+ * 真货的展示锚点（本地坐标，未旋转）。
+ *
+ * 位置就是那三组靠墙货架的台面 + 中央样品台——和造型同一组常量推出来，
+ * 架子挪了锚点跟着挪。台面高 0.96（柜体 0.9 + 台板半厚）；墙架每格
+ * 0.55 见方（放不下的等比缩），样品台上那格给大些。
+ */
+export function shopDisplayAnchors(halfW: number, halfD: number): ShopDisplayAnchor[] {
+  const top = 0.96;
+  return [
+    // 西墙长架（长 2.2，竖放）：三个位
+    { x: -halfW + 0.32, y: top, z: 0.2 - 0.72, maxSize: 0.55 },
+    { x: -halfW + 0.32, y: top, z: 0.2, maxSize: 0.55 },
+    { x: -halfW + 0.32, y: top, z: 0.2 + 0.72, maxSize: 0.55 },
+    // 北墙两组短架（长 1.8）：各两个位
+    { x: -1.3 - 0.5, y: top, z: -halfD + 0.32, maxSize: 0.55 },
+    { x: -1.3 + 0.5, y: top, z: -halfD + 0.32, maxSize: 0.55 },
+    { x: 1.3 - 0.5, y: top, z: -halfD + 0.32, maxSize: 0.55 },
+    { x: 1.3 + 0.5, y: top, z: -halfD + 0.32, maxSize: 0.55 },
+    // 中央样品台：台面 0.72 高，一个大位
+    { x: -1.35, y: 0.58, z: -0.4, maxSize: 0.8 },
+  ];
 }
 
 export function furnitureShopInterior(halfW: number, halfD: number): Object3D[] {

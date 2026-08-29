@@ -1,4 +1,4 @@
-import { Object3D, type Scene } from "three";
+import { Box3, Object3D, Vector3, type Scene } from "three";
 
 import { on } from "../../Game/EventBus";
 import { listBuildings } from "../../Game/State/buildings";
@@ -6,6 +6,16 @@ import { groundHeightAt } from "../../Game/State/worldRuntime";
 import { GOLD_STAGES } from "../../Buildings/goldJar";
 import { buildPlacedBuilding } from "../../Buildings/placement";
 import { buildSiteFence, makeGhost } from "../../Buildings/site";
+import {
+  shopDisplayAnchors,
+} from "../../Buildings/furnitureShopInterior";
+import { findBuildingLevel } from "../../Buildings/index";
+import {
+  findShop,
+  shelfIdFor,
+  shelfSlotsOf,
+} from "../../Game/Systems/shopkeeping";
+import { buildItemVisual } from "../Visual/VisualRegistry";
 import { disposeTree } from "../Visual/primitives";
 
 /**
@@ -44,6 +54,18 @@ export class BuildingsView {
      */
     this.offListeners.push(
       on("building_state_changed", ({ instanceId }) => this.refreshOne(instanceId)),
+    );
+
+    /*
+     * 货架一变就重摆店里的展示位（上架面板关不关都无所谓——storage 的
+     * 每次增删都发这个事件，"关掉箱子之后货就摆出来了"是它的自然结果，
+     * 而且中途开着面板搬货也能看见橱窗实时变，比等关门那一下更活）。
+     */
+    this.offListeners.push(
+      on("storage_changed", ({ inventoryId }) => {
+        const shop = findShop();
+        if (shop && inventoryId === shelfIdFor(shop)) this.refreshShopGoods();
+      }),
     );
   }
 
@@ -91,6 +113,97 @@ export class BuildingsView {
 
       this.root.add(node);
     }
+
+    // 楼是重建出来的，橱窗里的货也要跟着回来
+    this.refreshShopGoods();
+  }
+
+  /**
+   * 把货架上的**真货**摆上店内的展示位。
+   *
+   * 假商品剪影已经从内景里删掉（furnitureShopInterior 里写了理由），
+   * 台面归这里管：货架前几件、每件一个代表模型，随机分配到锚点上。
+   *
+   * ## 大件缩小
+   *
+   * 展示位是 0.55 见方的台面格，一张 2×1 的书桌原样摆上去会把整面墙
+   * 吃掉。按包围盒等比缩到装下（只缩不放：小东西保持原大，放大会糊）。
+   * 这不是"假装商品是模型"——现实家具店的橱窗样品本来就有缩样。
+   *
+   * ## 随机但不抖
+   *
+   * 洗牌的随机数用**货架内容做种子**（简单字符串 hash）：同一批货怎么
+   * 摆是定的，换一批货才换布局。用 Math.random 的话整组重建（挪一堵墙、
+   * 读档）都会让橱窗里的东西跳一次位，看着像闹鬼。
+   */
+  private refreshShopGoods(): void {
+    const shop = findShop();
+    if (!shop) return;
+    const node = this.root.getObjectByName(`building-${shop}`);
+    if (!node) return;
+
+    // 拆旧摆新。整组重建走 rebuild → 这里，单独变化走 storage_changed → 这里
+    const old = node.getObjectByName("shop-goods");
+    if (old) {
+      node.remove(old);
+      disposeTree(old);
+    }
+
+    const placement = listBuildings().find((item) => item.instanceId === shop);
+    if (!placement || placement.construction) return;
+    const level = findBuildingLevel(placement.buildingId, placement.levelId);
+    if (!level) return;
+
+    const goods = new Object3D();
+    goods.name = "shop-goods";
+
+    const anchors = [
+      ...shopDisplayAnchors(level.footprint.width / 2, level.footprint.height / 2),
+    ];
+    const stocked = shelfSlotsOf(shop).filter(
+      (slot): slot is NonNullable<typeof slot> => slot !== null,
+    );
+
+    // 种子洗牌（Fisher–Yates + LCG）：内容不变布局就不变
+    let seed = 0;
+    for (const slot of stocked) {
+      for (const ch of slot.itemId) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
+    }
+    const rand = () => {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      return seed / 0xffffffff;
+    };
+    for (let i = anchors.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(rand() * (i + 1));
+      [anchors[i], anchors[j]] = [anchors[j], anchors[i]];
+    }
+
+    const bounds = new Box3();
+    const size = new Vector3();
+    for (const [index, slot] of stocked.entries()) {
+      const anchor = anchors[index];
+      if (!anchor) break; // 展示位比货位少时，多出来的货只在货架数据里
+
+      const visual = buildItemVisual(slot.itemId);
+      if (!visual) continue;
+
+      bounds.setFromObject(visual);
+      bounds.getSize(size);
+      const footprint = Math.max(size.x, size.z, 0.001);
+      // 只缩不放；高度也管着点，别让落地灯顶穿上面那层格板
+      const scale = Math.min(1, anchor.maxSize / footprint, 1.1 / Math.max(size.y, 0.001));
+      visual.scale.setScalar(scale);
+      // 模型原点不一定在底面：把包围盒的底压到台面上
+      visual.position.set(
+        anchor.x,
+        anchor.y - bounds.min.y * scale,
+        anchor.z,
+      );
+      visual.rotation.y = rand() * Math.PI * 2;
+      goods.add(visual);
+    }
+
+    node.add(goods);
   }
 
   /** 按实例 id 找到那一栋，只把状态重新贴一遍 */

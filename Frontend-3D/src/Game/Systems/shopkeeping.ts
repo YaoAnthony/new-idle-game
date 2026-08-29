@@ -226,3 +226,24 @@ export function debugSettleOnce(): SoldEntry[] {
 export function budgetToday(): number {
   return customersToday().reduce((sum, customer) => sum + customer.budget, 0);
 }
+
+/**
+ * 按现在的货架**预演一天**能卖多少钱。上架面板的"预计今日收入"。
+ *
+ * 是 dry-run：把货架拷出来喂给 Core 的 `settleDay`，不扣货、不入账。
+ * 和真结算走**同一个算法**——预告和实际不同的话，玩家只会认为结算黑箱。
+ * 唯一的差别是 `revenueCap` 给无限：预告回答"这批货今天值多少"，
+ * 金库满不满是另一个问题（真结算才管）。
+ */
+export function previewTodayRevenue(instanceId: string): number {
+  const slots: ShelfSlot[] = shelfSlotsOf(instanceId).map((slot) =>
+    slot ? { itemId: slot.itemId, count: slot.count } : null,
+  );
+  const sold = settleDay({
+    slots,
+    customers: customersToday(),
+    priceFor: priceOf,
+    revenueCap: Number.POSITIVE_INFINITY,
+  });
+  return totalRevenue(sold);
+}

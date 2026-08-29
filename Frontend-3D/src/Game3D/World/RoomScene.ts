@@ -125,6 +125,11 @@ import {
   seedInitialFurniture,
 } from "../../Game/State/worldRuntime";
 import { findRoute } from "../../Game/Systems/navigation";
+import { findShop } from "../../Game/Systems/shopkeeping";
+import {
+  shopCrateLocal,
+  shopRegisterLocal,
+} from "../../Buildings/furnitureShopInterior";
 import { houseDressingOf, outdoorTerrainOf } from "../../Maps/index";
 import { buildGroundFixtures } from "./groundFixtures.js";
 import { getActiveAction } from "../../Game/Systems/actions";
@@ -215,7 +220,7 @@ import {
   furnitureWorldCenter,
   slotWorldPosition,
 } from "./FurnitureView.js";
-import { furnitureFloorDistance, interactProbe } from "./furnitureMath.js";
+import { FACING_ROTATION, furnitureFloorDistance, interactProbe } from "./furnitureMath.js";
 import { HeldItemView } from "./HeldItemView.js";
 import {
   DoorView,
@@ -342,6 +347,7 @@ export class RoomScene {
     | { kind: "pet"; petId: string }
     | { kind: "door"; refId: string }
     | { kind: "building"; instanceId: string }
+    | { kind: "shopSpot"; instanceId: string; spot: "crate" | "register" }
     | null = null;
   private interactCheckTimer = 0;
   /** 遮挡检测的限流计时。射线不必每帧打，镜头转得再快也跟得上 */
@@ -1484,6 +1490,48 @@ export class RoomScene {
   }
 
   /** 找角色附近最近的可交互目标（每 0.15s 查一次，遍历便宜） */
+  /**
+   * 家具小店店内交互点的世界坐标。没店/在建中回空数组。
+   *
+   * 局部坐标从内景模块读（`shopCrateLocal` 等）——判定和造型共用一个
+   * 函数，造型挪了判定自动跟着。旋转用楼自己的 FACING_ROTATION（three
+   * 的 Y 轴旋转：x' = x·cos + z·sin, z' = −x·sin + z·cos）。
+   */
+  private shopSpots(): Array<{
+    instanceId: string;
+    spot: "crate" | "register";
+    x: number;
+    z: number;
+    y: number;
+  }> {
+    const instanceId = findShop();
+    if (!instanceId) return [];
+    const placement = listBuildings().find(
+      (item) => item.instanceId === instanceId,
+    );
+    // 工地上没有可用的箱子：还在盖的店不收货
+    if (!placement || placement.construction) return [];
+    const level = findBuildingLevel(placement.buildingId, placement.levelId);
+    if (!level) return [];
+
+    const halfW = level.footprint.width / 2;
+    const halfD = level.footprint.height / 2;
+    const yaw = FACING_ROTATION[placement.facing];
+    const cos = Math.cos(yaw);
+    const sin = Math.sin(yaw);
+    const toWorld = (local: { x: number; z: number }) => ({
+      x: placement.x + local.x * cos + local.z * sin,
+      z: placement.z - local.x * sin + local.z * cos,
+    });
+
+    const crate = toWorld(shopCrateLocal(halfW, halfD));
+    const register = toWorld(shopRegisterLocal(halfW, halfD));
+    return [
+      { instanceId, spot: "crate", ...crate, y: placement.elevation },
+      { instanceId, spot: "register", ...register, y: placement.elevation },
+    ];
+  }
+
   private refreshInteractTarget(): void {
     // 全景里不提示"按 F 干什么"：镜头都飞到天上了，那个气泡只会
     // 挂在画面中央挡住截图。退出时下一轮检查会自己把它找回来
@@ -1532,8 +1580,25 @@ export class RoomScene {
       | { kind: "pet"; petId: string }
       | { kind: "door"; refId: string }
       | { kind: "building"; instanceId: string }
+      | { kind: "shopSpot"; instanceId: string; spot: "crate" | "register" }
       | null = null;
     let bestDistance = INTERACT_RADIUS;
+
+    /*
+     * 家具小店**店内的两个点**（上架箱 / 收银台）也参与竞争。
+     *
+     * 它们不是家具实例（内景陈设直接拼在楼模型里），所以四类候选都
+     * 罩不住——不加这一支的话，走到箱子跟前按 F，赢的是整栋楼
+     * （building 那支），开出来的是管理面板而不是上架面板。
+     * 点状测距（同门）：箱子/柜台都不到一格，占地矩形是多余的。
+     */
+    for (const spot of this.shopSpots()) {
+      const distance = Math.hypot(spot.x - probeX, spot.z - probeZ);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = { kind: "shopSpot", instanceId: spot.instanceId, spot: spot.spot };
+      }
+    }
 
     /*
      * **建筑也参与竞争**（照门那一支抄）。以前 `refreshInteractTarget`
@@ -1759,6 +1824,31 @@ export class RoomScene {
      * 名字直接取型号的 `localizationKey`（i18n 表里本来就有），不新增
      * 一套"气泡专用名"。加新楼自动就有名字，忘不了。
      */
+    /*
+     * 店内两个点的气泡。文案是**动作**（"上架摆货"）不是名词——它们
+     * 挨着整栋楼的石碑气泡（报楼名），一个报名字一个报动作才分得开。
+     */
+    for (const spot of this.shopSpots()) {
+      const distance = Math.hypot(spot.x - probeX, spot.z - probeZ);
+      if (distance >= HINT_RADIUS) continue;
+      const target: HintTarget = {
+        instanceId: `${spot.instanceId}:${spot.spot}`,
+        hint: {
+          localizationKey:
+            spot.spot === "crate" ? "hint.shop_crate" : "hint.shop_register",
+          // 收银台的领取在功能 D 接上之前先只报状态，不给按键标签——
+          // "F 领取"按了没反应是句假话
+          action: spot.spot === "crate" ? "interact" : undefined,
+        },
+        world: new Vector3(spot.x, spot.y + 1.15, spot.z),
+      };
+      hintByKey.set(`shop:${spot.spot}`, target);
+      if (distance < bestHintDistance) {
+        bestHintDistance = distance;
+        bestHint = target;
+      }
+    }
+
     for (const building of listBuildings()) {
       const level = findBuildingLevel(
         building.buildingId,
@@ -1898,7 +1988,9 @@ export class RoomScene {
         ? `pet:${target.petId}`
         : target.kind === "door"
           ? `door:${target.refId}`
-          : `${target.kind === "building" ? "building" : "station"}:${target.instanceId}`;
+          : target.kind === "shopSpot"
+            ? `shop:${target.spot}`
+            : `${target.kind === "building" ? "building" : "station"}:${target.instanceId}`;
 
     this.hintTarget = best ? hintByKey.get(hintKeyOf(best)) ?? null : bestHint;
 
@@ -1913,7 +2005,9 @@ export class RoomScene {
             ? `door:${target.refId}`
             : target.kind === "building"
               ? `building:${target.instanceId}`
-              : `station:${target.instanceId}:${target.capability}`;
+              : target.kind === "shopSpot"
+                ? `shop:${target.spot}`
+                : `station:${target.instanceId}:${target.capability}`;
 
     if (keyOf(best) === keyOf(this.interactTarget)) return;
 
@@ -1925,9 +2019,9 @@ export class RoomScene {
       emit("interact_target_changed", { kind: "pet", petId: best.petId });
     } else if (best.kind === "door") {
       emit("interact_target_changed", { kind: "door", refId: best.refId });
-    } else if (best.kind === "building") {
-      // 建筑不进这条事件（它没有"工作站"那套载荷）。订阅方看到 null
-      // 就知道现在没有工作站可开——按 F 干什么由 interact() 自己分派
+    } else if (best.kind === "building" || best.kind === "shopSpot") {
+      // 建筑和店内交互点不进这条事件（没有"工作站"那套载荷）。订阅方
+      // 看到 null 就知道现在没有工作站可开——按 F 干什么由 interact() 分派
       emit("interact_target_changed", null);
     } else {
       emit("interact_target_changed", {
@@ -2143,6 +2237,14 @@ export class RoomScene {
         emit("building_panel_open_requested", {
           instanceId: this.interactTarget.instanceId,
         });
+      } else if (this.interactTarget.kind === "shopSpot") {
+        if (this.interactTarget.spot === "crate") {
+          // 上架箱：开上架面板（原来开在管理面板里的那个入口，现在归它）
+          emit("shelf_open_requested", {
+            instanceId: this.interactTarget.instanceId,
+          });
+        }
+        // register 的领取在收银台那期接（功能 D）——先让气泡报状态
       } else {
         /**
          * 对话选哪一段是**这只宠物的内容**，不是交互系统的逻辑——

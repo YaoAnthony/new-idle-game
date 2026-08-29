@@ -119,7 +119,25 @@ function displayTable(x: number, z: number): Object3D {
   return node;
 }
 
+/**
+ * 店内两个交互点的**本地坐标**（原点=楼中心，未旋转）。
+ *
+ * 导出成函数不是常量：l1 是 7×7、l2 是 8×8，halfW 不同，锚点要跟着墙走。
+ * RoomScene 的交互判定和这里的模型读**同一个函数**，造型挪了判定自动
+ * 跟着——石碑那套"位置只算一遍"的纪律（见 buildPlacedBuilding）。
+ */
+export function shopCrateLocal(halfW: number, _halfD: number): { x: number; z: number } {
+  // 东墙根那只上架箱
+  return { x: halfW - 0.72, z: 0.1 };
+}
+
+export function shopRegisterLocal(halfW: number, halfD: number): { x: number; z: number } {
+  // 门右手边的柜台（收银台）
+  return { x: halfW - 1.55, z: halfD - 1.55 };
+}
+
 export function furnitureShopInterior(halfW: number, halfD: number): Object3D[] {
+  const crate = shopCrateLocal(halfW, halfD);
   return [
     /*
      * 柜台：门的右手边、面朝进门方向。**不横在门前**——门在本地
@@ -166,13 +184,29 @@ export function furnitureShopInterior(halfW: number, halfD: number): Object3D[] 
         castShadow: false,
       }),
     ),
-    box([0.6, 0.44, 0.5], {
-      position: [halfW - 0.55, 0.22, 0.1],
+    /*
+     * 上架箱：玩家把要卖的家具丢进来（F 开上架面板）。
+     * 比原来那只存货箱大一圈、带掀盖和金色搭扣——它是这间店唯一
+     * 要玩家动手的东西，不显眼的话"怎么上架"永远要靠气泡解释。
+     */
+    box([0.78, 0.5, 0.62], {
+      position: [crate.x, 0.25, crate.z],
       color: PALETTE.woodLight,
     }),
-    ...[0.1, 0.3].map((y) =>
-      box([0.62, 0.05, 0.52], {
-        position: [halfW - 0.55, y, 0.1],
+    // 掀盖：略大盖沿 + 后高前低的斜面，读得出"能打开"
+    box([0.84, 0.09, 0.68], {
+      position: [crate.x, 0.54, crate.z],
+      color: PALETTE.woodDark,
+    }),
+    // 金色搭扣（正面居中）：一眼分清它和别的杂物箱
+    box([0.1, 0.14, 0.05], {
+      position: [crate.x - 0.42, 0.4, crate.z],
+      color: "#e0b74a",
+      castShadow: false,
+    }),
+    ...[0.12, 0.34].map((y) =>
+      box([0.8, 0.05, 0.64], {
+        position: [crate.x, y, crate.z],
         color: PALETTE.woodDark,
         castShadow: false,
       }),

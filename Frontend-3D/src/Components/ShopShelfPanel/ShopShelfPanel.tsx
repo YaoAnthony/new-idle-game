@@ -17,6 +17,7 @@ import {
 import {
   budgetToday,
   canShelve,
+  previewTodayRevenue,
   shelfCapacityOf,
   shelfIdFor,
 } from "../../Game/Systems/shopkeeping";
@@ -203,6 +204,14 @@ export function ShopShelfPanel() {
           <div>
             {t("ui.shelf.worth")} {shelfWorth} · {t("ui.shelf.budget")}{" "}
             {budgetToday()}
+          </div>
+          {/*
+            * 预计收入和上面两个数不同源：它是把货架喂给真结算算法跑一遍
+            * dry-run 的结果（谁买得起什么、买几件），不是"总价 × 心情"。
+            * 摆一件贵货这个数不动，玩家立刻看得出"今天没人买得起它"。
+            */}
+          <div className="mt-0.5 font-bold text-[#3f7d3f]">
+            {t("ui.shelf.forecast")} {instanceId ? previewTodayRevenue(instanceId) : 0}
           </div>
           {/*
             * 两个数并排是有意的：贵过右边那个数的货**今天谁都买不起**，

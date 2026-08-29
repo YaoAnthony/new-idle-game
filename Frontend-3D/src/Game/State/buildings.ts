@@ -25,6 +25,7 @@ import { findBuilding, findBuildingLevel } from "../../Buildings/index";
 import { materialCounts, spendMaterials } from "../Systems/materials";
 import { addItem } from "./inventory";
 import { getUnlockedFeatures } from "../Systems/events";
+import { isTerritoryGateBypassed } from "./territory";
 import {
   getCurrentMap,
   getRoom,
@@ -108,8 +109,17 @@ export function rectOf(placement: BuildingPlacement): DeckRect {
   return buildingRectWorld(placement, level?.footprint ?? { width: 1, height: 1 });
 }
 
-/** 领地参数。没有领地的图给 undefined，Core 那边就不判这一条 */
+/**
+ * 领地参数。没有领地的图给 undefined，Core 那边就不判这一条。
+ *
+ * **调试旁路也走"当没有领地"**：`/territory free` 的文案承诺的是
+ * "随便走、随便建"，家具那条（`isInsideTerritory`）一直兑现着，
+ * 建筑这条却漏了——开着旁路 `/build` 照样报"这块地还没开"，
+ * 两套判定各说各话。旁路的三条纪律（不进存档/不改拥有/做客不许开）
+ * 都在 territory.ts 里管着，这里只需要问一声。
+ */
 function territoryArg() {
+  if (isTerritoryGateBypassed()) return undefined;
   const definition = getCurrentMap().territory;
   if (!definition) return undefined;
   return { definition, unlocked: new Set(getUnlockedFeatures()) };

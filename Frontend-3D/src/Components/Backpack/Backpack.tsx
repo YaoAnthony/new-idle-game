@@ -20,6 +20,7 @@ import { t } from "../../i18n/t";
 import { Modal } from "../Modal/Modal";
 import { BagSeal } from "../Modal/seals";
 import { DragGhost, ItemIcon, SlotCell } from "../Inventory/slots";
+import { Bubble } from "../Bubble/Bubble";
 import { usePanel } from "../PanelStack/usePanel";
 
 /**
@@ -381,28 +382,21 @@ export function Backpack() {
             )}
           </div>
 
-          {/* ---- 小屏的详情气泡：钉在被点格子上方，同一个 ItemDetail ---- */}
+          {/*
+            小屏的详情气泡：通用 `Bubble`（带尾巴、自动上下翻、点外面关）
+            + 手机专用的紧凑详情。第一版直接把大屏侧栏的 ItemDetail 塞进来
+            ——被用户打回：那套是给 230px 常驻栏画的（大图标、大段落、
+            ui-pack-action 旧皮大按钮），压进 248px 的浮层里既丑又点不准。
+          */}
           {phone && anchor && pickedStack && (
-            <div
-              className="fixed z-[60] w-[248px]"
-              style={{
-                left: Math.min(
-                  Math.max(8, anchor.x - 124),
-                  window.innerWidth - 256,
-                ),
-                // 优先浮在格子上方；顶上放不下就压到格子下面
-                top: anchor.y > 190 ? anchor.y - 178 : anchor.y + 44,
-              }}
-              // 气泡内点按钮不该顺手把选中清掉
-              onClick={(event) => event.stopPropagation()}
-            >
-              <ItemDetail
+            <Bubble anchor={anchor} onDismiss={() => setPicked(null)}>
+              <ItemDetailCompact
                 stack={pickedStack}
                 count={pickedStack.count}
                 slotRef={picked}
                 onUsed={() => setPicked(null)}
               />
-            </div>
+            </Bubble>
           )}
 
 
@@ -418,6 +412,124 @@ export function Backpack() {
 
       <DragGhost />
     </>
+  );
+}
+
+/**
+ * 一件物品在详情里能做的动作。**大屏侧栏和手机气泡共用这一份**——
+ * "吃掉"到底吃盘里的菜还是背包里的存货，这类判断只许存在一处，
+ * 两版 UI 各写一遍的话迟早一边吃盘子一边吃菜。
+ */
+function useItemActions(
+  stack: SlotStack,
+  slotRef: SlotRef | null,
+  onUsed: () => void,
+) {
+  const dish = servedDish(stack);
+  const itemId = presentedItemId(stack);
+  const item = itemId ? findItemDefinition(itemId) : null;
+  const eatsFromWare = Boolean(dish) && slotRef !== null;
+
+  return {
+    itemId,
+    item,
+    edible: Boolean(item?.food),
+    // 已经在快捷栏里的东西不给"拿到手上"——它本来就够得着
+    canTake: slotRef !== null && slotRef !== undefined && slotRef >= HOTBAR_SIZE,
+    eat: () => {
+      if (!itemId) return;
+      if (eatsFromWare && slotRef !== null) eatFromWare(slotRef);
+      else eatInventoryItem(itemId);
+      onUsed();
+    },
+    take: () => {
+      if (slotRef === null || slotRef === undefined) return;
+      moveStack(slotRef, getSelectedHotbarIndex());
+      onUsed();
+    },
+  };
+}
+
+/**
+ * 手机气泡里的紧凑详情（2026-08-30 重写）。
+ *
+ * 大屏那版 `ItemDetail` 是给 230px **常驻侧栏**画的：64px 图标、整段
+ * 描述、旧皮大按钮——塞进 248px 的浮层里"吃掉"按钮比格子还占地方。
+ * 这版按"手机上一眼一拇指"重排：一行头（小图标+名字+数量）、小胶囊
+ * 标签、两行截断的描述、**通宽的胶囊按钮**（高 36px，拇指目标；皮是
+ * 日记本语言的实心+硬投影：吃掉琥珀、拿到手上青绿，按下沉 3px）。
+ */
+function ItemDetailCompact({
+  stack,
+  count,
+  slotRef,
+  onUsed,
+}: {
+  stack: SlotStack;
+  count: number;
+  slotRef: SlotRef | null;
+  onUsed: () => void;
+}) {
+  const { itemId, item, edible, canTake, eat, take } = useItemActions(
+    stack,
+    slotRef,
+    onUsed,
+  );
+  if (!itemId || !item) return null;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center gap-2.5">
+        <div className="grid h-[40px] w-[40px] shrink-0 place-items-center rounded-[10px] border-2 border-[#EEEEEE] bg-[#FAFAFA]">
+          <ItemIcon itemId={itemId} size={30} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[14px] font-black leading-tight text-[#5D4037]">
+            {t(item.localizationKey)}
+            {count > 1 && (
+              <span className="ml-1.5 text-[12px] font-bold text-[#8D6E63]">
+                ×{count}
+              </span>
+            )}
+          </div>
+          <div className="mt-0.5 flex flex-wrap gap-1">
+            <span className="rounded-full bg-[#F5F5F5] px-2 py-0.5 text-[10px] font-bold text-[#8D6E63] shadow-[inset_0_-1px_0_#E0E0E0]">
+              {t(TAB_KEY[item.category] ?? item.category)}
+            </span>
+            <span className="rounded-full bg-[#F5F5F5] px-2 py-0.5 text-[10px] font-bold text-[#8D6E63] shadow-[inset_0_-1px_0_#E0E0E0]">
+              {t(`ui.rarity.${item.rarity}`)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <p className="line-clamp-2 text-[12px] leading-snug text-[#8D6E63]">
+        {t(`${item.localizationKey}.desc`)}
+      </p>
+
+      {(edible || canTake) && (
+        <div className="flex gap-2">
+          {edible && (
+            <button
+              type="button"
+              className="h-[36px] flex-1 cursor-pointer rounded-full bg-[#FFCA28] text-[13px] font-black tracking-wide text-white shadow-[0_3px_0_#FF8F00] transition-all hover:bg-[#FFB300] active:translate-y-[3px] active:shadow-none"
+              onClick={eat}
+            >
+              {t("ui.backpack.eat")}
+            </button>
+          )}
+          {canTake && (
+            <button
+              type="button"
+              className="h-[36px] flex-1 cursor-pointer rounded-full bg-[#4DB6AC] text-[13px] font-black tracking-wide text-white shadow-[0_3px_0_#00897B] transition-all hover:bg-[#26A69A] active:translate-y-[3px] active:shadow-none"
+              onClick={take}
+            >
+              {t("ui.backpack.take")}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -441,10 +553,11 @@ function ItemDetail({
   slotRef: SlotRef | null;
   onUsed: () => void;
 }) {
-  // 盘子里盛着菜就按那道菜显示；空盘还是盘子
-  const dish = servedDish(stack);
-  const itemId = presentedItemId(stack);
-  const item = itemId ? findItemDefinition(itemId) : null;
+  const { itemId, item, edible, canTake, eat, take } = useItemActions(
+    stack,
+    slotRef,
+    onUsed,
+  );
 
   if (!itemId || !item) {
     return (
@@ -461,10 +574,6 @@ function ItemDetail({
       </div>
     );
   }
-
-  const edible = Boolean(item.food);
-  /** 盛在盘里的菜要连盘一起处理：吃掉菜、盘子留下 */
-  const eatsFromWare = Boolean(dish) && slotRef !== null;
 
   return (
     <div className="ui-parchment flex h-full flex-col p-3 sm:p-4">
@@ -507,11 +616,7 @@ function ItemDetail({
           <button
             type="button"
             className="ui-pack-action px-3 py-1.5 text-[13px] font-bold"
-            onClick={() => {
-              if (eatsFromWare && slotRef) eatFromWare(slotRef);
-              else eatInventoryItem(itemId);
-              onUsed();
-            }}
+            onClick={eat}
           >
             {t("ui.backpack.eat")}
           </button>
@@ -526,14 +631,11 @@ function ItemDetail({
          *
          * 家具也走这个按钮：拿到手上，虚影就出来了。
          */}
-        {slotRef !== null && slotRef !== undefined && slotRef >= HOTBAR_SIZE && (
+        {canTake && (
           <button
             type="button"
             className="ui-pack-action px-3 py-1.5 text-[13px] font-bold"
-            onClick={() => {
-              moveStack(slotRef, getSelectedHotbarIndex());
-              onUsed();
-            }}
+            onClick={take}
           >
             {t("ui.backpack.take")}
           </button>

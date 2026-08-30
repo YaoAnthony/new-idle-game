@@ -893,6 +893,23 @@ input {
   box-shadow: 0 2px 0 #ff8f00;
 }
 
+/* 浮动气泡（Components/Bubble）的入场：从锚点方向轻轻长出来。
+   150ms 一次到位——它是工具提示不是仪式，慢了会挡操作 */
+@keyframes bubble-pop {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.bubble-pop {
+  animation: bubble-pop 150ms ease-out;
+}
+
 /* ---- 白噪音台（专注时的左侧调音板） ---- */
 
 /*

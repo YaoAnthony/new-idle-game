@@ -551,6 +551,9 @@ export const furnitureShop: BuildingDefinition = {
       levelId: "l1",
       localizationKey: "building.furniture_shop.l1",
       descriptionKey: "building.furniture_shop.l1.desc",
+      // 建模图（2026-08-30 用户提供）。l2 还没画，buildingIcon 的
+      // 回退链会让它先顶着这张——图到了在 l2 加一行就换
+      icon: "/icons/furniture_house/lv1.png",
       /*
        * 7×7（原 6×6）。用户 2026-08-26："size 小了，要大一些"——
        * 36 格² 站在 9×12 的主屋旁边像个岗亭；49 格² 加挑层和山墙，

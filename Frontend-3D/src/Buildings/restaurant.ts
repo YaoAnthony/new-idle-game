@@ -26,6 +26,9 @@ export const restaurant: BuildingDefinition = {
       levelId: "l1",
       localizationKey: "map.shop_restaurant",
       descriptionKey: "map.shop_restaurant.desc",
+      // 和玩家盖的 diner 共用一张建模图：两家都是"餐厅"，图先到先用；
+      // 小镇这家有自己的独门造型时再换
+      icon: "/icons/restaurant/lv1.png",
       footprint: { width: 11.5, height: 9.5 },
     build: () => {
       const house = buildTownhouse({

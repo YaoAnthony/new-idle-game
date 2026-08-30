@@ -85,3 +85,20 @@ export function HammerSeal({ ground = "#66BB6A" }: SealProps) {
     </Ring>
   );
 }
+
+/** 货架：两层格板，架上蹲着几件小货。上架面板的身份 */
+export function ShelfSeal({ ground = "#c9862e" }: SealProps) {
+  return (
+    <Ring ground={ground}>
+      {/* 两块横板 */}
+      <path d="M28 48 H87 V55 H28 Z" fill={PAPER} />
+      <path d="M28 72 H87 V79 H28 Z" fill={PAPER} />
+      {/* 上层的货：一高一矮 */}
+      <path d="M36 32 H50 V48 H36 Z" fill="#ffc94d" />
+      <path d="M58 38 H74 V48 H58 Z" fill={PAPER} />
+      {/* 下层的货：一矮一高 */}
+      <path d="M38 62 H52 V72 H38 Z" fill={PAPER} />
+      <path d="M62 56 H76 V72 H62 Z" fill="#ffc94d" />
+    </Ring>
+  );
+}

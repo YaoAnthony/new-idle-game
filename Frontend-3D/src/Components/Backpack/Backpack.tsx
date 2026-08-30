@@ -73,6 +73,31 @@ export function Backpack() {
   // 但槽位号是同一套，所以跨片拖拽不需要任何换算
   const [items, setItems] = useState(getInventory());
   const [tab, setTab] = useState<ItemCategory | null>(null);
+  /**
+   * 小屏（横屏手机）模式。判**高度**不判宽度——这游戏只做横屏，
+   * "手机"意味着矮，宽反而可能不小（667×375）。和白噪音台的
+   * `@media (max-height: 500px)` 同一条线。
+   */
+  const [phone, setPhone] = useState(
+    () => window.matchMedia("(max-height: 500px)").matches,
+  );
+  useEffect(() => {
+    const media = window.matchMedia("(max-height: 500px)");
+    const onChange = () => setPhone(media.matches);
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
+
+  /**
+   * 小屏详情气泡的锚点（被点那一格的屏幕矩形）。
+   *
+   * 手机上右侧详情栏整个藏掉（2026-08-30 用户定的）：格子已经只有
+   * 30px，再切 230px 给常驻侧栏，格子就没法看了。点一格 → 详情以
+   * **漂浮气泡**的形式出现在格子旁边，内容和大屏侧栏是同一个
+   * `ItemDetail`——一份组件两种容器，不是两套详情。
+   */
+  const [anchor, setAnchor] = useState<{ x: number; y: number } | null>(null);
+
   /** 详情卡在看哪一格（绝对槽位号）。快捷栏那行也在面板里，点它也要能看 */
   const [picked, setPicked] = useState<SlotRef | null>(null);
 
@@ -109,6 +134,11 @@ export function Backpack() {
   // 容量算整份：快捷栏就是背包的前 8 格，不该从容量里漏掉
   const used = items.filter(Boolean).length;
 
+  // 选中没了（用掉/清空/关面板）气泡跟着收，别留一张挂在半空的详情
+  useEffect(() => {
+    if (picked === null) setAnchor(null);
+  }, [picked]);
+
   /** 选中格子里的东西。格子被清空（拿到手上、整理重排）后自动松开选中 */
   const pickedStack = picked === null ? null : items[picked] ?? null;
 
@@ -142,6 +172,17 @@ export function Backpack() {
         frameColor="#7a5aa8"
         paperColor="#fdfbf7"
         label={t("ui.backpack")}
+        /*
+         * 收到内容该有的大小，别铺满整屏（2026-08-30，用户："背包的 UI
+         * 太大了"）。没有 aspect 时 Modal 四边只留 --modal-outer，宽屏上
+         * 面板 1900px 宽、格子被列数均分撑成 180px 的大方块——尺寸是
+         * 屏幕给的，不是内容要的。1.9 是"格子区 + 侧详情"这个横排版式
+         * 自己的比例；fill 再收一成，面板读起来是"摆在桌上的包"。
+         * **手机（矮屏）不收**：323px 的内胆再打九折，格子会被压成
+         * 4px 的碎屑——小屏本来就一寸都不多，铺满是唯一可行解。
+         */
+        aspect={phone ? undefined : 1.9}
+        fill={phone ? undefined : 0.9}
         instant
       >
         {/*
@@ -232,10 +273,46 @@ export function Backpack() {
            * 格子小到点不准；竖排则是格子在上、详情在下，各自拿满宽度。
            * 只有一个滚动条（整块主体），格子和详情各自不再单独滚。
            */}
-          <div className="pack-body flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto md:flex-row">
-            <div className="pack-grid ui-parchment p-2 sm:p-3 md:flex-[3]">
-              {/* 手机 4 列、平板以上 6 列。格子是流体的，跟着列宽走 */}
-              <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-6 sm:gap-2">
+          <div
+            className="pack-body flex min-h-0 flex-1 flex-col gap-3 md:flex-row"
+            /*
+             * 小屏气泡的锚点在**捕获阶段**顺手记下：被点的格子按钮的
+             * 屏幕矩形。不改 SlotCell 的 onClick 签名——它被五个面板
+             * 共用，为一个气泡加参数会让其他调用点全跟着改。
+             */
+            onClickCapture={(event) => {
+              if (!phone) return;
+              // SlotCell 的根是带 .ui-slot 的 div（拖拽要 pointer 事件），
+              // 不是 button——closest 认类名不认标签
+              const cell = (event.target as HTMLElement).closest(".ui-slot");
+              if (!cell) return;
+              const rect = cell.getBoundingClientRect();
+              setAnchor({ x: rect.left + rect.width / 2, y: rect.top });
+            }}
+          >
+            {/*
+              左列 = 背包格子 + 快捷栏，**共享同一条 10 列轨道**（2026-08-30
+              用户定的端游版式）。两块各画各的 grid 但列数、max-w、gap 全同，
+              格子因此严格等大、左边缘对齐——快捷栏就是"背包的第 0 行"
+              这个事实终于长在版式上（数据上它本来就是前 8 格）。
+            */}
+            <div className="flex min-h-0 min-w-0 flex-col gap-3 md:flex-1">
+            {/*
+              滚动只发生在格子区内部：快捷栏钉在列底**永远可见**——
+              它是"手上有什么"，被滚出视野的话拖拽就变成盲拖。
+              列宽两块共享（同 max-w 同列数），滚动行为不必共享。
+            */}
+            <div className="pack-grid ui-parchment min-h-0 flex-1 overflow-y-auto p-2 sm:p-3">
+              {/*
+                **固定 10 格一行、起步 5 行**（2026-08-30 用户定的）。
+                中间试过一版 auto-fill 自适应列数，被否了——背包的格局
+                该是玩家背下来的一张脸："第三行最右是我的锤子"这种空间
+                记忆，列数随窗口变就没了。行数是以后的扩容轴（"一开始
+                只有 5 行"），列数不是。格宽 = 列宽 ÷ 10 再由 max-w-[720px]
+                封顶（一格 ~64px 到头）——大屏上面板可以大，格子的
+                手感不变。
+              */}
+              <div className="mx-auto grid w-full max-w-[720px] grid-cols-10 gap-1.5 sm:gap-2">
                 {visible.map((stack, index) => {
                   const dimmed = Boolean(stack) && !matchesTab(stack!.itemId);
                   const slot = HOTBAR_SIZE + index;
@@ -262,43 +339,72 @@ export function Backpack() {
               )}
             </div>
 
-            <div className="pack-detail md:flex-[2]">
+            {/*
+              快捷栏（就是背包前 8 格的同一份数据，不是复制品）。
+              和上面用**同一条 10 列轨道**：8 格占前 8 轨、后两轨留空，
+              列宽因此和背包格完全一致——"双方格子大小一样"靠共享轨道
+              保证，不靠两边各调一个数。拖拽全程在面板内完成。
+            */}
+            <div className="ui-parchment shrink-0 p-2 sm:p-3">
+              <div className="mx-auto grid w-full max-w-[720px] grid-cols-10 gap-1.5 sm:gap-2">
+                {hotbarVisible.map((stack, index) => (
+                  <SlotCell
+                    key={index}
+                    // 快捷栏就是前 HOTBAR_SIZE 格，段内序号 = 槽位号
+                    slotRef={index}
+                    stack={stack}
+                    fluid
+                    label={String(index + 1)}
+                    picked={picked === index && Boolean(stack)}
+                    onClick={() => setPicked(stack ? index : null)}
+                  />
+                ))}
+              </div>
+            </div>
+            </div>
+
+            {/*
+              详情是**固定宽侧栏**不再按比例分（flex-[2] 在宽屏上摊出
+              600px 的空白卡）。230px 装得下图标+名字+两个按钮，多一寸
+              都是留白；省下的全让给 10 列的格子区。
+              **小屏整个不渲染**：详情走下面的漂浮气泡。
+            */}
+            {!phone && (
+              <div className="pack-detail md:w-[230px] md:flex-none">
+                <ItemDetail
+                  stack={pickedStack ?? null}
+                  count={pickedStack?.count ?? 0}
+                  slotRef={pickedStack ? picked : null}
+                  onUsed={() => setPicked(null)}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* ---- 小屏的详情气泡：钉在被点格子上方，同一个 ItemDetail ---- */}
+          {phone && anchor && pickedStack && (
+            <div
+              className="fixed z-[60] w-[248px]"
+              style={{
+                left: Math.min(
+                  Math.max(8, anchor.x - 124),
+                  window.innerWidth - 256,
+                ),
+                // 优先浮在格子上方；顶上放不下就压到格子下面
+                top: anchor.y > 190 ? anchor.y - 178 : anchor.y + 44,
+              }}
+              // 气泡内点按钮不该顺手把选中清掉
+              onClick={(event) => event.stopPropagation()}
+            >
               <ItemDetail
-                stack={pickedStack ?? null}
-                count={pickedStack?.count ?? 0}
-                slotRef={pickedStack ? picked : null}
+                stack={pickedStack}
+                count={pickedStack.count}
+                slotRef={picked}
                 onUsed={() => setPicked(null)}
               />
             </div>
-          </div>
+          )}
 
-          {/*
-           * 快捷栏那一行**搬进面板里**。
-           *
-           * 面板现在是全屏遮罩式的，屏幕底部真正的快捷栏被压在遮罩下面，
-           * 拖不过去——底栏还写着"拖到下方快捷栏"，等于骗人。
-           * 把它放进面板是这类游戏的通行结构（Minecraft 起就是这样）：
-           * 拖拽全程在面板内部完成，不需要穿透遮罩。
-           *
-           * 它和屏幕底部那一行是**同一份数据**（都是背包的前 8 格），
-           * 不是复制品——改一边另一边跟着变。
-           */}
-          <div className="ui-parchment mt-3 p-2">
-            <div className="grid grid-cols-8 gap-1.5 sm:gap-2">
-              {hotbarVisible.map((stack, index) => (
-                <SlotCell
-                  key={index}
-                  // 快捷栏就是前 HOTBAR_SIZE 格，段内序号 = 槽位号
-                  slotRef={index}
-                  stack={stack}
-                  fluid
-                  label={String(index + 1)}
-                  picked={picked === index && Boolean(stack)}
-                  onClick={() => setPicked(stack ? index : null)}
-                />
-              ))}
-            </div>
-          </div>
 
           {/* ---- 底栏：操作提示 + 容量 ---- */}
           <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[12px] text-[var(--ink-soft)]">

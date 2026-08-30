@@ -107,7 +107,12 @@ function sameKind(a: NonNullable<SlotStack>, b: NonNullable<SlotStack>): boolean
  * 不再是一个独立容器的容量。
  */
 export const HOTBAR_SIZE = 8;
-export const INVENTORY_SIZE = 32;
+/**
+ * 58 = 快捷栏 8 + 背包段 50（2026-08-30 用户定的排版：**10 格一行、
+ * 起步 5 行**——"一开始只有"意味着以后有扩容，行数会长，列数不会）。
+ * 旧档的 32 格数组读进来后面补空格，方向只有变大，不用迁移。
+ */
+export const INVENTORY_SIZE = 58;
 export const BACKPACK_SIZE = INVENTORY_SIZE - HOTBAR_SIZE;
 
 /** 槽位就是下标。留个别名是为了让签名读得出"这是格子号，不是数量" */

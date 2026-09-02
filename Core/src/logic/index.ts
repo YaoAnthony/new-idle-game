@@ -4,6 +4,7 @@ export * from "./doorAudit.js";
 export * from "./buildings.js";
 export * from "./buildingAudit.js";
 export * from "./goldJar.js";
+export * from "./goldDrawer.js";
 export * from "./chat.js";
 export * from "./clock.js";
 export * from "./cookingRules.js";

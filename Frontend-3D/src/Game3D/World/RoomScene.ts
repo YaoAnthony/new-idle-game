@@ -128,7 +128,7 @@ import { findRoute } from "../../Game/Systems/navigation";
 import {
   claimRevenue,
   findShop,
-  pendingRevenueOf,
+  registerHint,
 } from "../../Game/Systems/shopkeeping";
 import {
   shopCrateLocal,
@@ -1836,19 +1836,25 @@ export class RoomScene {
       const distance = Math.hypot(spot.x - probeX, spot.z - probeZ);
       if (distance >= HINT_RADIUS) continue;
       /*
-       * 收银台的词随抽屉换：有钱 → "领取收益"（带按键），没钱 →
-       * 报状态不给按键（"F 领取"按了没反应是句假话——灶眼那条的规矩）。
+       * 收银台的词三态：可领 → "领取收益"（带按键）；空 / 金库满 → 报状态
+       * 不给按键（"F 领取"按了没反应是句假话——灶眼那条的规矩）。
+       *
+       * 原来只有两态，判据是"抽屉有钱"。抽屉有钱但金库满着的时候气泡照说
+       * "领取"，按下去 claimRevenue 领到 0：没金币飞、没提示，玩家只会以为
+       * 按键坏了。现在判据是 Core 的 drawerHint，和领取本身用同一把尺子。
        */
-      const hasPending =
-        spot.spot === "register" && pendingRevenueOf(spot.instanceId) > 0;
+      const registerState =
+        spot.spot === "register" ? registerHint(spot.instanceId) : null;
       const target: HintTarget = {
         instanceId: `${spot.instanceId}:${spot.spot}`,
         hint:
           spot.spot === "crate"
             ? { localizationKey: "hint.shop_crate", action: "interact" }
-            : hasPending
+            : registerState === "claimable"
               ? { localizationKey: "hint.shop_register_claim", action: "interact" }
-              : { localizationKey: "hint.shop_register_empty" },
+              : registerState === "vault_full"
+                ? { localizationKey: "hint.shop_register_vault_full" }
+                : { localizationKey: "hint.shop_register_empty" },
         world: new Vector3(spot.x, spot.y + 1.15, spot.z),
       };
       hintByKey.set(`shop:${spot.spot}`, target);

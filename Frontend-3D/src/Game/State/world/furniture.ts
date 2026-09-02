@@ -352,6 +352,28 @@ export function replaySlotContent(
   writeSlotContent(instanceId, slotId, content);
 }
 
+// ---- 金币抽屉 ----
+
+/**
+ * 家具的待领收益（金币抽屉，规则见 Core `logic/goldDrawer.ts`，接线在
+ * `Systems/goldDrawer.ts`——别直接调这个，走那边的 stash / claim）。
+ *
+ * 0 就把字段删掉：空抽屉不该在存档里留一个 `pendingRevenue: 0`。
+ * **本地写**：产金币的家具今天还一件都没有，联机 op 等第一件落地时再接
+ * （浴缸水位那条是范本：转折点发 op，各端自己推进）。
+ */
+export function setFurniturePendingRevenue(instanceId: string, amount: number): boolean {
+  const placed = worldState.placedFurniture.find(
+    (item) => item.instanceId === instanceId,
+  );
+  if (!placed) return false;
+  const next = { ...placed.state };
+  if (amount > 0) next.pendingRevenue = amount;
+  else delete next.pendingRevenue;
+  placed.state = next;
+  return true;
+}
+
 // ---- 浴缸的水 ----
 
 function writeBathWater(instanceId: string, water: BathWater | null): boolean {

@@ -340,6 +340,13 @@ export type PlacedFurnitureState = {
   /** 浴缸里的水（见 BathWater）。没有 = 空缸 */
   water?: BathWater;
 
+  /**
+   * 金币抽屉：这件家具攒着、还没被领走的金币（规则见 `logic/goldDrawer.ts`）。
+   * 没有 = 空抽屉。和建筑的 `placement.state.pendingRevenue` 是同一个概念、
+   * 同一个名字——产金币的建筑和家具走同一套，别各自发明。
+   */
+  pendingRevenue?: number;
+
   /** 一次性容器的内容（对 FurnitureCapability.Unpack）。查 Data/loot 注册表 */
   lootTableId?: string;
   activeProcessId?: ProcessId;

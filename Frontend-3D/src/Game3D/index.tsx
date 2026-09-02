@@ -142,8 +142,10 @@ import {
   startNewspaper,
 } from "../Game/Systems/newspaper";
 import {
+  budgetToday,
   debugSettleOnce,
   findShop,
+  pendingRevenueOf,
   shelfCapacityOf,
   shelfSlotsOf,
   startShopkeeping,
@@ -1585,19 +1587,18 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
             if (sold.length === 0) {
               /*
                * 卖不出去有三个互不相同的原因，**说得出是哪一个**——
-               * 一句"没卖出去"会让人先去翻货架，而真凶往往是满金库
-               * （实测就在这儿绕了一圈）。拒绝要给理由是这套建筑系统
-               * 一开始就立的规矩（见 BuildingPanel 的 whyBuild）。
+               * 一句"没卖出去"会让人先去翻货架。拒绝要给理由是这套建筑
+               * 系统一开始就立的规矩（见 BuildingPanel 的 whyBuild）。
+               *
+               * "金库满"不再是原因之一：结算进的是收银台抽屉（goldDrawer），
+               * 金库满不满是领取那一刻的事。剩下的第三个原因只有价钱。
                */
-              const room = getGoldCapacity() - getGold();
               return ok(
                 shelfSlotsOf(instanceId).filter(Boolean).length === 0
                   ? "货架是空的"
                   : listResidents().length === 0
                     ? "一位居民都没有，没人来买"
-                    : room <= 0
-                      ? "金库满了——装不下就不成交，货给你留在架上了"
-                      : `架上最便宜的一件也超过金库剩下的 ${room}`,
+                    : `架上最便宜的一件也超过今天客人的总预算 ${budgetToday()}`,
               );
             }
             return ok(
@@ -1611,6 +1612,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
             JSON.stringify(
               {
                 店: instanceId,
+                抽屉: pendingRevenueOf(instanceId),
                 货位: `${shelfSlotsOf(instanceId).filter(Boolean).length}/${shelfCapacityOf(instanceId)}`,
                 /*
                  * 货架和客源一起打出来：卖不出去只有两种原因（架上没货 /

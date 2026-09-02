@@ -281,6 +281,7 @@ const ZH: Record<string, string> = {
   "hint.shop_crate": "上架摆货",
   "hint.shop_register_claim": "领取收益",
   "hint.shop_register_empty": "收银台 · 还没有进账",
+  "hint.shop_register_vault_full": "收银台 · 金库满了，先建或升级金库",
   "ui.shelf.forecast": "预计",
   "ui.shelf.title": "货架",
   "ui.shelf.shelf": "架上",

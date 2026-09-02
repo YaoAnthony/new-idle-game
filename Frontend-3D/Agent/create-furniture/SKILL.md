@@ -123,8 +123,13 @@ Crafting / Cooking / Storage / Sleep / Sitting / Ambience / WaterSource / Unpack
 - 掉落/开局：`Core/src/Data/loot/index.ts`、`Frontend-3D/src/Game/State/world/furniture.ts` 的 `seedInitialFurniture`
   （**北窗前 x17–21 五格不许种开局家具**）。
 - 音频档案：`Core/src/Data/audio/index.ts`。
-
-### 2.6 运行时谁在读什么（改动影响面）
+- **产金币的家具**（招财猫、摇钱树这类）：**走金币抽屉，不要直接 `depositGoldTo`**。
+  规则在 `Core/src/logic/goldDrawer.ts`，接线在 `Frontend-3D/src/Game/Systems/goldDrawer.ts`：
+  产出时 `stashRevenue({ kind: "furniture", instanceId }, 金额)`（不看金库、不封顶），
+  玩家按 F 时 `claimRevenue(holder)`（金库装得下多少进多少，**剩下的留在家具里**），
+  气泡文案按 `revenueHintOf(holder)` 的三态给（空 / 领取 / 金库满）——金库满着不许说"领取"。
+  抽屉记在 `PlacedFurnitureState.pendingRevenue`，跟着 placedFurniture 进存档，不用抬版本。
+  小店的收银台是第一个用户，照它抄（`Systems/shopkeeping.ts` 的 `shopHolder`）。
 - 占用/寻路：`Core/src/logic/occupancy.ts`（footprint/mask/facing→格；floorLayer 分层；blocksMovement→blocked+surfaces（重叠取**最低**台面）；Sitting/Sleep→宠物目标）。
 - 放置校验：`Core/src/logic/placement.ts`（`checkPlacement`，虚影和提交同一份）；台面：`logic/surfaces.ts`（半格，槽位自动留 0.55m 净空）；坐卧：`logic/anchors.ts`。
 - 放置面：`Core/src/logic/placementFaces.ts`（地面/外墙/内墙两面都是 face，按 frame 算，**没有按 id 的分支**）。

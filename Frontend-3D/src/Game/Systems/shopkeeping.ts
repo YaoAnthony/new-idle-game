@@ -9,7 +9,6 @@ import {
 
 import { on } from "../EventBus";
 import { getClock } from "../State/clock";
-import { depositGoldTo, getGold, getGoldCapacity } from "../State/gold";
 import { findPlacement, listBuildings, setBuildingState } from "../State/buildings";
 import {
   getStorage,
@@ -17,7 +16,14 @@ import {
   storageIdFor,
   type StorageSlot,
 } from "../State/storage";
-import { recordGoldFact, recordHeadlineFact } from "./dayRecord";
+import { recordHeadlineFact } from "./dayRecord";
+import {
+  claimRevenue as claimFromHolder,
+  pendingRevenueOf as pendingOfHolder,
+  revenueHintOf,
+  stashRevenue,
+  type RevenueHolder,
+} from "./goldDrawer";
 import { epochDayOf } from "./trading";
 import { listResidents } from "./residents";
 
@@ -165,48 +171,44 @@ export function settleDaysFor(instanceId: string, days: number): SoldEntry[] {
     all.push(...sold);
   }
 
-  if (all.length > 0) {
-    const state = (findPlacement(instanceId)?.state ?? {}) as ShopState;
-    setBuildingState(instanceId, {
-      pendingRevenue: (state.pendingRevenue ?? 0) + totalRevenue(all),
-    });
-  }
+  // 进收银台抽屉。抽屉是所有产金币的建筑 / 家具共用的规则（goldDrawer）
+  if (all.length > 0) stashRevenue(shopHolder(instanceId), totalRevenue(all));
 
   return all;
 }
 
 /**
- * 建筑状态里记的账。
- *
- * `pendingRevenue` 存在 `placement.state`——那块本来就在存档里
- * （lastSettledDay 一直住这），**不用抬存档版本**；联机也跟着
- * WorldSave 的建筑切片走，做客看到的抽屉里的钱是房主的，对。
+ * 建筑状态里记的账。`lastSettledDay` 住在 `placement.state`——那块本来就在
+ * 存档里，**不用抬存档版本**。收银台抽屉（`pendingRevenue`）也在同一个口袋，
+ * 但它的读写归 `goldDrawer`：那是所有产金币的建筑 / 家具共用的规则，
+ * 小店只是第一个用户。
  */
-type ShopState = { lastSettledDay?: number; pendingRevenue?: number };
+type ShopState = { lastSettledDay?: number };
+
+/** 小店在金币抽屉眼里就是一个建筑实例 */
+function shopHolder(instanceId: string): RevenueHolder {
+  return { kind: "building", instanceId };
+}
 
 /** 收银台抽屉里攒着的钱（隔夜卖货的收入，等玩家来领） */
 export function pendingRevenueOf(instanceId: string): number {
-  const state = (findPlacement(instanceId)?.state ?? {}) as ShopState;
-  return state.pendingRevenue ?? 0;
+  return pendingOfHolder(shopHolder(instanceId));
 }
 
 /**
- * 领取收益：抽屉 → 金库。**装不下的留在抽屉里**，不凭空蒸发——
- * 金库满了是玩家看得见的状态（金币条顶满），下次腾出空位再来领。
- * 返回真正入账的数额，UI 拿它决定飞几枚金币。
+ * 领取收益：抽屉 → 金库。**装不下的留在抽屉里**，不凭空蒸发。
+ * 返回真正入账的数额，UI 拿它决定飞几枚金币。规则和实现都在 goldDrawer。
  */
 export function claimRevenue(instanceId: string): number {
-  const pending = pendingRevenueOf(instanceId);
-  if (pending <= 0) return 0;
+  return claimFromHolder(shopHolder(instanceId));
+}
 
-  const room = Math.max(0, getGoldCapacity() - getGold());
-  const amount = Math.min(pending, room);
-  if (amount <= 0) return 0;
-
-  depositGoldTo(amount);
-  recordGoldFact(amount);
-  setBuildingState(instanceId, { pendingRevenue: pending - amount });
-  return amount;
+/**
+ * 收银台该说哪句话：空 / 领取 / 金库满了。**提示和按键必须对得上**——
+ * 抽屉有钱但金库满着的时候不能说"领取"，按了没反应是句假话。
+ */
+export function registerHint(instanceId: string) {
+  return revenueHintOf(shopHolder(instanceId));
 }
 
 /**

@@ -200,6 +200,10 @@ function lineOf(item: { kind: string; subject?: string }): string {
       .replace("{who}", who ? t(`pet.${who.replace("pet-", "")}_neighbor`) : t("ui.news.someone"))
       .replace("{what}", t(nameKeyOf(what)));
   }
+  if (item.kind === "consign_sold") {
+    // 寄售没有买主——保底渠道，东西是"被收走"的，不是"谁买走"的
+    return t("ui.news.line.consign_sold").replace("{what}", t(nameKeyOf(what)));
+  }
   if (item.kind === "resident_moved_in") {
     return t("ui.news.line.moved_in").replace("{who}", t(`pet.${what}`));
   }

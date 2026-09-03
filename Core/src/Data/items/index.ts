@@ -615,6 +615,38 @@ export const itemDefinitions = [
     },
   },
   {
+    id: "furniture_consign_box",
+    localizationKey: "item.furniture_consign_box",
+    category: ItemCategory.Furniture,
+    stackLimit: 9,
+    rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    value: 10,
+    visual: { id: "consign_box" },
+    placement: {
+      surface: PlacementSurface.Floor,
+      /*
+       * 4×2 的大件（用户 2026-09-02："起码是 2x4 size 的大物品"）：
+       * 它是院子里的**寄售台**，不是屋里一只小箱子——一整排家具要装得进去，
+       * 招牌要远远看得见。朝北时 4 宽（沿墙）× 2 深。
+       */
+      footprint: { width: 4, height: 2 },
+      // 寄售不是储物：放进去的第二天就没了（logic/consign.ts）
+      capabilities: [FurnitureCapability.Consign],
+      floorLayer: FloorLayer.Object,
+      blocksMovement: true,
+      // 只能摆在院子里：它是室外的东西（用户定），4×2 的台子也进不了门
+      outdoorOnly: true,
+      // 不给 surfaceHeight：敞口的，上面搁不了花盆
+      interactHint: {
+        localizationKey: "hint.consign_box",
+        action: "interact",
+        // 招牌顶到 ~2.4，气泡挂在牌子上方
+        anchorHeight: 2.6,
+      },
+    },
+  },
+  {
     id: "furniture_bed",
     localizationKey: "item.furniture_bed",
     category: ItemCategory.Furniture,

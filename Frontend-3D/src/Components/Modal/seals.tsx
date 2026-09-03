@@ -102,3 +102,28 @@ export function ShelfSeal({ ground = "#c9862e" }: SealProps) {
     </Ring>
   );
 }
+
+/**
+ * 寄售台：一只箱子，箱盖上坐着一只钱袋。
+ *
+ * 不复用货架那枚（两层格板 + 货品是"开店"的身份）：面板认不出自己是干嘛的，
+ * 开场那半秒的印章也得说对话。钱袋和三维场景里招牌上那只、面板招牌行那枚
+ * 是同一个形象，三处对得上。
+ */
+export function ChestSeal({ ground = "#d9702f" }: SealProps) {
+  return (
+    <Ring ground={ground}>
+      {/* 箱体 */}
+      <path d="M28 52 H87 V86 H28 Z" fill={PAPER} />
+      {/* 箱盖：比箱体宽一圈，压在上沿——"有盖子的箱子"这个读法靠这条线 */}
+      <path d="M24 44 H91 V54 H24 Z" fill="#ffc94d" />
+      {/* 两条竖向包边 */}
+      <path d="M40 54 H46 V86 H40 Z" fill={ground} />
+      <path d="M69 54 H75 V86 H69 Z" fill={ground} />
+      {/* 钱袋：坐在箱盖正上方 */}
+      <circle cx="57.5" cy="30" r="14" fill="#ffc94d" />
+      <path d="M50 20 H65 V26 H50 Z" fill={PAPER} />
+      <circle cx="57.5" cy="19" r="4" fill={PAPER} />
+    </Ring>
+  );
+}

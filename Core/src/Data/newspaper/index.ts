@@ -32,6 +32,8 @@ export const headlinePriority: Record<string, number> = {
   traveler_visit: 60,
   /** 卖出了东西 */
   shop_sold: 40,
+  /** 寄售箱隔夜出了货。和小店同一档：都是"家里做成了生意" */
+  consign_sold: 40,
   /** 做完了一件事 */
   action_completed: 10,
 };
@@ -45,6 +47,7 @@ export const headlinePriority: Record<string, number> = {
 export const neighborKinds = new Set([
   "resident_moved_in",
   "shop_sold",
+  "consign_sold",
   "restaurant_served",
 ]);
 

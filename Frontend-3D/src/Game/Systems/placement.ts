@@ -8,6 +8,7 @@ import {
   type PlacementTarget,
 } from "../State/worldRuntime";
 import { isStorageEmpty, storageIdFor } from "../State/storage";
+import { pendingRevenueOf } from "./goldDrawer";
 
 /**
  * 物品 ↔ 世界放置 的双向动作。
@@ -70,6 +71,12 @@ export function pickupFurniture(instanceId: string): PickupResult {
 
   // 装着东西的箱子搬走会把里面的东西一起吞掉，先让玩家清空
   if (!isStorageEmpty(storageIdFor(instanceId))) {
+    return { ok: false, reason: "not_empty" };
+  }
+
+  // 抽屉里还有没领的钱（寄售箱隔夜的货款）同理：搬走箱子钱就没了，先领掉。
+  // 对玩家还是那句"里面还有东西"——钱也是东西
+  if (pendingRevenueOf({ kind: "furniture", instanceId }) > 0) {
     return { ok: false, reason: "not_empty" };
   }
 

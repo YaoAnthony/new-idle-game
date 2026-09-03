@@ -39,6 +39,7 @@ export type PanelId =
   | "building"
   | "storage"
   | "shopShelf"
+  | "consign"
   | "newspaper"
   | "reward"
   | "chest"

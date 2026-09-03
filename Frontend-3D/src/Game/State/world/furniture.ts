@@ -183,6 +183,30 @@ export function replayRemoveFurniture(instanceId: string): void {
  * **落地窗前那五格（北墙 x17~21）永远不摆开局家具**——那是整个庭院
  * 构图的画框，新档第一眼不能被自家灶台挡住（玩家自己想堵是他的自由）。
  */
+/**
+ * 开局那只寄售箱摆在哪（2026-09-02，用户定："默认放在 1 级房子的门口旁边"）。
+ *
+ * 大门在小屋**世界北面**（房间本地的南墙，房子锚点朝南转了 180°），
+ * 门洞占世界 x −4..−2、z=5 那条线；屋外是 z<5 的院子。台子是 4×2 的大件，
+ * 锚点（左上格）院子格 (31, 29) → 压 x 31..34 / y 29..30 = 世界
+ * x −8.5..−4.5 / z 2.5..4.5：沿着墙外那两排、门西侧半格外，不压门洞
+ * （−4..−2），也不挡从门口往北走的路。
+ *
+ * **朝南**：`FACING_ROTATION[North] = 0`，模型本地 +Z 在朝北时指向世界 +z
+ * （南，也就是墙那边）；要让正面（木牌 + 搭扣，设计图上的那一面）对着从
+ * 院子走过来的人、招牌立在台子和墙之间，得转 180° = 朝南。第一版写成朝北，
+ * 招牌立到了院子那一侧、把箱口挡住了（用户 2026-09-02："你放反了，
+ * 牌子在里面才对"）。
+ *
+ * 导出是给 `/consign spawn` 用的：老档读档不跑 seed，调试指令按同一个
+ * 位置补一只，两处别各写一份坐标。
+ */
+export const CONSIGN_BOX_SEED = {
+  furnitureId: "furniture_consign_box",
+  gridPosition: { x: 31, y: 29 } as GridPosition,
+  facing: Facing.South,
+} as const;
+
 export function seedInitialFurniture(): void {
   if (worldState.placedFurniture.length > 0) return;
 
@@ -260,6 +284,18 @@ export function seedInitialFurniture(): void {
       gridPosition: { x: 27, y: 25 },
       facing: Facing.South,
       state: { fixed: true },
+      roomId: worldState.map.outdoorRoomId,
+    },
+    /*
+     * 寄售箱（2026-09-02）：门口旁边（位置和理由见 CONSIGN_BOX_SEED）。
+     * 开局就给一只，是因为它是**没有居民时唯一的换钱路**——小店要客人，
+     * 水獭 8 天来一趟，新手做出第一张桌子时只有它能立刻变成金币。
+     * 不 fixed：它就是件家具，玩家想挪就挪。
+     */
+    {
+      furnitureId: CONSIGN_BOX_SEED.furnitureId,
+      gridPosition: CONSIGN_BOX_SEED.gridPosition,
+      facing: CONSIGN_BOX_SEED.facing,
       roomId: worldState.map.outdoorRoomId,
     },
   ];

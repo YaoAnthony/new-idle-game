@@ -19,7 +19,8 @@ export type StationCapability =
   | "daily_board"
   | "music_player"
   | "bath"
-  | "lighting";
+  | "lighting"
+  | "consign";
 
 export type GameEvents = {
   /** 世界数据变化（家具增删等），渲染层据此同步场景图 */
@@ -310,6 +311,8 @@ export type GameEvents = {
   storage_open_requested: { instanceId: string; furnitureId: string };
   /** 家具小店的上架面板（期 5）。从建筑管理面板那一颗按钮发出 */
   shelf_open_requested: { instanceId: string };
+  /** 寄售箱面板：玩家对着箱子按 F */
+  consign_open_requested: { instanceId: string };
   /** 今日报纸（期 7）。出刊那天早上自动弹一次，之后从侧边栏开 */
   newspaper_open_requested: Record<string, never>;
   /**

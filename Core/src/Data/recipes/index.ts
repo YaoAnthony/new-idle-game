@@ -111,6 +111,18 @@ export const recipeDefinitions = [
     unlockConditionIds: [],
   },
   {
+    // 比储物箱便宜（不要铁）：它是早期换钱的路，材料门槛得比小店低一截
+    id: "consign_box",
+    localizationKey: "recipe.consign_box",
+    stationCapability: FurnitureCapability.Crafting,
+    ingredients: [
+      { itemId: "plank", quantity: 3 },
+      { itemId: "stick", quantity: 2 },
+    ],
+    outputs: [{ itemId: "furniture_consign_box", quantity: 1 }],
+    unlockConditionIds: [],
+  },
+  {
     id: "wooden_bed",
     localizationKey: "recipe.wooden_bed",
     stationCapability: FurnitureCapability.Crafting,

@@ -58,6 +58,7 @@ import { BuildingPanel } from "../Components/BuildingPanel/BuildingPanel";
 import { StationPanel } from "../Components/StationPanel/StationPanel";
 import { StoragePanel } from "../Components/StoragePanel/StoragePanel";
 import { ShopShelfPanel } from "../Components/ShopShelfPanel/ShopShelfPanel";
+import { ConsignPanel } from "../Components/ConsignPanel/ConsignPanel";
 import { NewspaperPanel } from "../Components/NewspaperPanel/NewspaperPanel";
 import {
   parseEnum,
@@ -151,6 +152,14 @@ import {
   startShopkeeping,
 } from "../Game/Systems/shopkeeping";
 import {
+  boxPendingRevenue,
+  boxSlotsOf,
+  consignBoxIds,
+  previewConsignRevenue,
+  settleAllBoxes,
+  startConsigning,
+} from "../Game/Systems/consigning";
+import {
   isOtterHereToday,
   isOtterScheduledOn,
   startTrading,
@@ -209,7 +218,8 @@ import { autoWalkTo, initAutoWalk } from "../Game/Systems/autoWalk";
 import { destinations } from "../Game/Systems/travelPlan";
 import { mapDefinitions } from "../Maps/index";
 import { TravelOverlay } from "../Components/MapTravel/TravelOverlay";
-import { getCurrentMapId } from "../Game/State/worldRuntime";
+import { getCurrentMap, getCurrentMapId } from "../Game/State/worldRuntime";
+import { CONSIGN_BOX_SEED, placeFurniture } from "../Game/State/world/furniture";
 import { registerNetCommands } from "../Game/Multiplayer/commands";
 import {
   registerDailyCommands,
@@ -399,6 +409,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
     const stopResidents = isRemoteWorldActive() ? () => {} : startResidents();
     // 家具小店的隔夜结算（期 5）。做客时不跑：别人的店别人结
     const stopShopkeeping = isRemoteWorldActive() ? () => {} : startShopkeeping();
+    // 寄售箱的隔夜结算。和小店同理：做客时不跑，别人的箱子别人结
+    const stopConsigning = isRemoteWorldActive() ? () => {} : startConsigning();
     // 报纸出刊（期 7）。做客时不跑：报纸是房主家的私事
     const stopNewspaper = isRemoteWorldActive() ? () => {} : startNewspaper();
     // 把手上拿的东西 / 坐姿汇进 participants 的 appearance 层。
@@ -1632,6 +1644,65 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
         },
       }),
       registerCommand({
+        name: "consign",
+        usage: "consign [open|settle|spawn]",
+        description:
+          "寄售箱：不带参数看箱格和抽屉，open 开面板，settle 立刻结算一次，spawn 在门口旁边补一只（老档用）",
+        handler: (args) => {
+          if (args[0] === "spawn") {
+            /*
+             * 老档读档不跑 seedInitialFurniture，门口那只是新档才有的。
+             * 这里按同一个坐标（CONSIGN_BOX_SEED）补一只——和新档一模一样，
+             * 两处别各写一份位置。
+             */
+            const check = placeFurniture(
+              CONSIGN_BOX_SEED.furnitureId,
+              CONSIGN_BOX_SEED.gridPosition,
+              CONSIGN_BOX_SEED.facing,
+              getCurrentMap().outdoorRoomId,
+            );
+            return check.ok
+              ? ok("门口旁边摆了一只寄售箱")
+              : fail(`摆不下：${JSON.stringify(check)}——那格被占了？先清开`);
+          }
+
+          const boxes = consignBoxIds();
+          if (boxes.length === 0) {
+            return fail("场上没有寄售箱（/consign spawn 补一只，或 /give furniture_consign_box）");
+          }
+
+          if (args[0] === "open") {
+            // 真游戏的入口是对着箱子按 F。这条直接发同一个事件——验的是同一块面板
+            emit("consign_open_requested", { instanceId: boxes[0] });
+            return ok("开了寄售箱面板");
+          }
+
+          if (args[0] === "settle") {
+            const sold = settleAllBoxes();
+            return ok(
+              sold.length === 0
+                ? "箱子是空的，什么也没卖"
+                : sold.map((s) => `${s.itemId}×${s.count} @${s.unitPrice}`).join(" · "),
+            );
+          }
+
+          return ok(
+            JSON.stringify(
+              boxes.map((id) => ({
+                箱: id,
+                箱格: boxSlotsOf(id)
+                  .map((slot, index) => (slot ? `${index}:${slot.itemId}×${slot.count}` : null))
+                  .filter(Boolean),
+                明早到账: previewConsignRevenue(id),
+                抽屉: boxPendingRevenue(id),
+              })),
+              null,
+              1,
+            ),
+          );
+        },
+      }),
+      registerCommand({
         name: "residents",
         usage: "residents",
         description: "在场的居民一览（期 4）：住哪、驻地在哪、有没有搬进去",
@@ -1871,6 +1942,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       stopTrading();
       stopResidents();
       stopShopkeeping();
+      stopConsigning();
       stopNewspaper();
       stopParticipantSync();
       stopBath();
@@ -2009,6 +2081,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       <DailyBoardPanel />
       <StoragePanel />
       <ShopShelfPanel />
+      <ConsignPanel />
       <NewspaperPanel />
       <DialoguePanel />
       <ActionHub />

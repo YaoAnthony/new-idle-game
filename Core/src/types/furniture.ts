@@ -69,6 +69,16 @@ export enum FurnitureCapability {
    * 谁带这个标签谁就有开关，加一盏新灯零代码。
    */
   Lighting = "lighting",
+
+  /**
+   * 寄售箱：放进去的家具**第二天一定卖掉**，按 `consignTuning.priceRate` 打折
+   * （规则见 `logic/consign.ts`），钱进这件家具自己的金币抽屉等玩家来领。
+   *
+   * 不是 Storage：储物箱里的东西放多久都在，寄售箱里的东西隔夜就没了——
+   * 两者在交互链上开的也是不同的面板。和小店的关系：小店全价但要有客人，
+   * 寄售箱打折但稳，早期一个居民都没有时也能把家具换成钱。
+   */
+  Consign = "consign",
   /**
    * 有水可喝。宠物渴了会走过来喝（水槽、以后的饮水碗）。
    * 是能力不是物种逻辑：谁带这个标签谁就是水源，加一件新家具零代码。
@@ -249,6 +259,14 @@ export type PlacementBlock = {
    * 相框挂钟一类仍然要避开开口。只对 PlacementSurface.Wall 有意义。
    */
   coversOpenings?: boolean;
+
+  /**
+   * 只能摆在院子里（地图的室外房间）。寄售台这类"院子里的大件"才为 true——
+   * 它们在屋里没有意义，4×2 也进不了门。判定在前端 `checkPlacementTarget`：
+   * "哪间是室外"是地图层的事（`map.outdoorRoomId`），Core 的 `checkPlacement`
+   * 只管一间屋子内部的格子规则，不该知道这一间是不是院子。
+   */
+  outdoorOnly?: boolean;
 
   /**
    * 台面网格（V0.13）：这件家具的顶面能摆东西，网格几行几列，

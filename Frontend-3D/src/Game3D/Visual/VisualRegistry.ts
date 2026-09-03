@@ -88,7 +88,11 @@ import {
   buildSugarcane,
   buildWood,
 } from "./recipes/materials.js";
-import { buildBookshelf, buildStorageChest } from "./recipes/storageFurniture.js";
+import {
+  buildBookshelf,
+  buildConsignBox,
+  buildStorageChest,
+} from "./recipes/storageFurniture.js";
 import { buildStove } from "./recipes/stove.js";
 import { buildKitchenCounter } from "./recipes/kitchen.js";
 import {
@@ -152,6 +156,7 @@ const REGISTRY: Record<string, VisualEntry> = {
   // 生活感扩充
   bookshelf: { kind: "procedural", build: buildBookshelf },
   storage_chest: { kind: "procedural", build: buildStorageChest },
+  consign_box: { kind: "procedural", build: buildConsignBox },
   daily_board: { kind: "procedural", build: buildDailyBoard },
   gramophone: { kind: "procedural", build: buildGramophone },
   ofuro: { kind: "procedural", build: buildOfuro },

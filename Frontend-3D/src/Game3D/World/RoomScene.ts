@@ -1946,6 +1946,9 @@ export class RoomScene {
         ? ("crafting" as const)
         : definition.placement.capabilities.includes(FurnitureCapability.Cooking)
           ? ("cooking" as const)
+          : // 寄售箱不是储物箱：放进去的东西隔夜就没了，开的是寄售面板
+            definition.placement.capabilities.includes(FurnitureCapability.Consign)
+            ? ("consign" as const)
           : definition.placement.capabilities.includes(FurnitureCapability.Storage)
             ? ("storage" as const)
             : // 浴缸自己管"注水/泡"两步，比坐卧优先（它的锚点只在满缸时才给坐）
@@ -2153,6 +2156,9 @@ export class RoomScene {
                 (item) => item.instanceId === instanceId,
               )?.furnitureId ?? "",
           });
+        } else if (this.interactTarget.capability === "consign") {
+          // 寄售箱：面板里放货、看明早到账、领钱都在一处
+          emit("consign_open_requested", { instanceId: this.interactTarget.instanceId });
         } else if (this.interactTarget.capability === "sitting") {
           this.restAtTarget(BodyPosture.Sit);
         } else if (this.interactTarget.capability === "bath") {

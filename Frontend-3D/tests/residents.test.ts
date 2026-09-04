@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { Facing } from "core";
+import { Facing, findPetDefinition, storyRules } from "core";
 
 import { emit } from "../src/Game/EventBus";
 import { restoreBuildings } from "../src/Game/State/buildings";
@@ -9,6 +9,7 @@ import { restoreProgression } from "../src/Game/Systems/events";
 import {
   listResidents,
   residentOfHouse,
+  residentPetId,
   startResidents,
 } from "../src/Game/Systems/residents";
 import {
@@ -113,11 +114,42 @@ test("residents_listResidents只列居民档_商人和龙不在名单上", () =>
   expect(list).not.toContain("pet-otter");
 });
 
-test("residents_人不在场时完工_信号照发_进度不被演出卡住", () => {
+test("residents_人不在场时完工_他从领地入口登场_驻地就是门口", () => {
+  // 委托路（/npc join）：图纸先到、人不在场。完工那一刻才来
   restoreBuildings([HOUSE("fox_house", "h9")]);
 
   emit("building_completed", { buildingId: "fox_house", instanceId: "h9" });
 
+  const pet = getPet("pet-fox");
+  expect(pet).toBeDefined();
+  expect(pet!.homeX).toBeCloseTo(4.5);
+  expect(pet!.homeZ).toBeCloseTo(12.5 + 2.2);
   expect(getSignalCounts()["resident_moved_in|fox_neighbor"]).toBe(1);
-  expect(getPet("pet-fox")).toBeUndefined();
+  // 登场是登场：pet_spawned 照发（和剧情路的 spawn_pet 一样）
+  expect(getSignalCounts()["pet_spawned|pet-fox"]).toBe(1);
+});
+
+test("residents_运行时id和剧情规则里spawn_pet的petId是同一套", () => {
+  /*
+   * 两条到来的路必须落到同一个实例：剧情路（storyRules 的 spawn_pet）
+   * 先来的人，和完工时 residents 登场的人，id 不一致就会是两只。
+   */
+  for (const rule of storyRules) {
+    for (const effect of rule.effects) {
+      if (effect.kind !== "spawn_pet") continue;
+      const definition = findPetDefinition(effect.definitionId);
+      if (!definition?.residence) continue;
+      expect(effect.petId).toBe(residentPetId(effect.definitionId));
+    }
+  }
+});
+
+test("residents_已经在场的人_完工只重定向驻地_不会长出第二只", () => {
+  const before = spawnPet("pet-slime", "slime_neighbor");
+  restoreBuildings([HOUSE("slime_house", "h1")]);
+
+  emit("building_completed", { buildingId: "slime_house", instanceId: "h1" });
+
+  expect(getPet("pet-slime")).toBe(before);
+  expect(listResidents().filter((id) => id === "pet-slime")).toHaveLength(1);
 });

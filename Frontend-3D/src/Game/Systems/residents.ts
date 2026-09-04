@@ -1,13 +1,30 @@
-import { CreatureRole } from "core";
+import {
+  CreatureRole,
+  findResidentOfHouse,
+  listResidentDefinitions,
+  residentTuning,
+  type PetDefinition,
+} from "core";
 import { on } from "../EventBus";
 import { findPlacement } from "../State/buildings";
-import { getPet, getPets } from "../State/petsRuntime";
+import { getPets, spawnPetAt } from "../State/petsRuntime";
+import { getCurrentMap } from "../State/worldRuntime";
+import { mapDefinitions } from "../../Maps/index";
 import { signal } from "./story";
 
 /**
- * 居民（期 4）：房子建成 → 他搬进去。
+ * 居民（期 4，2026-09-04 重排）：**房子建成 → 他来 → 住下**。
  *
- * "搬进去"落到运行时是两件事：
+ * ## 两条到来的路，汇在同一个完工信号上
+ *
+ * - **剧情路**（抽签池）：人先到、说"想住下来"、给图纸。这条没动。
+ * - **委托路**（`/npc join`）：先拿到图纸，人不在场；房子完工那一刻他
+ *   才从领地入口走进来。以后正式的"NPC 来信委托选址"走的就是这条。
+ *
+ * 两条路都在 `building_completed` 汇合，这里不问他是怎么来的：
+ * 人在场就重定向驻地，不在场就登场再重定向。结果一样——站在自家门口。
+ *
+ * ## "搬进去"落到运行时是两件事
  *
  * 1. **驻地重定向**：`PetAgent.rehome` 把乱走的圆心挪到他家门口。
  *    他会自己溜达过去（不瞬移），home 进存档，读档不漂移——
@@ -19,19 +36,24 @@ import { signal } from "./story";
  *
  * ## 房和人的对应从哪来
  *
- * 一张点名表（HOUSE_OF）。**不从命名约定推**（`slime_house` → 掐掉
- * `_house` 就是物种？）——约定推导在两边各自改名时静默失效，而这张表
- * 三行，错了 content 测试当场点名。
+ * `PetDefinition.residence`（Core 注册表）。原来是这个文件里一张手写的
+ * 三行表——那是 gameplay 代码里的内容分支，加第四位居民得回来改逻辑。
+ * 现在加居民 = 注册表加一条，这里一个字不动。
  */
-const HOUSE_OF: Record<string, string> = {
-  slime_house: "slime_neighbor",
-  fox_house: "fox_neighbor",
-  spirit_house: "spirit_neighbor",
-};
 
 /** 谁的房子？测试和期 5 的客源名单都问它 */
 export function residentOfHouse(buildingId: string): string | undefined {
-  return HOUSE_OF[buildingId];
+  return findResidentOfHouse(buildingId)?.id;
+}
+
+/**
+ * 居民的运行时 id。**和剧情规则里 spawn_pet 的 petId 是同一套**
+ * （`pet-slime` / `pet-fox` / `pet-spirit`）：两条到来的路必须落到同一个
+ * 实例上，否则剧情路先来的人和完工时登场的人会是两只。
+ * residents.test 钉着这条对应。
+ */
+export function residentPetId(definitionId: string): string {
+  return `pet-${definitionId.replace(/_neighbor$/, "")}`;
 }
 
 /** 已经搬进来的居民（在场 + 是居民档）。期 5 小店的客源名单 */
@@ -41,37 +63,83 @@ export function listResidents(): string[] {
     .map((pet) => pet.petId);
 }
 
+/** 所有有房子的居民定义。`/npc` 的候选表 */
+export function listResidentSpecies(): PetDefinition[] {
+  return listResidentDefinitions();
+}
+
 /**
- * 搬入。找不到人（房子建好时他不在场——理论上不会：到来规则先 spawn）
- * 就静默跳过，**信号照发**：进度不该被一个演出性的缺席卡住。
+ * 门口外一步的世界坐标。**不是房子中心**：中心在墙里面，乱走的候选点会
+ * 全部落进屋里，他就永远"闷在家里"。门口那一步让他在自家门前转悠——
+ * 那才是"住在这儿"的样子。
+ *
+ * 门在正面（本地 +z），实例的 facing 决定正面朝世界的哪边——
+ * 占位壳是 3×3，门口外一步 ≈ 沿正面方向 2.2。四个朝向查表，
+ * 和家具的 FACING_ROTATION 同一套语义。
+ */
+function doorstepOf(placement: { x: number; z: number; facing: string }): {
+  x: number;
+  z: number;
+} {
+  const OUT: Record<string, [number, number]> = {
+    north: [0, 2.2],
+    south: [0, -2.2],
+    east: [2.2, 0],
+    west: [-2.2, 0],
+  };
+  const [dx, dz] = OUT[placement.facing] ?? [0, 2.2];
+  return { x: placement.x + dx, z: placement.z + dz };
+}
+
+/**
+ * 访客从哪儿进这张图：别的图通往这里的出入口落点。
+ *
+ * 据点只有东桥一座，所以就是桥面对岸那一头（town/portals 里 landing 到
+ * base 的那条）。不在这里写坐标——桥挪了、多一座桥，这里自动跟着。
+ * 找不到（露天图、没人通向它）退回本图出生点。
+ */
+export function visitorEntranceOf(mapId: string): { x: number; z: number; heading: number } {
+  for (const map of mapDefinitions) {
+    for (const portal of map.portals ?? []) {
+      if (portal.targetMapId === mapId && portal.landing) {
+        return { x: portal.landing.x, z: portal.landing.y, heading: portal.landing.heading };
+      }
+    }
+  }
+  const spawn = getCurrentMap().spawn;
+  return { x: spawn.x, z: spawn.y, heading: spawn.heading };
+}
+
+/**
+ * 搬入。人在场 → 重定向驻地；不在场 → 从入口登场、驻地直接是门口。
+ * 房子没在场上（理论上不会：完工信号由真实的工地发）就只发信号，
+ * 进度不该被一个演出性的缺席卡住。
  */
 function moveResidentIn(instanceId: string, buildingId: string): void {
-  const species = HOUSE_OF[buildingId];
-  if (!species) return;
+  const resident = findResidentOfHouse(buildingId);
+  if (!resident) return;
 
   const placement = findPlacement(instanceId);
   if (placement) {
-    /*
-     * 驻地设在**门口外一步**，不是房子中心：房子中心在墙里面，
-     * 乱走的候选点会全部落进屋里，他就永远"闷在家里"。门口那一步
-     * 让他在自家门前转悠——那才是"住在这儿"的样子。
-     *
-     * 门在正面（本地 +z），实例的 facing 决定正面朝世界的哪边——
-     * 占位壳是 3×3，门口外一步 ≈ 沿正面方向 2.2。四个朝向查表，
-     * 和家具的 FACING_ROTATION 同一套语义。
-     */
-    const OUT: Record<string, [number, number]> = {
-      north: [0, 2.2],
-      south: [0, -2.2],
-      east: [2.2, 0],
-      west: [-2.2, 0],
-    };
-    const [dx, dz] = OUT[placement.facing] ?? [0, 2.2];
-    const pet = getPets().find((p) => p.definitionId === species);
-    if (pet) pet.rehome(placement.x + dx, placement.z + dz);
+    const doorstep = doorstepOf(placement);
+    const present = getPets().find((pet) => pet.definitionId === resident.id);
+    if (present) {
+      present.rehome(doorstep.x, doorstep.z);
+    } else {
+      const arrive = () => {
+        const entrance = visitorEntranceOf(getCurrentMap().mapId);
+        spawnPetAt(residentPetId(resident.id), resident.id, entrance, doorstep);
+      };
+      // 0 = 立马到（用户 2026-09-04 定）；以后"隔天到"改 Core 的调参
+      if (residentTuning.arriveAfterBuiltMs > 0) {
+        setTimeout(arrive, residentTuning.arriveAfterBuiltMs);
+      } else {
+        arrive();
+      }
+    }
   }
 
-  signal("resident_moved_in", species);
+  signal("resident_moved_in", resident.id);
 }
 
 let detach: (() => void) | null = null;
@@ -89,8 +157,7 @@ export function startResidents(): () => void {
   return detach;
 }
 
-/** 某位居民搬进来了吗（他的房子在世界里 = 搬过）。调试指令用 */
-export function isResidentHoused(species: string): boolean {
-  const pet = getPet(`pet-${species.replace("_neighbor", "")}`);
-  return Boolean(pet);
+/** 某位居民在场吗。调试指令用 */
+export function isResidentHoused(definitionId: string): boolean {
+  return getPets().some((pet) => pet.definitionId === definitionId);
 }

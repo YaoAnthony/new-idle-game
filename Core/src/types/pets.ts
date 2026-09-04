@@ -117,6 +117,20 @@ export type PetDefinition = {
   /** 陪你的还是干活的。不填 = `CreatureRole.Pet`，老定义零改动 */
   role?: CreatureRole;
 
+  /**
+   * **他住哪种房子**（`CreatureRole.Resident` 才填）。
+   *
+   * 原来这层关系是 `Systems/residents.ts` 里一张手写表（slime_house →
+   * slime_neighbor），属于 gameplay 代码里的内容分支。搬到定义上之后，
+   * 「谁的房子完工 → 谁搬进来」「/npc join 该发哪张图纸」「客源名单」
+   * 都从这一处读，加第四位居民不用再回去改任何 .ts 逻辑。
+   *
+   * 只写 buildingId 不写图纸 id：图纸指向建筑已经是一条边
+   * （`ItemDefinition.blueprint`），反查 `findBlueprintForBuilding` 就有，
+   * 再记一遍就是同一份关系存两处。
+   */
+  residence?: { buildingId: string };
+
   behavior?: PetBehavior;
 
   /**

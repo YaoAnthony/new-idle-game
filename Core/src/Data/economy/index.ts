@@ -229,4 +229,10 @@ export const travelerTuning = {
  */
 export const residentTuning = {
   houseBuildGold: 15,
+  /**
+   * 房子完工到人出现在领地入口隔多久（墙钟毫秒）。
+   * 用户 2026-09-04 定"未来过来的时间会不定，目前设置成立马到"——所以是 0；
+   * 以后改成"隔天到""随机 1~3 天"是换这一处的语义，不是回 residents.ts 加分支。
+   */
+  arriveAfterBuiltMs: 0,
 } as const;

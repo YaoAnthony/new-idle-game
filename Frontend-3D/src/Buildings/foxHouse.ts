@@ -20,7 +20,7 @@ export const foxHouse: BuildingDefinition = {
   localizationKey: "building.fox_house",
   descriptionKey: "building.fox_house.desc",
   doorOffset: 0,
-  // 一位邻居一栋。第二栋会让 HOUSE_OF 的映射二义（谁搬进哪栋？）
+  // 一位邻居一栋。第二栋会让 PetDefinition.residence 的对应二义（谁搬进哪栋？）
   maxInstances: 1,
   levels: [
     {

@@ -89,6 +89,44 @@ export function spawnPet(petId: string, definitionId: string): PetAgent {
 }
 
 /**
+ * 在**指定的世界坐标**登场，然后自己走向驻地（居民从领地入口走到自家门口，
+ * 2026-09-04）。
+ *
+ * 和 `spawnPet` 的分别只在出生点：那条固定从主屋西门进来，是"来串门"的
+ * 演出；居民的房子在院子里，从屋里走出去反而像是从你家冒出来的。
+ * 和 `placeCreatureAt` 的分别在语义：那条是"它本来就在这儿"（不发登场
+ * 信号、petId 按定义推）；这条**是登场**——发 pet_spawned，petId 由调用方
+ * 给，和剧情规则里 spawn_pet 用的同一个 id 体系。
+ *
+ * 走不到（入口和房子之间隔着水、路被堵死）就**直接落在驻地**：
+ * 一个永远站在桥头的邻居比一次穿模的到达糟得多。
+ */
+export function spawnPetAt(
+  petId: string,
+  definitionId: string,
+  from: { x: number; z: number; heading?: number },
+  home: { x: number; z: number },
+): PetAgent {
+  const existing = pets.get(petId);
+  if (existing) return existing;
+
+  const pet = new PetAgent(petId, definitionId, {
+    x: from.x,
+    z: from.z,
+    heading: from.heading ?? 0,
+  });
+  pet.rehome(home.x, home.z);
+  pets.set(petId, pet);
+
+  pet.beginEntering();
+  if (!pet.isMovingSomewhere()) pet.debugPlace(home.x, home.z);
+
+  emit("pet_changed", { petId, reason: "spawn" });
+  emit("story_signal", { kind: "pet_spawned", subject: petId });
+  return pet;
+}
+
+/**
  * 把一只生物从运行时**送走**（期 3：水獭的来去、小龙的离场）。
  *
  * 是移除不是隐藏——隐藏的话碰撞体还在，玩家会撞到一团空气，

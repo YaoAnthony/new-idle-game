@@ -19,6 +19,7 @@ import {
   itemDefinitions,
   placeableItems,
   untradableItemIds,
+  findBlueprintForBuilding,
 } from "../src/Data/items/index.js";
 import { chestExcludedItemIds } from "../src/Data/actionChains/index.js";
 import { recipeDefinitions } from "../src/Data/recipes/index.js";
@@ -358,6 +359,26 @@ test("宠物的对话和事件都指向真实数据", () => {
       );
     }
   }
+});
+
+test("居民的住处指向一张真实存在的图纸，且只有居民档才有住处", () => {
+  for (const pet of petDefinitions as readonly PetDefinition[]) {
+    if (!pet.residence) continue;
+    assert.equal(
+      pet.role,
+      "resident",
+      `${pet.id} 填了 residence 却不是居民档——搬入判定只认居民`,
+    );
+    assert.ok(
+      findBlueprintForBuilding(pet.residence.buildingId),
+      `${pet.id} 的房型 ${pet.residence.buildingId} 没有对应的图纸物品，/npc join 发不出东西`,
+    );
+  }
+  // 同一栋房型不能有两位住户：完工信号只会让一个人搬进来
+  const houses = (petDefinitions as readonly PetDefinition[])
+    .map((pet) => pet.residence?.buildingId)
+    .filter(Boolean);
+  assert.equal(new Set(houses).size, houses.length, "两位居民认领了同一种房子");
 });
 
 test("宠物 id 和造型 id 都不为空且不重复", () => {

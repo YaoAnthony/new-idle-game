@@ -406,6 +406,7 @@ const ZH: Record<string, string> = {
   // 一次性领取面板（拆箱 / 任务奖励通用）
   "ui.reward_subtitle": "已经放进你的背包",
   "ui.reward_claim": "收下",
+  "loot.residence_blueprint": "邻居托人送来了图纸",
   "loot.moving_tools": "打开了工具箱",
   "loot.moving_furniture": "打开了家什箱",
   "hint.unpack": "拆开箱子",

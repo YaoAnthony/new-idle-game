@@ -228,6 +228,7 @@ import {
 import { registerActionCommands } from "../Game/Systems/actionCommands";
 import { DiaryPanel } from "../Components/Diary/DiaryPanel";
 import { registerChainCommands } from "../Game/Systems/chainCommands";
+import { registerResidentCommands } from "../Game/Systems/residentCommands";
 import { isRemoteWorldActive } from "../Game/Multiplayer/session";
 import { describeSoundscape, startSoundscape } from "./Engine/Soundscape";
 import { startMusicDirector } from "./Engine/MusicDirector";
@@ -438,6 +439,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       ...registerActionCommands(),
       ...registerDailyCommands(),
       ...registerChainCommands(),
+      ...registerResidentCommands(),
       registerCommand({
         name: "time",
         usage: "time <dawn|day|dusk|night>",
@@ -1701,37 +1703,6 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
             ),
           );
         },
-      }),
-      registerCommand({
-        name: "residents",
-        usage: "residents",
-        description: "在场的居民一览（期 4）：住哪、驻地在哪、有没有搬进去",
-        handler: () =>
-          ok(
-            JSON.stringify(
-              {
-                /*
-                 * 驻地一起打出来：**"搬没搬进去"唯一看得见的证据就是它**。
-                 * 只列 id 的话，搬入到底生效没有得靠猜——期 4 实测就在这儿
-                 * 卡了一轮（房子立起来了，人没进去，而且不报错）。
-                 */
-                在场居民: getPets()
-                  .filter((pet) => pet.role === CreatureRole.Resident)
-                  .map((pet) => ({
-                    id: pet.petId,
-                    物种: pet.definitionId,
-                    驻地: `${pet.homeX.toFixed(1)}, ${pet.homeZ.toFixed(1)}`,
-                    现在在: `${pet.x.toFixed(1)}, ${pet.z.toFixed(1)}`,
-                  })),
-                名单: listResidents(),
-                具名召唤: storyRules
-                  .filter((rule) => rule.id.startsWith("resident_"))
-                  .map((rule) => `/rule ${rule.id}`),
-              },
-              null,
-              1,
-            ),
-          ),
       }),
       registerCommand({
         name: "otter",

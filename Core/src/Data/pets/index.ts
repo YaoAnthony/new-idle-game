@@ -152,6 +152,7 @@ export const petDefinitions = [
     visualId: "slime_neighbor",
     species: "slime",
     role: CreatureRole.Resident,
+    residence: { buildingId: "slime_house" },
     collisionRadius: 0.3,
     behavior: { moveSpeed: 0.9, wanderRadius: 3, sleepiness: 0.3, napSeconds: [60, 150] },
     dialogues: { firstMeet: "slime_asks_to_stay", casual: "slime_casual" },
@@ -163,6 +164,7 @@ export const petDefinitions = [
     visualId: "fox_neighbor",
     species: "fox",
     role: CreatureRole.Resident,
+    residence: { buildingId: "fox_house" },
     collisionRadius: 0.35,
     behavior: { moveSpeed: 1.5, wanderRadius: 4, sleepiness: 0.15 },
     dialogues: { firstMeet: "fox_asks_to_stay", casual: "fox_casual" },
@@ -179,6 +181,7 @@ export const petDefinitions = [
     visualId: "spirit_neighbor",
     species: "spirit_folk",
     role: CreatureRole.Resident,
+    residence: { buildingId: "spirit_house" },
     collisionRadius: 0.3,
     behavior: { moveSpeed: 1.2, wanderRadius: 3.5, sleepiness: 0.2 },
     dialogues: { firstMeet: "spirit_asks_to_stay", casual: "spirit_casual" },
@@ -245,6 +248,16 @@ export const petDefinitions = [
     ignoresObstacles: true,
   },
 ] satisfies PetDefinition[];
+
+/** 有自己房子的那几位（`residence` 填了的）。指令候选和搬入判定都问它 */
+export function listResidentDefinitions(): PetDefinition[] {
+  return (petDefinitions as readonly PetDefinition[]).filter((pet) => pet.residence);
+}
+
+/** 这栋房型是谁的家。没人认领（金库、店铺）返回 undefined */
+export function findResidentOfHouse(buildingId: string): PetDefinition | undefined {
+  return listResidentDefinitions().find((pet) => pet.residence?.buildingId === buildingId);
+}
 
 export function findPetDefinition(id: string): PetDefinition | undefined {
   return petDefinitions.find((pet) => pet.id === id);

@@ -20,7 +20,7 @@ import { buildHeldVisual } from "./HeldItemView";
 /**
  * 房间里**其他玩家**的形象。
  *
- * 和 PetView / DroppedItemView 同一个模式：订阅状态源（这里是
+ * 和 ResidentView / DroppedItemView 同一个模式：订阅状态源（这里是
  * Game/Multiplayer/roster），把"名册里有谁"同步成"场景里有哪些模型"。
  * 网络细节一概不知道——它连 socket 都没见过，读的全是 roster 的
  * 插值样本（120ms 回放，见 roster 的注释）。

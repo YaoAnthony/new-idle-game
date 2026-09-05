@@ -14,7 +14,7 @@ import type { DialogueDefinition } from "../../types/dialogue.js";
  *   编译器会逼出穷尽性）。档位由喜好表算，作者只负责写"这一档什么反应"。
  * - **收不收礼不在对话里点名**。玩家能送错是设计要求，试错是了解对方的
  *   一部分——判定在 `logic/giftRules.ts`。
- * - 宠物的对话由 `PetDefinition.dialogues` 认领（firstMeet / casual），
+ * - 宠物的对话由 `ResidentDefinition.dialogues` 认领（firstMeet / casual），
  *   交互层不认识具体是哪只，加宠物不用改 RoomScene。
  *
  * ⚠️ 写条件分支前先知道三处坏的（`Frontend-3D/src/Game/Systems/dialogue.ts`）：

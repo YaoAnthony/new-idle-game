@@ -21,7 +21,7 @@ import {
   takeGoldUpTo,
 } from "../src/Game/State/gold";
 import { getCount, replaceCounts } from "../src/Game/State/inventory";
-import { restorePets } from "../src/Game/State/petsRuntime";
+import { restoreResidents } from "../src/Game/State/residentsRuntime";
 import { addToStorage, clearStorage, getStorage } from "../src/Game/State/storage";
 import {
   CONSIGN_BOX_SEED,
@@ -65,7 +65,7 @@ beforeEach(() => {
   if (getCurrentMapId() !== DEFAULT_MAP_ID) travelTo(DEFAULT_MAP_ID);
   setRemoteWorldActive(false);
   restoreBuildings([]);
-  restorePets({}); // 一个居民都没有——寄售箱不该在乎
+  restoreResidents({}); // 一个居民都没有——寄售箱不该在乎
   restoreBaseGold(0);
   takeGoldUpTo(getGold());
   replaceCounts({});

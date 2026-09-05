@@ -1,11 +1,11 @@
 import { findBlueprintForBuilding, findItemDefinition } from "core";
-import { registerCommand, type CommandResult } from "../CommandLine/commands";
-import { listBuildings } from "../State/buildings";
-import { getCount } from "../State/inventory";
-import { getPets } from "../State/petsRuntime";
-import { listResidentSpecies } from "./residents";
-import { getPendingUnpack, presentItems } from "./unpack";
-import { t } from "../../i18n/t";
+import { registerCommand, type CommandResult } from "../../CommandLine/commands";
+import { listBuildings } from "../../State/buildings";
+import { getCount } from "../../State/inventory";
+import { getResidents } from "../../State/residentsRuntime";
+import { listResidentSpecies } from "./moveIn";
+import { getPendingUnpack, presentItems } from "../unpack";
+import { t } from "../../../i18n/t";
 
 /**
  * `/npc` 命令组：居民入住这条链的**委托入口**（2026-09-04，用户定）。
@@ -25,7 +25,7 @@ function findSpecies(arg: string | undefined) {
   if (!arg) return undefined;
   const key = arg.toLowerCase();
   return listResidentSpecies().find(
-    (pet) => pet.id === key || shortName(pet.id) === key,
+    (resident) => resident.id === key || shortName(resident.id) === key,
   );
 }
 
@@ -57,9 +57,9 @@ export function registerResidentCommands(): Array<() => void> {
         {
           name: "物种",
           suggest: () =>
-            listResidentSpecies().map((pet) => ({
-              value: shortName(pet.id),
-              description: t(pet.localizationKey),
+            listResidentSpecies().map((resident) => ({
+              value: shortName(resident.id),
+              description: t(resident.localizationKey),
             })),
         },
       ],
@@ -68,11 +68,11 @@ export function registerResidentCommands(): Array<() => void> {
         if (!sub) return ok(USAGE);
 
         if (sub === "list") {
-          const pets = getPets();
-          const rows = listResidentSpecies().map((pet) => {
-            const buildingId = pet.residence!.buildingId;
+          const pets = getResidents();
+          const rows = listResidentSpecies().map((resident) => {
+            const buildingId = resident.residence!.buildingId;
             const blueprint = findBlueprintForBuilding(buildingId);
-            const present = pets.find((item) => item.definitionId === pet.id);
+            const present = pets.find((item) => item.definitionId === resident.id);
             let status: string;
             if (present) {
               // 驻地和现在站的位置一起打：'搬没搬进去'唯一看得见的证据是驻地，
@@ -87,7 +87,7 @@ export function registerResidentCommands(): Array<() => void> {
             } else {
               status = "还没来";
             }
-            return `  ${shortName(pet.id)}（${t(pet.localizationKey)}）：${buildingId} —— ${status}`;
+            return `  ${shortName(resident.id)}（${t(resident.localizationKey)}）：${buildingId} —— ${status}`;
           });
           return ok(["居民：", ...rows].join("\n"));
         }
@@ -95,7 +95,7 @@ export function registerResidentCommands(): Array<() => void> {
         if (sub === "join") {
           const species = findSpecies(args[1]);
           if (!species) {
-            const names = listResidentSpecies().map((pet) => shortName(pet.id));
+            const names = listResidentSpecies().map((resident) => shortName(resident.id));
             return fail(`没有这位居民：${args[1] ?? "(空)"}。可选：${names.join(" / ")}`);
           }
           const buildingId = species.residence!.buildingId;
@@ -103,7 +103,7 @@ export function registerResidentCommands(): Array<() => void> {
           if (!blueprint) return fail(`${species.id} 的房型 ${buildingId} 没有图纸物品`);
           const name = t(species.localizationKey);
 
-          const present = getPets().some((pet) => pet.definitionId === species.id);
+          const present = getResidents().some((resident) => resident.definitionId === species.id);
           if (present && houseOnGround(buildingId)) return fail(`${name} 已经住下了`);
           if (houseOnGround(buildingId)) {
             return fail(`${name} 的房子已经在场上了，盖好他就来`);

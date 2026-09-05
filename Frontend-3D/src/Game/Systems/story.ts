@@ -13,7 +13,7 @@ import { emit, on } from "../EventBus";
 import { getClock } from "../State/clock";
 import { depositGoldTo, takeGoldUpTo } from "../State/gold";
 import { addItem, getCounts, removeItem } from "../State/inventory";
-import { getPet, setPetAffection, spawnPet } from "../State/petsRuntime";
+import { getResident, setResidentAffection, spawnResident } from "../State/residentsRuntime";
 import { getWeather } from "../State/weather";
 import { startDialogue } from "./dialogue";
 import { getEventStage, isFeatureUnlocked, setEventStage, unlockFeature } from "./events";
@@ -103,7 +103,7 @@ function runEffect(effect: StoryEffect): void {
       break;
 
     case "set_affection":
-      setPetAffection(effect.petId, effect.stage);
+      setResidentAffection(effect.residentId, effect.stage);
       break;
 
     case "unlock_feature":
@@ -118,33 +118,33 @@ function runEffect(effect: StoryEffect): void {
       removeItem(effect.itemId, effect.quantity);
       break;
 
-    case "spawn_pet": {
-      const { petId, definitionId, delayMs = 0, jitterMs = 0 } = effect;
+    case "spawn_resident": {
+      const { residentId, definitionId, delayMs = 0, jitterMs = 0 } = effect;
       const wait = delayMs + Math.random() * jitterMs;
 
       // 先等面板关掉，再等这段时间——"突然出现"要发生在玩家看得见屋子的时候
       whenPanelsClear(() => {
-        if (wait > 0) setTimeout(() => spawnPet(petId, definitionId), wait);
-        else spawnPet(petId, definitionId);
+        if (wait > 0) setTimeout(() => spawnResident(residentId, definitionId), wait);
+        else spawnResident(residentId, definitionId);
       });
       break;
     }
 
     case "start_dialogue": {
       const run = () =>
-        startDialogue(effect.dialogueId, effect.petId ?? null);
+        startDialogue(effect.dialogueId, effect.residentId ?? null);
       if (effect.delayMs) setTimeout(run, effect.delayMs);
       else run();
       break;
     }
 
     // 睡/醒终归是宠物自己的状态，剧情只负责喊一声"该醒了/该睡了"
-    case "pet_wake":
-      getPet(effect.petId)?.wakeUp();
+    case "resident_wake":
+      getResident(effect.residentId)?.wakeUp();
       break;
 
-    case "pet_sleep":
-      getPet(effect.petId)?.fallAsleep();
+    case "resident_sleep":
+      getResident(effect.residentId)?.fallAsleep();
       break;
 
     case "show_toast":

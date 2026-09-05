@@ -114,7 +114,7 @@ export function startAutosave(): () => void {
      * 触发点从"等 2.5 秒后台写"挪到"当场写"，把这个窗口压到最小。
      */
     on("event_progress_changed", () => void saveNow()),
-    on("pet_changed", ({ reason }) => {
+    on("resident_changed", ({ reason }) => {
       if (reason !== "restored") schedule();
     }),
     on("action_changed", () => schedule()),

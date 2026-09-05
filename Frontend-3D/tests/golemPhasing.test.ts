@@ -1,7 +1,7 @@
 import { beforeEach, expect, test } from "vitest";
-import { DEFAULT_MAP_ID, Facing, findPetDefinition } from "core";
+import { DEFAULT_MAP_ID, Facing, findResidentDefinition } from "core";
 
-import { getPet, removePet, restorePets, spawnPet } from "../src/Game/State/petsRuntime";
+import { getResident, removeResident, restoreResidents, spawnResident } from "../src/Game/State/residentsRuntime";
 import { listBuildings, restoreBuildings } from "../src/Game/State/buildings";
 import { hitsCreature } from "../src/Game/State/world/obstacles";
 import { isWalkable, withPhasing } from "../src/Game/State/world/walkable";
@@ -41,8 +41,8 @@ beforeEach(() => {
   if (getCurrentMapId() !== DEFAULT_MAP_ID) travelTo(DEFAULT_MAP_ID);
   setRemoteWorldActive(false);
   restoreBuildings([]);
-  restorePets({});
-  for (const id of [GOLEM, OTHER]) removePet(id);
+  restoreResidents({});
+  for (const id of [GOLEM, OTHER]) removeResident(id);
   initDoors();
   invalidateNavGrid();
 });
@@ -53,7 +53,7 @@ test("golemPhasing_只有石傀儡开了这个开关_别的生物一个都没开
    * 这条基本感觉出现例外，而例外一旦有两个就会有第三个。
    */
   const opened = ["slime_neighbor", "fox_neighbor", "spirit_neighbor", "stone_golem"]
-    .filter((id) => findPetDefinition(id)?.ignoresObstacles);
+    .filter((id) => findResidentDefinition(id)?.ignoresObstacles);
 
   expect(opened).toEqual(["stone_golem"]);
 });
@@ -112,16 +112,16 @@ test("golemPhasing_主屋照旧挡它_home 是那一个例外", () => {
 
 test("golemPhasing_不登记成活物障碍_不然它会变成会走路的幽灵墙", () => {
   // Arrange
-  const golem = spawnPet(GOLEM, "stone_golem");
+  const golem = spawnResident(GOLEM, "stone_golem");
   golem.debugPlace(2, 8);
-  const slime = spawnPet(OTHER, "slime_neighbor");
+  const slime = spawnResident(OTHER, "slime_neighbor");
   slime.debugPlace(2, 12);
 
   // Act + Assert：别人问"这儿有活物吗"，石傀儡不在答案里
   expect(hitsCreature(2, 8, 0.35, OTHER), "石傀儡不该挡别人").toBe(false);
   // 反过来，普通生物照旧互相挡
   expect(hitsCreature(2, 12, 0.35, GOLEM), "史莱姆照旧是障碍").toBe(true);
-  expect(getPet(GOLEM)).toBeDefined();
+  expect(getResident(GOLEM)).toBeDefined();
 });
 
 test("golemPhasing_穿行的导航图另存一份_不能让普通生物读到", () => {

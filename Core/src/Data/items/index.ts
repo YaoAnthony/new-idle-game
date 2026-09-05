@@ -1703,7 +1703,7 @@ export const itemDefinitions = [
      *
      * 以前全游戏唯一的水源是 L 形橱柜台面短边的水槽（`WaterSource`），
      * 而橱柜从开局纸箱里挪走之后（换成 2×1 的独立灶台），宠物渴了就
-     * 没地方喝了——`petAgent.trySeekWater` 会一直找不到目标。
+     * 没地方喝了——`residentAgent.trySeekWater` 会一直找不到目标。
      *
      * 水源搬到院子里是对的：屋里那口"水槽"本来就是个凑数的水源，而这栋
      * 是森林里的女巫小屋，没有自来水。井还顺带解释了这块地为什么有人住。

@@ -15,7 +15,7 @@ import {
   getStorage,
   pruneOrphanStorages,
 } from "../src/Game/State/storage";
-import { removePet, restorePets, spawnPet } from "../src/Game/State/petsRuntime";
+import { removeResident, restoreResidents, spawnResident } from "../src/Game/State/residentsRuntime";
 import { setRemoteWorldActive } from "../src/Game/Multiplayer/worldLock";
 import { getCurrentMapId } from "../src/Game/State/worldRuntime";
 import { travelTo } from "../src/Game/Systems/mapTravel";
@@ -70,7 +70,7 @@ beforeEach(() => {
   if (getCurrentMapId() !== DEFAULT_MAP_ID) travelTo(DEFAULT_MAP_ID);
   setRemoteWorldActive(false);
   restoreBuildings(world());
-  restorePets({});
+  restoreResidents({});
   restoreBaseGold(0);
   takeGoldUpTo(getGold()); // 金库清空，容量才是真的空位
   // 货架清空：storage 的实例是模块级 Map，用例之间会串
@@ -79,8 +79,8 @@ beforeEach(() => {
 
 afterEach(() => {
   restoreBuildings([]);
-  removePet("pet-slime");
-  removePet("pet-fox");
+  removeResident("pet-slime");
+  removeResident("pet-fox");
 });
 
 test("shopkeeping_货位数随等级涨_只认前N格", () => {
@@ -109,7 +109,7 @@ test("shopkeeping_只收家具_食材上不了架", () => {
 
 test("shopkeeping_卖出去的从货架上扣掉_钱按单价算", () => {
   // Arrange：一位居民 + 架上两把椅子
-  spawnPet("pet-slime", "slime_neighbor");
+  spawnResident("pet-slime", "slime_neighbor");
   addToStorage(shelfIdFor("shop-1"), "furniture_chair", 2);
 
   // Act：结算一天
@@ -135,7 +135,7 @@ test("shopkeeping_没有居民时一件都卖不掉_不崩", () => {
 
 test("shopkeeping_离线十天只够卖三天的货_就只结三天", () => {
   // Arrange：一位客人一天 15，一把椅子 value < 15，架上就 2 把
-  spawnPet("pet-slime", "slime_neighbor");
+  spawnResident("pet-slime", "slime_neighbor");
   addToStorage(shelfIdFor("shop-1"), "furniture_chair", 2);
 
   // Act：假装离线十天
@@ -156,7 +156,7 @@ test("shopkeeping_一天一天算_不是把预算攒成一笔", () => {
    * 一天一天算则每天都受 15 的限制。这条差别正是"离线和在线结果一致"
    * 的全部内容。
    */
-  spawnPet("pet-slime", "slime_neighbor");
+  spawnResident("pet-slime", "slime_neighbor");
   addToStorage(shelfIdFor("shop-1"), "furniture_chair", 10);
 
   const oneDay = settleDaysFor("shop-1", 1);
@@ -170,13 +170,13 @@ test("shopkeeping_一天一天算_不是把预算攒成一笔", () => {
 });
 
 test("shopkeeping_客源是居民_商人不算客人", () => {
-  spawnPet("pet-slime", "slime_neighbor");
-  spawnPet("pet-otter", "otter_trader");
+  spawnResident("pet-slime", "slime_neighbor");
+  spawnResident("pet-otter", "otter_trader");
   addToStorage(shelfIdFor("shop-1"), "furniture_chair", 20);
 
   const onlyResident = settleDaysFor("shop-1", 1).length;
 
-  removePet("pet-otter");
+  removeResident("pet-otter");
   clearStorage(shelfIdFor("shop-1")); // 清架重来
   addToStorage(shelfIdFor("shop-1"), "furniture_chair", 20);
   const withoutOtter = settleDaysFor("shop-1", 1).length;
@@ -227,8 +227,8 @@ test("shopkeeping_没盖店时findShop为空_指令和结算都静默跳过", ()
  */
 test("shopkeeping_贵过全天预算的货不会卖_也不会消失", () => {
   // Arrange：三位居民一天共 45，架上一张 60 的唱片
-  spawnPet("pet-slime", "slime_neighbor");
-  spawnPet("pet-fox", "fox_neighbor");
+  spawnResident("pet-slime", "slime_neighbor");
+  spawnResident("pet-fox", "fox_neighbor");
   addToStorage(shelfIdFor("shop-1"), "record_animal_crossing", 1);
 
   // Act：连开十天
@@ -250,7 +250,7 @@ test("shopkeeping_金库满着照样成交_钱囤在抽屉里等着领", () => {
    * 金库空位卡住（见下一条用例）。"不把货卖成空气"这个保护目标
    * 没有变，只是钱的安身处从"金库空位"换成了"抽屉"。
    */
-  spawnPet("pet-slime", "slime_neighbor");
+  spawnResident("pet-slime", "slime_neighbor");
   addToStorage(shelfIdFor("shop-1"), "furniture_chair", 5);
   depositGoldTo(getGoldCapacity());
   expect(getGoldCapacity() - getGold()).toBe(0);
@@ -270,7 +270,7 @@ test("shopkeeping_卖货的钱进收银台抽屉_领取才入金库", () => {
    * 2026-08-30 的交互改版：结算不再直接入金库——开店的人要走到收银台
    * 点一下，看着金币飞进金币条。这条钉住"钱在抽屉里不在金库里"。
    */
-  spawnPet("pet-slime", "slime_neighbor");
+  spawnResident("pet-slime", "slime_neighbor");
   addToStorage(shelfIdFor("shop-1"), "furniture_chair", 2);
 
   const sold = settleDaysFor("shop-1", 1);
@@ -289,7 +289,7 @@ test("shopkeeping_卖货的钱进收银台抽屉_领取才入金库", () => {
 });
 
 test("shopkeeping_金库装不下的留在抽屉里_不蒸发", () => {
-  spawnPet("pet-slime", "slime_neighbor");
+  spawnResident("pet-slime", "slime_neighbor");
   addToStorage(shelfIdFor("shop-1"), "furniture_chair", 2);
   settleDaysFor("shop-1", 1);
   const pending = pendingRevenueOf("shop-1");

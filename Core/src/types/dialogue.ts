@@ -1,7 +1,7 @@
 import type { FeatureId, LocalizationKey } from "./base.js";
 import type { EventId, EventStageId } from "./events.js";
 import type { ItemId } from "./items.js";
-import type { AffectionStage, GiftTier } from "./pets.js";
+import type { AffectionStage, GiftTier } from "./residents.js";
 import type { WeatherId } from "./weather.js";
 
 export type DialogueId = string;
@@ -18,7 +18,7 @@ export type DialogueChoiceId = string;
  * "以后每加一个动作都要回来改 Core 类型"划算。造型没实现对应手势时
  * 静默不播，不是错误。
  */
-export type PetGestureId = string;
+export type ResidentGestureId = string;
 
 /** 选项或节点的显示条件，全部满足才生效 */
 export type DialogueCondition =
@@ -75,7 +75,7 @@ export type DialogueNode = {
   emitEventId?: EventId;
 
   /** 进入该节点时让对话对象（宠物）演一下这个动作。不填就什么都不做 */
-  petGesture?: PetGestureId;
+  residentGesture?: ResidentGestureId;
 };
 
 export type DialogueDefinition = {

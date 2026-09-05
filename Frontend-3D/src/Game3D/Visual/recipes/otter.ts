@@ -45,7 +45,7 @@ import { PALETTE } from "../palette.js";
  *
  * ## 动画
  *
- * `userData.animate` 三态（PetView 每帧调）：
+ * `userData.animate` 三态（ResidentView 每帧调）：
  * - **idle**：呼吸起伏 + 背包跟着轻轻压一下（重物的分量）
  * - **走**：两条短腿交替、身体左右晃、**尾巴摆**、油灯吊着晃（惯性滞后）
  * - **睡**：整只沉下去、耳朵垂、眼睛换成"︶"
@@ -526,7 +526,7 @@ export function buildOtterTrader(): Object3D {
 
   /*
    * `rig` 是整个人：走路的上下颠簸动它，**不动 root**。
-   * root.position 是 PetView 每帧用来贴地面高度的，动它等于把地形
+   * root.position 是 ResidentView 每帧用来贴地面高度的，动它等于把地形
    * 覆盖掉——石傀儡浮空 0.45 米那次就是这么来的。
    */
   const rig = new Object3D();
@@ -720,11 +720,11 @@ export function buildOtterTrader(): Object3D {
 
   root.userData.animate = (
     dt: number,
-    pet: { state: string; moving: boolean },
+    resident: { state: string; moving: boolean },
   ): void => {
     elapsed += dt;
 
-    const asleep = pet.state === "sleeping";
+    const asleep = resident.state === "sleeping";
     // 第一帧直接对齐：读档时他本来就在，不该表演一遍"刚躺下"
     if (!initialized) {
       sleepBlend = asleep ? 1 : 0;
@@ -735,8 +735,8 @@ export function buildOtterTrader(): Object3D {
       Math.min(Math.abs((asleep ? 1 : 0) - sleepBlend), (asleep ? 0.6 : 1.2) * dt);
     const eased = smooth(sleepBlend);
 
-    walkAmp += ((pet.moving ? 1 : 0) - walkAmp) * Math.min(1, dt * 6);
-    if (pet.moving) phase += dt * 6.5;
+    walkAmp += ((resident.moving ? 1 : 0) - walkAmp) * Math.min(1, dt * 6);
+    if (resident.moving) phase += dt * 6.5;
 
     // 呼吸：驮着重物，起伏比空手的生物小
     const breath = Math.sin(elapsed * 2.2) * 0.008;

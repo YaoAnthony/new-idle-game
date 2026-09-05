@@ -200,7 +200,7 @@ const ZH: Record<string, string> = {
   "item.bedroll": "地铺",
   "item.bedroll.desc": "被子和枕头。第一天，就先睡地铺吧。",
 
-  // 宠物：物种名 + 初见时给的默认昵称（玩家之后能改，存 PetSave.nickname）
+  // 宠物：物种名 + 初见时给的默认昵称（玩家之后能改，存 ResidentSave.nickname）
   "pet.unknown": "小家伙",
   "pet.moss_wisp": "苔灵",
   "pet.moss_wisp.nickname": "苔苔",

@@ -5,7 +5,7 @@ import { economyStages } from "../economy/index.js";
  * 每日任务机器的玩法参数（V0.11）。
  *
  * **全是数据不是常量**：调平衡（每天几条、奖励给什么）改这一处，
- * 逻辑一行不动。和 `actionPriorityDefinitions`、`petDefinitions` 同一个路子。
+ * 逻辑一行不动。和 `actionPriorityDefinitions`、`residentDefinitions` 同一个路子。
  */
 export const dailyBoardDefinition: DailyBoardDefinition = {
   /**

@@ -1,5 +1,5 @@
 import type { LocalizationKey, VisualId } from "./base.js";
-import type { PetDefinitionId } from "./pets.js";
+import type { ResidentDefinitionId } from "./residents.js";
 
 export type RoomStyleId = string;
 export type RegionId = string;
@@ -27,5 +27,5 @@ export type RoomStyleDefinition = {
   };
 
   /** 这个地区可能出现的初始宠物物种，由 seed 抽取 */
-  starterPetDefinitionIds: PetDefinitionId[];
+  starterResidentDefinitionIds: ResidentDefinitionId[];
 };

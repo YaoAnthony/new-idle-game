@@ -1,7 +1,7 @@
 import { beforeEach, expect, test } from "vitest";
 import { DEFAULT_MAP_ID } from "core";
 
-import { getPet, removePet, restorePets, spawnPet } from "../src/Game/State/petsRuntime";
+import { getResident, removeResident, restoreResidents, spawnResident } from "../src/Game/State/residentsRuntime";
 import { restoreBuildings } from "../src/Game/State/buildings";
 import { setRemoteWorldActive } from "../src/Game/Multiplayer/worldLock";
 import { getCurrentMapId } from "../src/Game/State/worldRuntime";
@@ -26,15 +26,15 @@ beforeEach(() => {
   if (getCurrentMapId() !== DEFAULT_MAP_ID) travelTo(DEFAULT_MAP_ID);
   setRemoteWorldActive(false);
   restoreBuildings([]);
-  restorePets({});
-  for (const id of IDS) removePet(id);
+  restoreResidents({});
+  for (const id of IDS) removeResident(id);
   initDoors();
   invalidateNavGrid();
 });
 
 test("yielding_被请让路的会挪开_不再是杵着不动", () => {
   // Arrange：两只挨在一起
-  const blocker = spawnPet("pet-a", "slime_neighbor");
+  const blocker = spawnResident("pet-a", "slime_neighbor");
   blocker.debugPlace(0, 4);
   const before = { x: blocker.x, z: blocker.z };
 
@@ -47,7 +47,7 @@ test("yielding_被请让路的会挪开_不再是杵着不动", () => {
 });
 
 test("yielding_让的方向是背对来人_不会让到对方要去的方向上", () => {
-  const blocker = spawnPet("pet-a", "slime_neighbor");
+  const blocker = spawnResident("pet-a", "slime_neighbor");
   blocker.debugPlace(0, 4);
 
   // 来人在南边（z 更大），他该往北（z 更小）让
@@ -63,7 +63,7 @@ test("yielding_让的方向是背对来人_不会让到对方要去的方向上"
 });
 
 test("yielding_让过之后进冷却_两只互相挡着不会僵住", () => {
-  const blocker = spawnPet("pet-a", "slime_neighbor");
+  const blocker = spawnResident("pet-a", "slime_neighbor");
   blocker.debugPlace(0, 4);
 
   blocker.yieldAsideFrom(0, 6);
@@ -80,7 +80,7 @@ test("yielding_让过之后进冷却_两只互相挡着不会僵住", () => {
 });
 
 test("yielding_正在干活的不让路_把工人从活里拽出来代价更大", () => {
-  const golem = spawnPet("pet-stone_golem", "stone_golem");
+  const golem = spawnResident("pet-stone_golem", "stone_golem");
   golem.debugPlace(0, 4);
   golem.debugSetState("work");
 
@@ -90,7 +90,7 @@ test("yielding_正在干活的不让路_把工人从活里拽出来代价更大"
 });
 
 test("yielding_睡着的不让路", () => {
-  const sleeper = spawnPet("pet-b", "slime_neighbor");
+  const sleeper = spawnResident("pet-b", "slime_neighbor");
   sleeper.debugPlace(0, 4);
   sleeper.debugSetState("sleeping");
 
@@ -100,12 +100,12 @@ test("yielding_睡着的不让路", () => {
 });
 
 test("yielding_名册注入生效_一只找得到另一只", () => {
-  spawnPet("pet-a", "slime_neighbor");
+  spawnResident("pet-a", "slime_neighbor");
 
   /*
-   * `PetAgent` 不 import `petsRuntime`（会成环），靠注入的 `peerLookup`
+   * `ResidentAgent` 不 import `residentsRuntime`（会成环），靠注入的 `peerLookup`
    * 找人。这条守的是那根线还接着——断了的话让路会静默失效：
    * 请求发出去了，没人收到。
    */
-  expect(getPet("pet-a")).toBeDefined();
+  expect(getResident("pet-a")).toBeDefined();
 });

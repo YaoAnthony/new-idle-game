@@ -16,7 +16,7 @@ import {
 import { emit } from "../EventBus";
 import { doorsAssumedOpen } from "./world/walkable";
 import { Door, RoomDoor } from "./doorAgent";
-import { getPets } from "./petsRuntime";
+import { getResidents } from "./residentsRuntime";
 import {
   getCurrentMap,
   getRoom,
@@ -33,7 +33,7 @@ import { listBuildings, rectOf } from "./buildings";
 import { buildingsBlockAt, buildingStandHeightAt } from "./world/buildingColliders";
 
 /**
- * 门的集合管理（和 petsRuntime 同一套摆法：Agent 类管一扇门怎么动，
+ * 门的集合管理（和 residentsRuntime 同一套摆法：Agent 类管一扇门怎么动，
  * 这里管全体的初始化 / tick / 存取档 / 查询）。
  *
  * 初始化时机：RoomScene 构造时调 initDoors()——门实例来自房间几何
@@ -490,10 +490,10 @@ const lastOpen = new Map<string, boolean>();
 export function tickDoors(): void {
   if (doors.size === 0) return;
   // 带上体型：自动开关的距离量到体表，大家伙要早一点开（见 RoomDoor.tick）
-  const creatures = getPets().map((pet) => ({
-    x: pet.x,
-    z: pet.z,
-    radius: pet.radius,
+  const creatures = getResidents().map((resident) => ({
+    x: resident.x,
+    z: resident.z,
+    radius: resident.radius,
   }));
   for (const door of doors.values()) {
     door.tick(creatures);

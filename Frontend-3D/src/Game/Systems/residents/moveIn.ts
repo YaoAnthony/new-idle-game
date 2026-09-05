@@ -3,14 +3,14 @@ import {
   findResidentOfHouse,
   listResidentDefinitions,
   residentTuning,
-  type PetDefinition,
+  type ResidentDefinition,
 } from "core";
-import { on } from "../EventBus";
-import { findPlacement } from "../State/buildings";
-import { getPets, spawnPetAt } from "../State/petsRuntime";
-import { getCurrentMap } from "../State/worldRuntime";
-import { mapDefinitions } from "../../Maps/index";
-import { signal } from "./story";
+import { on } from "../../EventBus";
+import { findPlacement } from "../../State/buildings";
+import { getResidents, spawnResidentAt } from "../../State/residentsRuntime";
+import { getCurrentMap } from "../../State/worldRuntime";
+import { mapDefinitions } from "../../../Maps/index";
+import { signal } from "../story";
 
 /**
  * 居民（期 4，2026-09-04 重排）：**房子建成 → 他来 → 住下**。
@@ -26,17 +26,17 @@ import { signal } from "./story";
  *
  * ## "搬进去"落到运行时是两件事
  *
- * 1. **驻地重定向**：`PetAgent.rehome` 把乱走的圆心挪到他家门口。
+ * 1. **驻地重定向**：`ResidentAgent.rehome` 把乱走的圆心挪到他家门口。
  *    他会自己溜达过去（不瞬移），home 进存档，读档不漂移——
  *    石傀儡那期定的规矩：驻地不能拿"读档时站的位置"顶，否则每存读
  *    一次就朝溜达到的地方挪一次，几回就漂没了。
  * 2. **发 `resident_moved_in` 信号**（subject = 物种 definitionId）。
- *    "满三位开家具小店"（期 5）数的就是它——不数 `pet_spawned`，
+ *    "满三位开家具小店"（期 5）数的就是它——不数 `resident_spawned`，
  *    那个会把水獭和石傀儡一起算进去。
  *
  * ## 房和人的对应从哪来
  *
- * `PetDefinition.residence`（Core 注册表）。原来是这个文件里一张手写的
+ * `ResidentDefinition.residence`（Core 注册表）。原来是这个文件里一张手写的
  * 三行表——那是 gameplay 代码里的内容分支，加第四位居民得回来改逻辑。
  * 现在加居民 = 注册表加一条，这里一个字不动。
  */
@@ -47,7 +47,7 @@ export function residentOfHouse(buildingId: string): string | undefined {
 }
 
 /**
- * 居民的运行时 id。**和剧情规则里 spawn_pet 的 petId 是同一套**
+ * 居民的运行时 id。**和剧情规则里 spawn_resident 的 residentId 是同一套**
  * （`pet-slime` / `pet-fox` / `pet-spirit`）：两条到来的路必须落到同一个
  * 实例上，否则剧情路先来的人和完工时登场的人会是两只。
  * residents.test 钉着这条对应。
@@ -58,13 +58,13 @@ export function residentPetId(definitionId: string): string {
 
 /** 已经搬进来的居民（在场 + 是居民档）。期 5 小店的客源名单 */
 export function listResidents(): string[] {
-  return getPets()
-    .filter((pet) => pet.role === CreatureRole.Resident)
-    .map((pet) => pet.petId);
+  return getResidents()
+    .filter((resident) => resident.role === CreatureRole.Resident)
+    .map((resident) => resident.residentId);
 }
 
 /** 所有有房子的居民定义。`/npc` 的候选表 */
-export function listResidentSpecies(): PetDefinition[] {
+export function listResidentSpecies(): ResidentDefinition[] {
   return listResidentDefinitions();
 }
 
@@ -116,19 +116,19 @@ export function visitorEntranceOf(mapId: string): { x: number; z: number; headin
  * 进度不该被一个演出性的缺席卡住。
  */
 function moveResidentIn(instanceId: string, buildingId: string): void {
-  const resident = findResidentOfHouse(buildingId);
-  if (!resident) return;
+  const definition = findResidentOfHouse(buildingId);
+  if (!definition) return;
 
   const placement = findPlacement(instanceId);
   if (placement) {
     const doorstep = doorstepOf(placement);
-    const present = getPets().find((pet) => pet.definitionId === resident.id);
+    const present = getResidents().find((agent) => agent.definitionId === definition.id);
     if (present) {
       present.rehome(doorstep.x, doorstep.z);
     } else {
       const arrive = () => {
         const entrance = visitorEntranceOf(getCurrentMap().mapId);
-        spawnPetAt(residentPetId(resident.id), resident.id, entrance, doorstep);
+        spawnResidentAt(residentPetId(definition.id), definition.id, entrance, doorstep);
       };
       // 0 = 立马到（用户 2026-09-04 定）；以后"隔天到"改 Core 的调参
       if (residentTuning.arriveAfterBuiltMs > 0) {
@@ -139,7 +139,7 @@ function moveResidentIn(instanceId: string, buildingId: string): void {
     }
   }
 
-  signal("resident_moved_in", resident.id);
+  signal("resident_moved_in", definition.id);
 }
 
 let detach: (() => void) | null = null;
@@ -159,5 +159,5 @@ export function startResidents(): () => void {
 
 /** 某位居民在场吗。调试指令用 */
 export function isResidentHoused(definitionId: string): boolean {
-  return getPets().some((pet) => pet.definitionId === definitionId);
+  return getResidents().some((resident) => resident.definitionId === definitionId);
 }

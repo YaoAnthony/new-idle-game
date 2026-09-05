@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { ItemQuality } from "../src/types/inventory.js";
-import { GiftTier, type PetTaste } from "../src/types/pets.js";
+import { GiftTier, type ResidentTaste } from "../src/types/residents.js";
 import {
   canGiftToday,
   giftConsumesItem,
@@ -16,7 +16,7 @@ import {
  * 不喜欢的东西**不消耗**（试错不该有代价），过火降一档但**降不到不能吃**。
  */
 
-const taste: PetTaste = {
+const taste: ResidentTaste = {
   loved: ["fried_tomato_egg"],
   liked: ["cooked_rice"],
   disliked: ["mystery_stew"],

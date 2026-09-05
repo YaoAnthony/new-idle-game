@@ -4,10 +4,10 @@ import { CreatureRole, DEFAULT_MAP_ID, findItemDefinition } from "core";
 import { hydrateGameSave, serializeGameSave } from "../src/Data/Save/serialize";
 import { clearAllFurniture, seedInitialFurniture } from "../src/Game/State/world/furniture";
 import {
-  getPets,
-  restorePets,
+  getResidents,
+  restoreResidents,
   seedInitialCreatures,
-} from "../src/Game/State/petsRuntime";
+} from "../src/Game/State/residentsRuntime";
 import { getCurrentMap, getCurrentMapId, getWorld } from "../src/Game/State/worldRuntime";
 import { travelTo } from "../src/Game/Systems/mapTravel";
 
@@ -24,14 +24,14 @@ import { travelTo } from "../src/Game/Systems/mapTravel";
 
 beforeEach(() => {
   if (getCurrentMapId() !== DEFAULT_MAP_ID) travelTo(DEFAULT_MAP_ID);
-  restorePets({});
+  restoreResidents({});
   clearAllFurniture();
 });
 
 /** 开局的那尊。seed 之后取唯一一只 worker */
 function seedGolem() {
   seedInitialCreatures();
-  return getPets().find((pet) => pet.role === CreatureRole.Worker)!;
+  return getResidents().find((resident) => resident.role === CreatureRole.Worker)!;
 }
 
 test("开场：石傀儡坐在院子里、没有头、而且叫不醒", () => {
@@ -100,7 +100,7 @@ test("存档往返：装过头的还是醒的，没装的还是瘫的", () => {
   golem.attachPart("head");
 
   hydrateGameSave(serializeGameSave());
-  const awake = getPets().find((pet) => pet.role === CreatureRole.Worker)!;
+  const awake = getResidents().find((resident) => resident.role === CreatureRole.Worker)!;
   expect(awake.attachedParts.has("head")).toBe(true);
   expect(awake.dormant).toBe(false);
 
@@ -108,16 +108,16 @@ test("存档往返：装过头的还是醒的，没装的还是瘫的", () => {
   awake.fallAsleep();
 
   hydrateGameSave(serializeGameSave());
-  const dormant = getPets().find((pet) => pet.role === CreatureRole.Worker)!;
+  const dormant = getResidents().find((resident) => resident.role === CreatureRole.Worker)!;
   expect(dormant.attachedParts.has("head")).toBe(false);
   expect(dormant.dormant).toBe(true);
   expect(dormant.state).toBe("sleeping");
 });
 
 test("老存档没有 attachedParts 字段：宠物按零件齐全算，不能集体瘫在地上", () => {
-  restorePets({
+  restoreResidents({
     "pet-shushu": {
-      petId: "pet-shushu",
+      residentId: "pet-shushu",
       definitionId: "shushu",
       roomId: "living",
       position: { mapId: DEFAULT_MAP_ID, x: 0, y: 0, heading: 0 },
@@ -128,6 +128,6 @@ test("老存档没有 attachedParts 字段：宠物按零件齐全算，不能�
     } as never,
   });
 
-  const cat = getPets()[0];
+  const cat = getResidents()[0];
   expect(cat.dormant, "宠物没有零件这回事，永远不该休眠").toBe(false);
 });

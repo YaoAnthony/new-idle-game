@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { Facing, findPetDefinition, storyRules } from "core";
+import { Facing, findResidentDefinition, storyRules } from "core";
 
 import { emit } from "../src/Game/EventBus";
 import { restoreBuildings } from "../src/Game/State/buildings";
-import { removePet, spawnPet, getPet } from "../src/Game/State/petsRuntime";
+import { removeResident, spawnResident, getResident } from "../src/Game/State/residentsRuntime";
 import { setRemoteWorldActive } from "../src/Game/Multiplayer/worldLock";
 import { restoreProgression } from "../src/Game/Systems/events";
 import {
@@ -11,7 +11,7 @@ import {
   residentOfHouse,
   residentPetId,
   startResidents,
-} from "../src/Game/Systems/residents";
+} from "../src/Game/Systems/residents/moveIn";
 import {
   getSignalCounts,
   restoreFiredStoryRules,
@@ -47,7 +47,7 @@ beforeEach(() => {
   restoreFiredStoryRules([]);
   restoreSignalCounts({});
   restorePoolMisses({});
-  for (const id of ["pet-slime", "pet-fox", "pet-spirit", "pet-otter"]) removePet(id);
+  for (const id of ["pet-slime", "pet-fox", "pet-spirit", "pet-otter"]) removeResident(id);
   stops.push(startStorySystem(false));
   stops.push(startResidents());
 });
@@ -55,7 +55,7 @@ beforeEach(() => {
 afterEach(() => {
   for (const stop of stops) stop();
   stops = [];
-  for (const id of ["pet-slime", "pet-fox", "pet-spirit", "pet-otter"]) removePet(id);
+  for (const id of ["pet-slime", "pet-fox", "pet-spirit", "pet-otter"]) removeResident(id);
   vi.useRealTimers();
 });
 
@@ -72,24 +72,24 @@ test("residents_房子和住户的点名表_三栋都指向真实的物种和真
 
 test("residents_房子完工_驻地挪到门口_信号发出", () => {
   // Arrange：史莱姆已经来过（到来规则 spawn 的），房子摆在场上
-  const pet = spawnPet("pet-slime", "slime_neighbor");
+  const resident = spawnResident("pet-slime", "slime_neighbor");
   restoreBuildings([HOUSE("slime_house", "h1")]);
 
   // Act：完工（finishSite 发的那条事件）
   emit("building_completed", { buildingId: "slime_house", instanceId: "h1" });
 
   // Assert：驻地在门口外一步（North = 本地 +z），信号计到他名下
-  expect(pet.homeX).toBeCloseTo(4.5);
-  expect(pet.homeZ).toBeCloseTo(12.5 + 2.2);
+  expect(resident.homeX).toBeCloseTo(4.5);
+  expect(resident.homeZ).toBeCloseTo(12.5 + 2.2);
   expect(getSignalCounts()["resident_moved_in"]).toBe(1);
   expect(getSignalCounts()["resident_moved_in|slime_neighbor"]).toBe(1);
 });
 
 test("residents_满三位的计数只数居民_金库完工和商人都不算", () => {
-  spawnPet("pet-slime", "slime_neighbor");
-  spawnPet("pet-fox", "fox_neighbor");
-  spawnPet("pet-spirit", "spirit_neighbor");
-  spawnPet("pet-otter", "otter_trader"); // 商人不算
+  spawnResident("pet-slime", "slime_neighbor");
+  spawnResident("pet-fox", "fox_neighbor");
+  spawnResident("pet-spirit", "spirit_neighbor");
+  spawnResident("pet-otter", "otter_trader"); // 商人不算
   restoreBuildings([
     HOUSE("slime_house", "h1"),
     HOUSE("fox_house", "h2"),
@@ -105,8 +105,8 @@ test("residents_满三位的计数只数居民_金库完工和商人都不算", 
 });
 
 test("residents_listResidents只列居民档_商人和龙不在名单上", () => {
-  spawnPet("pet-slime", "slime_neighbor");
-  spawnPet("pet-otter", "otter_trader");
+  spawnResident("pet-slime", "slime_neighbor");
+  spawnResident("pet-otter", "otter_trader");
 
   const list = listResidents();
 
@@ -120,36 +120,36 @@ test("residents_人不在场时完工_他从领地入口登场_驻地就是门�
 
   emit("building_completed", { buildingId: "fox_house", instanceId: "h9" });
 
-  const pet = getPet("pet-fox");
-  expect(pet).toBeDefined();
-  expect(pet!.homeX).toBeCloseTo(4.5);
-  expect(pet!.homeZ).toBeCloseTo(12.5 + 2.2);
+  const resident = getResident("pet-fox");
+  expect(resident).toBeDefined();
+  expect(resident!.homeX).toBeCloseTo(4.5);
+  expect(resident!.homeZ).toBeCloseTo(12.5 + 2.2);
   expect(getSignalCounts()["resident_moved_in|fox_neighbor"]).toBe(1);
-  // 登场是登场：pet_spawned 照发（和剧情路的 spawn_pet 一样）
-  expect(getSignalCounts()["pet_spawned|pet-fox"]).toBe(1);
+  // 登场是登场：resident_spawned 照发（和剧情路的 spawn_resident 一样）
+  expect(getSignalCounts()["resident_spawned|pet-fox"]).toBe(1);
 });
 
-test("residents_运行时id和剧情规则里spawn_pet的petId是同一套", () => {
+test("residents_运行时id和剧情规则里spawn_resident的residentId是同一套", () => {
   /*
-   * 两条到来的路必须落到同一个实例：剧情路（storyRules 的 spawn_pet）
+   * 两条到来的路必须落到同一个实例：剧情路（storyRules 的 spawn_resident）
    * 先来的人，和完工时 residents 登场的人，id 不一致就会是两只。
    */
   for (const rule of storyRules) {
     for (const effect of rule.effects) {
-      if (effect.kind !== "spawn_pet") continue;
-      const definition = findPetDefinition(effect.definitionId);
+      if (effect.kind !== "spawn_resident") continue;
+      const definition = findResidentDefinition(effect.definitionId);
       if (!definition?.residence) continue;
-      expect(effect.petId).toBe(residentPetId(effect.definitionId));
+      expect(effect.residentId).toBe(residentPetId(effect.definitionId));
     }
   }
 });
 
 test("residents_已经在场的人_完工只重定向驻地_不会长出第二只", () => {
-  const before = spawnPet("pet-slime", "slime_neighbor");
+  const before = spawnResident("pet-slime", "slime_neighbor");
   restoreBuildings([HOUSE("slime_house", "h1")]);
 
   emit("building_completed", { buildingId: "slime_house", instanceId: "h1" });
 
-  expect(getPet("pet-slime")).toBe(before);
+  expect(getResident("pet-slime")).toBe(before);
   expect(listResidents().filter((id) => id === "pet-slime")).toHaveLength(1);
 });

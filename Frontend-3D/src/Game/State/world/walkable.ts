@@ -127,7 +127,7 @@ export function withDoorsOpen<T>(fn: () => T): T {
 /**
  * **穿行模式**：这一段查询里，玩家摆出来的东西一律不算障碍。
  *
- * 打开它的是 `PetDefinition.ignoresObstacles`（今天只有石傀儡）。
+ * 打开它的是 `ResidentDefinition.ignoresObstacles`（今天只有石傀儡）。
  * 和上面 `withDoorsOpen` 同一个写法，理由却不同：门是"到了要开一下"
  * 的动作，而这里是**这个角色本来就不受那类碰撞约束**。
  *
@@ -207,7 +207,7 @@ export function setDoorGate(
  * 不一样：`doorBlocker` 回答"这格能不能站"（占用图那一路，A* 和玩家
  * 碰撞在用），这个回答"该不该在门前停一下"。
  *
- * 为什么生物的步进不能直接用 `isWalkable`：见 petAgent.tickMove 那段——
+ * 为什么生物的步进不能直接用 `isWalkable`：见 residentAgent.tickMove 那段——
  * A* 已经按体型算过静态障碍，步进再查一遍会在两格心之间的中点误杀。
  * 但门不是静态的：A* 是在"门都开着"的假设下规划的（withDoorsOpen），
  * 那个假设本来就欠着一个"到了门口开一下"的动作。把门单独挑出来查，
@@ -335,10 +335,10 @@ export function isWalkable(
   x: number,
   z: number,
   radius: number,
-  /** 走路的人自己是谁（玩家传 PLAYER_OBSTACLE_ID，宠物传 petId），别被自己挡住 */
+  /** 走路的人自己是谁（玩家传 PLAYER_OBSTACLE_ID，宠物传 residentId），别被自己挡住 */
   selfId?: string,
 ): boolean {
-  // 穿行的角色不被活物挡。**双向**：它自己也没登记成障碍，见 petAgent
+  // 穿行的角色不被活物挡。**双向**：它自己也没登记成障碍，见 residentAgent
   if (!phasing && hitsCreature(x, z, radius, selfId)) return false;
 
   /*

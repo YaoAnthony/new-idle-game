@@ -196,7 +196,7 @@ test("院子里有口井，是全游戏的水源，而且不挡大门口那条�
   expect(well!.placement.roomId).toBe(yardId);
   expect(well!.state.fixed, "井该是拿不走的").toBe(true);
 
-  // 它得真是水源——宠物渴了找的就是这个能力（petAgent.trySeekWater）
+  // 它得真是水源——宠物渴了找的就是这个能力（residentAgent.trySeekWater）
   const caps = findPlaceableItem("well")!.placement.capabilities;
   expect(caps).toContain(FurnitureCapability.WaterSource);
   /*

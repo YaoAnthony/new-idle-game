@@ -2,7 +2,7 @@ import { findItemDefinition } from "core";
 import { useEffect, useState } from "react";
 import { on } from "../../Game/EventBus";
 import { getLastActionEnd } from "../../Game/Systems/actions";
-import { firstPetNickname } from "../../i18n/petName";
+import { firstResidentNickname } from "../../i18n/residentName";
 import { t } from "../../i18n/t";
 
 /**
@@ -57,9 +57,9 @@ export function ActionToast() {
               })
               .join("　")}
           </div>
-          {lastEnd.petCompanion && (
+          {lastEnd.residentCompanion && (
             <div className="mt-1 text-[12px] text-[var(--ink-soft)]">
-              {firstPetNickname()}
+              {firstResidentNickname()}
               {t("ui.action.companion_suffix")}
             </div>
           )}

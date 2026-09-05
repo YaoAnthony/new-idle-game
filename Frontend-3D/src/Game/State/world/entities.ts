@@ -4,13 +4,13 @@ import {
   type DroppedItem,
   type MapDefinition,
   type MapSave,
-  type PetSave,
+  type ResidentSave,
   type PlacedFurniture,
 } from "core";
 import { baseMapDefinition, findMapDefinition, mapDefinitions } from "../../../Maps/index.js";
 import { syncIdCounters } from "../ids";
 import { restoreDroppedItems, snapshotDroppedItems } from "../droppedItems";
-import { restorePets, snapshotPets } from "../petsRuntime";
+import { restoreResidents, snapshotResidents } from "../residentsRuntime";
 import { restoreDoors, snapshotDoors } from "../doorsRuntime";
 import { restoreWorld, snapshotWorld } from "./maps.js";
 import { worldState, type ShelvedEntities } from "./state.js";
@@ -49,7 +49,7 @@ import { worldState, type ShelvedEntities } from "./state.js";
  *
  * ## 为什么不进 world/index.ts 桶文件
  *
- * 这个模块 import 了 droppedItems/petsRuntime/doorsRuntime，而那三家
+ * 这个模块 import 了 droppedItems/residentsRuntime/doorsRuntime，而那三家
  * import worldRuntime 壳（= world/index）。把 entities 也塞进桶里就是
  * 一个真循环。serialize 和 RoomScene 直接从本文件 import。
  */
@@ -58,14 +58,14 @@ export type WorldEntitiesBundle = {
   maps: Record<string, MapSave>;
   placedFurniture: PlacedFurniture[];
   droppedItems: DroppedItem[];
-  pets: Record<string, PetSave>;
+  pets: Record<string, ResidentSave>;
   doors: DoorSave[];
 };
 
 /** loadWorldEntities 分拣出的**当前地图**切片，由 serialize 按既有顺序灌 */
 export type ActiveEntities = {
   droppedItems: DroppedItem[];
-  pets: Record<string, PetSave>;
+  pets: Record<string, ResidentSave>;
   doors: DoorSave[];
 };
 
@@ -170,10 +170,10 @@ export function loadWorldEntities(
     else shelfOf(key).droppedItems.push(item);
   }
 
-  for (const pet of Object.values(bundle.pets)) {
-    const key = keyOfRoom(pet.roomId);
-    if (key === activeKey) active.pets[pet.petId] = pet;
-    else shelfOf(key).pets[pet.petId] = pet;
+  for (const resident of Object.values(bundle.pets)) {
+    const key = keyOfRoom(resident.roomId);
+    if (key === activeKey) active.pets[resident.residentId] = resident;
+    else shelfOf(key).pets[resident.residentId] = resident;
   }
 
   for (const door of bundle.doors) {
@@ -210,9 +210,9 @@ export function snapshotWorldEntities(): WorldEntitiesBundle {
   const world = snapshotWorld();
   const shelf = Object.values(worldState.shelvedEntities);
 
-  const pets: Record<string, PetSave> = {};
+  const pets: Record<string, ResidentSave> = {};
   for (const bucket of shelf) Object.assign(pets, bucket.pets);
-  Object.assign(pets, snapshotPets());
+  Object.assign(pets, snapshotResidents());
 
   return {
     maps: world.maps,
@@ -236,7 +236,7 @@ export function snapshotWorldEntities(): WorldEntitiesBundle {
  * Systems/mapTravel 的判断，这里被调用时就该无条件成功。也不发事件、
  * 不挪玩家：调用方在此之后自己摆位置、发 map_changed 让场景重建。
  *
- * 上架用的是和存档同一套快照函数（snapshotPets 按站位记 roomId、
+ * 上架用的是和存档同一套快照函数（snapshotResidents 按站位记 roomId、
  * snapshotDoors 空表退寄存），所以"切图后再存盘"和"存盘后再读档"
  * 看到的都是同一份数据——不存在第三种序列化路径。
  */
@@ -253,7 +253,7 @@ export function switchMapState(target: MapDefinition): void {
     [leaving.mapId]: {
       placedFurniture: worldState.placedFurniture,
       droppedItems: snapshotDroppedItems(),
-      pets: snapshotPets(),
+      pets: snapshotResidents(),
       doors: snapshotDoors(),
     },
   };
@@ -274,7 +274,7 @@ export function switchMapState(target: MapDefinition): void {
   worldState.shelvedEntities = restEntities;
   worldState.placedFurniture = bucket?.placedFurniture ?? [];
   restoreDroppedItems(bucket?.droppedItems ?? []);
-  restorePets(bucket?.pets ?? {});
+  restoreResidents(bucket?.pets ?? {});
   // 门这里只寄存锁状态；实例等新 RoomScene 的 initDoors 按新图几何认领
   restoreDoors(bucket?.doors ?? []);
 }

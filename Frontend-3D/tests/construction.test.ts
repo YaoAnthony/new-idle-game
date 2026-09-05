@@ -18,7 +18,7 @@ import {
   restoreBuildings,
   upgradeBuilding,
 } from "../src/Game/State/buildings";
-import { getPets, restorePets, seedInitialCreatures } from "../src/Game/State/petsRuntime";
+import { getResidents, restoreResidents, seedInitialCreatures } from "../src/Game/State/residentsRuntime";
 import { resetTerritory } from "../src/Game/State/territory";
 import { getCurrentMapId } from "../src/Game/State/worldRuntime";
 import { initDoors } from "../src/Game/State/doorsRuntime";
@@ -43,7 +43,7 @@ beforeEach(() => {
   if (getCurrentMapId() !== DEFAULT_MAP_ID) travelTo(DEFAULT_MAP_ID);
   resetTerritory();
   restoreBuildings([]);
-  restorePets({});
+  restoreResidents({});
   /*
    * 生物寻路走的是全图导航网格，而院子可不可走由 `initDoors` 注册的
    * `outdoorPass` 回答——不叫这一句，整个院子都是"不可走"，石傀儡
@@ -131,7 +131,7 @@ test("石傀儡一次只干一块：建 A 的时候 B 停在 0%", () => {
   const b = site(SPOT_B.x, SPOT_B.z);
 
   seedInitialCreatures();
-  const golem = getPets().find((pet) => pet.role === CreatureRole.Worker)!;
+  const golem = getResidents().find((resident) => resident.role === CreatureRole.Worker)!;
   golem.attachPart("head");
 
   // 推几十秒游戏时间，让他自己去找活

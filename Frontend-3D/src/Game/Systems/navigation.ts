@@ -168,7 +168,7 @@ export function navGrid(
    *
    * 这是 Recast/Detour 的分法：navmesh 只描述**静态**世界，活物之间
    * 的躲让交给上面一层每帧算。我们这儿那一层是 `creatureBlockedAt`，
-   * 生物迈步时查一次、被挡就站着等（见 petAgent.waitBlocked）。
+   * 生物迈步时查一次、被挡就站着等（见 residentAgent.waitBlocked）。
    */
   /*
    * 穿行那张图在 `withPhasing` 里烘：采样点还是 `isWalkable`，只是这一
@@ -235,7 +235,7 @@ export type RouteOptions = {
    */
   snapRings?: number;
   /**
-   * 穿行（`PetDefinition.ignoresObstacles`）。玩家盖的楼、院子的占用图
+   * 穿行（`ResidentDefinition.ignoresObstacles`）。玩家盖的楼、院子的占用图
    * 都不算障碍，用的是另一张烘好的图。
    */
   phasing?: boolean;

@@ -48,7 +48,7 @@ export const storyRules: StoryRule[] = [
     ],
   },
   {
-    // ③ 同一天稍后：水獭上门搭话（等面板关掉、迟几秒，spawn_pet 自带这套）
+    // ③ 同一天稍后：水獭上门搭话（等面板关掉、迟几秒，spawn_resident 自带这套）
     id: "otter_arrives",
     triggers: [
       {
@@ -57,8 +57,8 @@ export const storyRules: StoryRule[] = [
       },
     ],
     effects: [
-      { kind: "spawn_pet", petId: "pet-otter", definitionId: "otter_trader", delayMs: 2500, jitterMs: 1500 },
-      { kind: "start_dialogue", dialogueId: "otter_first_meet", petId: "pet-otter", delayMs: 6000 },
+      { kind: "spawn_resident", residentId: "pet-otter", definitionId: "otter_trader", delayMs: 2500, jitterMs: 1500 },
+      { kind: "start_dialogue", dialogueId: "otter_first_meet", residentId: "pet-otter", delayMs: 6000 },
       { kind: "set_event_stage", eventId: "gold_theft", stageId: "chasing" },
     ],
   },
@@ -76,8 +76,8 @@ export const storyRules: StoryRule[] = [
       },
     ],
     effects: [
-      { kind: "spawn_pet", petId: "pet-dragon", definitionId: "coin_dragon", delayMs: 2500, jitterMs: 1000 },
-      { kind: "start_dialogue", dialogueId: "dragon_caught", petId: "pet-dragon", delayMs: 5500 },
+      { kind: "spawn_resident", residentId: "pet-dragon", definitionId: "coin_dragon", delayMs: 2500, jitterMs: 1000 },
+      { kind: "start_dialogue", dialogueId: "dragon_caught", residentId: "pet-dragon", delayMs: 5500 },
       { kind: "set_event_stage", eventId: "gold_theft", stageId: "caught" },
     ],
   },
@@ -98,7 +98,7 @@ export const storyRules: StoryRule[] = [
       { kind: "adjust_gold", amount: theftTuning.amount },
       { kind: "set_event_stage", eventId: "gold_theft", stageId: "settled", complete: true },
       { kind: "unlock_feature", featureId: "merchant_trading" },
-      { kind: "start_dialogue", dialogueId: "otter_returns", petId: "pet-otter", delayMs: 2500 },
+      { kind: "start_dialogue", dialogueId: "otter_returns", residentId: "pet-otter", delayMs: 2500 },
     ],
   },
   /*
@@ -118,8 +118,8 @@ export const storyRules: StoryRule[] = [
     id: "resident_slime_arrives",
     triggers: [{ signal: "day_started", poolId: "resident_arrival" }],
     effects: [
-      { kind: "spawn_pet", petId: "pet-slime", definitionId: "slime_neighbor", delayMs: 2500, jitterMs: 1500 },
-      { kind: "start_dialogue", dialogueId: "slime_asks_to_stay", petId: "pet-slime", delayMs: 5500 },
+      { kind: "spawn_resident", residentId: "pet-slime", definitionId: "slime_neighbor", delayMs: 2500, jitterMs: 1500 },
+      { kind: "start_dialogue", dialogueId: "slime_asks_to_stay", residentId: "pet-slime", delayMs: 5500 },
       { kind: "give_item", itemId: "blueprint_slime_house", quantity: 1 },
     ],
   },
@@ -127,8 +127,8 @@ export const storyRules: StoryRule[] = [
     id: "resident_fox_arrives",
     triggers: [{ signal: "day_started", poolId: "resident_arrival" }],
     effects: [
-      { kind: "spawn_pet", petId: "pet-fox", definitionId: "fox_neighbor", delayMs: 2500, jitterMs: 1500 },
-      { kind: "start_dialogue", dialogueId: "fox_asks_to_stay", petId: "pet-fox", delayMs: 5500 },
+      { kind: "spawn_resident", residentId: "pet-fox", definitionId: "fox_neighbor", delayMs: 2500, jitterMs: 1500 },
+      { kind: "start_dialogue", dialogueId: "fox_asks_to_stay", residentId: "pet-fox", delayMs: 5500 },
       { kind: "give_item", itemId: "blueprint_fox_house", quantity: 1 },
     ],
   },
@@ -136,8 +136,8 @@ export const storyRules: StoryRule[] = [
     id: "resident_spirit_arrives",
     triggers: [{ signal: "day_started", poolId: "resident_arrival" }],
     effects: [
-      { kind: "spawn_pet", petId: "pet-spirit", definitionId: "spirit_neighbor", delayMs: 2500, jitterMs: 1500 },
-      { kind: "start_dialogue", dialogueId: "spirit_asks_to_stay", petId: "pet-spirit", delayMs: 5500 },
+      { kind: "spawn_resident", residentId: "pet-spirit", definitionId: "spirit_neighbor", delayMs: 2500, jitterMs: 1500 },
+      { kind: "start_dialogue", dialogueId: "spirit_asks_to_stay", residentId: "pet-spirit", delayMs: 5500 },
       { kind: "give_item", itemId: "blueprint_spirit_house", quantity: 1 },
     ],
   },
@@ -171,8 +171,8 @@ export const storyRules: StoryRule[] = [
    * 三位住齐 → 他们来问能不能买你的家具 → 递给你小店的图纸（期 5）。
    *
    * `signalCount: 3` 查的是**不带 subject 的那个键**（`resident_moved_in`），
-   * 也就是"搬进来过三位"。这正是期 0 那条"不复用 pet_spawned 数人数"的
-   * 注释在讲的事——pet_spawned 会把水獭和石傀儡一起算进去。
+   * 也就是"搬进来过三位"。这正是期 0 那条"不复用 resident_spawned 数人数"的
+   * 注释在讲的事——resident_spawned 会把水獭和石傀儡一起算进去。
    *
    * 这条规则本来写在期 4 的文档里，**故意挪到期 5 才上线**：玩家拿着一张
    * 暂时盖不了的图纸，比晚一天拿到糟糕得多。

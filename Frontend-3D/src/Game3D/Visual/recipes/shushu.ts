@@ -29,7 +29,7 @@ import { PALETTE } from "../palette.js";
  *
  * ## 动画
  *
- * 三个状态由 `userData.animate` 每帧驱动（PetView 调，见那边的约定）：
+ * 三个状态由 `userData.animate` 每帧驱动（ResidentView 调，见那边的约定）：
  * - **睡**：四肢缩进毛里、整只沉下去摊成一团（猫吐司），尾巴收到身侧，
  *   眼睛换成"︶"，呼吸变深变慢
  * - **起来 / 睡下**：就是 sleepBlend 那条 0↔1 的缓动本身——腿长回来、
@@ -340,7 +340,7 @@ export function buildShuShu(): Object3D {
   const smooth = (t: number): number => t * t * (3 - 2 * t);
 
   /**
-   * 一次性动作（对话驱动，见 PetView 的 `pet_gesture`）。**只有摇头**——
+   * 一次性动作（对话驱动，见 ResidentView 的 `resident_gesture`）。**只有摇头**——
    * 没实现的手势名 `playGesture` 直接不理，调用方（对话数据）不需要
    * 关心某个物种到底支不支持某个手势。
    *
@@ -359,11 +359,11 @@ export function buildShuShu(): Object3D {
 
   root.userData.animate = (
     deltaSeconds: number,
-    pet: { state: string; moving: boolean },
+    resident: { state: string; moving: boolean },
   ): void => {
     elapsed += deltaSeconds;
 
-    const asleep = pet.state === "sleeping";
+    const asleep = resident.state === "sleeping";
     // 第一帧直接对齐状态：读档时它本来就睡着，不该表演一遍"进门躺下"
     if (!initialized) {
       sleepBlend = asleep ? 1 : 0;
@@ -379,11 +379,11 @@ export function buildShuShu(): Object3D {
     const eased = smooth(sleepBlend);
 
     // 走路摆幅渐入渐出，急停不会让四条腿瞬间定格
-    walkAmp += ((pet.moving ? 1 : 0) - walkAmp) * Math.min(1, deltaSeconds * 6);
-    if (pet.moving) phase += deltaSeconds * 3.6;
+    walkAmp += ((resident.moving ? 1 : 0) - walkAmp) * Math.min(1, deltaSeconds * 6);
+    if (resident.moving) phase += deltaSeconds * 3.6;
 
     // 吃/喝：头埋下去的量。渐入渐出，抬头不会一帧弹回来
-    const busy = pet.state === "eat" || pet.state === "drink";
+    const busy = resident.state === "eat" || resident.state === "drink";
     busyBlend += ((busy ? 1 : 0) - busyBlend) * Math.min(1, deltaSeconds * 5);
 
     // 呼吸：睡着深而慢（这是"睡得香"的主要信号），醒着浅而快

@@ -1,7 +1,7 @@
 import { findItemDefinition } from "../Data/items/index.js";
 import { ItemQuality } from "../types/inventory.js";
 import { ItemCategory, type ItemId } from "../types/items.js";
-import { GiftTier, type PetTaste } from "../types/pets.js";
+import { GiftTier, type ResidentTaste } from "../types/residents.js";
 import type { StorySignalKind } from "../types/story.js";
 import type { WorldDayId } from "../types/time.js";
 
@@ -29,7 +29,7 @@ import type { WorldDayId } from "../types/time.js";
  * 但**最低只到"不喜欢"**——焦的菜还是菜，不会变成不能吃的东西。
  */
 export function resolveGiftTier(
-  taste: PetTaste,
+  taste: ResidentTaste,
   itemId: ItemId,
   quality?: ItemQuality,
 ): GiftTier {
@@ -37,7 +37,7 @@ export function resolveGiftTier(
   return quality === ItemQuality.Poor ? downgrade(base) : base;
 }
 
-function baseTier(taste: PetTaste, itemId: ItemId): GiftTier {
+function baseTier(taste: ResidentTaste, itemId: ItemId): GiftTier {
   if (taste.loved.includes(itemId)) return GiftTier.Loved;
   if (taste.liked.includes(itemId)) return GiftTier.Liked;
   if (taste.disliked.includes(itemId)) return GiftTier.Disliked;

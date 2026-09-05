@@ -9,7 +9,7 @@ import type { AudioProfileId, VisualId } from "./base.js";
  * - 捏人零件：types/avatar.ts + Data/avatars/
  * - 门：本文件 + Data/doors/
  * 运行时行为类（Door / RoomDoor 的继承结构）在 Frontend 的
- * Game/State/doorAgent.ts——和宠物的 petAgent 同一套摆法。
+ * Game/State/doorAgent.ts——和宠物的 residentAgent 同一套摆法。
  *
  * 门的**种类差异走注册表字段**（自动开关半径、可否上锁），不写死在
  * 运行时类里：加一种门 = Data/doors 加一行 + 表现层一个 visualId，

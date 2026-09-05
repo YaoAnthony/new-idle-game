@@ -17,7 +17,7 @@ export * from "./types/inventory.js";
 export * from "./types/items.js";
 export * from "./types/map.js";
 export * from "./types/net.js";
-export * from "./types/pets.js";
+export * from "./types/residents.js";
 export * from "./types/recipes.js";
 export * from "./types/player.js";
 export * from "./types/roomStyle.js";

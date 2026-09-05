@@ -8,15 +8,15 @@ import type { DialogueId } from "./dialogue.js";
 import type { EventId } from "./events.js";
 import type { ItemId } from "./items.js";
 
-export type PetId = string;
-export type PetDefinitionId = string;
+export type ResidentId = string;
+export type ResidentDefinitionId = string;
 
 /**
  * 这只生物是来陪你的，还是来干活的。
  *
- * 加这一档而不是给石傀儡另起一套运行时（2026-08-22）：`PetAgent` 已经有
+ * 加这一档而不是给石傀儡另起一套运行时（2026-08-22）：`ResidentAgent` 已经有
  * 带体型的 A* 寻路、休眠/苏醒、碰撞体、存档、按 F 参与交互竞争——石傀儡
- * 要的全在里面。`petAgent.ts` 文件头写着"实例化不继承，真出现『数字表达
+ * 要的全在里面。`residentAgent.ts` 文件头写着"实例化不继承，真出现『数字表达
  * 不了的独有行为』再考虑子类"，而**不吃不喝不亲近**恰恰是数字表达得了的：
  * 一个枚举就够，`chooseNextActivity` 少走三支。
  *
@@ -63,7 +63,7 @@ export enum AffectionStage {
  *
  * 不填的字段落到 wisp 们现在的默认值，所以三只小家伙一个字都不用动。
  */
-export type PetBehavior = {
+export type ResidentBehavior = {
   /** 移动速度（米/秒）。大家伙走得慢才有分量感 */
   moveSpeed?: number;
   /**
@@ -92,11 +92,11 @@ export type PetBehavior = {
   thirstPerHour?: number;
 };
 
-export type PetDefinition = {
-  id: PetDefinitionId;
+export type ResidentDefinition = {
+  id: ResidentDefinitionId;
   /** 物种名（图鉴上的名字），不是玩家叫它的名字 */
   localizationKey: LocalizationKey;
-  /** 初见时给的默认昵称。玩家改过之后存进 PetSave.nickname */
+  /** 初见时给的默认昵称。玩家改过之后存进 ResidentSave.nickname */
   defaultNicknameKey: LocalizationKey;
   /** 造型由表现层的 VisualRegistry 解析：先程序化，以后换精模只改那一张表 */
   visualId: VisualId;
@@ -104,8 +104,8 @@ export type PetDefinition = {
   /**
    * **身后拖着的东西**（旅行商人的浮筏车，期 6）。
    *
-   * 做成**定义上的一句声明**，不是在 `PetView` 里写
-   * `if (petId === "pet-fish-trader")`。那种写法把"谁拖车"这件事从内容
+   * 做成**定义上的一句声明**，不是在 `ResidentView` 里写
+   * `if (residentId === "pet-fish-trader")`。那种写法把"谁拖车"这件事从内容
    * 挪进了渲染代码，下一个拖东西的角色（推板车的、牵气球的）就得再加一个
    * 分支；而这里加一行，视图一个字不动。
    *
@@ -131,7 +131,7 @@ export type PetDefinition = {
    */
   residence?: { buildingId: string };
 
-  behavior?: PetBehavior;
+  behavior?: ResidentBehavior;
 
   /**
    * 碰撞半径（米）。不填 = 不挡路（wisp 那种能穿过去的小团子）。
@@ -217,7 +217,7 @@ export enum GiftTier {
  * 以后表维护不动了可以换成「按 tag 通用打底 + 个体只写例外」，
  * `resolveGiftTier` 的签名不用变。
  */
-export type PetTaste = {
+export type ResidentTaste = {
   loved: ItemId[];
   liked: ItemId[];
   disliked: ItemId[];
@@ -230,9 +230,9 @@ export type PetTaste = {
   fallback: GiftTier.Liked | GiftTier.Disliked;
 };
 
-export type PetSave = {
-  petId: PetId;
-  definitionId: PetDefinitionId;
+export type ResidentSave = {
+  residentId: ResidentId;
+  definitionId: ResidentDefinitionId;
   roomId: RoomId;
   position: WorldPosition;
   affectionStage: AffectionStage;
@@ -254,7 +254,7 @@ export type PetSave = {
   sleeping?: boolean;
 
   /**
-   * 驻地：乱走的圆心（配 `PetBehavior.wanderRadius`）。
+   * 驻地：乱走的圆心（配 `ResidentBehavior.wanderRadius`）。
    *
    * **必须进存档**，不能读档时拿当时站的位置顶上：那样每存读一次，驻地
    * 就朝它当时溜达到的地方挪一次，挪几回就漂到据点另一头去了。

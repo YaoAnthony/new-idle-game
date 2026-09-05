@@ -6,7 +6,7 @@ import {
 } from "core";
 import { emit } from "../EventBus";
 import { getCount, type SlotRef } from "../State/inventory";
-import { getPet } from "../State/petsRuntime";
+import { getResident } from "../State/residentsRuntime";
 import { getWeather } from "../State/weather";
 import { getEventStage, isEventCompleted, isFeatureUnlocked } from "./events";
 import { offerGift, type GiftResult } from "./gifting";
@@ -21,7 +21,7 @@ export type ActiveDialogue = {
   dialogueId: string;
   nodeId: string;
   /** 对话对象（用于条件判定里的好感度） */
-  petId: string | null;
+  residentId: string | null;
 };
 
 let active: ActiveDialogue | null = null;
@@ -39,11 +39,11 @@ export function getCurrentNode(): DialogueNode | null {
 function conditionMet(condition: DialogueCondition): boolean {
   switch (condition.kind) {
     case "affection_at_least": {
-      const pet = active?.petId ? getPet(active.petId) : undefined;
-      if (!pet) return false;
+      const resident = active?.residentId ? getResident(active.residentId) : undefined;
+      if (!resident) return false;
       const order = ["stranger", "familiar_resident", "life_companion", "family"];
       return (
-        order.indexOf(pet.affectionStage) >= order.indexOf(condition.stage)
+        order.indexOf(resident.affectionStage) >= order.indexOf(condition.stage)
       );
     }
     case "event_completed":
@@ -84,13 +84,13 @@ export function visibleChoices(): DialogueChoice[] {
 /**
  * 进入一个节点该发生的两件"报告"：事件系统的信号、对话对象的一次性动作。
  * `enterNode` 和 `startDialogue`（entryNode 也是一个节点）都要做同一件事，
- * 抽出来是因为已经在这上面漏过一次——加 petGesture 时如果各自忘记一处，
+ * 抽出来是因为已经在这上面漏过一次——加 residentGesture 时如果各自忘记一处，
  * 效果就是"从选项进去会摇头，直接开场进去就不会"，两条路本该长一样。
  */
-function announceNode(node: DialogueNode, petId: string | null): void {
+function announceNode(node: DialogueNode, residentId: string | null): void {
   if (node.emitEventId) signal("dialogue_event", node.emitEventId);
-  if (node.petGesture && petId) {
-    emit("pet_gesture", { petId, gesture: node.petGesture });
+  if (node.residentGesture && residentId) {
+    emit("resident_gesture", { residentId, gesture: node.residentGesture });
   }
 }
 
@@ -105,17 +105,17 @@ function enterNode(nodeId: string): void {
   }
 
   active = { ...active, nodeId };
-  announceNode(node, active.petId);
+  announceNode(node, active.residentId);
   emit("dialogue_changed", { open: true });
 }
 
-export function startDialogue(dialogueId: string, petId: string | null): boolean {
+export function startDialogue(dialogueId: string, residentId: string | null): boolean {
   const definition = findDialogueDefinition(dialogueId);
   if (!definition) return false;
 
-  active = { dialogueId, nodeId: definition.entryNodeId, petId };
+  active = { dialogueId, nodeId: definition.entryNodeId, residentId };
   const entry = definition.nodes[definition.entryNodeId];
-  if (entry) announceNode(entry, petId);
+  if (entry) announceNode(entry, residentId);
   emit("dialogue_changed", { open: true });
   return true;
 }
@@ -149,9 +149,9 @@ export function choose(choiceId: string): void {
 export function giveItem(ref: SlotRef): GiftResult | null {
   const node = getCurrentNode();
   const request = node?.itemRequest;
-  if (!request || !active?.petId) return null;
+  if (!request || !active?.residentId) return null;
 
-  const result = offerGift(active.petId, ref);
+  const result = offerGift(active.residentId, ref);
   if (result.ok) enterNode(request.onTierNodeId[result.tier]);
   return result;
 }

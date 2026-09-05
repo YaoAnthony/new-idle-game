@@ -13,7 +13,7 @@ import { on } from "../EventBus";
 import { getClock } from "../State/clock";
 import { depositGoldTo, getGold, spendGoldFrom } from "../State/gold";
 import { addItem, getCounts, removeItem } from "../State/inventory";
-import { getPet, removePet, spawnPet } from "../State/petsRuntime";
+import { getResident, removeResident, spawnResident } from "../State/residentsRuntime";
 import { getEventStage, isEventCompleted, isFeatureUnlocked } from "./events";
 import { recordGoldFact } from "./dayRecord";
 
@@ -73,7 +73,7 @@ export function isOtterHereToday(): boolean {
 /**
  * 每天开始时对齐在场状态。
  *
- * - 该在而不在 → 从门口走进来（`spawnPet` 自带登场）
+ * - 该在而不在 → 从门口走进来（`spawnResident` 自带登场）
  * - 不该在而在 → 送走（**移除不是隐藏**——隐藏的话碰撞体还在，
  *   玩家会撞到一团空气）
  * - 小龙：事件结了（settled/completed）它就该走——第五幕的对话演完，
@@ -81,16 +81,16 @@ export function isOtterHereToday(): boolean {
  */
 export function syncTraderPresence(): void {
   const otterHere = isOtterHereToday();
-  const otterInWorld = Boolean(getPet(OTTER_PET_ID));
+  const otterInWorld = Boolean(getResident(OTTER_PET_ID));
   if (otterHere && !otterInWorld && isFeatureUnlocked("merchant_trading")) {
-    // 剧情期间的登场由 storyRules 的 spawn_pet 负责，这里只管班表日
-    spawnPet(OTTER_PET_ID, "otter_trader");
+    // 剧情期间的登场由 storyRules 的 spawn_resident 负责，这里只管班表日
+    spawnResident(OTTER_PET_ID, "otter_trader");
   } else if (!otterHere && otterInWorld) {
-    removePet(OTTER_PET_ID);
+    removeResident(OTTER_PET_ID);
   }
 
-  if (isEventCompleted("gold_theft") && getPet(DRAGON_PET_ID)) {
-    removePet(DRAGON_PET_ID);
+  if (isEventCompleted("gold_theft") && getResident(DRAGON_PET_ID)) {
+    removeResident(DRAGON_PET_ID);
   }
 }
 
@@ -280,11 +280,11 @@ export function buyFromTraveler(itemId: string): TradeResult {
 /** 他在不在场的同步。和水獭那条同构，挂在同一个 world_day_changed 上 */
 export function syncTravelerPresence(): void {
   const here = isTravelerHereToday();
-  const inWorld = Boolean(getPet(FISH_PET_ID));
+  const inWorld = Boolean(getResident(FISH_PET_ID));
   if (here && !inWorld) {
-    spawnPet(FISH_PET_ID, "fish_trader");
+    spawnResident(FISH_PET_ID, "fish_trader");
   } else if (!here && inWorld) {
-    removePet(FISH_PET_ID);
+    removeResident(FISH_PET_ID);
   }
 }
 

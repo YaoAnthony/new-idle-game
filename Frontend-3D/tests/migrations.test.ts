@@ -177,8 +177,8 @@ describe("v19：四向朝向换成连续弧度 + id 补发号方前缀", () => {
     expect(position.heading).toBe(facingToHeading(Facing.East));
     expect(position.facing).toBeUndefined();
 
-    const pet = result.save.ownWorld.pets["pet-1"].position as unknown as Record<string, unknown>;
-    expect(pet.heading).toBe(facingToHeading(Facing.West));
+    const resident = result.save.ownWorld.pets["pet-1"].position as unknown as Record<string, unknown>;
+    expect(resident.heading).toBe(facingToHeading(Facing.West));
   });
 
   test("已经是新形状的位置不被二次加工", () => {

@@ -16,7 +16,7 @@ export * from "./loot/index.js";
 export * from "./merchants/index.js";
 export * from "./newspaper/index.js";
 export * from "./needs/index.js";
-export * from "./pets/index.js";
+export * from "./residents/index.js";
 export * from "./recipes/index.js";
 export * from "./roomStyles/index.js";
 export * from "./story/index.js";

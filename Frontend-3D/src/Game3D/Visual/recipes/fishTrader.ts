@@ -262,11 +262,11 @@ export function buildFishTrader(): Object3D {
 
   root.userData.animate = (
     dt: number,
-    pet: { state: string; moving: boolean },
+    resident: { state: string; moving: boolean },
   ): void => {
     elapsed += dt;
-    const asleep = pet.state === "sleeping";
-    const speed = pet.moving ? 7.0 : 1.5;
+    const asleep = resident.state === "sleeping";
+    const speed = resident.moving ? 7.0 : 1.5;
     const wave = Math.sin(elapsed * speed);
 
     if (asleep) {
@@ -284,7 +284,7 @@ export function buildFishTrader(): Object3D {
     body.rotation.x = 0;
     for (const eye of eyes) eye.scale.y = 1;
 
-    if (pet.moving) {
+    if (resident.moving) {
       legs[0].rotation.x = wave * 0.7;
       legs[1].rotation.x = -wave * 0.7;
       arms[0].rotation.x = -wave * 0.45;
@@ -308,13 +308,13 @@ export function buildFishTrader(): Object3D {
     }
 
     // 头两侧的鳍轻轻扇——水里的东西不会完全静止
-    const flap = Math.sin(elapsed * (pet.moving ? 8 : 2.4)) * (pet.moving ? 0.22 : 0.1);
+    const flap = Math.sin(elapsed * (resident.moving ? 8 : 2.4)) * (resident.moving ? 0.22 : 0.1);
     for (const [i, fin] of fins.entries()) {
       fin.rotation.z = (i === 0 ? 1 : -1) * (0.5 + flap);
     }
 
     // 尾鳍滞后摆
-    const wanted = wave * (pet.moving ? 0.5 : 0.18);
+    const wanted = wave * (resident.moving ? 0.5 : 0.18);
     tailLag += (wanted - tailLag) * Math.min(1, dt * 6);
     tail.rotation.y = tailLag;
   };

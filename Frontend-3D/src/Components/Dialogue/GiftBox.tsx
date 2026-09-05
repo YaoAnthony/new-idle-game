@@ -27,7 +27,7 @@ import {
  * 格子直接铺在面板里而不是让玩家去开背包：递东西是对话中的一个动作，
  * 中途去开另一块面板会把这一下打断成两件事。
  */
-export function GiftBox({ petId }: { petId: string | null }) {
+export function GiftBox({ residentId }: { residentId: string | null }) {
   const [, force] = useState(0);
   const { tooltip, show, hide } = useTooltip();
   const drag = useDragState();
@@ -40,7 +40,7 @@ export function GiftBox({ petId }: { petId: string | null }) {
     [],
   );
 
-  const blocked = petId === null || !canGiftTo(petId);
+  const blocked = residentId === null || !canGiftTo(residentId);
   // 整份背包一起铺（前 8 格就是快捷栏）。合并之前这里要拼两个数组，
   // 拼出来的下标还得各自记住是哪个容器的
   const items = getInventory();

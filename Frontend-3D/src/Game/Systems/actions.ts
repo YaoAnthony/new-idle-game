@@ -23,7 +23,7 @@ import {
 import { signal } from "./story";
 import { addItem } from "../State/inventory";
 import { getNeeds, restoreFatigue, spendFatigue } from "../State/needs";
-import { getPets } from "../State/petsRuntime";
+import { getResidents } from "../State/residentsRuntime";
 // 循环引用是刻意的：actionChains 要 startAction（发起），这里要
 // completeChainNode（回勾）。两边都只在运行时调用，模块求值期互不取值
 import { completeChainNode, grantChest } from "./actionChains";
@@ -69,7 +69,7 @@ export type ActionEnd = {
   action: ActiveAction;
   completed: boolean;
   rewards: Array<{ itemId: string; quantity: number }>;
-  petCompanion: boolean;
+  residentCompanion: boolean;
 };
 
 let active: ActiveAction | null = null;
@@ -267,16 +267,16 @@ function finish(completed: boolean): void {
   }
 
   // 陪伴事件：完成那一刻宠物就在身边（好感度不再是陌生人）
-  const petCompanion =
+  const residentCompanion =
     completed &&
-    getPets().some(
-      (pet) => pet.affectionStage !== AffectionStage.Stranger,
+    getResidents().some(
+      (resident) => resident.affectionStage !== AffectionStage.Stranger,
     );
 
   const chainRef = active.chainRef;
   // 标题要在 setActive(null) **之前**抓走：下面那条开箱事件在清空之后才发
   const title = active.customName;
-  lastEnd = { action: active, completed, rewards, petCompanion };
+  lastEnd = { action: active, completed, rewards, residentCompanion };
   setActive(null);
   emit("action_changed", { status: completed ? "completed" : "cancelled" });
   /*

@@ -24,7 +24,7 @@ import { hash01 } from "../../World/outdoorTerrain";
  * 开场 `setHeadAttached(false)`：头整个摘掉，插槽口露出来。
  * 玩家把头装回去才 `setHeadAttached(true)`。
  *
- * 这个开关挂在 `userData` 上而不是让 PetView 去翻子节点：翻子节点等于
+ * 这个开关挂在 `userData` 上而不是让 ResidentView 去翻子节点：翻子节点等于
  * 让表现层记住"头叫什么名字"，换个模型就得回来改。
  *
  * ## 三种状态
@@ -66,10 +66,10 @@ export function buildStoneGolem(): Object3D {
    * `rig` 是**整个人**：走路时的上下颠簸动它，不动 `root`。
    *
    * 这条是踩过的坑：第一版走路的颠簸写成 `root.position.y = ...`，而
-   * `root.position` 是 `PetView` 每帧用来把生物放到**地面高度**上的
+   * `root.position` 是 `ResidentView` 每帧用来把生物放到**地面高度**上的
    * （`groundHeightAt`）。动它等于把地面高度覆盖掉——院子地面在 −0.45，
    * 于是石傀儡整个浮在空中 0.45 米。
-   * PetView 的约定写得很清楚："内部只动自己的子节点，root 的位置朝向
+   * ResidentView 的约定写得很清楚："内部只动自己的子节点，root 的位置朝向
    * 仍归这里管"。多一个中间节点就守住了这条。
    */
   const rig = new Object3D();
@@ -199,11 +199,11 @@ export function buildStoneGolem(): Object3D {
 
   root.userData.animate = (
     deltaSeconds: number,
-    pet: { state: string; moving: boolean },
+    resident: { state: string; moving: boolean },
   ): void => {
     elapsed += deltaSeconds;
 
-    const asleep = pet.state === "sleeping";
+    const asleep = resident.state === "sleeping";
     // 第一帧直接对齐：开场它本来就坐着，不该先站起来再坐下演一遍
     if (!initialized) {
       sleepBlend = asleep ? 1 : 0;
@@ -239,7 +239,7 @@ export function buildStoneGolem(): Object3D {
       leg.position.z = 0.36 * eased;
 
       // 走路：交替前后摆
-      if (!asleep && pet.moving) {
+      if (!asleep && resident.moving) {
         leg.rotation.x += Math.sin(walkPhase + (side > 0 ? Math.PI : 0)) * 0.5;
       }
     }
@@ -248,7 +248,7 @@ export function buildStoneGolem(): Object3D {
      * 干活：双臂**交替抡起砸下**。用 `−|sin|` 而不是 `sin`：抬起来慢、
      * 砸下去到底停一下，那一下停顿才是"砸"；正弦上下对称，读起来像挥手。
      */
-    const working = pet.state === "work";
+    const working = resident.state === "work";
     if (working) workPhase += deltaSeconds * 2.6;
     else workPhase = 0;
 
@@ -258,7 +258,7 @@ export function buildStoneGolem(): Object3D {
       // 坐着时手臂垂直挂着、略微外撇，像撑在地上
       arm.rotation.x = 0.05 * eased;
       arm.rotation.z = side * 0.2 * eased;
-      if (!asleep && pet.moving) {
+      if (!asleep && resident.moving) {
         arm.rotation.x += Math.sin(walkPhase + (side > 0 ? 0 : Math.PI)) * 0.38;
       }
       if (working) {
@@ -272,12 +272,12 @@ export function buildStoneGolem(): Object3D {
       body.rotation.x += Math.abs(Math.sin(workPhase)) * 0.12;
     }
 
-    if (!asleep && pet.moving) {
+    if (!asleep && resident.moving) {
       // 步频跟着"石头很沉"走：慢，但每步幅度大
       walkPhase += deltaSeconds * 3.4;
       // 躯干左右晃，重心从一条腿倒到另一条
       body.rotation.z = Math.sin(walkPhase) * 0.05;
-      // 动 rig 不动 root：root 的 y 是 PetView 给的地面高度
+      // 动 rig 不动 root：root 的 y 是 ResidentView 给的地面高度
       rig.position.y = Math.abs(Math.sin(walkPhase)) * 0.04;
     } else {
       walkPhase = 0;

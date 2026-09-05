@@ -26,8 +26,8 @@ import { recipeDefinitions } from "../src/Data/recipes/index.js";
 import { cookingRecipeDefinitions, mysteryDish } from "../src/Data/cooking/index.js";
 import { lootTableDefinitions } from "../src/Data/loot/index.js";
 import { actionDefinitions } from "../src/Data/actions/index.js";
-import { petDefinitions, petTastes } from "../src/Data/pets/index.js";
-import type { PetDefinition } from "../src/types/pets.js";
+import { residentDefinitions, residentTastes } from "../src/Data/residents/index.js";
+import type { ResidentDefinition } from "../src/types/residents.js";
 import { findDialogueDefinition } from "../src/Data/dialogues/index.js";
 import { findEventDefinition } from "../src/Data/events/index.js";
 import { findAudioProfileDefinition } from "../src/Data/audio/index.js";
@@ -315,7 +315,7 @@ test("行动的奖励物品存在，声音档案存在，时长区间合法", ()
 });
 
 test("喜好表只列真实物品，且每只宠物的四档不互相打架", () => {
-  for (const [petId, taste] of Object.entries(petTastes)) {
+  for (const [residentId, taste] of Object.entries(residentTastes)) {
     const seen = new Map<string, string>();
 
     for (const [tier, list] of Object.entries({
@@ -325,11 +325,11 @@ test("喜好表只列真实物品，且每只宠物的四档不互相打架", ()
       inedible: taste.inedible,
     })) {
       for (const id of list) {
-        assert.ok(itemIds.has(id), `宠物 ${petId} 的喜好里有不存在的 ${id}`);
+        assert.ok(itemIds.has(id), `宠物 ${residentId} 的喜好里有不存在的 ${id}`);
         // 同一件东西同时列在两档里 → baseTier 只会命中先查的那一档，
         // 另一档写了等于没写，而作者多半以为自己改的是生效的那条
         const previous = seen.get(id);
-        assert.equal(previous, undefined, `宠物 ${petId} 把 ${id} 同时列进了 ${previous} 和 ${tier}`);
+        assert.equal(previous, undefined, `宠物 ${residentId} 把 ${id} 同时列进了 ${previous} 和 ${tier}`);
         seen.set(id, tier);
       }
     }
@@ -337,55 +337,55 @@ test("喜好表只列真实物品，且每只宠物的四档不互相打架", ()
 });
 
 test("喜好表的每个键都对得上一只真实宠物", () => {
-  const petIds = new Set(petDefinitions.map((pet) => pet.id));
-  for (const petId of Object.keys(petTastes)) {
-    assert.ok(petIds.has(petId), `喜好表里的 ${petId} 不是任何一只宠物`);
+  const petIds = new Set(residentDefinitions.map((resident) => resident.id));
+  for (const residentId of Object.keys(residentTastes)) {
+    assert.ok(petIds.has(residentId), `喜好表里的 ${residentId} 不是任何一只宠物`);
   }
 });
 
 test("宠物的对话和事件都指向真实数据", () => {
   // 显式标注：注册表是字面量数组，推断出的联合类型上没有可选字段
-  for (const pet of petDefinitions as readonly PetDefinition[]) {
-    for (const dialogueId of Object.values(pet.dialogues ?? {})) {
+  for (const resident of residentDefinitions as readonly ResidentDefinition[]) {
+    for (const dialogueId of Object.values(resident.dialogues ?? {})) {
       assert.ok(
         findDialogueDefinition(dialogueId),
-        `宠物 ${pet.id} 引用了不存在的对话 ${dialogueId}`,
+        `宠物 ${resident.id} 引用了不存在的对话 ${dialogueId}`,
       );
     }
-    if (pet.bondEventId) {
+    if (resident.bondEventId) {
       assert.ok(
-        findEventDefinition(pet.bondEventId),
-        `宠物 ${pet.id} 引用了不存在的事件 ${pet.bondEventId}`,
+        findEventDefinition(resident.bondEventId),
+        `宠物 ${resident.id} 引用了不存在的事件 ${resident.bondEventId}`,
       );
     }
   }
 });
 
 test("居民的住处指向一张真实存在的图纸，且只有居民档才有住处", () => {
-  for (const pet of petDefinitions as readonly PetDefinition[]) {
-    if (!pet.residence) continue;
+  for (const resident of residentDefinitions as readonly ResidentDefinition[]) {
+    if (!resident.residence) continue;
     assert.equal(
-      pet.role,
+      resident.role,
       "resident",
-      `${pet.id} 填了 residence 却不是居民档——搬入判定只认居民`,
+      `${resident.id} 填了 residence 却不是居民档——搬入判定只认居民`,
     );
     assert.ok(
-      findBlueprintForBuilding(pet.residence.buildingId),
-      `${pet.id} 的房型 ${pet.residence.buildingId} 没有对应的图纸物品，/npc join 发不出东西`,
+      findBlueprintForBuilding(resident.residence.buildingId),
+      `${resident.id} 的房型 ${resident.residence.buildingId} 没有对应的图纸物品，/npc join 发不出东西`,
     );
   }
   // 同一栋房型不能有两位住户：完工信号只会让一个人搬进来
-  const houses = (petDefinitions as readonly PetDefinition[])
-    .map((pet) => pet.residence?.buildingId)
+  const houses = (residentDefinitions as readonly ResidentDefinition[])
+    .map((resident) => resident.residence?.buildingId)
     .filter(Boolean);
   assert.equal(new Set(houses).size, houses.length, "两位居民认领了同一种房子");
 });
 
 test("宠物 id 和造型 id 都不为空且不重复", () => {
-  const ids = petDefinitions.map((pet) => pet.id);
+  const ids = residentDefinitions.map((resident) => resident.id);
   assert.equal(new Set(ids).size, ids.length);
-  for (const pet of petDefinitions) {
-    assert.ok(pet.visualId, `宠物 ${pet.id} 没有造型 id`);
+  for (const resident of residentDefinitions) {
+    assert.ok(resident.visualId, `宠物 ${resident.id} 没有造型 id`);
   }
 });
 

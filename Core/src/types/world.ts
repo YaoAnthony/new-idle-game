@@ -8,7 +8,7 @@ import type { StoryRuleId } from "./story.js";
 import type { PlacedFurniture } from "./furniture.js";
 import type { InventorySave, InventoryStack } from "./inventory.js";
 import type { MapSave } from "./map.js";
-import type { PetSave } from "./pets.js";
+import type { ResidentSave } from "./residents.js";
 import type { RegionId, RoomStyleId } from "./roomStyle.js";
 import type { WorldClockSave } from "./time.js";
 import type { WeatherSave } from "./weather.js";
@@ -183,7 +183,7 @@ export type WorldSave = {
   weather: WeatherSave;
 
   maps: Record<string, MapSave>;
-  pets: Record<string, PetSave>;
+  pets: Record<string, ResidentSave>;
   placedFurniture: PlacedFurniture[];
 
   /**

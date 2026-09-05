@@ -8,10 +8,10 @@ import {
 } from "../src/Game/State/buildings";
 import { initDoors } from "../src/Game/State/doorsRuntime";
 import {
-  getPets,
-  restorePets,
+  getResidents,
+  restoreResidents,
   seedInitialCreatures,
-} from "../src/Game/State/petsRuntime";
+} from "../src/Game/State/residentsRuntime";
 import { resetTerritory } from "../src/Game/State/territory";
 import { clearAllFurniture } from "../src/Game/State/world/furniture";
 import { getCurrentMapId, isWalkable } from "../src/Game/State/worldRuntime";
@@ -45,7 +45,7 @@ beforeEach(() => {
   if (getCurrentMapId() !== DEFAULT_MAP_ID) travelTo(DEFAULT_MAP_ID);
   resetTerritory();
   restoreBuildings([]);
-  restorePets({});
+  restoreResidents({});
   clearAllFurniture();
   // 院子可不可走由 initDoors 注册的 outdoorPass 回答，不叫就整片不可走
   initDoors();
@@ -54,7 +54,7 @@ beforeEach(() => {
 
 function golem() {
   seedInitialCreatures();
-  const found = getPets().find((pet) => pet.role === CreatureRole.Worker)!;
+  const found = getResidents().find((resident) => resident.role === CreatureRole.Worker)!;
   found.attachPart("head");
   return found;
 }
@@ -112,7 +112,7 @@ test("test_nav_route_for_oversized_body_is_null_not_a_partial_walk", () => {
    * 这条特意钉住，因为它是整套判据的关键——尺寸不是在终点判的，
    * 是沿路每一格都在判。只判终点的话他会兴冲冲出发然后卡在门口。
    */
-  expect(isWalkable(INDOORS.x, INDOORS.z, big.radius, big.petId)).toBe(true);
+  expect(isWalkable(INDOORS.x, INDOORS.z, big.radius, big.residentId)).toBe(true);
 });
 
 test("test_worker_takes_sites_in_order_placed_not_nearest_first", () => {
@@ -151,7 +151,7 @@ test("test_worker_takes_sites_in_order_placed_not_nearest_first", () => {
 
   // Assert：接的是先下单的那块（远的），不是最近的那块
   const claimed = listSites().filter(
-    (site) => site.construction?.workerId === big.petId,
+    (site) => site.construction?.workerId === big.residentId,
   );
   expect(claimed).toHaveLength(1);
   expect(claimed[0].instanceId, "越队去建了近的那块").toBe(

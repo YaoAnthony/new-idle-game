@@ -1,4 +1,4 @@
-import { BodyPosture, CreatureRole, DayPhaseId, Facing, FurnitureCapability, constructionProgress, isConstructionQueued, WeatherKind, anchorOf, anchorRectToWorld, findItemDefinition, findPetDefinition, roomCellToWorld, type AutoStepKind, type DeckRect, type WeatherDefinition, yardBoundsOf, navBoundsOf } from "core";
+import { BodyPosture, CreatureRole, DayPhaseId, Facing, FurnitureCapability, constructionProgress, isConstructionQueued, WeatherKind, anchorOf, anchorRectToWorld, findItemDefinition, findResidentDefinition, roomCellToWorld, type AutoStepKind, type DeckRect, type WeatherDefinition, yardBoundsOf, navBoundsOf } from "core";
 import { isHouseStowed } from "core";
 import type { InteractHint, PlacedFurniture, RoomSave } from "core";
 import {
@@ -106,11 +106,11 @@ import {
 } from "../../Game/Systems/dropping";
 import { emit, on, type StationCapability } from "../../Game/EventBus";
 import {
-  getPet,
-  getPets,
+  getResident,
+  getResidents,
   seedInitialCreatures,
-  tickPets,
-} from "../../Game/State/petsRuntime";
+  tickResidents,
+} from "../../Game/State/residentsRuntime";
 import {
   getCurrentMap,
   getCurrentMapId,
@@ -199,7 +199,7 @@ import {
   HIP_HEIGHT,
   SHOULDER_HEIGHT,
 } from "./CharacterView.js";
-import { PetView } from "./PetView.js";
+import { ResidentView } from "./ResidentView.js";
 import { CameraRig } from "../Engine/CameraRig.js";
 import { bathPhaseOf, requestFill, tickBath } from "../../Game/Systems/bath";
 import { BathAnimator } from "./BathAnimator.js";
@@ -336,9 +336,9 @@ export class RoomScene {
   private weather: WeatherDefinition = getWeather();
   private outlineEnabled = true;
 
-  private readonly petView = new PetView();
+  private readonly residentView = new ResidentView();
   /** 过场镜头：非空表示正在跟拍某只宠物 */
-  private cutscenePetId: string | null = null;
+  private cutsceneResidentId: string | null = null;
   private readonly offEventListeners: Array<() => void> = [];
 
   /** 附近可交互目标（按 F 提示） */
@@ -348,7 +348,7 @@ export class RoomScene {
         instanceId: string;
         capability: StationCapability;
       }
-    | { kind: "pet"; petId: string }
+    | { kind: "resident"; residentId: string }
     | { kind: "door"; refId: string }
     | { kind: "building"; instanceId: string }
     | { kind: "shopSpot"; instanceId: string; spot: "crate" | "register" }
@@ -405,7 +405,7 @@ export class RoomScene {
        *
        * 宠物物种**仍在 Core 的注册表里**（Data/pets），随时可用——
        * 删掉的只是"开局自动登场"这个动作。新剧情想让谁出场，用
-       * storyRules 的 spawn_pet 效果声明，别再写死在场景构造里。
+       * storyRules 的 spawn_resident 效果声明，别再写死在场景构造里。
        */
     }
 
@@ -574,7 +574,7 @@ export class RoomScene {
     this.droppedItemView = new DroppedItemView();
     this.scene.add(this.droppedItemView.root);
 
-    this.scene.add(this.petView.root);
+    this.scene.add(this.residentView.root);
 
     this.scene.add(this.characterRig.root);
     this.controller = new CharacterController(this.characterRig);
@@ -611,15 +611,15 @@ export class RoomScene {
 
     // 宠物首次进屋：镜头接管跟拍（V0.2 第一天流程的"镜头开始移动"）
     this.offEventListeners.push(
-      on("pet_changed", ({ petId, reason }) => {
+      on("resident_changed", ({ residentId, reason }) => {
         if (reason === "spawn") {
-          this.cutscenePetId = petId;
+          this.cutsceneResidentId = residentId;
           this.rig.mode = "cutscene";
           this.controller.enabled = false;
           emit("cutscene_changed", { active: true });
         }
-        if (reason === "entered" && this.cutscenePetId === petId) {
-          this.cutscenePetId = null;
+        if (reason === "entered" && this.cutsceneResidentId === residentId) {
+          this.cutsceneResidentId = null;
           this.rig.mode = "follow";
           this.controller.enabled = true;
           emit("cutscene_changed", { active: false });
@@ -653,7 +653,7 @@ export class RoomScene {
     this.offEventListeners.push(
       on("dialogue_changed", ({ open }) => {
         // 过场自己管镜头，别抢
-        if (this.cutscenePetId) return;
+        if (this.cutsceneResidentId) return;
 
         this.controller.enabled = !open;
         if (open) {
@@ -663,11 +663,11 @@ export class RoomScene {
            * （交互半径本来就够不到 1.9 米外），画面下半部分全是它的肚子。
            * 按碰撞半径放宽距离；没有半径的小家伙（wisp）不变。
            */
-          const dialoguePetId = getActiveDialogue()?.petId;
-          const dialoguePet = dialoguePetId ? getPet(dialoguePetId) : undefined;
+          const dialogueResidentId = getActiveDialogue()?.residentId;
+          const dialogueResident = dialogueResidentId ? getResident(dialogueResidentId) : undefined;
           const distance =
-            dialoguePet && dialoguePet.radius > 0
-              ? 3.4 + dialoguePet.radius * 2.4
+            dialogueResident && dialogueResident.radius > 0
+              ? 3.4 + dialogueResident.radius * 2.4
               : undefined;
           this.rig.enterDialogue(distance);
         } else {
@@ -1581,7 +1581,7 @@ export class RoomScene {
           instanceId: string;
           capability: StationCapability;
         }
-      | { kind: "pet"; petId: string }
+      | { kind: "resident"; residentId: string }
       | { kind: "door"; refId: string }
       | { kind: "building"; instanceId: string }
       | { kind: "shopSpot"; instanceId: string; spot: "crate" | "register" }
@@ -1651,15 +1651,15 @@ export class RoomScene {
      * 1.3；旁边一米开外的纸箱按边算只有 1.2，于是按 F 打开的是纸箱。
      * 玩家眼里那两样东西的远近正好是反的。
      */
-    for (const pet of getPets()) {
-      if (pet.state === "hidden" || pet.state === "entering") continue;
+    for (const resident of getResidents()) {
+      if (resident.state === "hidden" || resident.state === "entering") continue;
       const distance = Math.max(
         0,
-        Math.hypot(pet.x - probeX, pet.z - probeZ) - pet.radius,
+        Math.hypot(resident.x - probeX, resident.z - probeZ) - resident.radius,
       );
       if (distance < bestDistance) {
         bestDistance = distance;
-        best = { kind: "pet", petId: pet.petId };
+        best = { kind: "resident", residentId: resident.residentId };
       }
     }
 
@@ -1766,23 +1766,23 @@ export class RoomScene {
       const held = getSelectedStack();
       return held ? findItemDefinition(held.itemId)?.golemPart : undefined;
     })();
-    for (const pet of getPets()) {
-      if (!pet.dormant) continue;
+    for (const resident of getResidents()) {
+      if (!resident.dormant) continue;
       // 同上：减掉体型，和家具那把尺子对齐
       const distance = Math.max(
         0,
-        Math.hypot(pet.x - probeX, pet.z - probeZ) - pet.radius,
+        Math.hypot(resident.x - probeX, resident.z - probeZ) - resident.radius,
       );
       if (distance >= HINT_RADIUS) continue;
-      const canAttach = heldPart !== undefined && !pet.attachedParts.has(heldPart);
+      const canAttach = heldPart !== undefined && !resident.attachedParts.has(heldPart);
       const target: HintTarget = {
-        instanceId: pet.petId,
+        instanceId: resident.residentId,
         hint: canAttach
           ? { localizationKey: "golem.hint.attach", action: "interact" }
           : { localizationKey: "golem.hint.dormant" },
-        world: new Vector3(pet.x, 1.5, pet.z),
+        world: new Vector3(resident.x, 1.5, resident.z),
       };
-      hintByKey.set(`pet:${pet.petId}`, target);
+      hintByKey.set(`pet:${resident.residentId}`, target);
       if (distance < bestHintDistance) {
         bestHintDistance = distance;
         bestHint = target;
@@ -1795,20 +1795,20 @@ export class RoomScene {
      * 不给他配词的话走到他跟前会**一个气泡都没有**（他把旁边盆栽的
      * 气泡挤掉了，自己又拿不出一句话）。
      */
-    for (const pet of getPets()) {
-      if (pet.dormant || pet.role !== CreatureRole.Worker) continue;
-      if (pet.state === "hidden" || pet.state === "entering") continue;
+    for (const resident of getResidents()) {
+      if (resident.dormant || resident.role !== CreatureRole.Worker) continue;
+      if (resident.state === "hidden" || resident.state === "entering") continue;
       const distance = Math.max(
         0,
-        Math.hypot(pet.x - probeX, pet.z - probeZ) - pet.radius,
+        Math.hypot(resident.x - probeX, resident.z - probeZ) - resident.radius,
       );
       if (distance >= HINT_RADIUS) continue;
       const target: HintTarget = {
-        instanceId: pet.petId,
+        instanceId: resident.residentId,
         hint: { localizationKey: "golem.hint.build", action: "interact" },
-        world: new Vector3(pet.x, 1.5, pet.z),
+        world: new Vector3(resident.x, 1.5, resident.z),
       };
-      hintByKey.set(`pet:${pet.petId}`, target);
+      hintByKey.set(`pet:${resident.residentId}`, target);
       if (distance < bestHintDistance) {
         bestHintDistance = distance;
         bestHint = target;
@@ -2002,8 +2002,8 @@ export class RoomScene {
      * 东西的话来说——那正是这个 bug 的形状。
      */
     const hintKeyOf = (target: NonNullable<typeof best>): string =>
-      target.kind === "pet"
-        ? `pet:${target.petId}`
+      target.kind === "resident"
+        ? `pet:${target.residentId}`
         : target.kind === "door"
           ? `door:${target.refId}`
           : target.kind === "shopSpot"
@@ -2017,8 +2017,8 @@ export class RoomScene {
     ): string =>
       target === null
         ? "none"
-        : target.kind === "pet"
-          ? `pet:${target.petId}`
+        : target.kind === "resident"
+          ? `pet:${target.residentId}`
           : target.kind === "door"
             ? `door:${target.refId}`
             : target.kind === "building"
@@ -2033,8 +2033,8 @@ export class RoomScene {
 
     if (best === null) {
       emit("interact_target_changed", null);
-    } else if (best.kind === "pet") {
-      emit("interact_target_changed", { kind: "pet", petId: best.petId });
+    } else if (best.kind === "resident") {
+      emit("interact_target_changed", { kind: "resident", residentId: best.residentId });
     } else if (best.kind === "door") {
       emit("interact_target_changed", { kind: "door", refId: best.refId });
     } else if (best.kind === "building" || best.kind === "shopSpot") {
@@ -2289,11 +2289,11 @@ export class RoomScene {
         /**
          * 对话选哪一段是**这只宠物的内容**，不是交互系统的逻辑——
          * 原来这里直接写死 moss_wisp_first_meet/casual 两个字面量 id，
-         * 加舒舒发现这处理只认得苔灵一个物种。现在按 PetDefinition
+         * 加舒舒发现这处理只认得苔灵一个物种。现在按 ResidentDefinition
          * 声明的 dialogues/bondEventId 查，加宠物不用回来改这段。
          */
-        const petId = this.interactTarget.petId;
-        const pet = getPet(petId);
+        const residentId = this.interactTarget.residentId;
+        const resident = getResident(residentId);
 
         /*
          * 手上拿着它缺的那个零件 → 装上去。**判据是物品的 `golemPart`
@@ -2307,9 +2307,9 @@ export class RoomScene {
         const part = heldStack
           ? findItemDefinition(heldStack.itemId)?.golemPart
           : undefined;
-        if (pet && part && !pet.attachedParts.has(part)) {
+        if (resident && part && !resident.attachedParts.has(part)) {
           consumeSelectedOne();
-          pet.attachPart(part);
+          resident.attachPart(part);
           pushChatMessage({
             kind: ChatMessageKind.System,
             text: t("golem.awakened"),
@@ -2322,7 +2322,7 @@ export class RoomScene {
          * （用户定："不用说话，点开就是面板"）。他是工头不是村民，
          * 走过去就该看到能盖什么。
          */
-        if (pet && pet.role === CreatureRole.Worker && !pet.dormant) {
+        if (resident && resident.role === CreatureRole.Worker && !resident.dormant) {
           emit("build_shop_open_requested", {});
           return;
         }
@@ -2333,15 +2333,15 @@ export class RoomScene {
          * **是哪个商人由物种推**（期 6 加了第二个）。不写死"水獭"，
          * 也不在面板里判——面板只认一个 merchantId，谁递给它都行。
          */
-        if (pet && pet.role === CreatureRole.Merchant && !pet.dormant) {
+        if (resident && resident.role === CreatureRole.Merchant && !resident.dormant) {
           emit("trade_open_requested", {
             merchantId:
-              pet.definitionId === "fish_trader" ? "traveling_peddler" : "otter_trader",
+              resident.definitionId === "fish_trader" ? "traveling_peddler" : "otter_trader",
           });
           return;
         }
 
-        const definition = pet ? findPetDefinition(pet.definitionId) : undefined;
+        const definition = resident ? findResidentDefinition(resident.definitionId) : undefined;
         const known = definition?.bondEventId
           ? getEventStage(definition.bondEventId) === "gifted"
           : true;
@@ -2352,8 +2352,8 @@ export class RoomScene {
         if (dialogueId) {
           // 已经认识、还在睡的话先醒过来再聊——日常寒暄没有专门的
           // "戳醒"仪式，那是初见剧情自己的桥段
-          if (known && pet?.state === "sleeping") pet.wakeUp();
-          startDialogue(dialogueId, petId);
+          if (known && resident?.state === "sleeping") resident.wakeUp();
+          startDialogue(dialogueId, residentId);
         }
       }
       return;
@@ -2820,10 +2820,10 @@ export class RoomScene {
     // 往里推而不是让音景去问控制器——控制器是 Interaction 层的，反向依赖会绕一圈
     updateListener(this.controller.x, this.controller.z, deltaSeconds);
 
-    tickPets(
+    tickResidents(
       deltaSeconds,
       { x: this.controller.x, z: this.controller.z },
-      getActiveDialogue()?.petId,
+      getActiveDialogue()?.residentId,
     );
     // 宠物走完再让门看一眼谁靠近了——同帧的位置，门不会慢半拍
     tickDoors();
@@ -2835,7 +2835,7 @@ export class RoomScene {
     } else {
       this.syncCameraBounds();
     }
-    this.petView.update(deltaSeconds);
+    this.residentView.update(deltaSeconds);
     this.remotePlayers.update(deltaSeconds);
     this.dailyBoardAnimator.update(deltaSeconds);
     this.gramophoneAnimator.update(deltaSeconds);
@@ -2860,17 +2860,17 @@ export class RoomScene {
     // 过场：镜头跟拍进屋的宠物；平时跟随角色。
     // 第三个参数是被拍者**脚下**的高度——世界里不再只有一个地面了，
     // 不传的话人走进院子（-floorLevel）会被框低一截
-    if (this.cutscenePetId) {
-      const pet = getPet(this.cutscenePetId);
-      if (pet) this.rig.lookAtPoint(pet.x, pet.z, groundHeightAt(pet.x, pet.z));
+    if (this.cutsceneResidentId) {
+      const resident = getResident(this.cutsceneResidentId);
+      if (resident) this.rig.lookAtPoint(resident.x, resident.z, groundHeightAt(resident.x, resident.z));
     } else {
-      const dialoguePetId = getActiveDialogue()?.petId;
-      const dialoguePet = dialoguePetId ? getPet(dialoguePetId) : undefined;
-      if (dialoguePet && dialoguePet.radius > 0) {
+      const dialogueResidentId = getActiveDialogue()?.residentId;
+      const dialogueResident = dialogueResidentId ? getResident(dialogueResidentId) : undefined;
+      if (dialogueResident && dialogueResident.radius > 0) {
         // 对着体型比人大得多的对象说话：镜头看两者中点，不然贴着玩家
         // 取景会让镜头埋进它身体里（配合上面 enterDialogue 放宽的距离）
-        const midX = (this.controller.x + dialoguePet.x) / 2;
-        const midZ = (this.controller.z + dialoguePet.z) / 2;
+        const midX = (this.controller.x + dialogueResident.x) / 2;
+        const midZ = (this.controller.z + dialogueResident.z) / 2;
         this.rig.lookAtPoint(midX, midZ, groundHeightAt(midX, midZ));
       } else {
         this.rig.lookAtPoint(
@@ -3470,7 +3470,7 @@ export class RoomScene {
     this.cookwareView.dispose();
     this.heldItemView.dispose();
     this.droppedItemView.dispose();
-    this.petView.dispose();
+    this.residentView.dispose();
     this.renderer.stop();
     this.renderer.dispose();
   }

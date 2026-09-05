@@ -6,14 +6,14 @@ import {
   PlacementSurface,
   GiftTier,
   findItemDefinition,
-  findPetDefinition,
-  findPetTaste,
+  findResidentDefinition,
+  findResidentTaste,
   findPlaceableItem,
   footprintCells,
   roomCellToWorld,
   navBoundsOf,
   type GridPosition,
-  type PetSave,
+  type ResidentSave,
   type RoomSave,
 } from "core";
 import { emit } from "../EventBus";
@@ -55,7 +55,7 @@ import { findRoute } from "../Systems/navigation";
  *
  * ## 新物种怎么加
  *
- * **实例化，不继承。** 物种差异全部来自 PetDefinition 的数字
+ * **实例化，不继承。** 物种差异全部来自 ResidentDefinition 的数字
  * （speed / sleepiness / collisionRadius / 食量），加一只新生物 =
  * 注册表加一条 + 造型表加一条，行为代码零改动——舒舒和三只 wisp
  * 已经是同一个类的实例，只是数字不同。真出现"数字表达不了的独有行为"
@@ -70,7 +70,7 @@ import { findRoute } from "../Systems/navigation";
  *   玩家忘了喂不该是一种惩罚，心情低一点仅此而已。
  */
 
-export type PetActivity =
+export type ResidentActivity =
   | "hidden"
   | "entering"
   | "idle"
@@ -106,25 +106,25 @@ function gridToWorldXZ(room: RoomSave, cell: GridPosition): [number, number] {
 }
 
 /**
- * 按 petId 找同伴。**由 `petsRuntime` 在启动时注入**，不在这里 import。
+ * 按 residentId 找同伴。**由 `residentsRuntime` 在启动时注入**，不在这里 import。
  *
- * 反过来引会成环：`petsRuntime` 本来就 import 了 `PetAgent`。ESM 能容忍
+ * 反过来引会成环：`residentsRuntime` 本来就 import 了 `ResidentAgent`。ESM 能容忍
  * 环，但那让"谁依赖谁"变得要靠猜；注入一个函数则把方向写在明面上——
- * 名册归 `petsRuntime` 管，个体只是被告知怎么找人。
+ * 名册归 `residentsRuntime` 管，个体只是被告知怎么找人。
  *
  * 只有"让路"用它：一只生物要请另一只挪开，除此之外个体之间不互相认识。
  */
-let peerLookup: ((petId: string) => PetAgent | undefined) | null = null;
+let peerLookup: ((residentId: string) => ResidentAgent | undefined) | null = null;
 
 export function setPeerLookup(
-  lookup: (petId: string) => PetAgent | undefined,
+  lookup: (residentId: string) => ResidentAgent | undefined,
 ): void {
   peerLookup = lookup;
 }
 
-export class PetAgent {
+export class ResidentAgent {
   // ---- 身份 ----
-  readonly petId: string;
+  readonly residentId: string;
   readonly definitionId: string;
 
   // ---- 档案属性（全物种统一，进存档） ----
@@ -145,7 +145,7 @@ export class PetAgent {
   /** 碰撞半径。0 = 不挡路的小团子 */
   readonly radius: number;
   /**
-   * 无视碰撞体积（`PetDefinition.ignoresObstacles`，今天只有石傀儡）。
+   * 无视碰撞体积（`ResidentDefinition.ignoresObstacles`，今天只有石傀儡）。
    *
    * 它有两个后果，一个在**它看别人**，一个在**别人看它**：
    * 前者靠 `withPhasing` 包住它自己的每一次通行查询，后者靠**不登记**
@@ -165,7 +165,7 @@ export class PetAgent {
   private readonly wanderRadius: number;
 
   // ---- 行为状态机（运行时，不进存档） ----
-  state: PetActivity = "idle";
+  state: ResidentActivity = "idle";
   moving = false;
   /**
    * 剩下要走的**世界坐标**路点，来自 `findRoute`（拉过直的）。
@@ -208,18 +208,18 @@ export class PetAgent {
   private readonly thirstPerHour: number;
 
   constructor(
-    petId: string,
+    residentId: string,
     definitionId: string,
     at: { x: number; z: number; heading: number },
   ) {
-    this.petId = petId;
+    this.residentId = residentId;
     this.definitionId = definitionId;
     this.x = at.x;
     this.z = at.z;
     this.heading = at.heading;
 
     // 性情在构造时从注册表展开一次，tick 是热路径，不再查表
-    const definition = findPetDefinition(definitionId);
+    const definition = findResidentDefinition(definitionId);
     this.speed = definition?.behavior?.moveSpeed ?? 1.7;
     this.radius = definition?.collisionRadius ?? 0;
     this.phasing = definition?.ignoresObstacles ?? false;
@@ -253,7 +253,7 @@ export class PetAgent {
    *
    * 只挪圆心不挪人：他会自己**溜达过去**——乱走的候选点从此只在新驻地
    * 半径内取，几步之内就走过去了。瞬移过去反而穿帮（正和别人说着话呢）。
-   * home 进存档（PetSave.home），读档不漂移。
+   * home 进存档（ResidentSave.home），读档不漂移。
    */
   rehome(x: number, z: number): void {
     this.homeX = x;
@@ -261,7 +261,7 @@ export class PetAgent {
   }
 
   dispose(): void {
-    if (this.radius > 0) removeCreatureObstacle(this.petId);
+    if (this.radius > 0) removeCreatureObstacle(this.residentId);
     this.abandonSite();
   }
 
@@ -277,7 +277,7 @@ export class PetAgent {
     this.errand = null;
   }
 
-  /** 调试用：瞬移过去并回到发呆。只有 /pet 命令经 petsRuntime 调它 */
+  /** 调试用：瞬移过去并回到发呆。只有 /pet 命令经 residentsRuntime 调它 */
   /**
    * 走没走在路上。**用例读它判"让路生效了没有"**——直接看 `path.length`
    * 要把私有字段公开，而那会让任何人都能改路径。
@@ -289,7 +289,7 @@ export class PetAgent {
    */
   private registerObstacle(): void {
     if (this.radius <= 0 || this.phasing) return;
-    setCreatureObstacle(this.petId, this.x, this.z, this.radius);
+    setCreatureObstacle(this.residentId, this.x, this.z, this.radius);
   }
 
   /**
@@ -316,7 +316,7 @@ export class PetAgent {
   }
 
   /** 用例摆状态用（"正在干活的不让路"这类判据要先把他摆成那个状态） */
-  debugSetState(state: PetActivity): void {
+  debugSetState(state: ResidentActivity): void {
     this.state = state;
     this.clearPath();
   }
@@ -338,7 +338,7 @@ export class PetAgent {
     const [min, max] = this.napSeconds;
     this.sleepTimer = min + Math.random() * (max - min);
     this.clearPath();
-    emit("pet_changed", { petId: this.petId, reason: "sleep" });
+    emit("resident_changed", { residentId: this.residentId, reason: "sleep" });
   }
 
   wakeUp(): void {
@@ -347,7 +347,7 @@ export class PetAgent {
     this.state = "idle";
     // 醒来先愣一会儿再决定干什么——猫不会睁眼就走
     this.idleTimer = 2 + Math.random() * 3;
-    emit("pet_changed", { petId: this.petId, reason: "wake" });
+    emit("resident_changed", { residentId: this.residentId, reason: "wake" });
   }
 
   /**
@@ -367,7 +367,7 @@ export class PetAgent {
   attachPart(part: string): void {
     if (this.attachedParts.has(part)) return;
     this.attachedParts.add(part);
-    emit("pet_changed", { petId: this.petId, reason: "part_attached" });
+    emit("resident_changed", { residentId: this.residentId, reason: "part_attached" });
     if (!this.dormant && this.state === "sleeping") this.wakeUp();
   }
 
@@ -386,7 +386,7 @@ export class PetAgent {
     this.mood = Math.min(100, this.mood + moodBump);
     this.growth += tier === GiftTier.Loved ? 2 : 1;
 
-    emit("pet_changed", { petId: this.petId, reason: "eat" });
+    emit("resident_changed", { residentId: this.residentId, reason: "eat" });
   }
 
   // ---- 每帧 ----
@@ -434,8 +434,8 @@ export class PetAgent {
     if (this.state === "entering") {
       this.state = "idle";
       this.idleTimer = 1.5;
-      emit("pet_changed", { petId: this.petId, reason: "entered" });
-      emit("story_signal", { kind: "pet_entered", subject: this.petId });
+      emit("resident_changed", { residentId: this.residentId, reason: "entered" });
+      emit("story_signal", { kind: "resident_entered", subject: this.residentId });
       return;
     }
 
@@ -514,7 +514,7 @@ export class PetAgent {
    */
   private trySeekSite(): boolean {
     const mine = listSites().find(
-      (site) => site.construction?.workerId === this.petId,
+      (site) => site.construction?.workerId === this.residentId,
     );
     /*
      * 候选是**所有**没人认领的工地，按下单顺序试——不是只看第一块。
@@ -577,7 +577,7 @@ export class PetAgent {
    *
    * 这个方法不改任何状态，只把 `trySeekSite` 的判断复述一遍。
    */
-  diagnoseSites(): ReturnType<PetAgent["diagnoseSitesInner"]> {
+  diagnoseSites(): ReturnType<ResidentAgent["diagnoseSitesInner"]> {
     return this.phased(() => this.diagnoseSitesInner());
   }
 
@@ -592,7 +592,7 @@ export class PetAgent {
 
   private listSiteVerdicts(): Array<{ instanceId: string; verdict: string }> {
     return listSites().map((site) => {
-      if (site.construction?.workerId && site.construction.workerId !== this.petId) {
+      if (site.construction?.workerId && site.construction.workerId !== this.residentId) {
         return { instanceId: site.instanceId, verdict: `别人在建（${site.construction.workerId}）` };
       }
       const level = findBuildingLevel(
@@ -646,7 +646,7 @@ export class PetAgent {
               site.x + Math.cos(angle) * d,
               site.z + Math.sin(angle) * d,
               this.radius,
-              this.petId,
+              this.residentId,
             )
           ) {
             standable += 1;
@@ -690,12 +690,12 @@ export class PetAgent {
       this.idleTimer = 1;
       return;
     }
-    claimSite(instanceId, this.petId, getClock().sample.nowUtc);
+    claimSite(instanceId, this.residentId, getClock().sample.nowUtc);
     this.heading = Math.atan2(site.x - this.x, site.z - this.z);
     this.state = "work";
     this.clearPath();
     this.errand = { kind: "build", instanceId };
-    emit("pet_changed", { petId: this.petId, reason: "work" });
+    emit("resident_changed", { residentId: this.residentId, reason: "work" });
   }
 
   /**
@@ -727,14 +727,14 @@ export class PetAgent {
       this.state = "idle";
       // 完工立刻找下一块：队里还有的话，玩家看见他转身就走
       this.idleTimer = 0.4;
-      emit("pet_changed", { petId: this.petId, reason: "work_done" });
+      emit("resident_changed", { residentId: this.residentId, reason: "work_done" });
     }
   }
 
   // ---- 基础行为：吃（找地上的） ----
 
   private trySeekFood(): boolean {
-    const taste = findPetTaste(this.definitionId);
+    const taste = findResidentTaste(this.definitionId);
 
     let best: { id: string; x: number; z: number } | null = null;
     let bestDistance = Number.POSITIVE_INFINITY;
@@ -824,7 +824,7 @@ export class PetAgent {
       this.state = "eat";
       this.busyTimer = 2.6;
       this.errand = errand; // 吃完要知道吃的是哪一份
-      emit("pet_changed", { petId: this.petId, reason: "eat" });
+      emit("resident_changed", { residentId: this.residentId, reason: "eat" });
       return;
     }
 
@@ -836,7 +836,7 @@ export class PetAgent {
     this.heading = Math.atan2(errand.at.x - this.x, errand.at.z - this.z);
     this.state = "drink";
     this.busyTimer = 3.2;
-    emit("pet_changed", { petId: this.petId, reason: "drink" });
+    emit("resident_changed", { residentId: this.residentId, reason: "drink" });
   }
 
   /** 吃/喝动画播完，结算 */
@@ -844,7 +844,7 @@ export class PetAgent {
     if (this.state === "eat" && this.errand?.kind === "eat") {
       const entity = removeDroppedItem(this.errand.droppedId);
       if (entity) {
-        const taste = findPetTaste(this.definitionId);
+        const taste = findResidentTaste(this.definitionId);
         const itemId = entity.stack.itemId;
         const tier = taste?.loved.includes(itemId)
           ? GiftTier.Loved
@@ -901,7 +901,7 @@ export class PetAgent {
    * 石傀儡走一段呆站十几秒。不限驻地半径的（屋里的宠物）退回按整张
    * 可走边界抽，和以前一样。
    *
-   * 判据只有 `isWalkable(..., this.radius, this.petId)` 一条——它就是
+   * 判据只有 `isWalkable(..., this.radius, this.residentId)` 一条——它就是
    * 玩家走路用的那条（领地、地形、家具、建筑、体型全在里面）。以前这里
    * 还要先过一遍房间占用图的 `cellHasClearance`，那是两套判定，
    * 而两套判定迟早会给出两个答案。
@@ -937,7 +937,7 @@ export class PetAgent {
       const z = minZ + Math.random() * (maxZ - minZ);
       // 上面收的是方框，这里才是真的圆
       if (Math.hypot(x - this.homeX, z - this.homeZ) > this.wanderRadius) continue;
-      if (!isWalkable(x, z, this.radius, this.petId)) continue;
+      if (!isWalkable(x, z, this.radius, this.residentId)) continue;
       return [x, z];
     }
     return null;
@@ -1022,7 +1022,7 @@ export class PetAgent {
         const angle = phase + (spoke * Math.PI * 2) / spokes;
         const x = targetX + Math.cos(angle) * distance;
         const z = targetZ + Math.sin(angle) * distance;
-        if (!isWalkable(x, z, this.radius, this.petId)) continue;
+        if (!isWalkable(x, z, this.radius, this.residentId)) continue;
         if (this.startPathTo(x, z)) return true;
       }
     }
@@ -1066,7 +1066,7 @@ export class PetAgent {
    */
   private askBlockerToYield(): void {
     const [tx, tz] = this.path[this.pathIndex];
-    const who = creatureBlockingAt(tx, tz, this.radius * 0.85, this.petId);
+    const who = creatureBlockingAt(tx, tz, this.radius * 0.85, this.residentId);
     if (!who || who === PLAYER_OBSTACLE_ID) return;
     peerLookup?.(who)?.yieldAsideFrom(this.x, this.z);
   }
@@ -1101,12 +1101,12 @@ export class PetAgent {
       const angle = away + turn;
       const x = this.x + Math.sin(angle) * STEP;
       const z = this.z + Math.cos(angle) * STEP;
-      if (!isWalkable(x, z, this.radius, this.petId)) continue;
+      if (!isWalkable(x, z, this.radius, this.residentId)) continue;
       if (!this.startPathTo(x, z)) continue;
       this.state = "wander";
       this.errand = null;
       this.yieldCooldown = 3;
-      emit("pet_changed", { petId: this.petId, reason: "yield" });
+      emit("resident_changed", { residentId: this.residentId, reason: "yield" });
       return;
     }
   }
@@ -1170,7 +1170,7 @@ export class PetAgent {
        * 这儿单独判一次——它压根不参与活物避让这一层。
        */
       const squeeze = this.radius * 0.85;
-      if (!this.phasing && creatureBlockedAt(nextX, nextZ, squeeze, this.petId)) {
+      if (!this.phasing && creatureBlockedAt(nextX, nextZ, squeeze, this.residentId)) {
         this.waitBlocked(deltaSeconds);
         return;
       }
@@ -1191,9 +1191,9 @@ export class PetAgent {
 
   // ---- 存档 ----
 
-  toSave(roomId: string): PetSave {
+  toSave(roomId: string): ResidentSave {
     return {
-      petId: this.petId,
+      residentId: this.residentId,
       definitionId: this.definitionId,
       roomId,
       position: {
@@ -1221,8 +1221,8 @@ export class PetAgent {
     };
   }
 
-  static fromSave(entry: PetSave): PetAgent {
-    const agent = new PetAgent(entry.petId, entry.definitionId, {
+  static fromSave(entry: ResidentSave): ResidentAgent {
+    const agent = new ResidentAgent(entry.residentId, entry.definitionId, {
       x: entry.position.x,
       z: entry.position.y,
       heading: entry.position.heading,

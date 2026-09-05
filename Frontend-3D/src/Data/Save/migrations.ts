@@ -121,9 +121,9 @@ export const migrations: Migration[] = [
         hedgehog: "ember_wisp",
       };
 
-      for (const pet of Object.values(save.ownWorld.pets ?? {})) {
-        const next = renamed[pet.definitionId];
-        if (next) pet.definitionId = next;
+      for (const resident of Object.values(save.ownWorld.pets ?? {})) {
+        const next = renamed[resident.definitionId];
+        if (next) resident.definitionId = next;
       }
       return save;
     },
@@ -347,8 +347,8 @@ export const migrations: Migration[] = [
 
       // 宠物的旧坐标可能落进新内墙里，全部归到客厅中央附近
       let offset = 0;
-      for (const pet of Object.values(save.ownWorld.pets ?? {})) {
-        pet.position = { ...pet.position, x: 2 + offset, y: -3 };
+      for (const resident of Object.values(save.ownWorld.pets ?? {})) {
+        resident.position = { ...resident.position, x: 2 + offset, y: -3 };
         offset += 1;
       }
 
@@ -433,8 +433,8 @@ export const migrations: Migration[] = [
       }
 
       // 宠物和角色的旧坐标可能落进新内墙里，归到客厅
-      for (const pet of Object.values(save.ownWorld.pets ?? {})) {
-        pet.position = { ...pet.position, x: 2, y: -3 };
+      for (const resident of Object.values(save.ownWorld.pets ?? {})) {
+        resident.position = { ...resident.position, x: 2, y: -3 };
       }
 
       return save;
@@ -525,7 +525,7 @@ export const migrations: Migration[] = [
     },
   },
 
-  // v14（2026-08-02 舒舒）：PetSave 多了 sleeping。数据本身不用动
+  // v14（2026-08-02 舒舒）：ResidentSave 多了 sleeping。数据本身不用动
   //（可选字段，undefined = 醒着），推版本号还是那个老理由：旧客户端读到
   // 新档会把字段丢掉再存回去。丢的只是"这一觉"，但规矩不因小而破。
   {
@@ -535,7 +535,7 @@ export const migrations: Migration[] = [
 
   // v15（2026-08-02 宠物档案）：growth / needs 从占位（恒 0 / 恒空表）
   // 变成真数据，新增 mood。老档读出来按默认补（饿 80 / 渴 80 / 心情 70），
-  // 不在这里写死默认值——那是 PetAgent.fromSave 的事，写两处迟早漂。
+  // 不在这里写死默认值——那是 ResidentAgent.fromSave 的事，写两处迟早漂。
   // 推版本号防旧客户端把攒下的成长值抹回 0 再存回去。
   {
     to: 15,
@@ -683,8 +683,8 @@ export const migrations: Migration[] = [
       };
 
       toHeading(save.player?.character?.position as LegacyPositioned | undefined);
-      for (const pet of Object.values(save.ownWorld.pets ?? {})) {
-        toHeading(pet.position as LegacyPositioned | undefined);
+      for (const resident of Object.values(save.ownWorld.pets ?? {})) {
+        toHeading(resident.position as LegacyPositioned | undefined);
       }
 
       /*
@@ -1004,8 +1004,8 @@ export const migrations: Migration[] = [
         p.x <= -0.5 &&
         p.y >= -10 &&
         p.y <= 2.5;
-      for (const pet of Object.values(save.ownWorld?.pets ?? {})) {
-        if (inWall(pet.position)) pet.position = { ...pet.position, x: 1, y: -2 };
+      for (const resident of Object.values(save.ownWorld?.pets ?? {})) {
+        if (inWall(resident.position)) resident.position = { ...resident.position, x: 1, y: -2 };
       }
       const me = save.player?.character?.position;
       if (inWall(me)) save.player.character.position = { ...me, x: 1, y: -2 };
@@ -1098,8 +1098,8 @@ export const migrations: Migration[] = [
         p.x <= 3.4 &&
         p.y >= 6.6 &&
         p.y <= 10;
-      for (const pet of Object.values(save.ownWorld?.pets ?? {})) {
-        if (inTub(pet.position)) pet.position = { ...pet.position, x: 1, y: 4 };
+      for (const resident of Object.values(save.ownWorld?.pets ?? {})) {
+        if (inTub(resident.position)) resident.position = { ...resident.position, x: 1, y: 4 };
       }
       const me = save.player?.character?.position;
       if (inTub(me)) save.player.character.position = { ...me, x: 1, y: 4 };

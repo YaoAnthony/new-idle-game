@@ -2,7 +2,7 @@ import type { FeatureId, LocalizationKey } from "./base.js";
 import type { DialogueId } from "./dialogue.js";
 import type { EventId, EventStageId } from "./events.js";
 import type { ItemId } from "./items.js";
-import type { AffectionStage, PetId } from "./pets.js";
+import type { AffectionStage, ResidentId } from "./residents.js";
 import type { WorldDayId } from "./time.js";
 import type { WeatherId } from "./weather.js";
 
@@ -51,8 +51,8 @@ export type StorySignalKind =
   | "action_started"
   | "action_completed"
   | "sleep_ended"
-  | "pet_spawned"
-  | "pet_entered"
+  | "resident_spawned"
+  | "resident_entered"
 
   /**
    * **新的一天开始了**（世界日翻页，凌晨 4 点）。**不带 subject。**
@@ -81,7 +81,7 @@ export type StorySignalKind =
   /**
    * **一位居民搬进了他自己的房子**。subject 是物种 definitionId。
    *
-   * 不复用 `pet_spawned` 数人数：那个信号连商人、石傀儡一起算，
+   * 不复用 `resident_spawned` 数人数：那个信号连商人、石傀儡一起算，
    * "满三位居民"会提前成立。语义不同就该是两个信号。
    * （发射点在居民那一期才接——搬入这个动作那时才存在。）
    */
@@ -198,7 +198,7 @@ export type StoryTrigger = {
 /** 事件后果。所有剧情效果都必须表达成这些声明之一 */
 export type StoryEffect =
   | { kind: "set_event_stage"; eventId: EventId; stageId: EventStageId; complete?: boolean }
-  | { kind: "set_affection"; petId: PetId; stage: AffectionStage }
+  | { kind: "set_affection"; residentId: ResidentId; stage: AffectionStage }
   | { kind: "unlock_feature"; featureId: FeatureId }
   | { kind: "give_item"; itemId: ItemId; quantity: number }
   /**
@@ -209,8 +209,8 @@ export type StoryEffect =
    */
   | { kind: "consume_item"; itemId: ItemId; quantity: number }
   | {
-      kind: "spawn_pet";
-      petId: PetId;
+      kind: "spawn_resident";
+      residentId: ResidentId;
       definitionId: string;
       /**
        * 延迟登场。**不要设成 0**——第一天流程里宠物是"制作完之后突然出现"的
@@ -222,7 +222,7 @@ export type StoryEffect =
       /** 在 delayMs 基础上再随机加 0~这个毫秒数，避免每次都卡同一秒 */
       jitterMs?: number;
     }
-  | { kind: "start_dialogue"; dialogueId: DialogueId; petId?: PetId; delayMs?: number }
+  | { kind: "start_dialogue"; dialogueId: DialogueId; residentId?: ResidentId; delayMs?: number }
   | { kind: "show_toast"; localizationKey: LocalizationKey; durationMs?: number }
   /**
    * 把睡着的宠物叫醒。**戳醒舒舒**这类"对话推进到某一步、活物要跟着变"
@@ -230,9 +230,9 @@ export type StoryEffect =
    * 真正让它睁眼是这条效果，睡/醒终归是宠物自己的状态，不该让对话
    * 系统直接伸手去改运行时的宠物对象。
    */
-  | { kind: "pet_wake"; petId: PetId }
+  | { kind: "resident_wake"; residentId: ResidentId }
   /** 让宠物躺下睡着。舒舒送礼收尾那句"说着说着又睡着了"就是它 */
-  | { kind: "pet_sleep"; petId: PetId }
+  | { kind: "resident_sleep"; residentId: ResidentId }
   /**
    * **加减金币。** 正数入库、负数从库里扣。
    *

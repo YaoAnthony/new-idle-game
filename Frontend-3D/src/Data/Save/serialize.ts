@@ -70,7 +70,7 @@ import {
   snapshotActionChains,
 } from "../../Game/State/actionChains";
 import { restoreDoors } from "../../Game/State/doorsRuntime";
-import { restorePets } from "../../Game/State/petsRuntime";
+import { restoreResidents } from "../../Game/State/residentsRuntime";
 import { getRoomStyle, setRoomStyleId } from "../../Game/State/worldRuntime";
 import {
   restoreAction,
@@ -368,7 +368,7 @@ export function hydrateGameSave(save: GameSave): void {
   restoreResting(save.player.character.restingOn);
   // 带上上次存盘的时刻，startNeeds 的首次 tick 才能补算离线期间的衰减
   restoreNeeds(save.player.character.needs, save.meta?.updatedAtUtc);
-  restorePets(active.pets);
+  restoreResidents(active.pets);
   // 只寄存锁定状态；门实例要等 RoomScene 拿到房间几何后 initDoors 才建。
   // 只喂当前图的门——别图的门连同锁状态在搁置桶里，不再被 initDoors
   // 认领后清空（审计抓的"换图存盘丢锁"就是这么来的）

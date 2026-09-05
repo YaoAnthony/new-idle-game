@@ -10,7 +10,7 @@ import {
   type DroppedItem,
   type MapDefinition,
   type MapSave,
-  type PetSave,
+  type ResidentSave,
   type PlacedFurniture,
   type RoomOccupancy,
   type RoomSave,
@@ -25,7 +25,7 @@ import { baseMapDefinition } from "../../../Maps/index.js";
 export type ShelvedEntities = {
   placedFurniture: PlacedFurniture[];
   droppedItems: DroppedItem[];
-  pets: Record<string, PetSave>;
+  pets: Record<string, ResidentSave>;
   doors: DoorSave[];
 };
 

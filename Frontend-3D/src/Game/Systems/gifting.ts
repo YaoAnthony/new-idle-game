@@ -1,7 +1,7 @@
 import {
   GiftTier,
   canGiftToday,
-  findPetTaste,
+  findResidentTaste,
   giftConsumesItem,
   giftSignalKind,
   resolveGiftTier,
@@ -9,7 +9,7 @@ import {
 import { emit } from "../EventBus";
 import { getClock } from "../State/clock";
 import { getStackAt, removeFromSlot, type SlotRef } from "../State/inventory";
-import { feedPet, getPet, markPetGifted } from "../State/petsRuntime";
+import { feedResident, getResident, markResidentGifted } from "../State/residentsRuntime";
 
 /**
  * 送礼。判定全在 Core 的 `resolveGiftTier`（联机时服务端跑同一份），
@@ -32,15 +32,15 @@ export type GiftResult =
  * 传 `SlotRef` 而不是 itemId：菜的品质是**那一格**的属性，
  * 过火降一档要认得出玩家递的到底是哪一盘。
  */
-export function offerGift(petId: string, ref: SlotRef): GiftResult {
-  const pet = getPet(petId);
-  if (!pet) return { ok: false, reason: "unknown_pet" };
+export function offerGift(residentId: string, ref: SlotRef): GiftResult {
+  const resident = getResident(residentId);
+  if (!resident) return { ok: false, reason: "unknown_pet" };
 
   const stack = getStackAt(ref);
   if (!stack) return { ok: false, reason: "no_such_item" };
 
   const { worldDayId } = getClock();
-  if (!canGiftToday(pet.lastGiftWorldDayId, worldDayId)) {
+  if (!canGiftToday(resident.lastGiftWorldDayId, worldDayId)) {
     return { ok: false, reason: "already_gifted_today" };
   }
 
@@ -48,7 +48,7 @@ export function offerGift(petId: string, ref: SlotRef): GiftResult {
    * 喜好表漏了这个物种也不能崩——退回到"什么都能吃、都不特别喜欢"，
    * 玩家至多觉得这只没脾气，不会卡在一个递不出去的框里。
    */
-  const taste = findPetTaste(pet.definitionId) ?? {
+  const taste = findResidentTaste(resident.definitionId) ?? {
     loved: [],
     liked: [],
     disliked: [],
@@ -64,7 +64,7 @@ export function offerGift(petId: string, ref: SlotRef): GiftResult {
     removeFromSlot(ref, 1);
     // 真吃下去的才走进食结算：饱食、心情、成长值和"自己捡地上吃"同一条路。
     // 只闻不吃的两档不结算——没吃进肚子就不该长个子
-    feedPet(petId, stack.itemId, tier);
+    feedResident(residentId, stack.itemId, tier);
   }
 
   /**
@@ -72,7 +72,7 @@ export function offerGift(petId: string, ref: SlotRef): GiftResult {
    * 否则玩家可以拿一样它不吃的东西无限试，把四档反应当成免费的喜好查询器，
    * 送礼就从"每天回来看看"退化成一次性摸表。
    */
-  markPetGifted(petId, worldDayId);
+  markResidentGifted(residentId, worldDayId);
 
   // 先发不分档的，再发档位——主线挂前者，具体反应挂后者
   emit("story_signal", { kind: "gift_given", subject: stack.itemId });
@@ -82,8 +82,8 @@ export function offerGift(petId: string, ref: SlotRef): GiftResult {
 }
 
 /** 今天还能不能送。UI 用来把放入框变成"它今天吃饱了"的样子 */
-export function canGiftTo(petId: string): boolean {
-  const pet = getPet(petId);
-  if (!pet) return false;
-  return canGiftToday(pet.lastGiftWorldDayId, getClock().worldDayId);
+export function canGiftTo(residentId: string): boolean {
+  const resident = getResident(residentId);
+  if (!resident) return false;
+  return canGiftToday(resident.lastGiftWorldDayId, getClock().worldDayId);
 }

@@ -9,7 +9,7 @@ import {
   getCurrentNode,
   visibleChoices,
 } from "../../Game/Systems/dialogue";
-import { petNickname } from "../../i18n/petName";
+import { residentNickname } from "../../i18n/residentName";
 import { t } from "../../i18n/t";
 import { GiftBox } from "./GiftBox";
 
@@ -40,8 +40,8 @@ export function DialoguePanel() {
 
   const definition = findDialogueDefinition(active.dialogueId);
   // 对话对象是宠物时优先用它的昵称（玩家可能改过），否则用注册表里的说话人名
-  const speakerName = active.petId
-    ? petNickname(active.petId)
+  const speakerName = active.residentId
+    ? residentNickname(active.residentId)
     : definition?.speakerNameKey
       ? t(definition.speakerNameKey)
       : t("pet.unknown");
@@ -53,7 +53,7 @@ export function DialoguePanel() {
   return (
     <div className="absolute bottom-10 left-1/2 z-30 w-[min(880px,88vw)] -translate-x-1/2">
       {/* 送礼节点浮在气泡上方：递东西是对话里的一个动作，不是另开一块面板 */}
-      {request && <GiftBox petId={active.petId} />}
+      {request && <GiftBox residentId={active.residentId} />}
       {/* 名字药丸：浮在气泡左上角，压住气泡边缘（动森式） */}
       <div className="ui-name-tag relative z-10 ml-6 inline-flex items-center gap-2 rounded-full py-1.5 pl-1.5 pr-5">
         {portraitOk && (

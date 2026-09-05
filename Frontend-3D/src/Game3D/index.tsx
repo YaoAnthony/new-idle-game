@@ -18,7 +18,7 @@ import {
   economyStages,
   fullBoardIncome,
   dailyBoardDefinition,
-  petDefinitions,
+  residentDefinitions,
   poolChance,
   storyPools,
   storyRules,
@@ -77,7 +77,7 @@ import {
 } from "../Game/State/clock";
 import { findDoorAgent, listDoors } from "../Game/State/doorsRuntime";
 import { getHeld } from "../Game/State/heldItem";
-import { debugPlacePet, getPets, spawnPet } from "../Game/State/petsRuntime";
+import { debugPlaceResident, getResidents, spawnResident } from "../Game/State/residentsRuntime";
 import { groundHeightAt as walkGroundHeightAt, isWalkable, withPhasing } from "../Game/State/world/walkable";
 import { findRoute as navFindRoute } from "../Game/Systems/navigation";
 import {
@@ -128,7 +128,7 @@ import {
   startDayRecord,
 } from "../Game/Systems/dayRecord";
 import { startAutoLife } from "../Game/Systems/autoLife";
-import { listResidents, startResidents } from "../Game/Systems/residents";
+import { listResidents, startResidents } from "../Game/Systems/residents/moveIn";
 import {
   buyFromTraveler,
   isTravelerHereToday,
@@ -228,7 +228,7 @@ import {
 import { registerActionCommands } from "../Game/Systems/actionCommands";
 import { DiaryPanel } from "../Components/Diary/DiaryPanel";
 import { registerChainCommands } from "../Game/Systems/chainCommands";
-import { registerResidentCommands } from "../Game/Systems/residentCommands";
+import { registerResidentCommands } from "../Game/Systems/residents/commands";
 import { isRemoteWorldActive } from "../Game/Multiplayer/session";
 import { describeSoundscape, startSoundscape } from "./Engine/Soundscape";
 import { startMusicDirector } from "./Engine/MusicDirector";
@@ -254,8 +254,8 @@ const STORY_SIGNALS = [
   "action_started",
   "action_completed",
   "sleep_ended",
-  "pet_spawned",
-  "pet_entered",
+  "resident_spawned",
+  "resident_entered",
   "day_started",
   "building_completed",
   "resident_moved_in",
@@ -673,25 +673,25 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
         },
       }),
       registerCommand({
-        name: "pet",
+        name: "spawn",
         arguments: [
           {
             name: "物种",
             suggest: () =>
-              asSuggestions(petDefinitions.map((pet) => pet.id)),
+              asSuggestions(residentDefinitions.map((resident) => resident.id)),
           },
         ],
-        usage: "pet <物种id>",
+        usage: "spawn <物种id>",
         description: "召一只生物到屋子中间（调试用，跳过登场过场）",
         handler: (args) => {
-          const definition = petDefinitions.find((pet) => pet.id === args[0]);
+          const definition = residentDefinitions.find((resident) => resident.id === args[0]);
           if (!definition) return fail(`没有这种生物：${args[0] ?? "(空)"}`);
 
 
-          const petId = `pet-${definition.id}`;
-          spawnPet(petId, definition.id);
+          const residentId = `pet-${definition.id}`;
+          spawnResident(residentId, definition.id);
           // 门口挤不下大家伙，直接放到屋子中部空地
-          debugPlacePet(petId, 0, 4);
+          debugPlaceResident(residentId, 0, 4);
           return ok(`${definition.id} 来了`);
         },
       }),
@@ -854,7 +854,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
         description:
           "石傀儡为什么不去建：他的状态 + 每块工地逐条报原因（有人建了 / 够得着 / 排不出路）",
         handler: () => {
-          const golem = getPets().find((pet) => pet.role === CreatureRole.Worker);
+          const golem = getResidents().find((resident) => resident.role === CreatureRole.Worker);
           if (!golem) return fail("场上没有工人");
           return ok(
             JSON.stringify(
@@ -1343,7 +1343,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
                 时长分钟: Math.round(end.action.durationMs / 60000),
                 完成: end.completed,
                 开出: end.rewards,
-                陪伴: end.petCompanion,
+                陪伴: end.residentCompanion,
               },
               null,
               1,

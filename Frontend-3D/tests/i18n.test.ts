@@ -4,7 +4,7 @@ import {
   auditDoorContent,
   auditStoryContent,
   itemDefinitions,
-  petDefinitions,
+  residentDefinitions,
   recipeDefinitions,
   weatherDefinitions,
 } from "core";
@@ -61,9 +61,9 @@ test("每种天气都有名字", () => {
 });
 
 test("每只宠物的物种名和初见昵称都有文案", () => {
-  const keys = petDefinitions.flatMap((pet) => [
-    pet.localizationKey,
-    pet.defaultNicknameKey,
+  const keys = residentDefinitions.flatMap((resident) => [
+    resident.localizationKey,
+    resident.defaultNicknameKey,
   ]);
   expect(missingKeys(keys)).toEqual([]);
 });

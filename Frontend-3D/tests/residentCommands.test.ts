@@ -5,13 +5,13 @@ import { runCommand } from "../src/Game/CommandLine/commands";
 import { emit } from "../src/Game/EventBus";
 import { restoreBuildings } from "../src/Game/State/buildings";
 import { getCount, replaceCounts } from "../src/Game/State/inventory";
-import { getPet, removePet, restorePets } from "../src/Game/State/petsRuntime";
+import { getResident, removeResident, restoreResidents } from "../src/Game/State/residentsRuntime";
 import { getCurrentMapId } from "../src/Game/State/worldRuntime";
 import { setRemoteWorldActive } from "../src/Game/Multiplayer/worldLock";
 import { restoreProgression } from "../src/Game/Systems/events";
 import { travelTo } from "../src/Game/Systems/mapTravel";
-import { registerResidentCommands } from "../src/Game/Systems/residentCommands";
-import { startResidents } from "../src/Game/Systems/residents";
+import { registerResidentCommands } from "../src/Game/Systems/residents/commands";
+import { startResidents } from "../src/Game/Systems/residents/moveIn";
 import {
   restoreFiredStoryRules,
   restorePoolMisses,
@@ -49,7 +49,7 @@ beforeEach(() => {
   if (getCurrentMapId() !== DEFAULT_MAP_ID) travelTo(DEFAULT_MAP_ID);
   setRemoteWorldActive(false);
   restoreBuildings([]);
-  restorePets({});
+  restoreResidents({});
   replaceCounts({});
   restoreProgression({ events: {}, unlockedFeatureIds: [] });
   restoreFiredStoryRules([]);
@@ -65,7 +65,7 @@ afterEach(() => {
   for (const stop of stops) stop();
   stops = [];
   dismissUnpack();
-  for (const id of ["pet-slime", "pet-fox", "pet-spirit"]) removePet(id);
+  for (const id of ["pet-slime", "pet-fox", "pet-spirit"]) removeResident(id);
   vi.useRealTimers();
 });
 
@@ -127,15 +127,15 @@ test("npc_join_房子已经在场上_挡住并说明盖好他就来", () => {
 test("npc_join_整条链_完工后人到场_再join报已住下", () => {
   runCommand("/npc join slime");
   claimUnpack();
-  expect(getPet("pet-slime")).toBeUndefined();
+  expect(getResident("pet-slime")).toBeUndefined();
 
   // 玩家放图纸、石傀儡建完：这里直接用完工信号顶替施工过程
   restoreBuildings([HOUSE("slime_house", "h1")]);
   emit("building_completed", { buildingId: "slime_house", instanceId: "h1" });
 
-  const pet = getPet("pet-slime");
-  expect(pet).toBeDefined();
-  expect(pet!.homeZ).toBeCloseTo(12.5 + 2.2);
+  const resident = getResident("pet-slime");
+  expect(resident).toBeDefined();
+  expect(resident!.homeZ).toBeCloseTo(12.5 + 2.2);
 
   const again = runCommand("/npc join slime");
   expect(again.ok).toBe(false);

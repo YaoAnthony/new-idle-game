@@ -3,7 +3,7 @@ import { CreatureRole, DEFAULT_MAP_ID, findDoorDefinition } from "core";
 
 import { RoomDoor } from "../src/Game/State/doorAgent";
 import { initDoors, listDoors, tickDoors } from "../src/Game/State/doorsRuntime";
-import { getPets, restorePets, seedInitialCreatures } from "../src/Game/State/petsRuntime";
+import { getResidents, restoreResidents, seedInitialCreatures } from "../src/Game/State/residentsRuntime";
 import { clearAllFurniture } from "../src/Game/State/world/furniture";
 import { doorGateBlocks, getCurrentMapId } from "../src/Game/State/worldRuntime";
 import { travelTo } from "../src/Game/Systems/mapTravel";
@@ -23,7 +23,7 @@ import { travelTo } from "../src/Game/Systems/mapTravel";
 
 beforeEach(() => {
   if (getCurrentMapId() !== DEFAULT_MAP_ID) travelTo(DEFAULT_MAP_ID);
-  restorePets({});
+  restoreResidents({});
   clearAllFurniture();
   initDoors();
 });
@@ -97,7 +97,7 @@ test("test_door_gate_ignores_creature_walking_past_the_doorway", () => {
 test("test_golem_approaching_front_door_opens_it_through_tick_doors", () => {
   // Arrange：装好头的石傀儡站在大门外两米——这是他去屋里干活的必经一步
   seedInitialCreatures();
-  const golem = getPets().find((pet) => pet.role === CreatureRole.Worker)!;
+  const golem = getResidents().find((resident) => resident.role === CreatureRole.Worker)!;
   golem.attachPart("head");
   const door = frontDoor();
   door.open = false;

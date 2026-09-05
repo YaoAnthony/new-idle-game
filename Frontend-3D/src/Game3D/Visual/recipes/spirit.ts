@@ -311,11 +311,11 @@ export function buildSpirit(): Object3D {
 
   root.userData.animate = (
     dt: number,
-    pet: { state: string; moving: boolean },
+    resident: { state: string; moving: boolean },
   ): void => {
     elapsed += dt;
-    const asleep = pet.state === "sleeping";
-    const speed = pet.moving ? 6.2 : 1.5;
+    const asleep = resident.state === "sleeping";
+    const speed = resident.moving ? 6.2 : 1.5;
     const wave = Math.sin(elapsed * speed);
 
     if (asleep) {
@@ -336,7 +336,7 @@ export function buildSpirit(): Object3D {
     body.rotation.x = 0;
     for (const eye of eyes) eye.scale.y = 1;
 
-    if (pet.moving) {
+    if (resident.moving) {
       legs[0].rotation.x = wave * 0.6;
       legs[1].rotation.x = -wave * 0.6;
       arms[0].rotation.x = -wave * 0.5;
@@ -356,7 +356,7 @@ export function buildSpirit(): Object3D {
     head.rotation.x = 0;
 
     // 斗篷滞后：身体停了它还飘一下，那一下才让人相信它是布
-    const wanted = wave * (pet.moving ? 0.22 : 0.05);
+    const wanted = wave * (resident.moving ? 0.22 : 0.05);
     cloakLag += (wanted - cloakLag) * Math.min(1, dt * 5);
     cloak.rotation.x = -cloakLag * 0.6;
     cloak.rotation.z = cloakLag * 0.35;

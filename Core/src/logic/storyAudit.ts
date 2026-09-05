@@ -4,7 +4,7 @@ import {
 } from "../Data/dialogues/index.js";
 import { eventDefinitions, findEventDefinition } from "../Data/events/index.js";
 import { findItemDefinition } from "../Data/items/index.js";
-import { findPetDefinition } from "../Data/pets/index.js";
+import { findResidentDefinition } from "../Data/residents/index.js";
 import { findStoryPool, storyRules, tutorialDefinition } from "../Data/story/index.js";
 import { weatherDefinitions } from "../Data/weather/index.js";
 import type { StoryTrigger } from "../types/story.js";
@@ -294,10 +294,10 @@ export function auditStoryContent(options: AuditOptions = {}): string[] {
           }
           break;
 
-        case "spawn_pet":
-          if (!findPetDefinition(effect.definitionId)) {
+        case "spawn_resident":
+          if (!findResidentDefinition(effect.definitionId)) {
             problems.push(
-              `${where}：spawn_pet 指向不存在的宠物种类 "${effect.definitionId}"`,
+              `${where}：spawn_resident 指向不存在的宠物种类 "${effect.definitionId}"`,
             );
           }
           break;

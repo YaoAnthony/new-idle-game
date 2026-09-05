@@ -42,7 +42,7 @@ import { buildJelly } from "../jelly.js";
  * 队列先画，半透的前壳再混上去——于是就是"隔着一层果冻看见里面的脸"，
  * 正是稿子上那个观感。不用额外做什么，是 `buildJelly` 三层排序的自然结果。
  *
- * `userData.animate` 三态（PetView 每帧调）：
+ * `userData.animate` 三态（ResidentView 每帧调）：
  * - **idle**：整坨缓慢呼吸（横竖反相的挤压拉伸），头顶那滴延迟半拍跟着晃
  * - **走**：一跳一跳（史莱姆不迈步），落地那下压扁再弹回
  * - **睡**：整个塌下去、眼睛压成一条缝
@@ -136,7 +136,7 @@ export function buildSlime(): Object3D {
    * `body` 是**挤压拉伸**那一层，和 `rig` 分开：果冻的呼吸要缩放，而缩放
    * 会连着影响挂在上面的一切。分层之后头顶那滴才能自己延迟摆动。
    *
-   * `root.position` 归 PetView 管（石傀儡那期定的），这里一律不碰。
+   * `root.position` 归 ResidentView 管（石傀儡那期定的），这里一律不碰。
    */
   const body = new Object3D();
   body.name = "body";
@@ -325,10 +325,10 @@ export function buildSlime(): Object3D {
 
   root.userData.animate = (
     dt: number,
-    pet: { state: string; moving: boolean },
+    resident: { state: string; moving: boolean },
   ): void => {
     elapsed += dt;
-    const asleep = pet.state === "sleeping";
+    const asleep = resident.state === "sleeping";
 
     /*
      * 果冻的"弹"落到动画上就一件事：**横竖反相**。压扁时变宽、拉长时变窄，
@@ -337,7 +337,7 @@ export function buildSlime(): Object3D {
     let squash: number;
     if (asleep) {
       squash = -0.22; // 睡着了整个塌下去
-    } else if (pet.moving) {
+    } else if (resident.moving) {
       // 走 = 一跳一跳。史莱姆不迈步，弹跳本身就是他的步态
       const hop = Math.abs(Math.sin(elapsed * 5.2));
       squash = 0.14 - hop * 0.3;
@@ -361,7 +361,7 @@ export function buildSlime(): Object3D {
     tip.position.y = HEIGHT * 0.92 * target;
 
     // 手臂跟着轻轻摆
-    const swing = asleep ? 0 : Math.sin(elapsed * (pet.moving ? 5.2 : 1.7)) * 0.18;
+    const swing = asleep ? 0 : Math.sin(elapsed * (resident.moving ? 5.2 : 1.7)) * 0.18;
     arms[0].rotation.z = -0.35 - swing;
     arms[1].rotation.z = 0.35 + swing;
 

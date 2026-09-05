@@ -1,9 +1,9 @@
 import {
   CreatureRole,
   GiftTier,
-  type PetDefinition,
-  type PetTaste,
-} from "../../types/pets.js";
+  type ResidentDefinition,
+  type ResidentTaste,
+} from "../../types/residents.js";
 
 /**
  * 宠物物种注册表。
@@ -15,9 +15,9 @@ import {
  *
  * 造型全部走 visualId → Frontend 的 VisualRegistry 解析。
  * 名字分两层：localizationKey 是物种名（图鉴用），
- * defaultNicknameKey 是初见时给的昵称（玩家之后能改，存 PetSave.nickname）。
+ * defaultNicknameKey 是初见时给的昵称（玩家之后能改，存 ResidentSave.nickname）。
  */
-export const petDefinitions = [
+export const residentDefinitions = [
   {
     id: "moss_wisp",
     localizationKey: "pet.moss_wisp",
@@ -107,7 +107,7 @@ export const petDefinitions = [
   /**
    * 小龙「青涟」（期 3 的贼）。灵渊小龙、幼年期，喜探索水域，爱偷金币。
    *
-   * **不常驻**：只在偷窃链的"被抓回来"那一幕登场（spawn_pet），
+   * **不常驻**：只在偷窃链的"被抓回来"那一幕登场（spawn_resident），
    * 事件结了就从运行时移除。造型见 `Visual/recipes/dragon.ts`
    * （用户 2026-08-24 给的设定稿：三视图 + 表情 + 细节 + 比例）。
    *
@@ -247,20 +247,20 @@ export const petDefinitions = [
      */
     ignoresObstacles: true,
   },
-] satisfies PetDefinition[];
+] satisfies ResidentDefinition[];
 
 /** 有自己房子的那几位（`residence` 填了的）。指令候选和搬入判定都问它 */
-export function listResidentDefinitions(): PetDefinition[] {
-  return (petDefinitions as readonly PetDefinition[]).filter((pet) => pet.residence);
+export function listResidentDefinitions(): ResidentDefinition[] {
+  return (residentDefinitions as readonly ResidentDefinition[]).filter((resident) => resident.residence);
 }
 
 /** 这栋房型是谁的家。没人认领（金库、店铺）返回 undefined */
-export function findResidentOfHouse(buildingId: string): PetDefinition | undefined {
-  return listResidentDefinitions().find((pet) => pet.residence?.buildingId === buildingId);
+export function findResidentOfHouse(buildingId: string): ResidentDefinition | undefined {
+  return listResidentDefinitions().find((resident) => resident.residence?.buildingId === buildingId);
 }
 
-export function findPetDefinition(id: string): PetDefinition | undefined {
-  return petDefinitions.find((pet) => pet.id === id);
+export function findResidentDefinition(id: string): ResidentDefinition | undefined {
+  return residentDefinitions.find((resident) => resident.id === id);
 }
 
 /**
@@ -275,7 +275,7 @@ export function findPetDefinition(id: string): PetDefinition | undefined {
  * 生食材（生蛋、生米、生肉）一律列 inedible：不是口味问题，是真的没法吃。
  * 生番茄这种本来就能生吃的例外，照常参与口味分档。
  */
-export const petTastes: Record<string, PetTaste> = {
+export const residentTastes: Record<string, ResidentTaste> = {
   moss_wisp: {
     /**
      * `cheese` 在这里换了一条轴：不是"清淡潮湿"推出来的，是**好奇心**——
@@ -337,6 +337,6 @@ export const petTastes: Record<string, PetTaste> = {
   },
 };
 
-export function findPetTaste(definitionId: string): PetTaste | undefined {
-  return petTastes[definitionId];
+export function findResidentTaste(definitionId: string): ResidentTaste | undefined {
+  return residentTastes[definitionId];
 }

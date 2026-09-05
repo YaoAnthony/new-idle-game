@@ -25,7 +25,7 @@ export const roomStyleDefinitions = [
         accent: "#6f8f4a",
       },
     },
-    starterPetDefinitionIds: ["moss_wisp"],
+    starterResidentDefinitionIds: ["moss_wisp"],
   },
   {
     id: "ocean_cottage",
@@ -44,7 +44,7 @@ export const roomStyleDefinitions = [
         accent: "#4f8fa6",
       },
     },
-    starterPetDefinitionIds: ["foam_wisp"],
+    starterResidentDefinitionIds: ["foam_wisp"],
   },
   {
     id: "stone_cottage",
@@ -63,6 +63,6 @@ export const roomStyleDefinitions = [
         accent: "#a8763f",
       },
     },
-    starterPetDefinitionIds: ["ember_wisp"],
+    starterResidentDefinitionIds: ["ember_wisp"],
   },
 ] satisfies RoomStyleDefinition[];

@@ -25,7 +25,7 @@ import {
   type RevenueHolder,
 } from "./goldDrawer";
 import { epochDayOf } from "./trading";
-import { listResidents } from "./residents";
+import { listResidents } from "./residents/moveIn";
 
 /**
  * 家具小店的接线（期 5）。**算法在 Core**（`logic/shopkeeping.ts`），
@@ -98,8 +98,8 @@ export function canShelve(itemId: string): boolean {
 
 /** 今天有哪些客人。**函数不是数组**：以后加小镇散客是往这儿加来源 */
 export function customersToday(): Array<{ id: string; budget: number }> {
-  return listResidents().map((petId) => ({
-    id: petId,
+  return listResidents().map((residentId) => ({
+    id: residentId,
     budget: shopkeepingTuning.budgetPerResidentPerDay,
   }));
 }

@@ -103,7 +103,7 @@ export function buildCoinDragon(): Object3D {
   const root = new Object3D();
   root.name = "coin-dragon";
 
-  // rig 管颠簸，root 归 PetView 贴地——石傀儡浮空那条老坑
+  // rig 管颠簸，root 归 ResidentView 贴地——石傀儡浮空那条老坑
   const rig = new Object3D();
   rig.name = "rig";
   root.add(rig);
@@ -360,10 +360,10 @@ export function buildCoinDragon(): Object3D {
 
   root.userData.animate = (
     dt: number,
-    pet: { state: string; moving: boolean },
+    resident: { state: string; moving: boolean },
   ): void => {
     elapsed += dt;
-    const asleep = pet.state === "sleeping";
+    const asleep = resident.state === "sleeping";
     if (!initialized) {
       sleepBlend = asleep ? 1 : 0;
       initialized = true;
@@ -373,8 +373,8 @@ export function buildCoinDragon(): Object3D {
       Math.min(Math.abs((asleep ? 1 : 0) - sleepBlend), (asleep ? 0.6 : 1.2) * dt);
     const eased = smooth(sleepBlend);
 
-    walkAmp += ((pet.moving ? 1 : 0) - walkAmp) * Math.min(1, dt * 6);
-    if (pet.moving) phase += dt * 7;
+    walkAmp += ((resident.moving ? 1 : 0) - walkAmp) * Math.min(1, dt * 6);
+    if (resident.moving) phase += dt * 7;
 
     // 呼吸：细长的身体起伏在"胸"那几节最明显
     const breath = Math.sin(elapsed * 2.6) * 0.008;

@@ -27,7 +27,7 @@ import { blob, box, cylinder, sphere } from "../primitives.js";
  * 稿子「整体体型：圆润Q版，头大身小，喜感十足」。头做到躯干的 1.15 倍，
  * 这个比例是"喜感"的来源，不是失误。
  *
- * `userData.animate` 三态（PetView 每帧调）：
+ * `userData.animate` 三态（ResidentView 每帧调）：
  * - **idle**：呼吸起伏、尾巴慢摆、耳朵偶尔抖一下
  * - **走**：两条短腿交替、身体左右晃、**尾巴摆得更大**（惯性滞后）
  * - **睡**：整只蹲下去、耳朵垂、尾巴卷过来盖住
@@ -319,11 +319,11 @@ export function buildFox(): Object3D {
 
   root.userData.animate = (
     dt: number,
-    pet: { state: string; moving: boolean },
+    resident: { state: string; moving: boolean },
   ): void => {
     elapsed += dt;
-    const asleep = pet.state === "sleeping";
-    const speed = pet.moving ? 7.5 : 1.6;
+    const asleep = resident.state === "sleeping";
+    const speed = resident.moving ? 7.5 : 1.6;
     const wave = Math.sin(elapsed * speed);
 
     if (asleep) {
@@ -343,7 +343,7 @@ export function buildFox(): Object3D {
     body.position.y = 0;
     for (const eye of eyes) eye.scale.y = 1;
 
-    if (pet.moving) {
+    if (resident.moving) {
       // 两条短腿交替。稿子："四肢短小，活动范围大"——摆幅给足才有喜感
       legs[0].rotation.x = wave * 0.85;
       legs[1].rotation.x = -wave * 0.85;
@@ -368,7 +368,7 @@ export function buildFox(): Object3D {
      * 尾巴**滞后**跟上。走的时候摆幅大，站着的时候慢悠悠——身体停了它
      * 还在晃那一下，是"这东西是活的"最便宜的表达。
      */
-    const wanted = wave * (pet.moving ? 0.55 : 0.22);
+    const wanted = wave * (resident.moving ? 0.55 : 0.22);
     tailLag += (wanted - tailLag) * Math.min(1, dt * 6);
     tail.rotation.y = tailLag;
     tail.rotation.x = -0.25 + Math.sin(elapsed * speed * 0.5) * 0.08;

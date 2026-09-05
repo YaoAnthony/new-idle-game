@@ -25,6 +25,7 @@ import {
   untradableItemIds,
   type StorySignalKind,
   weatherDefinitions,
+  residentIdOf,
 } from "core";
 import { useEffect, useRef, useState } from "react";
 import { ActionHub } from "../Components/ActionHub/ActionHub";
@@ -688,7 +689,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
           if (!definition) return fail(`没有这种生物：${args[0] ?? "(空)"}`);
 
 
-          const residentId = `pet-${definition.id}`;
+          const residentId = residentIdOf(definition.id);
           spawnResident(residentId, definition.id);
           // 门口挤不下大家伙，直接放到屋子中部空地
           debugPlaceResident(residentId, 0, 4);

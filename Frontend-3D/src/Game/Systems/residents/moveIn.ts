@@ -2,6 +2,7 @@ import {
   CreatureRole,
   findResidentOfHouse,
   listResidentDefinitions,
+  residentIdOf,
   residentTuning,
   type ResidentDefinition,
 } from "core";
@@ -44,16 +45,6 @@ import { signal } from "../story";
 /** 谁的房子？测试和期 5 的客源名单都问它 */
 export function residentOfHouse(buildingId: string): string | undefined {
   return findResidentOfHouse(buildingId)?.id;
-}
-
-/**
- * 居民的运行时 id。**和剧情规则里 spawn_resident 的 residentId 是同一套**
- * （`pet-slime` / `pet-fox` / `pet-spirit`）：两条到来的路必须落到同一个
- * 实例上，否则剧情路先来的人和完工时登场的人会是两只。
- * residents.test 钉着这条对应。
- */
-export function residentPetId(definitionId: string): string {
-  return `pet-${definitionId.replace(/_neighbor$/, "")}`;
 }
 
 /** 已经搬进来的居民（在场 + 是居民档）。期 5 小店的客源名单 */
@@ -128,7 +119,7 @@ function moveResidentIn(instanceId: string, buildingId: string): void {
     } else {
       const arrive = () => {
         const entrance = visitorEntranceOf(getCurrentMap().mapId);
-        spawnResidentAt(residentPetId(definition.id), definition.id, entrance, doorstep);
+        spawnResidentAt(residentIdOf(definition.id), definition.id, entrance, doorstep);
       };
       // 0 = 立马到（用户 2026-09-04 定）；以后"隔天到"改 Core 的调参
       if (residentTuning.arriveAfterBuiltMs > 0) {

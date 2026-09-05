@@ -164,7 +164,7 @@ describe("v19：四向朝向换成连续弧度 + id 补发号方前缀", () => {
       // @ts-expect-error 老形状：有 facing 没有 heading
       draft.player.character.position = { mapId: "home", x: 1, y: 2, facing: Facing.East };
       draft.ownWorld.pets = {
-        // @ts-expect-error 同上
+        // @ts-expect-error 同上，老形状没有 heading
         "pet-1": { definitionId: "moss_wisp", position: { x: 0, y: 0, facing: Facing.West } },
       };
     });
@@ -177,7 +177,8 @@ describe("v19：四向朝向换成连续弧度 + id 补发号方前缀", () => {
     expect(position.heading).toBe(facingToHeading(Facing.East));
     expect(position.facing).toBeUndefined();
 
-    const resident = result.save.ownWorld.pets["pet-1"].position as unknown as Record<string, unknown>;
+    // v36 会把 `pet-1` 迁成 `resident-1`（键和 residentId 一起）
+    const resident = result.save.ownWorld.pets["resident-1"].position as unknown as Record<string, unknown>;
     expect(resident.heading).toBe(facingToHeading(Facing.West));
   });
 
@@ -324,3 +325,67 @@ describe("v25：庭院补长椅和路灯", () => {
     expect(result.ok && result.save.ownWorld.placedFurniture).toHaveLength(1);
   });
 });
+
+describe("v36：活物实例 id pet-* → resident-<definitionId>，四处一起迁", () => {
+  test("pets 的键和字段、信号计数、报纸买主、工地认领人全部换新格式", () => {
+    const save = saveAtVersion(35, (draft) => {
+      draft.ownWorld.pets = {
+        // @ts-expect-error 老形状：字段还叫 petId
+        "pet-slime": { petId: "pet-slime", definitionId: "slime_neighbor", roomId: "yard", position: { x: 1, y: 2, heading: 0 }, affectionStage: "stranger", growth: 0, needs: {} },
+        // @ts-expect-error 同上；表里没有的短名按 resident-<原样> 处理
+        "pet-stone_golem": { petId: "pet-stone_golem", definitionId: "stone_golem", roomId: "yard", position: { x: 3, y: 4, heading: 0 }, affectionStage: "stranger", growth: 0, needs: {} },
+      };
+      draft.ownWorld.progression = {
+        ...draft.ownWorld.progression,
+        signalCounts: {
+          "pet_spawned|pet-slime": 1,
+          "pet_spawned": 2,
+          "resident_moved_in|slime_neighbor": 1,
+          // 已经是新键的（同一份档里混着）要和老键合并计数
+          "resident_spawned|resident-slime_neighbor": 1,
+        },
+      };
+      draft.ownWorld.dayFacts = [
+        { worldDayId: "2026-09-01", actions: [], goldIn: 0, goldOut: 0, headlines: [{ kind: "shop_sold", subject: "furniture_chair|pet-fox" }, { kind: "theft" }] },
+      ];
+      draft.ownWorld.buildings = [
+        { instanceId: "local:building:gold_jar#1", buildingId: "gold_jar", x: 0, z: 0, elevation: 0, facing: Facing.North, levelId: "l1", construction: { targetLevelId: "l1", workerId: "pet-stone_golem", startUtc: "2026-09-01T00:00:00.000Z" } },
+      ];
+    });
+
+    const result = migrateSave(save);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const world = result.save.ownWorld;
+
+    expect(Object.keys(world.pets).sort()).toEqual(["resident-slime_neighbor", "resident-stone_golem"]);
+    expect(world.pets["resident-slime_neighbor"].residentId).toBe("resident-slime_neighbor");
+    expect((world.pets["resident-slime_neighbor"] as unknown as Record<string, unknown>).petId).toBeUndefined();
+    expect(world.pets["resident-slime_neighbor"].position).toEqual({ x: 1, y: 2, heading: 0 });
+
+    expect(world.progression.signalCounts).toEqual({
+      "resident_spawned|resident-slime_neighbor": 2,
+      "resident_spawned": 2,
+      "resident_moved_in|slime_neighbor": 1,
+    });
+    expect(world.dayFacts?.[0].headlines).toEqual([{ kind: "shop_sold", subject: "furniture_chair|resident-fox_neighbor" }, { kind: "theft" }]);
+    expect(world.buildings?.[0].construction?.workerId).toBe("resident-stone_golem");
+  });
+
+  test("重跑一次不套两层、映射表外的短名只换前缀", () => {
+    const save = saveAtVersion(35, (draft) => {
+      draft.ownWorld.pets = {
+        // @ts-expect-error 老形状：字段还叫 petId
+        "pet-otter": { petId: "pet-otter", definitionId: "otter_trader", roomId: "yard", position: { x: 0, y: 0, heading: 0 }, affectionStage: "stranger", growth: 0, needs: {} },
+      };
+    });
+    const first = migrateSave(save);
+    expect(first.ok).toBe(true);
+    if (!first.ok) return;
+    expect(Object.keys(first.save.ownWorld.pets)).toEqual(["resident-otter_trader"]);
+
+    const again = migrateSave(first.save);
+    expect(again.ok && Object.keys(again.save.ownWorld.pets)).toEqual(["resident-otter_trader"]);
+  });
+});
+

@@ -17,7 +17,7 @@ const FACTS = {
   goldOut: 12,
   actions: [{ name: "写完作业", minutes: 45 }],
   headlines: [
-    { kind: "shop_sold", subject: "furniture_chair|pet-fox" },
+    { kind: "shop_sold", subject: "furniture_chair|resident-fox_neighbor" },
     { kind: "theft" },
     { kind: "resident_moved_in", subject: "slime_neighbor" },
   ],

@@ -1,4 +1,7 @@
-import { findItemDefinition, type NewspaperIssue } from "core";
+import { findItemDefinition, type NewspaperIssue,
+  findResidentDefinition,
+  residentDefinitionOf,
+} from "core";
 import { useEffect, useState } from "react";
 
 import { on } from "../../Game/EventBus";
@@ -15,7 +18,7 @@ import "./newspaper.css";
  *
  * ## 一 · 头条要成句，不是罗列 kind
  *
- * 事实里存的是 `{ kind: "shop_sold", subject: "furniture_chair|pet-fox" }`。
+ * 事实里存的是 `{ kind: "shop_sold", subject: "furniture_chair|resident-fox_neighbor" }`。
  * 直接印出来是数据库转储不是报纸。所以每种 kind 有一句**自己的写法**
  * （`headlineOf`），主语宾语都填进去。这一层不做成数据表：句式本身
  * 就是文案，和 i18n 是一件事，不是配置。
@@ -185,11 +188,22 @@ function nameKeyOf(itemId: string): string {
   return findItemDefinition(itemId)?.localizationKey ?? itemId;
 }
 
-/** `"furniture_chair|pet-fox"` → 物品名 + 买主。存的时候拼的，这里拆开 */
+/** `"furniture_chair|resident-fox_neighbor"` → 物品名 + 买主。存的时候拼的，这里拆开 */
 function splitSubject(subject: string | undefined): [string, string | undefined] {
   if (!subject) return ["", undefined];
   const at = subject.indexOf("|");
   return at < 0 ? [subject, undefined] : [subject.slice(0, at), subject.slice(at + 1)];
+}
+
+/**
+ * 买主的显示名。事实里存的是**实例 id**（`resident-fox_neighbor`），
+ * 名字从注册表查——原来是从 id 上砍掉 `pet-` 再拼文案键，等于把
+ * "id 能反推出文案"当成了契约，改一次 id 就整版报纸都是裸键。
+ * 查不到（老档没迁、定义删了）返回 undefined，调用方决定兜底文案。
+ */
+function whoName(residentId: string): string | undefined {
+  const definition = residentDefinitionOf(residentId);
+  return definition ? t(definition.localizationKey) : undefined;
 }
 
 /** 一条邻居动态写成一句话 */
@@ -197,7 +211,7 @@ function lineOf(item: { kind: string; subject?: string }): string {
   const [what, who] = splitSubject(item.subject);
   if (item.kind === "shop_sold") {
     return t("ui.news.line.shop_sold")
-      .replace("{who}", who ? t(`pet.${who.replace("pet-", "")}_neighbor`) : t("ui.news.someone"))
+      .replace("{who}", who ? whoName(who) ?? t("ui.news.someone") : t("ui.news.someone"))
       .replace("{what}", t(nameKeyOf(what)));
   }
   if (item.kind === "consign_sold") {
@@ -205,7 +219,7 @@ function lineOf(item: { kind: string; subject?: string }): string {
     return t("ui.news.line.consign_sold").replace("{what}", t(nameKeyOf(what)));
   }
   if (item.kind === "resident_moved_in") {
-    return t("ui.news.line.moved_in").replace("{who}", t(`pet.${what}`));
+    return t("ui.news.line.moved_in").replace("{who}", t(findResidentDefinition(what)?.localizationKey ?? `pet.${what}`));
   }
   return t(`ui.news.line.${item.kind}`);
 }
@@ -227,7 +241,7 @@ function headlineOf(issue: NewspaperIssue): string {
   const key = `ui.news.headline.${issue.headline.kind}`;
   return t(key)
     .replace("{what}", what ? t(nameKeyOf(what)) : "")
-    .replace("{who}", who ? t(`pet.${who.replace("pet-", "")}_neighbor`) : "");
+    .replace("{who}", who ? whoName(who) ?? "" : "");
 }
 
 /**

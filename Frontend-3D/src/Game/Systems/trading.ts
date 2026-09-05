@@ -4,6 +4,7 @@ import {
   findMerchantDefinition,
   hashSeed,
   itemDefinitions,
+  residentIdOf,
   tradingTuning,
   travelerTuning,
   untradableItemIds,
@@ -40,9 +41,9 @@ import { recordGoldFact } from "./dayRecord";
  * 一个理由，也给报纸的广告版（期 7）留素材。
  */
 
-export const OTTER_PET_ID = "pet-otter";
-export const FISH_PET_ID = "pet-fish-trader";
-export const DRAGON_PET_ID = "pet-dragon";
+export const OTTER_RESIDENT_ID = residentIdOf("otter_trader");
+export const FISH_RESIDENT_ID = residentIdOf("fish_trader");
+export const DRAGON_RESIDENT_ID = residentIdOf("coin_dragon");
 
 /** worldDayId（"2026-08-24"）→ 绝对天数。周期取模用它，纯函数可测 */
 export function epochDayOf(worldDayId: string): number {
@@ -81,16 +82,16 @@ export function isOtterHereToday(): boolean {
  */
 export function syncTraderPresence(): void {
   const otterHere = isOtterHereToday();
-  const otterInWorld = Boolean(getResident(OTTER_PET_ID));
+  const otterInWorld = Boolean(getResident(OTTER_RESIDENT_ID));
   if (otterHere && !otterInWorld && isFeatureUnlocked("merchant_trading")) {
     // 剧情期间的登场由 storyRules 的 spawn_resident 负责，这里只管班表日
-    spawnResident(OTTER_PET_ID, "otter_trader");
+    spawnResident(OTTER_RESIDENT_ID, "otter_trader");
   } else if (!otterHere && otterInWorld) {
-    removeResident(OTTER_PET_ID);
+    removeResident(OTTER_RESIDENT_ID);
   }
 
-  if (isEventCompleted("gold_theft") && getResident(DRAGON_PET_ID)) {
-    removeResident(DRAGON_PET_ID);
+  if (isEventCompleted("gold_theft") && getResident(DRAGON_RESIDENT_ID)) {
+    removeResident(DRAGON_RESIDENT_ID);
   }
 }
 
@@ -280,11 +281,11 @@ export function buyFromTraveler(itemId: string): TradeResult {
 /** 他在不在场的同步。和水獭那条同构，挂在同一个 world_day_changed 上 */
 export function syncTravelerPresence(): void {
   const here = isTravelerHereToday();
-  const inWorld = Boolean(getResident(FISH_PET_ID));
+  const inWorld = Boolean(getResident(FISH_RESIDENT_ID));
   if (here && !inWorld) {
-    spawnResident(FISH_PET_ID, "fish_trader");
+    spawnResident(FISH_RESIDENT_ID, "fish_trader");
   } else if (!here && inWorld) {
-    removeResident(FISH_PET_ID);
+    removeResident(FISH_RESIDENT_ID);
   }
 }
 

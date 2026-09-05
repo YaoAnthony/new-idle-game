@@ -109,7 +109,7 @@ export function buildMossWisp(): Object3D {
   // 身体椭球半径约 (0.32, 0.28, 0.34)，中心 y=0.3 → 这组值算出来 1.11，稳稳凸出
   const eyes = dotEyes(0.42, 0.31, 0.12);
 
-  return group("pet-moss-wisp", [
+  return group("resident-moss-wisp", [
     body,
     ...patches,
     stem,
@@ -168,7 +168,7 @@ export function buildFoamWisp(): Object3D {
 
   const eyes = dotEyes(0.42, 0.3, 0.115);
 
-  return group("pet-foam-wisp", [shell, core, base, ...bubbles, ...eyes]);
+  return group("resident-foam-wisp", [shell, core, base, ...bubbles, ...eyes]);
 }
 
 /**
@@ -241,7 +241,7 @@ export function buildEmberWisp(): Object3D {
 
   const eyes = dotEyes(0.42, 0.3, 0.12);
 
-  return group("pet-ember-wisp", [
+  return group("resident-ember-wisp", [
     body,
     ...plates,
     ...cracks,

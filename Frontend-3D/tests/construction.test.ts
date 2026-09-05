@@ -87,9 +87,9 @@ test("认领之后进度才开始走，到点算完工", () => {
   const id = site(SPOT_A.x, SPOT_A.z);
   const start = "2026-08-22T00:00:00.000Z";
 
-  expect(claimSite(id, "pet-stone_golem", start)).toBe(true);
+  expect(claimSite(id, "resident-stone_golem", start)).toBe(true);
   const claimed = listSites()[0];
-  expect(claimed.construction?.workerId).toBe("pet-stone_golem");
+  expect(claimed.construction?.workerId).toBe("resident-stone_golem");
   expect(claimed.construction?.startUtc).toBe(start);
   expect(claimed.construction?.finishUtc).toBeTruthy();
 
@@ -197,7 +197,7 @@ test("construction_落地即成品的楼当场报完工_工地则要等finishSit
 
   // Act & Assert ②：完工才报
   const siteId = site.ok !== false ? site.instanceId : "";
-  claimSite(siteId, "pet-stone_golem", "2026-08-22T00:00:00.000Z");
+  claimSite(siteId, "resident-stone_golem", "2026-08-22T00:00:00.000Z");
   finishSite(siteId);
   expect(seen).toEqual([siteId]);
 

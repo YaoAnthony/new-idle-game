@@ -1,4 +1,5 @@
 import { theftTuning } from "../economy/index.js";
+import { residentIdOf } from "../residents/index.js";
 import type { StoryRule, TutorialDefinition } from "../../types/story.js";
 
 /**
@@ -57,8 +58,8 @@ export const storyRules: StoryRule[] = [
       },
     ],
     effects: [
-      { kind: "spawn_resident", residentId: "pet-otter", definitionId: "otter_trader", delayMs: 2500, jitterMs: 1500 },
-      { kind: "start_dialogue", dialogueId: "otter_first_meet", residentId: "pet-otter", delayMs: 6000 },
+      { kind: "spawn_resident", residentId: residentIdOf("otter_trader"), definitionId: "otter_trader", delayMs: 2500, jitterMs: 1500 },
+      { kind: "start_dialogue", dialogueId: "otter_first_meet", residentId: residentIdOf("otter_trader"), delayMs: 6000 },
       { kind: "set_event_stage", eventId: "gold_theft", stageId: "chasing" },
     ],
   },
@@ -76,8 +77,8 @@ export const storyRules: StoryRule[] = [
       },
     ],
     effects: [
-      { kind: "spawn_resident", residentId: "pet-dragon", definitionId: "coin_dragon", delayMs: 2500, jitterMs: 1000 },
-      { kind: "start_dialogue", dialogueId: "dragon_caught", residentId: "pet-dragon", delayMs: 5500 },
+      { kind: "spawn_resident", residentId: residentIdOf("coin_dragon"), definitionId: "coin_dragon", delayMs: 2500, jitterMs: 1000 },
+      { kind: "start_dialogue", dialogueId: "dragon_caught", residentId: residentIdOf("coin_dragon"), delayMs: 5500 },
       { kind: "set_event_stage", eventId: "gold_theft", stageId: "caught" },
     ],
   },
@@ -98,7 +99,7 @@ export const storyRules: StoryRule[] = [
       { kind: "adjust_gold", amount: theftTuning.amount },
       { kind: "set_event_stage", eventId: "gold_theft", stageId: "settled", complete: true },
       { kind: "unlock_feature", featureId: "merchant_trading" },
-      { kind: "start_dialogue", dialogueId: "otter_returns", residentId: "pet-otter", delayMs: 2500 },
+      { kind: "start_dialogue", dialogueId: "otter_returns", residentId: residentIdOf("otter_trader"), delayMs: 2500 },
     ],
   },
   /*
@@ -118,8 +119,8 @@ export const storyRules: StoryRule[] = [
     id: "resident_slime_arrives",
     triggers: [{ signal: "day_started", poolId: "resident_arrival" }],
     effects: [
-      { kind: "spawn_resident", residentId: "pet-slime", definitionId: "slime_neighbor", delayMs: 2500, jitterMs: 1500 },
-      { kind: "start_dialogue", dialogueId: "slime_asks_to_stay", residentId: "pet-slime", delayMs: 5500 },
+      { kind: "spawn_resident", residentId: residentIdOf("slime_neighbor"), definitionId: "slime_neighbor", delayMs: 2500, jitterMs: 1500 },
+      { kind: "start_dialogue", dialogueId: "slime_asks_to_stay", residentId: residentIdOf("slime_neighbor"), delayMs: 5500 },
       { kind: "give_item", itemId: "blueprint_slime_house", quantity: 1 },
     ],
   },
@@ -127,8 +128,8 @@ export const storyRules: StoryRule[] = [
     id: "resident_fox_arrives",
     triggers: [{ signal: "day_started", poolId: "resident_arrival" }],
     effects: [
-      { kind: "spawn_resident", residentId: "pet-fox", definitionId: "fox_neighbor", delayMs: 2500, jitterMs: 1500 },
-      { kind: "start_dialogue", dialogueId: "fox_asks_to_stay", residentId: "pet-fox", delayMs: 5500 },
+      { kind: "spawn_resident", residentId: residentIdOf("fox_neighbor"), definitionId: "fox_neighbor", delayMs: 2500, jitterMs: 1500 },
+      { kind: "start_dialogue", dialogueId: "fox_asks_to_stay", residentId: residentIdOf("fox_neighbor"), delayMs: 5500 },
       { kind: "give_item", itemId: "blueprint_fox_house", quantity: 1 },
     ],
   },
@@ -136,8 +137,8 @@ export const storyRules: StoryRule[] = [
     id: "resident_spirit_arrives",
     triggers: [{ signal: "day_started", poolId: "resident_arrival" }],
     effects: [
-      { kind: "spawn_resident", residentId: "pet-spirit", definitionId: "spirit_neighbor", delayMs: 2500, jitterMs: 1500 },
-      { kind: "start_dialogue", dialogueId: "spirit_asks_to_stay", residentId: "pet-spirit", delayMs: 5500 },
+      { kind: "spawn_resident", residentId: residentIdOf("spirit_neighbor"), definitionId: "spirit_neighbor", delayMs: 2500, jitterMs: 1500 },
+      { kind: "start_dialogue", dialogueId: "spirit_asks_to_stay", residentId: residentIdOf("spirit_neighbor"), delayMs: 5500 },
       { kind: "give_item", itemId: "blueprint_spirit_house", quantity: 1 },
     ],
   },

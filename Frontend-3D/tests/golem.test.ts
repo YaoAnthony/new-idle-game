@@ -116,8 +116,8 @@ test("存档往返：装过头的还是醒的，没装的还是瘫的", () => {
 
 test("老存档没有 attachedParts 字段：宠物按零件齐全算，不能集体瘫在地上", () => {
   restoreResidents({
-    "pet-shushu": {
-      residentId: "pet-shushu",
+    "resident-shushu": {
+      residentId: "resident-shushu",
       definitionId: "shushu",
       roomId: "living",
       position: { mapId: DEFAULT_MAP_ID, x: 0, y: 0, heading: 0 },

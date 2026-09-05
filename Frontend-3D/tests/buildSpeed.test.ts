@@ -53,7 +53,7 @@ test("buildSpeed_设了之后压过型号表_木墙的 3 秒也照压", () => {
   setDebugBuildSeconds(2);
 
   const id = siteAt();
-  expect(claimSite(id, "pet-stone_golem", T0)).toBe(true);
+  expect(claimSite(id, "resident-stone_golem", T0)).toBe(true);
   const site = listSites()[0];
 
   // 2 秒工期：1 秒过半，2.1 秒完工
@@ -66,7 +66,7 @@ test("buildSpeed_off 之后恢复真工期", () => {
   setDebugBuildSeconds(null);
 
   const id = siteAt();
-  claimSite(id, "pet-stone_golem", T0);
+  claimSite(id, "resident-stone_golem", T0);
 
   // 金库没写 buildDuration → 兜底 20 秒：10 秒才过半
   expect(constructionProgress(listSites()[0], "2026-08-22T00:00:10.000Z")).toBeCloseTo(0.5, 2);
@@ -78,7 +78,7 @@ test("buildSpeed_只影响之后认领的工地_在建的那块不改口", () =>
    * 排队的工地不会自己建好"那条规矩的支点——不该为调试破例。
    */
   const id = siteAt();
-  claimSite(id, "pet-stone_golem", T0);
+  claimSite(id, "resident-stone_golem", T0);
   const before = listSites()[0].construction?.finishUtc;
 
   setDebugBuildSeconds(2);

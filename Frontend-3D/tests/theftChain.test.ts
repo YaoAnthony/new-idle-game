@@ -63,15 +63,15 @@ beforeEach(() => {
   restoreSignalCounts({});
   restorePoolMisses({});
   restoreDayFacts([]);
-  removeResident("pet-otter");
-  removeResident("pet-dragon");
+  removeResident("resident-otter_trader");
+  removeResident("resident-coin_dragon");
   stops.push(startStorySystem(false));
 });
 
 afterEach(() => {
   for (const stop of stops) stops = (stop(), []);
-  removeResident("pet-otter");
-  removeResident("pet-dragon");
+  removeResident("resident-otter_trader");
+  removeResident("resident-coin_dragon");
   vi.useRealTimers();
 });
 
@@ -89,12 +89,12 @@ test("theft_五幕一天一步_金币净损失为零", () => {
   // 第三幕：水獭上门（同一天不再推进——day_started 一天只有一次）
   nextDay();
   expect(getEventStage("gold_theft")).toBe("chasing");
-  expect(getResident("pet-otter")).toBeTruthy();
+  expect(getResident("resident-otter_trader")).toBeTruthy();
 
   // 第四幕：小龙被拎回来。**钱还没还**——见贼和追赃分开
   nextDay();
   expect(getEventStage("gold_theft")).toBe("caught");
-  expect(getResident("pet-dragon")).toBeTruthy();
+  expect(getResident("resident-coin_dragon")).toBeTruthy();
   expect(getGold()).toBe(10 - theftTuning.amount);
 
   // 第五幕：全额奉还 + 解锁交易
@@ -126,7 +126,7 @@ test("theft_放弃追讨_钱不回来龙不被抓_但交易照样解锁", () => 
   nextDay();
   nextDay();
   expect(getGold()).toBe(10 - theftTuning.amount);
-  expect(getResident("pet-dragon")).toBeUndefined();
+  expect(getResident("resident-coin_dragon")).toBeUndefined();
 });
 
 test("theft_离线七天回来只推一步_剧情不在你不在时自己演完", () => {
@@ -200,19 +200,19 @@ test("trading_图纸和无价物卖不掉_套现口子焊死", () => {
 });
 
 test("trading_事件结了龙就被送走_日同步收尾", () => {
-  spawnResident("pet-dragon", "coin_dragon");
-  expect(getResident("pet-dragon")).toBeTruthy();
+  spawnResident("resident-coin_dragon", "coin_dragon");
+  expect(getResident("resident-coin_dragon")).toBeTruthy();
 
   setEventStage("gold_theft", "settled", "completed");
   syncTraderPresence();
 
-  expect(getResident("pet-dragon")).toBeUndefined();
+  expect(getResident("resident-coin_dragon")).toBeUndefined();
 });
 
 test("trading_不在班表的日子_水獭被日同步送走", () => {
   // 解锁了交易、但今天多半不是他的班（是的话事件也没把他按住）
   restoreProgression({ events: {}, unlockedFeatureIds: ["merchant_trading"] });
-  spawnResident("pet-otter", "otter_trader");
+  spawnResident("resident-otter_trader", "otter_trader");
 
   syncTraderPresence();
 
@@ -226,5 +226,5 @@ test("trading_不在班表的日子_水獭被日同步送走", () => {
    * 平时不在那个时段跑，没人撞上。
    */
   const shouldBeHere = isOtterScheduledOn(getClock().worldDayId);
-  expect(Boolean(getResident("pet-otter"))).toBe(shouldBeHere);
+  expect(Boolean(getResident("resident-otter_trader"))).toBe(shouldBeHere);
 });

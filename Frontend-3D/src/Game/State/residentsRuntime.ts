@@ -2,6 +2,7 @@ import {
   AffectionStage,
   cellHasClearance,
   findResidentDefinition,
+  residentIdOf,
   roomCellToWorld,
   type GiftTier,
   type GridPosition,
@@ -203,7 +204,7 @@ export function placeSleepingResident(definitionId: string): ResidentAgent | nul
   if (!cell) return null;
 
   const cellWorld = roomCellToWorld(room, cell.x, cell.y);
-  const resident = new ResidentAgent(`pet-${definitionId}`, definitionId, {
+  const resident = new ResidentAgent(residentIdOf(definitionId), definitionId, {
     x: cellWorld.x,
     z: cellWorld.z,
     heading: 0,
@@ -231,7 +232,7 @@ export function placeCreatureAt(
   at: { x: number; z: number; heading?: number },
   options: { asleep?: boolean; missingParts?: string[] } = {},
 ): ResidentAgent {
-  const residentId = `pet-${definitionId}`;
+  const residentId = residentIdOf(definitionId);
   const existing = residents.get(residentId);
   if (existing) return existing;
 

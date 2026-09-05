@@ -65,7 +65,7 @@ afterEach(() => {
   for (const stop of stops) stop();
   stops = [];
   dismissUnpack();
-  for (const id of ["pet-slime", "pet-fox", "pet-spirit"]) removeResident(id);
+  for (const id of ["resident-slime_neighbor", "resident-fox_neighbor", "resident-spirit_neighbor"]) removeResident(id);
   vi.useRealTimers();
 });
 
@@ -127,13 +127,13 @@ test("npc_join_房子已经在场上_挡住并说明盖好他就来", () => {
 test("npc_join_整条链_完工后人到场_再join报已住下", () => {
   runCommand("/npc join slime");
   claimUnpack();
-  expect(getResident("pet-slime")).toBeUndefined();
+  expect(getResident("resident-slime_neighbor")).toBeUndefined();
 
   // 玩家放图纸、石傀儡建完：这里直接用完工信号顶替施工过程
   restoreBuildings([HOUSE("slime_house", "h1")]);
   emit("building_completed", { buildingId: "slime_house", instanceId: "h1" });
 
-  const resident = getResident("pet-slime");
+  const resident = getResident("resident-slime_neighbor");
   expect(resident).toBeDefined();
   expect(resident!.homeZ).toBeCloseTo(12.5 + 2.2);
 

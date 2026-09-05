@@ -12,6 +12,7 @@ import {
   type InventoryStack,
   type PlacedFurniture,
   type RoomSave,
+  type ResidentSave,
 } from "core";
 // 老存档的 v7/v8 用当年的户型重新生成房间几何。户型跟着地图走了
 // （Maps/base/layout，据点改造前叫 Maps/home），迁移就从那儿取——迁移读的是**历史**，
@@ -1328,7 +1329,106 @@ export const migrations: Migration[] = [
     to: 35,
     migrate: (save) => save,
   },
+
+  /*
+   * v36 · 活物实例 id：`pet-<短名>` → `resident-<definitionId>`（2026-09-05）。
+   *
+   * 改名那个提交把类型上的 `PetSave.petId` 改成了 `residentId`——那是存档
+   * 字段名，老档读出来 `residentId` 是 undefined，`restoreResidents` 会把
+   * 所有活物注册到同一个 undefined 键下。所以这条迁移**必须**紧跟改名提交。
+   *
+   * id 出现在四处，四处一起迁：
+   * 1. `ownWorld.pets` 的键和每条的 `petId` 字段（字段改名 + 值换格式）
+   * 2. `progression.signalCounts` 的键：信号名 `pet_spawned` / `pet_entered`
+   *    改了名，subject 里的实例 id 也要换（`pet_spawned|pet-slime` →
+   *    `resident_spawned|resident-slime_neighbor`）；两个老键映射到同一个
+   *    新键时计数相加
+   * 3. `dayFacts[].headlines[].subject` 里 `物品|买主` 的买主一半
+   * 4. `buildings[].construction.workerId`（石傀儡认领工地时写的是它的实例 id）
+   *
+   * 老短名和 definitionId 对不上（otter → otter_trader），所以映射表**写死**，
+   * 不从注册表推（迁移必须冻结在写它的那一刻，见 LEGACY_FURNITURE_ID）。
+   * 表里没有的 `pet-xxx` 按 `resident-xxx` 处理（`pet-stone_golem`、
+   * `pet-shushu`、`pet-moss_wisp` 本来就是 definitionId）。已经是 `resident-`
+   * 开头的原样保留——重跑一次不会套两层。
+   */
+  {
+    to: 36,
+    migrate: (save) => {
+      const world = save.ownWorld;
+
+      const pets = world.pets ?? {};
+      const migratedPets: Record<string, ResidentSave> = {};
+      for (const [key, entry] of Object.entries(pets)) {
+        const legacy = entry as ResidentSave & { petId?: string };
+        const oldId = legacy.residentId ?? legacy.petId ?? key;
+        const newId = legacyResidentId(oldId);
+        const { petId: _dropped, ...rest } = legacy;
+        void _dropped;
+        migratedPets[newId] = { ...rest, residentId: newId };
+      }
+      world.pets = migratedPets;
+
+      const counts = world.progression?.signalCounts;
+      if (counts) {
+        const next: Record<string, number> = {};
+        for (const [key, count] of Object.entries(counts)) {
+          const at = key.indexOf("|");
+          const kind = at < 0 ? key : key.slice(0, at);
+          const subject = at < 0 ? undefined : key.slice(at + 1);
+          const newKind = LEGACY_SIGNAL_KIND[kind] ?? kind;
+          const newSubject = subject === undefined ? undefined : legacyResidentId(subject);
+          const newKey = newSubject === undefined ? newKind : `${newKind}|${newSubject}`;
+          next[newKey] = (next[newKey] ?? 0) + count;
+        }
+        world.progression.signalCounts = next;
+      }
+
+      for (const day of world.dayFacts ?? []) {
+        for (const headline of day.headlines ?? []) {
+          if (!headline.subject) continue;
+          const at = headline.subject.indexOf("|");
+          if (at < 0) continue;
+          const who = headline.subject.slice(at + 1);
+          headline.subject = `${headline.subject.slice(0, at)}|${legacyResidentId(who)}`;
+        }
+      }
+
+      for (const building of world.buildings ?? []) {
+        if (building.construction?.workerId) {
+          building.construction.workerId = legacyResidentId(building.construction.workerId);
+        }
+      }
+
+      return save;
+    },
+  },
 ];
+
+/**
+ * v36 的实例 id 映射。**写死**：老短名和 definitionId 对不上，而且迁移表
+ * 必须冻结（理由同 LEGACY_FURNITURE_ID）。表里没有的 `pet-xxx` →
+ * `resident-xxx`；不以 `pet-` 开头的（已经迁过、或根本不是活物 id）原样返回。
+ */
+const LEGACY_RESIDENT_ID: Record<string, string> = {
+  "pet-slime": "resident-slime_neighbor",
+  "pet-fox": "resident-fox_neighbor",
+  "pet-spirit": "resident-spirit_neighbor",
+  "pet-otter": "resident-otter_trader",
+  "pet-dragon": "resident-coin_dragon",
+  "pet-fish-trader": "resident-fish_trader",
+};
+
+function legacyResidentId(id: string): string {
+  if (!id.startsWith("pet-")) return id;
+  return LEGACY_RESIDENT_ID[id] ?? `resident-${id.slice("pet-".length)}`;
+}
+
+/** v36：改名提交把这两个剧情信号换了名字，存档里的计数键跟着换 */
+const LEGACY_SIGNAL_KIND: Record<string, string> = {
+  pet_spawned: "resident_spawned",
+  pet_entered: "resident_entered",
+};
 
 /**
  * 迁移期间的"半新半旧"位置。存档里读出来时 facing 还在、heading 还没有，

@@ -249,6 +249,30 @@ export const residentDefinitions = [
   },
 ] satisfies ResidentDefinition[];
 
+/**
+ * 一种生物的**运行时实例 id**。全游戏只有这一条拼法（2026-09-05）。
+ *
+ * 老格式是 `pet-<随手起的短名>`：`pet-slime` / `pet-otter` / `pet-fish-trader`，
+ * 短名和 definitionId 对不上（otter_trader → otter，fish_trader → fish-trader），
+ * 于是剧情数据、交易系统、搬入逻辑各写了一份自己的对照。新格式
+ * `resident-<definitionId>` 没有第二种拼法，也不需要任何表——
+ * 从 id 回推定义就是砍掉前缀（见 `residentDefinitionOf`）。
+ *
+ * 现在每种定义只有一个实例（三只 wisp 也各是一种定义），所以 id 由定义决定。
+ * 以后要同一种生物多只（访客批量来）再在后面加序号，前缀规则不变。
+ */
+export const RESIDENT_ID_PREFIX = "resident-";
+
+export function residentIdOf(definitionId: string): string {
+  return `${RESIDENT_ID_PREFIX}${definitionId}`;
+}
+
+/** 从实例 id 回到定义。不是本格式的 id（老档没迁、外来字符串）返回 undefined */
+export function residentDefinitionOf(residentId: string): ResidentDefinition | undefined {
+  if (!residentId.startsWith(RESIDENT_ID_PREFIX)) return undefined;
+  return findResidentDefinition(residentId.slice(RESIDENT_ID_PREFIX.length));
+}
+
 /** 有自己房子的那几位（`residence` 填了的）。指令候选和搬入判定都问它 */
 export function listResidentDefinitions(): ResidentDefinition[] {
   return (residentDefinitions as readonly ResidentDefinition[]).filter((resident) => resident.residence);

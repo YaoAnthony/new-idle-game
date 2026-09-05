@@ -31,8 +31,8 @@ import { initDoors } from "../src/Game/State/doorsRuntime";
  * 玩家摆出来的东西挡不住它，世界本身照旧挡得住。
  */
 
-const GOLEM = "pet-stone_golem";
-const OTHER = "pet-slime";
+const GOLEM = "resident-stone_golem";
+const OTHER = "resident-slime_neighbor";
 
 /** 领地里能落楼的空地（探过：previewPlacement 放行） */
 const YARD = { x: 2, z: 8 };

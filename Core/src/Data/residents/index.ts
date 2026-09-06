@@ -16,6 +16,7 @@ export * from "./letters.js";
 export * from "./birthday.js";
 export * from "./decorations.js";
 export * from "./activities.js";
+export * from "./arcs.js";
 
 import {
   CreatureRole,
@@ -412,4 +413,6 @@ export const RESIDENT_FACT_KINDS = {
   chatted: "residents_chatted",
   /** 多日出门（09）。subject 是实例 id，报纸说"咕噜回老家了" */
   tripAway: "resident_trip_away",
+  /** 个人线走完（13）。subject 是 definitionId */
+  arcDone: "resident_arc_done",
 } as const;

@@ -20,7 +20,7 @@ import { getWeather } from "../State/weather";
 import { startDialogue } from "./dialogue";
 import { gainAffection } from "./residents/affection";
 import { giveResidentPresent } from "./residents/presents";
-import { declineFavor } from "./residents/favors";
+import { declineFavor, offerFavor } from "./residents/favors";
 import { placeOnPorch, setNamePlate } from "./residents/porch";
 import { placeInInterior } from "./residents/interiors";
 import { spawnVisitor } from "./residents/visitors";
@@ -193,6 +193,11 @@ function runEffect(effect: StoryEffect): void {
     // 对话里拒绝了委托（05）：直接过期，不进 cooldown
     case "favor_decline":
       declineFavor(effect.favorId);
+      break;
+
+    // 剧情直接提一件委托（13）：绕过抽签。挂着 / 做客中提不了就算了
+    case "offer_favor":
+      offerFavor(effect.favorId);
       break;
 
     // 来访（07）：开门放人 / 回绝

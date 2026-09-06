@@ -65,6 +65,7 @@ import {
 export const untradableItemIds: ReadonlySet<string> = new Set([
   // 05：委托的信物。不可卖、不可丢、不可寄售——三个出口查 favorToken，这里是商人那一个
   "favor_token_fox_parcel",
+  "favor_token_fox_town_parcel",
   // 石傀儡的头。卖了他就永远醒不过来，而商人不卖回来——这是死锁
   "golem_head",
   // 每日任务机器。卖了每日任务就没了入口，同样买不回来
@@ -1642,6 +1643,16 @@ export const itemDefinitions = [
     /** 阿茜托你交给薇尔的小包。信物：不可丢、不可上架、不可寄售，过期收回 */
     id: "favor_token_fox_parcel",
     localizationKey: "item.favor_token_fox_parcel",
+    category: ItemCategory.Quest,
+    stackLimit: 1,
+    rarity: Rarity.Common,
+    visual: { id: "blueprint" },
+    favorToken: true,
+  },
+  {
+    /** 13：阿茜托你送到镇上杂货铺的小包。和送薇尔的那只分开——两件委托可能同时挂着，共用一件信物收回时会互相收掉 */
+    id: "favor_token_fox_town_parcel",
+    localizationKey: "item.favor_token_fox_town_parcel",
     category: ItemCategory.Quest,
     stackLimit: 1,
     rarity: Rarity.Common,

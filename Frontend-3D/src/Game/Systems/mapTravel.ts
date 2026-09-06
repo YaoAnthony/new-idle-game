@@ -8,6 +8,7 @@ import { primaryRoomOf } from "../State/world/maps";
 import { getCurrentMap, getCurrentMapId } from "../State/worldRuntime";
 import { saveNow } from "../../Data/Save/autosave";
 import { standUp } from "./resting";
+import { isFeatureUnlocked } from "./events";
 
 /**
  * 箱庭旅行（①B）：从一张图去另一张图。
@@ -98,8 +99,22 @@ export function tickPortalTravel(x: number, z: number): void {
   for (const portal of getCurrentMap().portals ?? []) {
     const { zone } = portal;
     if (x >= zone.minX && x <= zone.maxX && z >= zone.minZ && z <= zone.maxZ) {
+      // 13：没解锁的出入口走不过去（小镇由阿茜的委托解锁）。冒一句、歇几秒再冒——站在带子里不刷屏
+      if (portal.requiresFeature && !isFeatureUnlocked(portal.requiresFeature)) {
+        lastTravelAt = Date.now() + LOCKED_NOTICE_MS - PORTAL_COOLDOWN_MS;
+        emit("story_toast", { localizationKey: portal.lockedLocalizationKey ?? "toast.portal_locked", durationMs: 4000 });
+        return;
+      }
       travelTo(portal.targetMapId, portal.landing);
       return;
     }
   }
+}
+
+/** 锁着的出入口两次提示之间隔多久 */
+const LOCKED_NOTICE_MS = 6000;
+
+/** 用例用：某个出入口此刻能不能走 */
+export function portalOpen(portal: { requiresFeature?: string }): boolean {
+  return !portal.requiresFeature || isFeatureUnlocked(portal.requiresFeature);
 }

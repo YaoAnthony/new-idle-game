@@ -45,6 +45,44 @@ export const eventDefinitions: EventDefinition[] = [
       { stageId: "settled", localizationKey: "event.gold_theft.settled" },
     ],
   },
+
+  /*
+   * 三条个人线（居民系统 13）。阶段就是幕，全由规则推（`Data/story` 里 `arc_*` 那些）；
+   * 幕与幕之间等的是委托做成 / 好感到档 / 他回来——都是玩家或他自己做出来的事，不是日期。
+   * 薇尔第三幕**没有**：魔女主线没定稿，不写占位（占位会被当成定稿）。
+   */
+  {
+    id: "arc_slime",
+    localizationKey: "event.arc_slime",
+    stages: [
+      { stageId: "settled", localizationKey: "event.arc_slime.settled" },
+      { stageId: "afraid_of_dark", localizationKey: "event.arc_slime.afraid_of_dark" },
+      { stageId: "lamp_lit", localizationKey: "event.arc_slime.lamp_lit" },
+      { stageId: "opened_up", localizationKey: "event.arc_slime.opened_up" },
+      { stageId: "done", localizationKey: "event.arc_slime.done" },
+    ],
+  },
+  {
+    id: "arc_fox",
+    localizationKey: "event.arc_fox",
+    stages: [
+      { stageId: "settled", localizationKey: "event.arc_fox.settled" },
+      { stageId: "wants_shortcut", localizationKey: "event.arc_fox.wants_shortcut" },
+      { stageId: "delivered_to_town", localizationKey: "event.arc_fox.delivered_to_town" },
+      { stageId: "brought_letter", localizationKey: "event.arc_fox.brought_letter" },
+      { stageId: "done", localizationKey: "event.arc_fox.done" },
+    ],
+  },
+  {
+    id: "arc_spirit",
+    localizationKey: "event.arc_spirit",
+    stages: [
+      { stageId: "settled", localizationKey: "event.arc_spirit.settled" },
+      { stageId: "asked_to_plant", localizationKey: "event.arc_spirit.asked_to_plant" },
+      { stageId: "planted", localizationKey: "event.arc_spirit.planted" },
+      { stageId: "taught_chimes", localizationKey: "event.arc_spirit.taught_chimes" },
+    ],
+  },
 ];
 
 export function findEventDefinition(id: string): EventDefinition | undefined {

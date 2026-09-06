@@ -8,6 +8,7 @@ import type {
   VisualId,
   WallId,
 } from "./base.js";
+import type { FeatureId } from "./base.js";
 import type { BuildingPlacement } from "./building.js";
 import type { GroundHeightfield, GroundSurface } from "./ground.js";
 import type { TerritoryDefinition } from "./territory.js";
@@ -332,6 +333,10 @@ export type MapPortal = {
   landing?: { x: number; y: number; heading: number };
   /** 加载页上显示"前往哪里" */
   localizationKey: string;
+  /** 没解锁这项功能就走不过去（13：小镇由阿茜的委托解锁） */
+  requiresFeature?: FeatureId;
+  /** 走不过去时冒的那句；不填用通用的 */
+  lockedLocalizationKey?: string;
 };
 
 /**

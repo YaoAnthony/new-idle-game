@@ -25,7 +25,8 @@ import type { ResidentAgent } from "../../State/residentAgent";
 import { recordHeadlineFact } from "../dayRecord";
 import { evaluateCondition } from "../dialogue";
 import { signal } from "../story";
-import { homeDoorstepOf, homeInteriorOf, insideHomeOf } from "./spots";
+import { homeDoorstepOf, homeInteriorOf, homeOf, insideHomeOf } from "./spots";
+import { listBuildings } from "../../State/buildings";
 
 /**
  * 委托的运行时（居民系统 05）。**只改状态表和收发物品**——好感、奖励、记忆全是
@@ -114,6 +115,45 @@ export function visitFavorFor(definitionId: string, player: { x: number; z: numb
       if (door && Math.hypot(player.x - door.x, player.z - door.z) > 3.5) continue;
     }
     return definition;
+  }
+  return null;
+}
+
+/** escort（13）：接下了、还没做成的那件——他跟着你走的依据 */
+export function escortFavorFor(definitionId: string): FavorDefinition | null {
+  for (const definition of definitions) {
+    if (definition.kind !== "escort" || definition.residentId !== definitionId) continue;
+    if (favors[definition.id]?.state === "accepted") return definition;
+  }
+  return null;
+}
+
+/**
+ * plant（13）：接下了，而且他家 radius 米内有一块**播了种**的田（farm_plot 的 state.seedItemId）。
+ * 种没种看田的状态，不看你手里拿什么——"在她家旁边种点什么"是对土地做的事
+ */
+export function plantFavorFor(definitionId: string): FavorDefinition | null {
+  for (const definition of definitions) {
+    if (definition.kind !== "plant" || definition.residentId !== definitionId) continue;
+    if (favors[definition.id]?.state !== "accepted") continue;
+    const home = homeOf(definitionId);
+    if (!home) continue;
+    const radius = definition.plantedNear?.radius ?? 6;
+    const planted = listBuildings().some(
+      (placement) => placement.buildingId === "farm_plot" && typeof placement.state?.seedItemId === "string" && Math.hypot(placement.x - home.x, placement.z - home.z) <= radius,
+    );
+    if (planted) return definition;
+  }
+  return null;
+}
+
+/** deliver 到某张图（13）：踏上那张图、信物还在手上 = 送到。返回做成的那件 */
+export function deliverToMap(mapId: string): FavorDefinition | null {
+  for (const definition of definitions) {
+    if (definition.kind !== "deliver" || definition.toMap !== mapId) continue;
+    if (favors[definition.id]?.state !== "accepted") continue;
+    if (definition.token && getCount(definition.token.itemId) === 0) continue;
+    return completeFavor(definition.id) !== null ? definition : null;
   }
   return null;
 }
@@ -301,9 +341,14 @@ export function startFavorSystem(): () => void {
     const definition = definitions.find((entry) => entry.offerDialogueId === subject);
     if (definition && favors[definition.id]?.state === "offered") acceptFavor(definition.id);
   });
+  // 13：送到镇上的杂货铺——踏上那张图就算送到（没有收件人可以按 F）
+  const offMap = on("map_changed", ({ mapId }) => {
+    if (!isRemoteWorld()) deliverToMap(mapId);
+  });
   detach = () => {
     offDay();
     offEnded();
+    offMap();
     detach = null;
   };
   return detach;

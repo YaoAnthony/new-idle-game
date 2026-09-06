@@ -1,7 +1,7 @@
 import { affectionTuning, theftTuning } from "../economy/index.js";
 import { findBlueprintForBuilding } from "../items/index.js";
 import { favorDefinitions } from "../residents/favors.js";
-import { findResidentDefinition, residentIdOf } from "../residents/index.js";
+import { RESIDENT_FACT_KINDS, findResidentDefinition, residentIdOf } from "../residents/index.js";
 import { tripPool } from "../residents/trips.js";
 import { visitorTuning } from "../residents/visitors.js";
 import { letterDefinitions, mailTuning } from "../residents/letters.js";
@@ -13,6 +13,10 @@ function signatureItemOf(definitionId: string): string {
   return findResidentDefinition(definitionId)?.signatureItemId ?? "";
 }
 import type { StoryRule, TutorialDefinition } from "../../types/story.js";
+import type { FavorDefinition } from "../../types/favors.js";
+
+/** 委托表是 as const 的元组，逐条的字面量类型没有它没填的可选字段；按接口类型看它 */
+const FAVORS: readonly FavorDefinition[] = favorDefinitions;
 
 /**
  * 剧情编排。**这里是唯一的剧情真相来源——代码里不允许出现剧情分支。**
@@ -34,13 +38,13 @@ export const storyRules: StoryRule[] = [
    * favors.ts 只发信号；好感、奖励、记忆全在这里声明——一条委托一条规则，由表生成。
    * `once: false`：同一条委托过了 cooldown 还会再来。
    */
-  ...favorDefinitions.map((favor): StoryRule => ({
+  ...FAVORS.map((favor): StoryRule => ({
     id: `favor_decline_${favor.id}`,
     once: false,
     triggers: [{ signal: "dialogue_event", subject: `favor_decline_${favor.id}` }],
     effects: [{ kind: "favor_decline", favorId: favor.id }],
   })),
-  ...favorDefinitions.map((favor): StoryRule => ({
+  ...FAVORS.map((favor): StoryRule => ({
     id: `favor_done_${favor.id}`,
     once: false,
     triggers: [{ signal: "favor_completed", subject: favor.id }],
@@ -449,6 +453,133 @@ export const storyRules: StoryRule[] = [
       { kind: "start_dialogue", dialogueId: "residents_ask_for_shop", delayMs: 2000 },
       { kind: "give_item", itemId: "blueprint_furniture_shop", quantity: 1 },
       { kind: "unlock_feature", featureId: "furniture_shop" },
+    ],
+  },
+
+  /*
+   * ==== 个人剧情线（居民系统 13）====
+   *
+   * 每位一条三幕的线，阶段在 `Data/events` 的 arc_*，目录在 `Data/residents/arcs.ts`。
+   * 节拍由委托做成 / 好感到档 / 他回来推——**没有一幕是日期到了就演的**。
+   * 用 `requiresEventStage` 卡幕序：好感先到档的（还没听他说怕黑就到了家人档）那条不会丢，
+   * 因为等下一幕的规则都挂在 day_started 上，前一幕一立、次日早上就补上。
+   * 委托用 offer_favor 直接提（绕过抽签），做成的后果（好感 / 谢礼 / 记忆）还是 05 那条通用规则。
+   */
+  // ---- 咕噜 · 怕黑 ----
+  {
+    id: "arc_slime_settled",
+    triggers: [{ signal: "resident_moved_in", subject: "slime_neighbor" }],
+    effects: [{ kind: "set_event_stage", eventId: "arc_slime", stageId: "settled" }],
+  },
+  {
+    id: "arc_slime_walk",
+    triggers: [{ signal: "day_started", requiresEventStage: { eventId: "arc_slime", stageId: "settled" }, requires: [{ kind: "days_since_moved_in", residentId: "slime_neighbor", atLeast: 3 }] }],
+    effects: [{ kind: "offer_favor", favorId: "slime_walk_to_well" }],
+  },
+  {
+    id: "arc_slime_afraid",
+    // 每条立幕的规则都卡在前一幕上：调试口硬提的委托、老档里迟到的信号都不能把线倒着推
+    triggers: [{ signal: "favor_completed", subject: "slime_walk_to_well", requiresEventStage: { eventId: "arc_slime", stageId: "settled" } }],
+    effects: [{ kind: "set_event_stage", eventId: "arc_slime", stageId: "afraid_of_dark" }],
+  },
+  {
+    id: "arc_slime_lamp_offer",
+    triggers: [{ signal: "day_started", requiresEventStage: { eventId: "arc_slime", stageId: "afraid_of_dark" }, requiresAffection: { residentId: residentIdOf("slime_neighbor"), stage: "familiar_resident" } }],
+    effects: [{ kind: "offer_favor", favorId: "slime_wants_lamp" }],
+  },
+  {
+    id: "arc_slime_lamp_lit",
+    triggers: [{ signal: "favor_completed", subject: "slime_wants_lamp", requiresEventStage: { eventId: "arc_slime", stageId: "afraid_of_dark" } }],
+    effects: [
+      { kind: "set_event_stage", eventId: "arc_slime", stageId: "lamp_lit" },
+      { kind: "send_letter", letterId: "slime_thanks_lamp", fromResidentId: "slime_neighbor" },
+      { kind: "set_flag", key: "slime_lamp_lit", value: "1" },
+    ],
+  },
+  {
+    id: "arc_slime_opens_up",
+    triggers: [{ signal: "day_started", requiresEventStage: { eventId: "arc_slime", stageId: "lamp_lit" }, requiresAffection: { residentId: residentIdOf("slime_neighbor"), stage: "family" } }],
+    effects: [
+      { kind: "set_event_stage", eventId: "arc_slime", stageId: "opened_up" },
+      { kind: "start_dialogue", dialogueId: "slime_opens_up", residentId: residentIdOf("slime_neighbor"), delayMs: 2500 },
+    ],
+  },
+  {
+    id: "arc_slime_done",
+    triggers: [{ signal: "dialogue_event", subject: "slime_arc_done", requiresEventStage: { eventId: "arc_slime", stageId: "opened_up" } }],
+    effects: [
+      { kind: "set_event_stage", eventId: "arc_slime", stageId: "done", complete: true },
+      { kind: "add_memory", residentId: residentIdOf("slime_neighbor"), memoryId: "arc_done" },
+      // 餐厅那期的客源钩子（决策 23）：报纸记一笔，旗子留给以后"他第一个来吃"读
+      { kind: "record_fact", factKind: RESIDENT_FACT_KINDS.arcDone, subject: "slime_neighbor" },
+      { kind: "set_flag", key: "slime_arc_done", value: "1" },
+    ],
+  },
+  // ---- 阿茜 · 河对岸 ----
+  {
+    id: "arc_fox_settled",
+    triggers: [{ signal: "resident_moved_in", subject: "fox_neighbor" }],
+    effects: [{ kind: "set_event_stage", eventId: "arc_fox", stageId: "settled" }],
+  },
+  {
+    id: "arc_fox_shortcut",
+    triggers: [{ signal: "day_started", requiresEventStage: { eventId: "arc_fox", stageId: "settled" }, requires: [{ kind: "days_since_moved_in", residentId: "fox_neighbor", atLeast: 2 }] }],
+    effects: [{ kind: "set_event_stage", eventId: "arc_fox", stageId: "wants_shortcut" }],
+  },
+  {
+    id: "arc_fox_deliver_offer",
+    triggers: [{ signal: "day_started", requiresEventStage: { eventId: "arc_fox", stageId: "wants_shortcut" }, requiresAffection: { residentId: residentIdOf("fox_neighbor"), stage: "familiar_resident" } }],
+    effects: [{ kind: "offer_favor", favorId: "fox_deliver_town" }],
+  },
+  {
+    // 小镇从此通（桥头出入口挂 requiresFeature: town_travel）。老档在 v46 迁移里补过
+    id: "arc_fox_delivered",
+    triggers: [{ signal: "favor_completed", subject: "fox_deliver_town", requiresEventStage: { eventId: "arc_fox", stageId: "wants_shortcut" } }],
+    effects: [
+      { kind: "set_event_stage", eventId: "arc_fox", stageId: "delivered_to_town" },
+      { kind: "unlock_feature", featureId: "town_travel" },
+      { kind: "show_toast", localizationKey: "toast.parcel_delivered", durationMs: 7000 },
+    ],
+  },
+  {
+    id: "arc_fox_letter",
+    triggers: [{ signal: "resident_returned", subject: "fox_neighbor", requiresEventStage: { eventId: "arc_fox", stageId: "delivered_to_town" } }],
+    effects: [
+      { kind: "set_event_stage", eventId: "arc_fox", stageId: "brought_letter" },
+      { kind: "send_letter", letterId: "witch_from_town" },
+    ],
+  },
+  // ---- 薇尔 · 会发光的土地（第三幕留白：魔女主线没定稿）----
+  {
+    id: "arc_spirit_settled",
+    triggers: [{ signal: "resident_moved_in", subject: "spirit_neighbor" }],
+    effects: [{ kind: "set_event_stage", eventId: "arc_spirit", stageId: "settled" }],
+  },
+  {
+    id: "arc_spirit_plant_offer",
+    triggers: [{ signal: "day_started", requiresEventStage: { eventId: "arc_spirit", stageId: "settled" }, requires: [{ kind: "days_since_moved_in", residentId: "spirit_neighbor", atLeast: 2 }] }],
+    effects: [
+      { kind: "set_event_stage", eventId: "arc_spirit", stageId: "asked_to_plant" },
+      { kind: "offer_favor", favorId: "spirit_plant_near_home" },
+    ],
+  },
+  {
+    id: "arc_spirit_planted",
+    triggers: [{ signal: "favor_completed", subject: "spirit_plant_near_home", requiresEventStage: { eventId: "arc_spirit", stageId: "asked_to_plant" } }],
+    effects: [{ kind: "set_event_stage", eventId: "arc_spirit", stageId: "planted" }],
+  },
+  {
+    id: "arc_spirit_invite",
+    triggers: [{ signal: "day_started", requiresEventStage: { eventId: "arc_spirit", stageId: "planted" } }],
+    effects: [{ kind: "offer_favor", favorId: "spirit_invites_you" }],
+  },
+  {
+    // 来她家坐过 = 她教了风铃的事。配方那头没有风铃可做，先立一面旗子（feature），等风铃家具来了挂上去
+    id: "arc_spirit_taught",
+    triggers: [{ signal: "favor_completed", subject: "spirit_invites_you", requiresEventStage: { eventId: "arc_spirit", stageId: "planted" } }],
+    effects: [
+      { kind: "set_event_stage", eventId: "arc_spirit", stageId: "taught_chimes" },
+      { kind: "unlock_feature", featureId: "recipe_wind_chime" },
     ],
   },
 

@@ -45,6 +45,8 @@ export const skillPriorityDefinitions = [
   { id: "visitPlayer", priority: 50, interruptible: true },
   /** 居民之间（06）：碰面停下聊两句、shy 挪一步、一起待着时隔一会儿聊一段 */
   { id: "social", priority: 45, interruptible: true },
+  /** 陪你走（13）：接了 escort 委托，跟在你身后一步半，到了那种场所就算完成。压过作息，让给来访 */
+  { id: "escort", priority: 55, interruptible: true },
   /** 有事求你（05）：委托挂着、你在附近，他走过来站到你跟前。不追人 */
   { id: "favor", priority: 35, interruptible: true },
   /** 09：出门前当面说、回来第一句——和委托一样是"他找你"，排在委托后一位 */

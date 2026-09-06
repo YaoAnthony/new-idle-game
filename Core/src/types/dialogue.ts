@@ -43,7 +43,8 @@ export type DialogueCondition =
   | { kind: "mood_below"; value: number }
   | { kind: "mood_at_least"; value: number }
   /** 搬来第几天了（`ResidentSave.movedInDayId`）。刚搬来三天内的话 */
-  | { kind: "days_since_moved_in"; atLeast?: number; atMost?: number }
+  /** 搬来几天了。`residentId` 不填 = 对话对象；填了 = 那位（13 的剧情门槛按"没有对话对象"求值时用） */
+  | { kind: "days_since_moved_in"; residentId?: ResidentDefinitionId; atLeast?: number; atMost?: number }
   /** 多少天没聊过（`ResidentSave.lastTalkDayId`）。久别 */
   | { kind: "days_since_last_talk"; atLeast: number }
   /** 今天已经聊了几次（`ResidentSave.talksToday`）。"说够了" */

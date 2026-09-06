@@ -61,6 +61,15 @@ export const letterDefinitions: LetterDefinition[] = [
   { id: "postcard_hometown", kind: "postcard", bodyKey: "postcard.hometown", illustrationId: "postcard_hometown" },
   // 主线（14 开场之后）：魔女来信。没有对应的实体角色，效果直接寄
   { id: "witch_first", kind: "story", bodyKey: "letter.witch.first", illustrationId: "letter_witch" },
+  // 13：咕噜灯亮那晚歪歪扭扭的信；阿茜从镇上带回的、不是她写的信（寄件人空白——魔女线的第一个钩子，拆开 = 她那条线走完）
+  { id: "slime_thanks_lamp", kind: "story", residentId: "slime_neighbor", bodyKey: "letter.slime.thanks_lamp" },
+  {
+    id: "witch_from_town",
+    kind: "story",
+    bodyKey: "letter.witch.from_town",
+    illustrationId: "letter_witch",
+    onOpened: [{ kind: "set_event_stage", eventId: "arc_fox", stageId: "done", complete: true }],
+  },
 ];
 
 export function findLetterDefinition(id: string): LetterDefinition | undefined {

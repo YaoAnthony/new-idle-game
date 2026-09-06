@@ -385,7 +385,9 @@ export type StoryEffect =
   /** 他门口的装饰（11）：生日彩带 / 节日灯笼。null = 撤掉。有自己的锚点，不占展示位 */
   | { kind: "porch_decorate"; residentId: ResidentId; decorationId: string | null }
   /** 记一条报纸事实（11："下周三是阿茜的生日"） */
-  | { kind: "record_fact"; factKind: string; subject?: string };
+  | { kind: "record_fact"; factKind: string; subject?: string }
+  /** 剧情直接提出一件委托（13），绕过每天早上的抽签。挂着 / 做客中提不了就算了，不报错 */
+  | { kind: "offer_favor"; favorId: string };
 
 export type StoryRuleId = string;
 

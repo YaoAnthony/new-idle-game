@@ -42,6 +42,16 @@ export const spiritTalk: TalkPool = {
     // ---- 04：伙伴档起可以在对话里改他叫你的昵称 / 他的口头禅 ----
     { dialogueId: "spirit_chat_naming", when: [{ kind: "affection_at_least", stage: "life_companion" }], weight: 3 },
     { dialogueId: "spirit_chat_enough", when: [{ kind: "talks_today", atLeast: 3 }], weight: 100 },
+    // ---- 13：个人线的幕后段（每幕过后多三段；阶段一变换下一批）----
+    { dialogueId: "spirit_arc_asked_to_plant_1", when: [{ kind: "event_stage", eventId: "arc_spirit", stageId: "asked_to_plant" }], weight: 4 },
+    { dialogueId: "spirit_arc_asked_to_plant_2", when: [{ kind: "event_stage", eventId: "arc_spirit", stageId: "asked_to_plant" }], weight: 4 },
+    { dialogueId: "spirit_arc_asked_to_plant_3", when: [{ kind: "event_stage", eventId: "arc_spirit", stageId: "asked_to_plant" }], weight: 4 },
+    { dialogueId: "spirit_arc_planted_1", when: [{ kind: "event_stage", eventId: "arc_spirit", stageId: "planted" }], weight: 4 },
+    { dialogueId: "spirit_arc_planted_2", when: [{ kind: "event_stage", eventId: "arc_spirit", stageId: "planted" }], weight: 4 },
+    { dialogueId: "spirit_arc_planted_3", when: [{ kind: "event_stage", eventId: "arc_spirit", stageId: "planted" }], weight: 4 },
+    { dialogueId: "spirit_arc_taught_chimes_1", when: [{ kind: "event_stage", eventId: "arc_spirit", stageId: "taught_chimes" }], weight: 4 },
+    { dialogueId: "spirit_arc_taught_chimes_2", when: [{ kind: "event_stage", eventId: "arc_spirit", stageId: "taught_chimes" }], weight: 4 },
+    { dialogueId: "spirit_arc_taught_chimes_3", when: [{ kind: "event_stage", eventId: "arc_spirit", stageId: "taught_chimes" }], weight: 4 },
     { dialogueId: "spirit_chat_saw_exercise", when: [{ kind: "recent_action_category", category: "exercise" }], weight: 4, oncePerDay: true },
     { dialogueId: "spirit_chat_saw_work", when: [{ kind: "recent_action_category", category: "work_study" }], weight: 4, oncePerDay: true },
     { dialogueId: "spirit_chat_saw_creation", when: [{ kind: "recent_action_category", category: "creation" }], weight: 5, oncePerDay: true },

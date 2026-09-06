@@ -95,8 +95,10 @@ export function evaluateCondition(condition: DialogueCondition, residentId: stri
     case "mood_at_least":
       return resident !== undefined && resident.mood >= condition.value;
     case "days_since_moved_in": {
-      if (!resident?.movedInDayId) return false;
-      const days = daysBetweenDayIds(resident.movedInDayId, talkClock().worldDayId);
+      // 13：剧情门槛按"没有对话对象"求值，点名哪位就看哪位
+      const target = condition.residentId ? getResidents().find((agent) => agent.definitionId === condition.residentId) : resident;
+      if (!target?.movedInDayId) return false;
+      const days = daysBetweenDayIds(target.movedInDayId, talkClock().worldDayId);
       if (condition.atLeast !== undefined && days < condition.atLeast) return false;
       if (condition.atMost !== undefined && days > condition.atMost) return false;
       return true;

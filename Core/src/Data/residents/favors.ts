@@ -13,7 +13,8 @@ export const favorDefinitions = [
     residentId: "slime_neighbor",
     kind: "find",
     wants: { itemId: "furniture_cloud_lamp", quantity: 1 },
-    requires: [{ kind: "affection_at_least", stage: "familiar_resident" }],
+    // 13：这是他那条线的第二幕——先陪他去过井边、听他说了怕黑，才轮到灯。抽签和规则都看这一条
+    requires: [{ kind: "affection_at_least", stage: "familiar_resident" }, { kind: "event_stage", eventId: "arc_slime", stageId: "afraid_of_dark" }],
     weight: 3,
     expiresDays: 7,
     cooldownDays: 30,
@@ -87,6 +88,52 @@ export const favorDefinitions = [
     reward: { items: [{ itemId: "furniture_lucky_bamboo", quantity: 1 }] },
     onDone: [{ kind: "add_memory", residentId: "resident-spirit_neighbor", memoryId: "favor_spirit_visit" }],
     displayKey: "favor.spirit_invites_you",
+  },
+
+  // ---- 13：三条个人线各自的委托。不进每天的抽签（requires 卡在只有规则才会写的阶段），由 offer_favor 提出 ----
+  {
+    // 咕噜第一幕：搬来第三天，请你陪他走到井边。接了他跟着你，你到井边就算
+    id: "slime_walk_to_well",
+    residentId: "slime_neighbor",
+    kind: "escort",
+    escortTo: "water",
+    requires: [{ kind: "event_stage", eventId: "arc_slime", stageId: "settled" }],
+    weight: 0,
+    expiresDays: 5,
+    offerDialogueId: "favor_slime_walk_to_well_offer",
+    doneDialogueId: "favor_slime_walk_to_well_done",
+    onDone: [{ kind: "add_memory", residentId: "resident-slime_neighbor", memoryId: "walked_to_well" }],
+    displayKey: "favor.slime_walk_to_well",
+  },
+  {
+    // 阿茜第二幕：把小包送到镇上的杂货铺——你第一次因此过桥；做成了小镇从此通
+    id: "fox_deliver_town",
+    residentId: "fox_neighbor",
+    kind: "deliver",
+    token: { itemId: "favor_token_fox_town_parcel" },
+    toMap: "town",
+    requires: [{ kind: "event_stage", eventId: "arc_fox", stageId: "wants_shortcut" }],
+    weight: 0,
+    expiresDays: 14,
+    offerDialogueId: "favor_fox_deliver_town_offer",
+    doneDialogueId: "favor_fox_deliver_town_done",
+    onDone: [{ kind: "add_memory", residentId: "resident-fox_neighbor", memoryId: "delivered_to_town" }],
+    displayKey: "favor.fox_deliver_town",
+  },
+  {
+    // 薇尔第一幕：在她家旁边种点什么。她家六米内有播了种的田就算
+    id: "spirit_plant_near_home",
+    residentId: "spirit_neighbor",
+    kind: "plant",
+    plantedNear: { radius: 6 },
+    requires: [{ kind: "event_stage", eventId: "arc_spirit", stageId: "asked_to_plant" }],
+    weight: 0,
+    expiresDays: 10,
+    offerDialogueId: "favor_spirit_plant_near_home_offer",
+    doneDialogueId: "favor_spirit_plant_near_home_done",
+    reward: { items: [{ itemId: "baby_cabbage", quantity: 2 }] },
+    onDone: [{ kind: "add_memory", residentId: "resident-spirit_neighbor", memoryId: "planted_for_spirit" }],
+    displayKey: "favor.spirit_plant_near_home",
   },
 ] as const satisfies readonly FavorDefinition[];
 

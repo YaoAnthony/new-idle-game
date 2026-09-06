@@ -286,5 +286,5 @@ test("porch_家人档那天挂门牌_存档往返_做客不写", () => {
   expect(getResident(SLIME)).toBeDefined();
 
   const migrated = migrateSave({ meta: { saveSchemaVersion: 40 }, ownWorld: { pets: {} } } as never);
-  expect(migrated.ok && migrated.save.meta.saveSchemaVersion).toBe(45);
+  expect(migrated.ok && migrated.save.meta.saveSchemaVersion).toBe(46);
 });

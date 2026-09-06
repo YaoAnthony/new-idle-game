@@ -38,6 +38,9 @@ function bridgeExit(
     targetMapId: "town",
     landing,
     localizationKey: "map.town",
+    // 13：小镇由阿茜第二幕的委托解锁（老档在 v46 迁移里补过）
+    requiresFeature: "town_travel",
+    lockedLocalizationKey: "toast.town_locked",
   };
 }
 

@@ -42,7 +42,8 @@ import { evaluateHouseComments } from "core";
 import { listTalkCandidates, findTalkPool } from "core";
 import { evaluateCondition } from "../dialogue";
 import { describeSpots, homeSpotOf, nearestFreeSpot, type Spot } from "./spots";
-import { activityDefinitions, activitySteps, findActivityDefinition } from "core";
+import { activityDefinitions, activitySteps, findActivityDefinition, findArc } from "core";
+import { getEventStage, isEventCompleted } from "../events";
 import { debugSendToTown, listResidentTrips, returnFromTown, tripPlanOf } from "./townTrips";
 import { currentVisitor, describeVisitor, leaveVisitor, spawnVisitor, visitorCandidatesNow } from "./visitors";
 import { debugTrip, describeTripPlan, tripPlanOf as multiDayPlanOf } from "./trips";
@@ -387,6 +388,25 @@ export function registerResidentCommands(): Array<() => void> {
             prop: activity.prop ?? undefined,
           });
           return ok(`${agent.residentId} 去做 ${activity.id}${spot ? `（${spot.key}）` : "（就地）"}，手里 ${activity.prop ?? "空"}：${steps.map((step) => step.verb).join(" → ")}`);
+        }
+        if (agent && verb === "arc") {
+          // 13：他的线在哪一幕、下一幕等什么；next = 点火下一幕那条规则（跳过条件）
+          const arc = findArc(agent.definitionId);
+          if (!arc) return fail(`${agent.residentId} 没有个人线`);
+          const stage = getEventStage(arc.eventId);
+          const index = arc.steps.findIndex((step) => step.stageId === stage);
+          const next = arc.steps[index + 1];
+          if ((args[2] ?? "").toLowerCase() === "next") {
+            if (isRemoteWorld()) return fail("做客中不能推别人的剧情");
+            if (!next) return fail("已经是最后一幕");
+            const result = fireStoryRuleById(next.ruleId);
+            return result === "fired" ? ok(`${arc.eventId} → ${next.stageId}（点了 ${next.ruleId}）`) : fail(`${next.ruleId}：${result}`);
+          }
+          return ok([
+            `${arc.eventId}：${stage ?? "（没开始）"}${isEventCompleted(arc.eventId) ? "（完）" : ""}`,
+            next ? `  下一幕 ${next.stageId} 等：${next.waitsFor}` : "  没有下一幕",
+            ...arc.steps.map((step) => `  ${step.stageId === stage ? "▶" : " "} ${step.stageId}  ← ${step.waitsFor}`),
+          ].join("\n"));
         }
         if (agent && verb === "routine") {
           const info = routinePlanOf(agent);

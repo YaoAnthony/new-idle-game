@@ -1,5 +1,5 @@
 import { getSelectedStack } from "../inventory";
-import { completeFavor, deliveryFor, offeredFavorFor, visitFavorFor } from "../../Systems/residents/favors";
+import { completeFavor, deliveryFor, offeredFavorFor, plantFavorFor, visitFavorFor } from "../../Systems/residents/favors";
 import { priorityOf } from "../residentAgent";
 import type { Skill } from "./types";
 
@@ -33,6 +33,12 @@ export const favorSkill: Skill = {
     const visit = visitFavorFor(agent.definitionId, player);
     if (visit) {
       const dialogueId = completeFavor(visit.id);
+      if (dialogueId) return { kind: "dialogue", dialogueId };
+    }
+    // 13：她家旁边种下了 → 来告诉她就算
+    const plant = plantFavorFor(agent.definitionId);
+    if (plant) {
+      const dialogueId = completeFavor(plant.id);
       if (dialogueId) return { kind: "dialogue", dialogueId };
     }
     return null;

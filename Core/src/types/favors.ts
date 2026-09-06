@@ -1,7 +1,7 @@
 import type { LocalizationKey } from "./base.js";
 import type { DialogueCondition, DialogueId } from "./dialogue.js";
 import type { ItemId } from "./items.js";
-import type { ResidentDefinitionId } from "./residents.js";
+import type { ResidentDefinitionId, SpotKind } from "./residents.js";
 import type { StoryEffect } from "./story.js";
 
 /**
@@ -17,7 +17,11 @@ import type { StoryEffect } from "./story.js";
  * - sick：手持药按 F；提出当天起他不出门（routine 被 sickUntilDayId 压住）
  * - visit_me：`window` 内到他家门口按 F；窗口过了算过期
  */
-export type FavorKind = "find" | "cook" | "deliver" | "sick" | "visit_me";
+/**
+ * 五种（05）+ 两种（13）：`escort` = 陪他走到某种场所（接受后他跟着你，你到了那儿就算完成）；
+ * `plant` = 在他家旁边种点什么（他家附近有播了种的田就算）。
+ */
+export type FavorKind = "find" | "cook" | "deliver" | "sick" | "visit_me" | "escort" | "plant";
 
 export type FavorDefinition = {
   id: string;
@@ -29,8 +33,14 @@ export type FavorDefinition = {
   token?: { itemId: ItemId };
   /** deliver：送给谁 */
   to?: ResidentDefinitionId;
+  /** deliver：送到哪张图（13 阿茜的小包送镇上的杂货铺——踏上那张图就算送到，没有收件人） */
+  toMap?: string;
   /** visit_me：哪天几点到几点。dayOffset 1 = 提出的次日 */
   window?: { from: string; to: string; dayOffset: number };
+  /** escort：陪他走到哪种场所（02 的场所种类） */
+  escortTo?: SpotKind;
+  /** plant：他家几米内有播了种的田就算 */
+  plantedNear?: { radius: number };
   /** 提出的前提。复用对话条件，不发明第二套 */
   requires?: readonly DialogueCondition[];
   /** 抽签权重，缺省 1 */

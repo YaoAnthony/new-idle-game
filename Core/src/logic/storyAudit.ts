@@ -21,6 +21,7 @@ import { findTripDefinition, tripDefinitions } from "../Data/residents/trips.js"
 import { findLetterDefinition, letterDefinitions } from "../Data/residents/letters.js";
 import { findDecoration } from "../Data/residents/decorations.js";
 import { findFestivalDefinition } from "../Data/festivals/index.js";
+import { arcDefinitions } from "../Data/residents/arcs.js";
 import { pairChats, relationDefinitions } from "../Data/residents/index.js";
 import type { RelationDefinition } from "../types/talk.js";
 import type { FavorDefinition } from "../types/favors.js";
@@ -108,8 +109,53 @@ export function auditCondition(where: string, condition: DialogueCondition): str
     case "festival_on":
       if (!findFestivalDefinition(condition.festivalId)) problems.push(`${where}：festival_on 指向不存在的节日 "${condition.festivalId}"`);
       break;
+    // 13
+    case "event_stage": {
+      const event = findEventDefinition(condition.eventId);
+      if (!event) problems.push(`${where}：event_stage 指向未登记的事件 "${condition.eventId}"`);
+      else if (!event.stages.some((stage) => stage.stageId === condition.stageId)) problems.push(`${where}：事件 "${condition.eventId}" 没有阶段 "${condition.stageId}"`);
+      break;
+    }
+    case "days_since_moved_in":
+      if (condition.residentId && !findResidentDefinition(condition.residentId)) problems.push(`${where}：days_since_moved_in 指向不存在的居民 "${condition.residentId}"`);
+      break;
     default:
       break;
+  }
+  return problems;
+}
+
+/**
+ * 个人线目录（13）：每一幕都真有一条规则会写它（规则 id 存在、效果里有对应的 set_event_stage），
+ * 阶段顺序和事件定义一致，委托 kind 各自要的字段都填了。
+ */
+function auditArcs(): string[] {
+  const problems: string[] = [];
+  for (const arc of arcDefinitions) {
+    const where = `个人线 ${arc.eventId}`;
+    const event = findEventDefinition(arc.eventId);
+    if (!event) {
+      problems.push(`${where}：事件没登记`);
+      continue;
+    }
+    if (!findResidentDefinition(arc.residentId)) problems.push(`${where}：居民 "${arc.residentId}" 不存在`);
+    const stageOrder = event.stages.map((stage) => stage.stageId);
+    const listed = arc.steps.map((step) => step.stageId);
+    if (listed.join(">") !== stageOrder.join(">")) problems.push(`${where}：目录里的幕序 ${listed.join(">")} 和事件的阶段 ${stageOrder.join(">")} 不一致`);
+    for (const step of arc.steps) {
+      const rule = storyRules.find((entry) => entry.id === step.ruleId);
+      if (!rule) {
+        problems.push(`${where} 幕 ${step.stageId}：规则 "${step.ruleId}" 不存在`);
+        continue;
+      }
+      const writes = rule.effects.some((effect) => effect.kind === "set_event_stage" && effect.eventId === arc.eventId && effect.stageId === step.stageId);
+      if (!writes) problems.push(`${where} 幕 ${step.stageId}：规则 "${step.ruleId}" 的效果里没有写这一幕`);
+    }
+  }
+  for (const favor of favorDefinitions as readonly FavorDefinition[]) {
+    if (favor.kind === "escort" && !favor.escortTo) problems.push(`委托 ${favor.id}：escort 没填 escortTo`);
+    if (favor.kind === "plant" && !favor.plantedNear) problems.push(`委托 ${favor.id}：plant 没填 plantedNear`);
+    if (favor.kind === "deliver" && !favor.to && !favor.toMap) problems.push(`委托 ${favor.id}：deliver 既没有收件人也没有目的地`);
   }
   return problems;
 }
@@ -293,10 +339,17 @@ function auditFavors(checkText: (where: string, key: string) => void): string[] 
     if (favor.kind === "deliver") {
       if (!favor.token || !findItemDefinition(favor.token.itemId)) problems.push(`${where}：deliver 没有信物或信物不是真物品`);
       else if (!findItemDefinition(favor.token.itemId)?.favorToken) problems.push(`${where}：信物 "${favor.token.itemId}" 没标 favorToken，会被丢 / 卖掉`);
-      if (!favor.to || !findResidentDefinition(favor.to)) problems.push(`${where}：deliver 的收件人不存在`);
-      if (!favor.receiveDialogueId) problems.push(`${where}：deliver 没有收件人的对话`);
+      // 13：送到某张图（镇上的杂货铺）的没有收件人，也就没有收件人的对话
+      if (favor.toMap) {
+        if (favor.to) problems.push(`${where}：deliver 不能同时有收件人和目的地图`);
+      } else {
+        if (!favor.to || !findResidentDefinition(favor.to)) problems.push(`${where}：deliver 的收件人不存在`);
+        if (!favor.receiveDialogueId) problems.push(`${where}：deliver 没有收件人的对话`);
+      }
     } else if (favor.kind === "visit_me") {
       if (!favor.window) problems.push(`${where}：visit_me 没有窗口`);
+    } else if (favor.kind === "escort" || favor.kind === "plant") {
+      // 13：这两种要的不是东西，字段在 auditArcs 里查
     } else if (!favor.wants || !findItemDefinition(favor.wants.itemId)) {
       problems.push(`${where}：${favor.kind} 要的东西不是真物品`);
     }
@@ -665,6 +718,10 @@ export function auditStoryContent(options: AuditOptions = {}): string[] {
         case "send_resident_letter":
           if (!residentDefinitionOf(effect.residentId)) problems.push(`${where}：send_resident_letter 指向不存在的居民 "${effect.residentId}"`);
           break;
+        // 13
+        case "offer_favor":
+          if (!findFavorDefinition(effect.favorId)) problems.push(`${where}：offer_favor 指向不存在的委托 "${effect.favorId}"`);
+          break;
         // 11
         case "set_flag":
           if (!effect.key) problems.push(`${where}：set_flag 的键是空的`);
@@ -715,6 +772,7 @@ export function auditStoryContent(options: AuditOptions = {}): string[] {
   problems.push(...auditLetters(checkText));
   problems.push(...auditFavors(checkText));
   problems.push(...auditRelations(checkText));
+  problems.push(...auditArcs());
 
   for (const step of tutorialDefinition.steps) {
     const where = `教程步骤 ${step.stepId}`;

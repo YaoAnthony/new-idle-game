@@ -50,6 +50,16 @@ export const slimeTalk: TalkPool = {
     { dialogueId: "slime_chat_naming", when: [{ kind: "affection_at_least", stage: "life_companion" }], weight: 3 },
     // ---- 说够了：权重压倒一切 ----
     { dialogueId: "slime_chat_enough", when: [{ kind: "talks_today", atLeast: 3 }], weight: 100 },
+    // ---- 13：个人线的幕后段（每幕过后多三段；阶段一变换下一批）----
+    { dialogueId: "slime_arc_afraid_of_dark_1", when: [{ kind: "event_stage", eventId: "arc_slime", stageId: "afraid_of_dark" }], weight: 4 },
+    { dialogueId: "slime_arc_afraid_of_dark_2", when: [{ kind: "event_stage", eventId: "arc_slime", stageId: "afraid_of_dark" }], weight: 4 },
+    { dialogueId: "slime_arc_afraid_of_dark_3", when: [{ kind: "event_stage", eventId: "arc_slime", stageId: "afraid_of_dark" }], weight: 4 },
+    { dialogueId: "slime_arc_lamp_lit_1", when: [{ kind: "event_stage", eventId: "arc_slime", stageId: "lamp_lit" }], weight: 4 },
+    { dialogueId: "slime_arc_lamp_lit_2", when: [{ kind: "event_stage", eventId: "arc_slime", stageId: "lamp_lit" }], weight: 4 },
+    { dialogueId: "slime_arc_lamp_lit_3", when: [{ kind: "event_stage", eventId: "arc_slime", stageId: "lamp_lit" }], weight: 4 },
+    { dialogueId: "slime_arc_done_1", when: [{ kind: "event_stage", eventId: "arc_slime", stageId: "done" }], weight: 4 },
+    { dialogueId: "slime_arc_done_2", when: [{ kind: "event_stage", eventId: "arc_slime", stageId: "done" }], weight: 4 },
+    { dialogueId: "slime_arc_done_3", when: [{ kind: "event_stage", eventId: "arc_slime", stageId: "done" }], weight: 4 },
     // ---- 特殊段（引用上下文） ----
     { dialogueId: "slime_chat_saw_exercise", when: [{ kind: "recent_action_category", category: "exercise" }], weight: 4, oncePerDay: true },
     { dialogueId: "slime_chat_saw_work", when: [{ kind: "recent_action_category", category: "work_study" }], weight: 4, oncePerDay: true },

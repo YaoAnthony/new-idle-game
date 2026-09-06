@@ -48,7 +48,7 @@ import type { ResidentKeyframe, ResidentSave, ResidentWireIntent } from "./resid
  * v5（2026-08-19）：加浴缸水位转折（bath_water_set）。
  * v6（2026-08-23）：加灯的开关（lamp_switched）+ lamps 刷新切片。
  */
-export const NET_PROTOCOL_VERSION = 8;
+export const NET_PROTOCOL_VERSION = 9;
 
 /** 服务端强制的上限。放在共享类型里，客户端可以在发送前先自查 */
 export const NET_LIMITS = {
@@ -248,6 +248,12 @@ export type WorldRefreshSlices = {
    * 走路途中的偏差靠 `sync:residents` 关键帧。
    */
   pets?: Record<string, ResidentSave>;
+
+  /**
+   * 委托状态表（协议 v9，居民系统 05）。形状同 `WorldSave.favors`。
+   * 房客靠它画"！"气泡；委托本身是房主和邻居的事，房客按 F 只是闲聊。
+   */
+  favors?: WorldSave["favors"];
 };
 
 /**
@@ -276,6 +282,7 @@ export const WORLD_REFRESH_KEYS = [
   "buildings",
   "unlockedFeatureIds",
   "pets",
+  "favors",
 ] as const;
 
 /**

@@ -56,6 +56,8 @@ const SHAPE: string[] = [
   "ownWorld.dayFacts[]",
   // v37：出门在外的居民（居民系统 02）。版本已抬、空迁移、联机不跟——房客靠 pets 切片看人消失 / 出现
   "ownWorld.residentTrips",
+  // v40：委托状态表（居民系统 05）。进切片
+  "ownWorld.favors",
   // 期 6：旅行商人这一趟卖掉了什么。联机不跟——摊子是房主世界的事
   "ownWorld.travelerStock.day",
   "ownWorld.travelerStock.sold[]",

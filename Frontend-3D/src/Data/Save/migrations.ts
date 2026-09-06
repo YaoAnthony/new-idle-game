@@ -1441,6 +1441,14 @@ export const migrations: Migration[] = [
       return save;
     },
   },
+  /*
+   * v40 · 居民系统 05：`WorldSave.favors`（委托状态表）、`ResidentSave.sickUntilDayId`。
+   * 都是可选字段，老档 undefined = 没提过委托、没病。空迁移。
+   */
+  {
+    to: 40,
+    migrate: (save) => save,
+  },
 ];
 
 /**

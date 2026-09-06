@@ -83,6 +83,8 @@ export type BuildingLevel = {
   porchSlots?: ReadonlyArray<readonly [number, number]>;
   /** 门牌（本地坐标 x, y, z，居民系统 07）：家人档那天挂上，写你的名字 */
   namePlate?: readonly [number, number, number];
+  /** 门口装饰的锚点（本地坐标 x, y, z，居民系统 11）：生日彩带 / 节日灯笼挂这儿，不占展示位 */
+  decorationAnchor?: readonly [number, number, number];
 
   /** 建出本地坐标的模型：正面朝 +z，地面 y=0，中心在原点 */
   /**

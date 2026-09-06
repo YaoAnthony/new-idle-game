@@ -11,6 +11,11 @@ export const foxTalk: TalkPool = {
   residentId: "fox_neighbor",
   catchphrase: "talk.fox.catchphrase",
   greetings: [
+    // ---- 11：生日 / 节日（权重 100 = 只说这个）----
+    { key: "talk.fox.greet.my_birthday", when: [{ kind: "is_birthday_of" }], weight: 100, expression: "happy" },
+    { key: "talk.fox.greet.friend_birthday", when: [{ kind: "is_birthday_of", residentId: "slime_neighbor" }], weight: 100, expression: "happy" },
+    { key: "talk.fox.greet.your_birthday", when: [{ kind: "is_player_birthday" }], weight: 100, expression: "happy" },
+    { key: "talk.fox.greet.festival", when: [{ kind: "flag_is", key: "festival_active" }], weight: 100, expression: "happy" },
     { key: "talk.fox.greet.dawn_1", when: [{ kind: "day_phase_is", phase: "dawn" }], weight: 2, expression: "happy" },
     { key: "talk.fox.greet.dawn_2", when: [{ kind: "day_phase_is", phase: "dawn" }], weight: 2 },
     { key: "talk.fox.greet.day_1", when: [{ kind: "day_phase_is", phase: "day" }], weight: 2 },
@@ -71,5 +76,8 @@ export const foxTalk: TalkPool = {
     { dialogueId: "fox_chat_home_3", when: [{ kind: "player_in_my_home" }], weight: 100 },
     // ---- 10：你写过信、他收到了还没当面提——见面第一段就是它 ----
     { dialogueId: "fox_chat_replied_letter", when: [{ kind: "letter_replied_pending" }], weight: 100 },
+    // ---- 11：生日当天 / 节日进行中的闲聊 ----
+    { dialogueId: "fox_chat_my_birthday", when: [{ kind: "is_birthday_of" }], weight: 100 },
+    { dialogueId: "fox_chat_festival", when: [{ kind: "flag_is", key: "festival_active" }], weight: 100 },
   ],
 };

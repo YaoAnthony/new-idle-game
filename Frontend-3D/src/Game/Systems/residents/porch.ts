@@ -14,7 +14,7 @@ import { homeOf } from "./spots";
  * 不占格、不参与碰撞、玩家搬不走（它不是 placedFurniture）。进存档也进刷新切片。
  * 门牌上的名字不存：渲染时读玩家名。
  */
-type PorchEntry = { items: Array<string | null>; namePlate?: boolean };
+type PorchEntry = { items: Array<string | null>; namePlate?: boolean; decoration?: string };
 
 let porch: Record<string, PorchEntry> = {};
 
@@ -90,6 +90,18 @@ export function clearPorch(residentId: string): boolean {
   if (!house || !porch[house.instanceId]) return false;
   porch[house.instanceId] = { ...porch[house.instanceId], items: [] };
   emit("porch_changed", { reason: "clear" });
+  return true;
+}
+
+/** 门口装饰（11：生日彩带 / 节日灯笼）。有自己的锚点，不占展示位。null = 撤 */
+export function setDecoration(residentId: string, decorationId: string | null): boolean {
+  if (isRemoteWorld()) return false;
+  const house = houseInstanceOf(residentId);
+  if (!house) return false;
+  const entry = porch[house.instanceId] ?? { items: [] };
+  if ((entry.decoration ?? null) === decorationId) return true;
+  porch[house.instanceId] = { ...entry, decoration: decorationId ?? undefined };
+  emit("porch_changed", { reason: "decorate" });
   return true;
 }
 

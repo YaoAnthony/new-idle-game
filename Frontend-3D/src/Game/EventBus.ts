@@ -188,6 +188,8 @@ export type GameEvents = {
   trip_plans_changed: { residentId: string };
   /** 信箱变了（10）：到信 / 拆信 / 收附件 / 写信 / 读档 */
   mail_changed: { reason: string };
+  /** 通用旗子变了（11）。key = "*" 是读档整份换 */
+  flags_changed: { key: string };
   /** 来访进度（07）：敲门 / 进屋 / 走了 */
   visit_changed: { residentId: string; phase: "knocking" | "inside" | "left"; reason?: string };
   /** 他站到门外开始敲了（07，`knock` 动词开始那一拍） */

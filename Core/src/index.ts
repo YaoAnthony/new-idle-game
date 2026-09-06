@@ -27,6 +27,7 @@ export * from "./types/story.js";
 export * from "./types/talk.js";
 export * from "./types/favors.js";
 export * from "./types/letters.js";
+export * from "./Data/festivals/index.js";
 export * from "./types/territory.js";
 export * from "./types/time.js";
 export * from "./types/weather.js";

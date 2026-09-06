@@ -306,10 +306,12 @@ function shopIsStocked(instanceId: string): boolean {
 }
 
 /** 离这只活物最近的、没被别人占的场所 */
-export function nearestFreeSpot(kind: SpotKind, from: { x: number; z: number; residentId: string; scope?: "indoor" | "outdoor" }): Spot | null {
+export function nearestFreeSpot(kind: SpotKind, from: { x: number; z: number; residentId: string; scope?: "indoor" | "outdoor"; owner?: string }): Spot | null {
   let best: Spot | null = null;
   let bestDistance = Number.POSITIVE_INFINITY;
   for (const spot of resolveSpots(kind, { residentId: from.residentId, scope: from.scope })) {
+    // 11：点名了谁家的（陪寿星）就只看那一家
+    if (from.owner && spot.ownerResidentId !== residentIdOf(from.owner)) continue;
     const holder = occupied.get(spot.key);
     if (holder && holder !== from.residentId) continue;
     const distance = Math.hypot(spot.x - from.x, spot.z - from.z);

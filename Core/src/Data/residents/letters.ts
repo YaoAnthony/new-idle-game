@@ -52,6 +52,11 @@ const residentLetters: LetterDefinition[] = WHO.flatMap((who): LetterDefinition[
 
 export const letterDefinitions: LetterDefinition[] = [
   ...residentLetters,
+  // 11：生日当天早上的邀请（规则寄，不进自发抽签——kind 不是 resident）；你生日那天每位寄一封、夹一件
+  ...WHO.flatMap((who): LetterDefinition[] => [
+    { id: `birthday_invite_${who}`, kind: "story", residentId: `${who}_neighbor`, bodyKey: `letter.${who}.birthday_invite` },
+    { id: `player_birthday_${who}`, kind: "story", residentId: `${who}_neighbor`, bodyKey: `letter.${who}.your_birthday`, attach: { pool: "presents" } },
+  ]),
   // 09 的多日出门：第二天到的明信片（寄件人是出门那位）
   { id: "postcard_hometown", kind: "postcard", bodyKey: "postcard.hometown", illustrationId: "postcard_hometown" },
   // 主线（14 开场之后）：魔女来信。没有对应的实体角色，效果直接寄

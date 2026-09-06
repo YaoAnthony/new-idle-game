@@ -231,6 +231,10 @@ function lineOf(item: { kind: string; subject?: string }): string {
     // subject 是 definitionId（09 的访客也是）
     return t(`ui.news.line.${item.kind === "resident_moved_in" ? "moved_in" : "visitor_arrived"}`).replace("{who}", t(findResidentDefinition(what)?.localizationKey ?? `pet.${what}`));
   }
+  if (item.kind === "birthday_soon") {
+    // subject 是 definitionId（11）
+    return t("ui.news.line.birthday_soon").replace("{who}", t(findResidentDefinition(what)?.localizationKey ?? `pet.${what}`));
+  }
   if (item.kind === "resident_trip_away") {
     return t("ui.news.line.resident_trip_away").replace("{who}", whoName(what) ?? t("ui.news.someone"));
   }

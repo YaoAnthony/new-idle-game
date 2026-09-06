@@ -31,6 +31,8 @@ export type StoryContext = {
   affectionStage?: (residentId: string) => string | null;
   /** 掷点。**注入而不是直接用 Math.random**：测试要能定住，服务端要能复算 */
   roll?: () => number;
+  /** 11：通用条件（对话条件表）按"没有对话对象"求值。不给 = 带 requires 的触发一律不成立 */
+  holds?: (condition: import("../types/dialogue.js").DialogueCondition) => boolean;
 };
 
 /**
@@ -89,6 +91,11 @@ export function triggerMatches(
   }
 
   if (trigger.weatherIs && context.weatherId !== trigger.weatherIs) return false;
+
+  if (trigger.requires && trigger.requires.length > 0) {
+    const holds = context.holds;
+    if (!holds || !trigger.requires.every(holds)) return false;
+  }
 
   if (trigger.requiresAffection) {
     const actual = context.affectionStage?.(trigger.requiresAffection.residentId) ?? null;

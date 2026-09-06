@@ -19,6 +19,8 @@ import { affectionTuning } from "../Data/economy/index.js";
 import { favorDefinitions, findFavorDefinition } from "../Data/residents/favors.js";
 import { findTripDefinition, tripDefinitions } from "../Data/residents/trips.js";
 import { findLetterDefinition, letterDefinitions } from "../Data/residents/letters.js";
+import { findDecoration } from "../Data/residents/decorations.js";
+import { findFestivalDefinition } from "../Data/festivals/index.js";
 import { pairChats, relationDefinitions } from "../Data/residents/index.js";
 import type { RelationDefinition } from "../types/talk.js";
 import type { FavorDefinition } from "../types/favors.js";
@@ -94,6 +96,17 @@ export function auditCondition(where: string, condition: DialogueCondition): str
       break;
     case "remembers":
       if (!condition.memoryId) problems.push(`${where}：remembers 的 memoryId 是空的`);
+      break;
+    // 11
+    case "is_birthday_of":
+      if (condition.residentId && !findResidentDefinition(condition.residentId)) problems.push(`${where}：is_birthday_of 指向不存在的居民 "${condition.residentId}"`);
+      if (condition.residentId && !findResidentDefinition(condition.residentId)?.birthday) problems.push(`${where}：is_birthday_of 指向的 "${condition.residentId}" 没填生日`);
+      break;
+    case "birthday_in_days":
+      if (!findResidentDefinition(condition.residentId)?.birthday) problems.push(`${where}：birthday_in_days 指向的 "${condition.residentId}" 没有生日`);
+      break;
+    case "festival_on":
+      if (!findFestivalDefinition(condition.festivalId)) problems.push(`${where}：festival_on 指向不存在的节日 "${condition.festivalId}"`);
       break;
     default:
       break;
@@ -297,6 +310,12 @@ function auditFavors(checkText: (where: string, key: string) => void): string[] 
 }
 
 /** 导出是给用例喂 fixture 用的；正式入口仍是 auditStoryContent */
+function auditTriggerRequires(where: string, trigger: StoryTrigger): string[] {
+  const problems: string[] = [];
+  for (const condition of trigger.requires ?? []) problems.push(...auditCondition(where, condition));
+  return problems;
+}
+
 export function auditTrigger(where: string, trigger: StoryTrigger): string[] {
   const problems: string[] = [];
 
@@ -519,6 +538,7 @@ export function auditStoryContent(options: AuditOptions = {}): string[] {
     }
     for (const trigger of rule.triggers) {
       problems.push(...auditTrigger(where, trigger));
+      problems.push(...auditTriggerRequires(where, trigger));
     }
 
     for (const effect of rule.effects) {
@@ -644,6 +664,17 @@ export function auditStoryContent(options: AuditOptions = {}): string[] {
         }
         case "send_resident_letter":
           if (!residentDefinitionOf(effect.residentId)) problems.push(`${where}：send_resident_letter 指向不存在的居民 "${effect.residentId}"`);
+          break;
+        // 11
+        case "set_flag":
+          if (!effect.key) problems.push(`${where}：set_flag 的键是空的`);
+          break;
+        case "porch_decorate":
+          if (!residentDefinitionOf(effect.residentId)) problems.push(`${where}：porch_decorate 指向不存在的居民 "${effect.residentId}"`);
+          if (effect.decorationId !== null && !findDecoration(effect.decorationId)) problems.push(`${where}：porch_decorate 指向不存在的装饰 "${effect.decorationId}"`);
+          break;
+        case "record_fact":
+          if (!effect.factKind) problems.push(`${where}：record_fact 的种类是空的`);
           break;
         case "reset_pool":
           if (!findStoryPool(effect.poolId)) problems.push(`${where}：reset_pool 指向不存在的池 "${effect.poolId}"`);

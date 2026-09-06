@@ -6,12 +6,17 @@ import {
   type DialogueChoice,
   type DialogueCondition,
   type DialogueNode,
+  festivalOn,
+  findFestivalDefinition,
 } from "core";
 import { emit } from "../EventBus";
 import { getCount, getSelectedStack, type SlotRef } from "../State/inventory";
 import { getResident, getResidents } from "../State/residentsRuntime";
 import { playerInHomeOf } from "./residents/spots";
 import { letterReplyPending } from "./mail";
+import { getFlag } from "./flags";
+import { daysToBirthday, isPlayerBirthdayToday, isResidentBirthdayToday } from "./residents/birthday";
+import { getClock } from "../State/clock";
 import { isRemoteWorld } from "../Multiplayer/worldLock";
 import { getWeather } from "../State/weather";
 import { factsOfToday, factsOfYesterday } from "./dayRecord";
@@ -142,6 +147,23 @@ export function evaluateCondition(condition: DialogueCondition, residentId: stri
     // ---- 10：你写过信、他收到了还没当面提 ----
     case "letter_replied_pending":
       return resident !== undefined && letterReplyPending(resident.definitionId);
+    // ---- 11：生日与节日 ----
+    case "is_birthday_of": {
+      const who = condition.residentId ?? resident?.definitionId;
+      return who !== undefined && isResidentBirthdayToday(who);
+    }
+    case "birthday_in_days":
+      return daysToBirthday(condition.residentId) === condition.days;
+    case "is_player_birthday":
+      return isPlayerBirthdayToday();
+    case "flag_is": {
+      const value = getFlag(condition.key);
+      return condition.value === undefined ? value !== undefined : value === condition.value;
+    }
+    case "festival_on": {
+      const festival = findFestivalDefinition(condition.festivalId);
+      return festival !== undefined && festivalOn(festival, getClock().worldDayId);
+    }
     default:
       return false;
   }

@@ -237,6 +237,7 @@ import { startTownTrips } from "../Game/Systems/residents/townTrips";
 import { startVisitorSystem } from "../Game/Systems/residents/visitors";
 import { startTripSystem } from "../Game/Systems/residents/trips";
 import { startMailSystem } from "../Game/Systems/mail";
+import { startRoutineOverrideWatch } from "../Game/Systems/residents/birthday";
 import { startRoutineWatch } from "../Game/Systems/residents/routineWatch";
 import { startTalkSystem } from "../Game/Systems/residents/talk";
 import { startAffectionSystem } from "../Game/Systems/residents/affection";
@@ -433,6 +434,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
     const stopTrips = isRemoteWorldActive() ? () => {} : startTripSystem();
     // 信箱（10）：明信片第二天到、早上处理你写的信。做客时是房主的事
     const stopMail = isRemoteWorldActive() ? () => {} : startMailSystem();
+    // 生日 / 节日的旗子一变，作息表换了，正在做的作息打断重下（11）
+    const stopOverrideWatch = isRemoteWorldActive() ? () => {} : startRoutineOverrideWatch();
     // 对话接线（03）：转身面向玩家、天气 / 落地翻成反应。做客时也挂：房客按 F 也要他转身——不，木偶不转（系统里判）
     const stopTalk = startTalkSystem();
     // 好感 / 心情的日结 + 他送你东西的领取（04）。做客时里面各自不动
@@ -1954,6 +1957,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       stopVisitors();
       stopTrips();
       stopMail();
+      stopOverrideWatch();
       stopRoutineWatch();
       stopTalk();
       stopAffection();

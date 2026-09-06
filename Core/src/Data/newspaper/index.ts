@@ -34,6 +34,8 @@ export const headlinePriority: Record<string, number> = {
   visitor_arrived: 60,
   /** 邻居回老家去了（09）。比去小镇重：几天不在 */
   resident_trip_away: 30,
+  /** 谁的生日快到了（11） */
+  birthday_soon: 50,
   /** 卖出了东西 */
   shop_sold: 40,
   /** 寄售箱隔夜出了货。和小店同一档：都是"家里做成了生意" */
@@ -69,6 +71,8 @@ export const neighborKinds = new Set([
   "residents_chatted",
   // 回老家去了（09）
   "resident_trip_away",
+  // 生日快到了（11）
+  "birthday_soon",
 ]);
 
 /**

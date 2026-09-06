@@ -13,6 +13,11 @@ export const slimeTalk: TalkPool = {
   residentId: "slime_neighbor",
   catchphrase: "talk.slime.catchphrase",
   greetings: [
+    // ---- 11：生日 / 节日（权重 100 = 只说这个）----
+    { key: "talk.slime.greet.my_birthday", when: [{ kind: "is_birthday_of" }], weight: 100, expression: "happy" },
+    { key: "talk.slime.greet.friend_birthday", when: [{ kind: "is_birthday_of", residentId: "fox_neighbor" }], weight: 100, expression: "happy" },
+    { key: "talk.slime.greet.your_birthday", when: [{ kind: "is_player_birthday" }], weight: 100, expression: "happy" },
+    { key: "talk.slime.greet.festival", when: [{ kind: "flag_is", key: "festival_active" }], weight: 100, expression: "happy" },
     // 时段（一段两句，抽到哪句看种子）
     { key: "talk.slime.greet.dawn_1", when: [{ kind: "day_phase_is", phase: "dawn" }], weight: 2 },
     { key: "talk.slime.greet.dawn_2", when: [{ kind: "day_phase_is", phase: "dawn" }], weight: 2 },
@@ -84,5 +89,8 @@ export const slimeTalk: TalkPool = {
     { dialogueId: "slime_chat_home_3", when: [{ kind: "player_in_my_home" }], weight: 100 },
     // ---- 10：你写过信、他收到了还没当面提——见面第一段就是它 ----
     { dialogueId: "slime_chat_replied_letter", when: [{ kind: "letter_replied_pending" }], weight: 100 },
+    // ---- 11：生日当天 / 节日进行中的闲聊 ----
+    { dialogueId: "slime_chat_my_birthday", when: [{ kind: "is_birthday_of" }], weight: 100 },
+    { dialogueId: "slime_chat_festival", when: [{ kind: "flag_is", key: "festival_active" }], weight: 100 },
   ],
 };

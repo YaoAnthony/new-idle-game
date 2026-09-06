@@ -1014,6 +1014,17 @@ export class ResidentAgent {
     if (step?.verb === "knock") this.abandonIntent();
   }
 
+  /**
+   * 打断某个技能正在做的事（11：生日 / 节日的旗子一立，作息表就换了，可正在坐的那一小时
+   * 谁也抢不掉——同优先级不互抢）。只打断可打断的；没在做那件事就什么都不发生。
+   */
+  interruptIntentOf(skillId: string): boolean {
+    if (this.current?.skillId !== skillId || !this.current.interruptible) return false;
+    this.abandonIntent();
+    this.idleTimer = 0.5;
+    return true;
+  }
+
   /** 撤掉正在执行的指令 Intent（对话关掉后不用再面向玩家站着） */
   cancelCommand(): void {
     if (this.current?.skillId !== COMMAND_SKILL_ID) return;

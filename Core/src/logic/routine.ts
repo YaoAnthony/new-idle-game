@@ -43,13 +43,7 @@ export function resolvePersonality(definition: PersonalityDefinition): ResolvedP
     id: definition.id,
     wakeAt: parseLocalClockTime(definition.wakeAt),
     sleepAt: parseLocalClockTime(definition.sleepAt),
-    segments: definition.routine.map((segment) => ({
-      from: parseLocalClockTime(segment.from),
-      to: parseLocalClockTime(segment.to),
-      do: segment.do,
-      spot: segment.spot,
-      weather: segment.weather,
-    })),
+    segments: resolveSegments(definition.routine),
     onRain: definition.onRain,
     onStorm: definition.onStorm,
     greetDistance: definition.greetDistance,
@@ -107,7 +101,7 @@ export type RoutinePlan =
   | { kind: "town"; backAt: number }
   /** 门口转圈：什么都不下，让 wander 接手 */
   | { kind: "hang_home" }
-  | { kind: "visit"; spot: SpotKind; speedScale: number }
+  | { kind: "visit"; spot: SpotKind; speedScale: number; owner?: string }
   | { kind: "roam"; radius: number; speedScale: number }
   | { kind: "nap_out"; napSeconds: [number, number] };
 
@@ -116,16 +110,43 @@ export type RoutineInput = {
   /** WeatherKind 的字符串值（sunny / cloudy / rain / wind / storm / fog） */
   weatherKind: string;
   worldDayId: string;
+  /**
+   * 今天的作息覆盖（居民系统 11：生日 / 节日）。覆盖整张分段表、不去小镇；睡觉时段照旧。
+   * `visitOwner`：visit 场所要挑谁家的（陪寿星 = 去寿星门口，不是随便一家）。
+   */
+  override?: { segments: readonly RoutineSegment[]; visitOwner?: string };
 };
+
+/** 把分段表解析成分钟（性格表和覆盖表共用） */
+export function resolveSegments(segments: readonly RoutineSegment[]): ResolvedSegment[] {
+  return segments.map((segment) => ({
+    from: parseLocalClockTime(segment.from),
+    to: parseLocalClockTime(segment.to),
+    do: segment.do,
+    spot: segment.spot,
+    weather: segment.weather,
+  }));
+}
 
 /**
  * 这一刻该干什么。顺序就是优先级：睡觉 > 坏天气 > 小镇 > 作息表。
  * 作息表里的段带天气限制时，不满足退到 `hang_home`；没有段（表没覆盖到的钟点）也是 `hang_home`。
  */
 export function planRoutine(personality: ResolvedPersonality, input: RoutineInput): RoutinePlan {
-  const { nowMinute, weatherKind, worldDayId } = input;
+  const { nowMinute, weatherKind, worldDayId, override } = input;
 
   if (isSleepTime(personality, nowMinute)) return { kind: "sleep_home" };
+
+  // 11：今天有覆盖（生日 / 节日）→ 只看覆盖表，天气照旧管，小镇不去
+  if (override) {
+    if (weatherKind === "storm" && personality.onStorm === "stay_home") return { kind: "stay_home" };
+    const segment = resolveSegments(override.segments).find((entry) => isWithin(nowMinute, entry.from, entry.to));
+    if (!segment) return { kind: "hang_home" };
+    if (segment.do === "visit" && segment.spot) return { kind: "visit", spot: segment.spot, speedScale: 1, owner: override.visitOwner };
+    if (segment.do === "roam") return { kind: "roam", radius: personality.roamRadius, speedScale: 1 };
+    if (segment.do === "nap_out") return { kind: "nap_out", napSeconds: personality.napSeconds };
+    return { kind: "hang_home" };
+  }
 
   if (weatherKind === "storm" && personality.onStorm === "stay_home") return { kind: "stay_home" };
   const raining = weatherKind === "rain";

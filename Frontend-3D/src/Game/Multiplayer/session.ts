@@ -44,6 +44,7 @@ import { restoreFavors, snapshotFavors } from "../Systems/residents/favors";
 import { restorePorch, snapshotPorch } from "../Systems/residents/porch";
 import { restoreInteriors, snapshotInteriors } from "../Systems/residents/interiors";
 import { restoreMailbox, snapshotMailbox } from "../Systems/mail";
+import { restoreFlags, snapshotFlags } from "../Systems/flags";
 import { snapshotAvatar } from "../State/avatar";
 import { pushChatMessage, pushSystemMessage } from "../State/chatLog";
 import { restoreClock, snapshotClock } from "../State/clock";
@@ -483,6 +484,8 @@ function applyWorldRefresh(event: WorldRefreshEvent): void {
   if (slices.interiors !== undefined) restoreInteriors(slices.interiors);
   // 信箱（协议 v12，10）：房客能翻信，收不了附件
   if (slices.mailbox !== undefined) restoreMailbox(slices.mailbox);
+  // 通用旗子（协议 v13，11）：房客按 F 要知道今天是谁的生日
+  if (slices.flags !== undefined) restoreFlags(slices.flags);
 }
 
 // ---- 房主端：世界变了就整片刷给全房 ----
@@ -525,6 +528,7 @@ function startHostRefreshWatch(): void {
       porch: snapshotPorch() ?? {},
       interiors: snapshotInteriors() ?? {},
       mailbox: snapshotMailbox() ?? { letters: [], outbox: [], sentOnce: [], lastSent: {}, scheduled: [], replies: {} },
+      flags: snapshotFlags() ?? {},
     });
   };
 
@@ -558,6 +562,7 @@ function startHostRefreshWatch(): void {
     on("porch_changed", () => schedule()),
     on("interiors_changed", () => schedule()),
     on("mail_changed", () => schedule()),
+    on("flags_changed", () => schedule()),
   ];
   stopRefreshWatch = () => {
     for (const off of offs) off();

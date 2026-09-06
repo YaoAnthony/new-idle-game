@@ -11,6 +11,7 @@ import {
   nextStageThreshold,
   pickNickname,
   type AffectionSource,
+  affectionTuning,
 } from "core";
 import { getBaseline } from "../../../Data/Save/autosave";
 import { t } from "../../../i18n/t";
@@ -18,6 +19,7 @@ import { emit, on } from "../../EventBus";
 import { isRemoteWorld } from "../../Multiplayer/worldLock";
 import { getClock } from "../../State/clock";
 import { getResident, getResidents } from "../../State/residentsRuntime";
+import { birthdayResidentToday } from "./birthday";
 import { getWeather } from "../../State/weather";
 import type { ResidentAgent } from "../../State/residentAgent";
 import { signal } from "../story";
@@ -40,7 +42,9 @@ export function gainAffection(residentId: string, source: string): { gained: num
   if (isRemoteWorld()) return null;
   const agent = getResident(residentId);
   if (!agent) return null;
-  const gain = affectionGainOf(source as AffectionSource) ?? 0;
+  const base = affectionGainOf(source as AffectionSource) ?? 0;
+  // 11：生日当天送的礼翻倍（四档都翻——那天送错的心意也大一档）
+  const gain = source.startsWith("gift_") && birthdayResidentToday() === agent.definitionId ? base * affectionTuning.birthdayGiftMultiplier : base;
   if (!(gain > 0)) return null;
 
   const { worldDayId } = getClock();

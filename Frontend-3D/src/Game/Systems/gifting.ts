@@ -1,4 +1,5 @@
 import type { ItemQuality } from "core";
+import { birthdayResidentToday } from "./residents/birthday";
 import {
   GiftTier,
   canGiftToday,
@@ -103,6 +104,8 @@ export function offerGift(residentId: string, ref: SlotRef): GiftResult {
   }
   // 04：好感规则要"这位收了哪一档"——subject 是 人:档
   emit("story_signal", { kind: "resident_gift_received", subject: `${resident.definitionId}:${tier}` });
+  // 11：生日当天收礼——记忆规则接（好感翻倍在 gainAffection 里读旗子）
+  if (birthdayResidentToday() === resident.definitionId) emit("story_signal", { kind: "resident_gift_on_birthday", subject: resident.definitionId });
 
   return { ok: true, tier, consumed, itemId: stack.itemId };
 }

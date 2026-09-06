@@ -31,6 +31,8 @@ export const slimeHouse: BuildingDefinition = {
       // 07：门两侧各一个展示位；门牌挂在门左边的墙上（正面 +z，半宽 1.5）
       porchSlots: [[-1.15, 2.15], [1.15, 2.15]],
       namePlate: [-0.95, 1.95, 1.58],
+      // 11：门楣上方挂装饰（彩带 / 灯笼）
+      decorationAnchor: [0, 2.95, 1.62],
       // 同图走进去（领地建筑那条路），带窗——窗里透光 = 有人住
       interior: (style) => buildInterior({ width: 3, depth: 3, windows: true, wallHeight: 2.7 }, style),
       // 图纸白送，房子的工钱是你的：白得一栋楼就没有"给邻居安家"的付出感

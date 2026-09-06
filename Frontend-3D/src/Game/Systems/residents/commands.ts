@@ -13,6 +13,10 @@ import { listBuildings } from "../../State/buildings";
 import { listDoors } from "../../State/doorsRuntime";
 import { emit } from "../../EventBus";
 import { clearMailbox, deliverLetter, listLetters, listOutbox, processOutbox, writeLetter } from "../mail";
+import { forceBirthdayToday, getPlayerBirthday, setPlayerBirthday } from "./birthday";
+import { activeFestival, endFestival, listFestivals, startFestival } from "../festivals";
+import { listFlags } from "../flags";
+import { fireStoryRuleById } from "../story";
 import { getCount } from "../../State/inventory";
 import { getResidents } from "../../State/residentsRuntime";
 import { ACTION_VERBS, type ActionStep } from "../../State/actions";
@@ -105,6 +109,7 @@ const USAGE = [
   "/npc <谁> visit —— 立即来访（无视时段与抽签，但仍要求你在屋里）",
   "/npc visitor [spawn [物种]|leave] —— 桥头访客：看候选 / 立即来一位 / 立即走（09）",
   "/npc <谁> trip [tripId] —— 立即多日出门（默认 hometown，当面说过算说过）；/npc <谁> back 立即回来（09）",
+  "/npc <谁> birthday [off] —— 把今天临时当成他的生日（不进存档）；/festival start|end、/birthday set MM-DD（11）",
   "/npc <谁> porch <itemId> | porch clear —— 摆 / 清门口展示位",
   "/npc <谁> nameplate on|off —— 门牌",
   "/npc housecomment —— 此刻室内快照求值出的评论 id 和各位会说的文案键",
@@ -382,6 +387,13 @@ export function registerResidentCommands(): Array<() => void> {
           if (!placed) return fail("摆不了（没有房子 / 不是家具）");
           return ok(`${itemId} 摆到了 ${placed.instanceId} ${placed.where === "interior" ? "屋里" : "门口"}${placed.movedToPorch ? `，${placed.movedToPorch} 挪到门口` : ""}${placed.boxed ? `，${placed.boxed} 进箱` : ""}`);
         }
+        if (agent && verb === "birthday") {
+          // 11：把今天临时当成他的生日（不进存档），当场把"当天早上"那条规则点一遍
+          if (isRemoteWorld()) return fail("做客中不能改别人的日子");
+          forceBirthdayToday(agent.definitionId, (args[2] ?? "on").toLowerCase() !== "off");
+          const fired = fireStoryRuleById(`birthday_today_${agent.definitionId}`);
+          return ok(`今天是 ${agent.residentId} 的生日了（规则 ${fired}）；/npc list 看旗子，门口有彩带`);
+        }
         if (agent && verb === "trip") {
           if (isRemoteWorld()) return fail("做客中不能指挥别人的邻居");
           const why = debugTrip(agent.residentId, args[2] ?? "hometown");
@@ -592,6 +604,41 @@ export function registerResidentCommands(): Array<() => void> {
           return ok("信箱清空了");
         }
         return fail("用法：/mail [list|send|write|outbox|process|clear|open]");
+      },
+    }),
+    registerCommand({
+      name: "festival",
+      usage: "festival [list|start <id>|end]",
+      description: "节日（11）：看表 / 强制开始 / 结束。进行中的节日 = 旗子 festival_active",
+      arguments: [{ name: "动作", suggest: () => ["list", "start", "end"].map((value) => ({ value })) }],
+      handler: (args) => {
+        const op = (args[0] ?? "list").toLowerCase();
+        if (op === "start") {
+          if (isRemoteWorld()) return fail("做客中不归你管");
+          const id = args[1] ?? listFestivals()[0]?.id ?? "";
+          return startFestival(id) ? ok(`节日 ${id} 开始了：全体作息换、门口挂灯笼、对话是节日段`) : fail(`没有这个节日：${id}`);
+        }
+        if (op === "end") return endFestival() ? ok("节日结束了") : fail("现在没有节日");
+        const active = activeFestival();
+        return ok([`进行中：${active ? active.id : "（无）"}`, "节日表：", ...listFestivals().map((festival) => `  ${festival.id}  ${JSON.stringify(festival.when)}`), `旗子：${JSON.stringify(listFlags())}`].join("\n"));
+      },
+    }),
+    registerCommand({
+      name: "birthday",
+      usage: "birthday [set MM-DD|clear]",
+      description: "你的生日（11）：当天居民寄信、招呼换段。不办派对",
+      arguments: [{ name: "动作", suggest: () => ["set", "clear"].map((value) => ({ value })) }],
+      handler: (args) => {
+        const op = (args[0] ?? "").toLowerCase();
+        if (op === "set") {
+          setPlayerBirthday(args[1]);
+          return getPlayerBirthday() ? ok(`你的生日：${getPlayerBirthday()}`) : fail("格式 MM-DD");
+        }
+        if (op === "clear") {
+          setPlayerBirthday(undefined);
+          return ok("清掉了");
+        }
+        return ok(`你的生日：${getPlayerBirthday() ?? "（没填）"}`);
       },
     }),
     registerCommand({

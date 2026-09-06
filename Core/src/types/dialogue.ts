@@ -68,7 +68,18 @@ export type DialogueCondition =
   /** 你是房主（不在做客）（09）。邀访客住下这种改世界的选项只给房主 */
   | { kind: "is_host" }
   /** 你给这位写过信、他收到了还没当面提（10）。回应那段闲聊用它 */
-  | { kind: "letter_replied_pending" };
+  | { kind: "letter_replied_pending" }
+  // ---- 居民系统 11：生日与节日 ----
+  /** 今天（世界日）是这位的生日。不带 residentId = 对话对象自己 */
+  | { kind: "is_birthday_of"; residentId?: ResidentDefinitionId }
+  /** 这位的生日还有几天到（提前登报用） */
+  | { kind: "birthday_in_days"; residentId: ResidentDefinitionId; days: number }
+  /** 今天是你的生日 */
+  | { kind: "is_player_birthday" }
+  /** 通用旗子的值。value 不给 = "有这面旗子" */
+  | { kind: "flag_is"; key: string; value?: string }
+  /** 今天按日期该是这个节日 */
+  | { kind: "festival_on"; festivalId: string };
 
 export type DialogueChoice = {
   choiceId: DialogueChoiceId;

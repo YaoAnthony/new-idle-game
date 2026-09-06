@@ -13,6 +13,8 @@ export * from "./interiors.js";
 export * from "./visitors.js";
 export * from "./trips.js";
 export * from "./letters.js";
+export * from "./birthday.js";
+export * from "./decorations.js";
 
 import {
   CreatureRole,
@@ -170,6 +172,7 @@ export const residentDefinitions = [
     role: CreatureRole.Resident,
     residence: { buildingId: "slime_house" },
     personalityId: "easygoing",
+    birthday: "03-14",
     // 04：家人档送的专属家具先拿云朵灯顶着（他每晚都开着那盏灯——03 的记忆段就在说它）；随机赠礼是他"从家里翻出来的"
     signatureItemId: "furniture_cloud_lamp",
     presents: ["tomato", "egg", "cheese"],
@@ -186,6 +189,7 @@ export const residentDefinitions = [
     role: CreatureRole.Resident,
     residence: { buildingId: "fox_house" },
     personalityId: "lively",
+    birthday: "07-07",
     // 04：她去小镇，带回来的都是镇上的吃的；专属家具先用路灯顶着（她夜里跑步靠它）
     signatureItemId: "furniture_street_lamp",
     presents: ["cooked_rice", "fried_egg", "green_pepper"],
@@ -207,6 +211,7 @@ export const residentDefinitions = [
     role: CreatureRole.Resident,
     residence: { buildingId: "spirit_house" },
     personalityId: "gentle",
+    birthday: "11-02",
     // 04：树上长的；专属家具先用幸运竹顶着（树洞里养的）
     signatureItemId: "furniture_lucky_bamboo",
     presents: ["baby_cabbage", "tomato", "rice"],

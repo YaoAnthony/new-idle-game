@@ -107,6 +107,8 @@ import { restoreInteriors, snapshotInteriors } from "../../Game/Systems/resident
 import { restoreResidentTrips, snapshotResidentTrips } from "../../Game/Systems/residents/townTrips";
 import { restoreTripPlans, snapshotTripPlans } from "../../Game/Systems/residents/trips";
 import { restoreMailbox, snapshotMailbox } from "../../Game/Systems/mail";
+import { restoreFlags, snapshotFlags } from "../../Game/Systems/flags";
+import { getPlayerBirthday, setPlayerBirthday } from "../../Game/Systems/residents/birthday";
 import { SAVE_SCHEMA_VERSION } from "./types";
 
 /**
@@ -150,6 +152,8 @@ export function serializeGameSave(previous?: GameSave): GameSave {
       actionChains: snapshotActionChains(),
       // 在别人家赚的、还没带回家的钱。跟着人走，所以落在玩家侧
       pendingGold: snapshotPendingGold(),
+      // 11：你的生日（可空）
+      birthday: getPlayerBirthday(),
       character: {
         inventory: snapshotInventory(),
         needs: getNeeds(),
@@ -228,6 +232,7 @@ export function serializeGameSave(previous?: GameSave): GameSave {
       residentTrips: snapshotResidentTrips(),
       tripPlans: snapshotTripPlans(),
       mailbox: snapshotMailbox(),
+      flags: snapshotFlags(),
       favors: snapshotFavors(),
       porch: snapshotPorch(),
       interiors: snapshotInteriors(),
@@ -398,6 +403,8 @@ export function hydrateGameSave(save: GameSave): void {
   restoreResidentTrips(save.ownWorld.residentTrips);
   restoreTripPlans(save.ownWorld.tripPlans);
   restoreMailbox(save.ownWorld.mailbox);
+  restoreFlags(save.ownWorld.flags);
+  setPlayerBirthday(save.player.birthday);
   restoreFavors(save.ownWorld.favors);
   restorePorch(save.ownWorld.porch);
   restoreInteriors(save.ownWorld.interiors);

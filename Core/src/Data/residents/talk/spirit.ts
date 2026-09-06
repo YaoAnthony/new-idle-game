@@ -10,6 +10,11 @@ import type { TalkPool } from "../../../types/talk.js";
 export const spiritTalk: TalkPool = {
   residentId: "spirit_neighbor",
   greetings: [
+    // ---- 11：生日 / 节日（权重 100 = 只说这个）----
+    { key: "talk.spirit.greet.my_birthday", when: [{ kind: "is_birthday_of" }], weight: 100, expression: "happy" },
+    { key: "talk.spirit.greet.friend_birthday", when: [{ kind: "is_birthday_of", residentId: "fox_neighbor" }], weight: 100, expression: "happy" },
+    { key: "talk.spirit.greet.your_birthday", when: [{ kind: "is_player_birthday" }], weight: 100, expression: "happy" },
+    { key: "talk.spirit.greet.festival", when: [{ kind: "flag_is", key: "festival_active" }], weight: 100, expression: "happy" },
     { key: "talk.spirit.greet.dawn_1", when: [{ kind: "day_phase_is", phase: "dawn" }], weight: 2 },
     { key: "talk.spirit.greet.dawn_2", when: [{ kind: "day_phase_is", phase: "dawn" }], weight: 2 },
     { key: "talk.spirit.greet.day_1", when: [{ kind: "day_phase_is", phase: "day" }], weight: 2 },
@@ -71,5 +76,8 @@ export const spiritTalk: TalkPool = {
     { dialogueId: "spirit_chat_home_3", when: [{ kind: "player_in_my_home" }], weight: 100 },
     // ---- 10：你写过信、他收到了还没当面提——见面第一段就是它 ----
     { dialogueId: "spirit_chat_replied_letter", when: [{ kind: "letter_replied_pending" }], weight: 100 },
+    // ---- 11：生日当天 / 节日进行中的闲聊 ----
+    { dialogueId: "spirit_chat_my_birthday", when: [{ kind: "is_birthday_of" }], weight: 100 },
+    { dialogueId: "spirit_chat_festival", when: [{ kind: "flag_is", key: "festival_active" }], weight: 100 },
   ],
 };

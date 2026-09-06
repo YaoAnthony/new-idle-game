@@ -263,6 +263,7 @@ const ZH: Record<string, string> = {
   "ui.news.line.resident_stayed_in": "下雨，{who} 一整天没出门",
   "ui.news.line.visitor_arrived": "桥头来了个陌生人——{who}",
   "ui.news.line.resident_trip_away": "{who} 回老家去了，说过几天回来",
+  "ui.news.line.birthday_soon": "过几天是 {who} 的生日",
   "ui.news.headline.quiet": "昨天很安静，什么也没发生",
   "ui.news.headline.quiet_span": "这 {n} 天里，家里静悄悄的",
   "ui.news.headline.theft": "金库失窃！有东西溜进了院子",

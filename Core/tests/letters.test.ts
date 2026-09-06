@@ -8,7 +8,7 @@ import { findStoryPool, storyRules } from "../src/Data/story/index.js";
 /** 居民系统 10：信件抽取确定性、once、节流、表和规则都登记了 */
 
 test("letters_抽取确定性_once寄过不再抽_条件不成立不抽", () => {
-  const slime = letterDefinitions.filter((letter) => letter.residentId === "slime_neighbor");
+  const slime = letterDefinitions.filter((letter) => letter.kind === "resident" && letter.residentId === "slime_neighbor");
   const all = () => true;
   const a = pickLetter(slime, all, new Set(), "slime|2026-09-06");
   const b = pickLetter(slime, all, new Set(), "slime|2026-09-06");

@@ -121,6 +121,8 @@ export type StorySignalKind =
   | "letter_received"
   | "letter_opened"
   | "letter_written"
+  /** 11：生日当天收了你的礼（subject = definitionId）。记忆规则接 */
+  | "resident_gift_on_birthday"
   /**
    * 居民主动打了招呼 / 玩家按 F 和他聊了（居民系统 03）。subject 是 definitionId。
    * 04 的"每天第一次 +1 好感"接它；这期只发。
@@ -198,6 +200,12 @@ export type StoryTrigger = {
 
   /** 当时的天气。「某一天暴雨时门口有敲门声」用它 */
   weatherIs?: WeatherId;
+
+  /**
+   * 通用条件（11）：对话条件那张表直接拿来当触发门槛（`is_birthday_of` `flag_is` `festival_on`…）。
+   * 按"没有对话对象"求值（residentId = null）——条件里要点名的自己带 residentId。
+   */
+  requires?: readonly import("./dialogue.js").DialogueCondition[];
 
   /**
    * 身上得有这些东西。修理类交互的前置——**光有条件不够，
@@ -371,7 +379,13 @@ export type StoryEffect =
   /** 寄一封表里的信（10）。剧情信 / 明信片 / 指令都走它；信箱满了不寄 */
   | { kind: "send_letter"; letterId: string; fromResidentId?: string; attach?: { itemId: ItemId; quantity: number } }
   /** 这位居民今天自发写一封（10）：从他的信件表里按条件 + 权重抽，every-days 节流、once 不重寄 */
-  | { kind: "send_resident_letter"; residentId: ResidentId };
+  | { kind: "send_resident_letter"; residentId: ResidentId }
+  /** 通用旗子（11）：value 为 null = 拔掉 */
+  | { kind: "set_flag"; key: string; value: string | null }
+  /** 他门口的装饰（11）：生日彩带 / 节日灯笼。null = 撤掉。有自己的锚点，不占展示位 */
+  | { kind: "porch_decorate"; residentId: ResidentId; decorationId: string | null }
+  /** 记一条报纸事实（11："下周三是阿茜的生日"） */
+  | { kind: "record_fact"; factKind: string; subject?: string };
 
 export type StoryRuleId = string;
 

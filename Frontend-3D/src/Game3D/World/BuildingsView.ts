@@ -1,4 +1,4 @@
-import { DayPhaseId, findResidentInterior } from "core";
+import { DayPhaseId, findDecoration, findResidentInterior } from "core";
 import { Box3, BoxGeometry, CanvasTexture, Color, Material, Mesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, PlaneGeometry, SRGBColorSpace, Vector3, type Scene } from "three";
 
 import { on } from "../../Game/EventBus";
@@ -301,7 +301,7 @@ export class BuildingsView {
         disposeTree(old);
       }
       const entry = porchOf(instanceId);
-      if (!entry || (entry.items.length === 0 && !entry.namePlate)) continue;
+      if (!entry || (entry.items.length === 0 && !entry.namePlate && !entry.decoration)) continue;
       const placement = listBuildings().find((item) => item.instanceId === instanceId);
       const level = placement ? findBuildingLevel(placement.buildingId, placement.levelId) : undefined;
       if (!placement || !level) continue;
@@ -330,6 +330,16 @@ export class BuildingsView {
       if (entry.namePlate && level.namePlate) {
         const [x, y, z] = level.namePlate;
         porch.add(buildNamePlate(playerDisplayName(), x, y, z));
+      }
+      // 11：门楣上的装饰（生日彩带 / 节日灯笼）。查表拿 visualId，占位几何
+      if (entry.decoration && level.decorationAnchor) {
+        const visualId = findDecoration(entry.decoration)?.visualId;
+        if (visualId) {
+          const [x, y, z] = level.decorationAnchor;
+          const decoration = buildPorchDecoration(visualId);
+          decoration.position.set(x, y, z);
+          porch.add(decoration);
+        }
       }
       node.add(porch);
     }
@@ -490,6 +500,42 @@ function applyState(node: Object3D, state: Record<string, unknown> | undefined):
  * 窗户亮 / 灭：换玻璃的自发光。材质先克隆一次（配方里的材质可能是共享的），
  * 之后只改 emissive。没有 emissive 的材质（Basic）就什么都不做。
  */
+/**
+ * 门口装饰的占位几何（11）：生日 = 一串彩色小旗 + 两只气球；节日 = 三只灯笼。
+ * 参考图到了再换，接口只有 visualId。
+ */
+function buildPorchDecoration(visualId: string): Object3D {
+  const group = new Object3D();
+  group.userData.noCollide = true;
+  if (visualId === "porch_birthday") {
+    const colors = ["#e76f51", "#f4a261", "#e9c46a", "#2a9d8f", "#8ab6d6"];
+    for (let i = 0; i < 7; i += 1) {
+      const x = -1.2 + (i * 2.4) / 6;
+      const sag = 0.12 * Math.sin((i / 6) * Math.PI);
+      const flag = box([0.16, 0.2, 0.02], { color: colors[i % colors.length], position: [x, -0.14 - sag, 0.05], castShadow: false });
+      flag.userData.noCollide = true;
+      group.add(flag);
+    }
+    const string = box([2.5, 0.015, 0.015], { color: "#f2e6c4", position: [0, -0.02, 0.05], castShadow: false });
+    string.userData.noCollide = true;
+    group.add(string);
+    for (const [x, color] of [[-1.35, "#f4a2c0"], [1.35, "#8ab6d6"]] as const) {
+      const balloon = box([0.26, 0.32, 0.26], { color, position: [x, 0.25, 0.1], castShadow: false });
+      balloon.userData.noCollide = true;
+      group.add(balloon);
+    }
+  } else {
+    for (const x of [-1.1, 0, 1.1]) {
+      const lantern = box([0.24, 0.32, 0.24], { color: "#d9402a", position: [x, -0.25, 0.1], castShadow: false });
+      lantern.userData.noCollide = true;
+      const cap = box([0.3, 0.05, 0.3], { color: "#f2c14e", position: [x, -0.06, 0.1], castShadow: false });
+      cap.userData.noCollide = true;
+      group.add(lantern, cap);
+    }
+  }
+  return group;
+}
+
 function setWindowsLit(node: Object3D, lit: boolean): void {
   node.traverse((child) => {
     if (!child.userData.window) return;

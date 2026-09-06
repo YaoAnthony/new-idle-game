@@ -24,6 +24,7 @@ import {
 } from "../../Systems/residents/spots";
 import { leaveForTown } from "../../Systems/residents/townTrips";
 import { isSickOn } from "../../Systems/residents/favors";
+import { routineOverrideFor } from "../../Systems/residents/birthday";
 import { priorityOf, type ResidentAgent } from "../residentAgent";
 import type { ActionStep, Intent } from "../actions";
 import type { Skill } from "./types";
@@ -86,7 +87,7 @@ export function routinePlanOf(agent: ResidentAgent): { personality: ResolvedPers
   const personality = personalityOf(agent);
   if (!personality) return null;
   const { minuteOfDay, worldDayId } = clockSource();
-  const planned = planRoutine(personality, { nowMinute: minuteOfDay, weatherKind: weatherSource(), worldDayId });
+  const planned = planRoutine(personality, { nowMinute: minuteOfDay, weatherKind: weatherSource(), worldDayId, override: routineOverrideFor(agent.definitionId) });
   return {
     personality,
     plan: isSickOn(agent, worldDayId) && planned.kind !== "sleep_home" ? { kind: "stay_home" } : planned,
@@ -175,7 +176,7 @@ export const routineSkill: Skill = {
 
     const { minuteOfDay, worldDayId } = clockSource();
     // 病着（05 的 sick 委托）：不管性格表说什么，整天待在家醒着；睡觉时段照睡
-    const planned = planRoutine(personality, { nowMinute: minuteOfDay, weatherKind: weatherSource(), worldDayId });
+    const planned = planRoutine(personality, { nowMinute: minuteOfDay, weatherKind: weatherSource(), worldDayId, override: routineOverrideFor(agent.definitionId) });
     const plan: RoutinePlan = isSickOn(agent, worldDayId) && planned.kind !== "sleep_home" ? { kind: "stay_home" } : planned;
 
     // "同一件事"就不重下。键里带场所种类，换段就换键；睡觉的键带日期，第二天重新判
@@ -245,7 +246,8 @@ export const routineSkill: Skill = {
         break;
       }
       case "visit": {
-        const spot = nearestFreeSpot(plan.spot as SpotKind, { x: agent.x, z: agent.z, residentId: agent.residentId });
+        // 11：陪寿星 = 去寿星门口（owner），不是随便一家
+        const spot = nearestFreeSpot(plan.spot as SpotKind, { x: agent.x, z: agent.z, residentId: agent.residentId, owner: plan.owner });
         if (!spot) {
           // 挑不到场所：退回门口转圈；藏着的先出来
           if (!hidden) return null;

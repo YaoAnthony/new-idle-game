@@ -248,6 +248,7 @@ export const affectionTuning = {
     visited_you: 3,
     /** 拆了他写的信（10） */
     letter: 2,
+    /** 你生日那天他寄的信（11）不加分——那是他送你的 */
     /** 他坐了你做的椅子 / 在你店里买了东西（02 场所、05 小店） */
     sat_on_your_seat: 1,
     bought_from_shop: 1,

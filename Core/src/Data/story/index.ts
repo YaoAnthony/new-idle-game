@@ -5,6 +5,8 @@ import { findResidentDefinition, residentIdOf } from "../residents/index.js";
 import { tripPool } from "../residents/trips.js";
 import { visitorTuning } from "../residents/visitors.js";
 import { letterDefinitions, mailTuning } from "../residents/letters.js";
+import { birthdayTuning } from "../residents/birthday.js";
+import { festivalDefinitions, festivalTuning } from "../festivals/index.js";
 
 /** 专属家具的 id 从定义上取，规则不抄第二遍 */
 function signatureItemOf(definitionId: string): string {
@@ -336,6 +338,74 @@ export const storyRules: StoryRule[] = [
       triggers: [{ signal: "letter_opened", subject: letter.id }],
       effects: [...(letter.onOpened ?? [])],
     })),
+
+  /*
+   * ==== 生日与节日（居民系统 11）====
+   * 全是 day_started 上的规则，门槛是通用条件（trigger.requires）。**"次日撤"排在"当天立"前面**：
+   * 同一次 day_started 顺序派发，撤的规则先看到"旗子还是他、但今天不是他生日"再拔，立的规则才把
+   * 新寿星写上——两条反过来会在生日当天立了又撤。
+   */
+  ...NEIGHBORS.map((who): StoryRule => ({
+    id: `birthday_over_${who}`,
+    once: false,
+    triggers: [{ signal: "day_started", requires: [{ kind: "flag_is", key: birthdayTuning.flag, value: who }] }],
+    effects: [
+      { kind: "set_flag", key: birthdayTuning.flag, value: null },
+      { kind: "porch_decorate", residentId: residentIdOf(who), decorationId: null },
+    ],
+  })),
+  ...NEIGHBORS.map((who): StoryRule => ({
+    id: `birthday_soon_${who}`,
+    once: false,
+    triggers: [{ signal: "day_started", requires: [{ kind: "birthday_in_days", residentId: who, days: birthdayTuning.noticeDaysAhead }] }],
+    effects: [{ kind: "record_fact", factKind: "birthday_soon", subject: who }],
+  })),
+  ...NEIGHBORS.map((who): StoryRule => ({
+    id: `birthday_today_${who}`,
+    once: false,
+    triggers: [{ signal: "day_started", requires: [{ kind: "is_birthday_of", residentId: who }] }],
+    effects: [
+      { kind: "set_flag", key: birthdayTuning.flag, value: who },
+      { kind: "porch_decorate", residentId: residentIdOf(who), decorationId: birthdayTuning.decorationId },
+      { kind: "send_letter", letterId: `birthday_invite_${who.replace(/_neighbor$/, "")}`, fromResidentId: who },
+    ],
+  })),
+  ...NEIGHBORS.map((who): StoryRule => ({
+    // 生日当天收了你的礼：记一辈子（好感翻倍在效果执行侧读旗子）
+    id: `birthday_gift_${who}`,
+    once: false,
+    triggers: [{ signal: "resident_gift_on_birthday", subject: who }],
+    effects: [{ kind: "add_memory", residentId: residentIdOf(who), memoryId: "birthday_gift" }],
+  })),
+  ...NEIGHBORS.map((who): StoryRule => ({
+    id: `player_birthday_${who}`,
+    once: false,
+    triggers: [{ signal: "day_started", requires: [{ kind: "is_player_birthday" }] }],
+    effects: [{ kind: "send_letter", letterId: `player_birthday_${who.replace(/_neighbor$/, "")}`, fromResidentId: who }],
+  })),
+  // 节日：按日期立 / 拔旗子，门口挂装饰。撤在前、立在后，理由同生日
+  ...festivalDefinitions.flatMap((festival): StoryRule[] => [
+    {
+      id: `festival_end_${festival.id}`,
+      once: false,
+      triggers: [{ signal: "day_started", requires: [{ kind: "flag_is", key: festivalTuning.flag, value: festival.id }] }],
+      effects: [
+        { kind: "set_flag", key: festivalTuning.flag, value: null },
+        ...NEIGHBORS.map((who) => ({ kind: "porch_decorate" as const, residentId: residentIdOf(who), decorationId: null })),
+      ],
+    },
+    {
+      id: `festival_start_${festival.id}`,
+      once: false,
+      triggers: [{ signal: "day_started", requires: [{ kind: "festival_on", festivalId: festival.id }] }],
+      effects: [
+        { kind: "set_flag", key: festivalTuning.flag, value: festival.id },
+        ...(festival.residents.decoration
+          ? NEIGHBORS.map((who) => ({ kind: "porch_decorate" as const, residentId: residentIdOf(who), decorationId: festival.residents.decoration ?? null }))
+          : []),
+      ],
+    },
+  ]),
 
   /*
    * 报纸（期 7）。**用送礼当解锁开关，这是全蓝图第一次。**

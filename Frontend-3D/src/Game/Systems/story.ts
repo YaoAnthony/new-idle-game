@@ -26,6 +26,10 @@ import { placeInInterior } from "./residents/interiors";
 import { spawnVisitor } from "./residents/visitors";
 import { grantTripGift, planTrip } from "./residents/trips";
 import { deliverLetter, mailboxFull, sendResidentLetter } from "./mail";
+import { setFlag } from "./flags";
+import { setDecoration } from "./residents/porch";
+import { recordHeadlineFact } from "./dayRecord";
+import { evaluateCondition } from "./dialogue";
 import { pickPresentFor } from "./residents/presents";
 import { beginHouseVisit, refuseVisit } from "./residents/visits";
 import { presentItems } from "./unpack";
@@ -104,6 +108,8 @@ function currentContext(): StoryContext {
     },
     // 04：requiresAffection 看的是档位；人不在场 = 不成立
     affectionStage: (residentId) => getResident(residentId)?.affectionStage ?? null,
+    // 11：通用条件当触发门槛，按"没有对话对象"求值
+    holds: (condition) => evaluateCondition(condition, null),
   };
 }
 
@@ -237,6 +243,17 @@ function runEffect(effect: StoryEffect): void {
       // 信箱满了不寄，池的 miss 也别累加（不然回来一开箱 20 封同一天的）
       if (mailboxFull()) poolMisses[mailTuningPoolId()] = 0;
       else sendResidentLetter(effect.residentId);
+      break;
+
+    // ---- 生日与节日（11）----
+    case "set_flag":
+      setFlag(effect.key, effect.value);
+      break;
+    case "porch_decorate":
+      setDecoration(effect.residentId, effect.decorationId);
+      break;
+    case "record_fact":
+      recordHeadlineFact(effect.factKind, effect.subject);
       break;
 
     // 来访临走的礼物（07）：从他的 presents 里挑，不用再走过来

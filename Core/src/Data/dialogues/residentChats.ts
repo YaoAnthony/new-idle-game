@@ -45,7 +45,7 @@ const ROWS: readonly Row[] = [
 ];
 
 /** 08：你在他屋里时的三段（条件在池子里，这里只是骨架） */
-const HOME: readonly Row[] = [["home_1", 1, ["happy"]], ["home_2", 2], ["home_3", 1, ["shy"]]];
+const HOME: readonly Row[] = [["home_1", 1, ["happy"]], ["home_2", 2], ["home_3", 1, ["shy"]], ["replied_letter", 2, ["happy"]]];
 
 /** 只有这一位才有的段 */
 const EXTRA: Record<(typeof WHO)[number], readonly Row[]> = {

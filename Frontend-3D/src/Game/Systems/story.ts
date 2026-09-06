@@ -1,5 +1,6 @@
 import {
   drawFromPool,
+  mailTuning,
   findStoryPool,
   signalCountKeysFor,
   storyRules,
@@ -24,6 +25,7 @@ import { placeOnPorch, setNamePlate } from "./residents/porch";
 import { placeInInterior } from "./residents/interiors";
 import { spawnVisitor } from "./residents/visitors";
 import { grantTripGift, planTrip } from "./residents/trips";
+import { deliverLetter, mailboxFull, sendResidentLetter } from "./mail";
 import { pickPresentFor } from "./residents/presents";
 import { beginHouseVisit, refuseVisit } from "./residents/visits";
 import { presentItems } from "./unpack";
@@ -227,6 +229,16 @@ function runEffect(effect: StoryEffect): void {
       grantTripGift(effect.residentId);
       break;
 
+    // ---- 信箱（10）----
+    case "send_letter":
+      deliverLetter(effect.letterId, { fromResidentId: effect.fromResidentId, attach: effect.attach });
+      break;
+    case "send_resident_letter":
+      // 信箱满了不寄，池的 miss 也别累加（不然回来一开箱 20 封同一天的）
+      if (mailboxFull()) poolMisses[mailTuningPoolId()] = 0;
+      else sendResidentLetter(effect.residentId);
+      break;
+
     // 来访临走的礼物（07）：从他的 presents 里挑，不用再走过来
     case "grant_present": {
       if (isRemoteWorld()) break;
@@ -261,6 +273,10 @@ function runEffect(effect: StoryEffect): void {
  * 玩家重开游戏就能把等待重置。
  */
 let poolMisses: Record<string, number> = {};
+
+function mailTuningPoolId(): string {
+  return mailTuning.pool.poolId;
+}
 
 function fire(rule: StoryRule): void {
   firedRules.add(rule.id);

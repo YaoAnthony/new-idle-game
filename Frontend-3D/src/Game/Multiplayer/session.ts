@@ -43,6 +43,7 @@ import { emit, on } from "../EventBus";
 import { restoreFavors, snapshotFavors } from "../Systems/residents/favors";
 import { restorePorch, snapshotPorch } from "../Systems/residents/porch";
 import { restoreInteriors, snapshotInteriors } from "../Systems/residents/interiors";
+import { restoreMailbox, snapshotMailbox } from "../Systems/mail";
 import { snapshotAvatar } from "../State/avatar";
 import { pushChatMessage, pushSystemMessage } from "../State/chatLog";
 import { restoreClock, snapshotClock } from "../State/clock";
@@ -480,6 +481,8 @@ function applyWorldRefresh(event: WorldRefreshEvent): void {
   if (slices.porch !== undefined) restorePorch(slices.porch);
   // 屋里的槽位（协议 v11，08）：房客进他家看到的东西和房主一样
   if (slices.interiors !== undefined) restoreInteriors(slices.interiors);
+  // 信箱（协议 v12，10）：房客能翻信，收不了附件
+  if (slices.mailbox !== undefined) restoreMailbox(slices.mailbox);
 }
 
 // ---- 房主端：世界变了就整片刷给全房 ----
@@ -521,6 +524,7 @@ function startHostRefreshWatch(): void {
       favors: snapshotFavors() ?? {},
       porch: snapshotPorch() ?? {},
       interiors: snapshotInteriors() ?? {},
+      mailbox: snapshotMailbox() ?? { letters: [], outbox: [], sentOnce: [], lastSent: {}, scheduled: [], replies: {} },
     });
   };
 
@@ -553,6 +557,7 @@ function startHostRefreshWatch(): void {
     on("favors_changed", () => schedule()),
     on("porch_changed", () => schedule()),
     on("interiors_changed", () => schedule()),
+    on("mail_changed", () => schedule()),
   ];
   stopRefreshWatch = () => {
     for (const off of offs) off();

@@ -1,3 +1,4 @@
+import type { ItemQuality } from "core";
 import {
   GiftTier,
   canGiftToday,
@@ -104,6 +105,32 @@ export function offerGift(residentId: string, ref: SlotRef): GiftResult {
   emit("story_signal", { kind: "resident_gift_received", subject: `${resident.definitionId}:${tier}` });
 
   return { ok: true, tier, consumed, itemId: stack.itemId };
+}
+
+/**
+ * 信里夹的东西（10）：次日早上房主端处理你写的信时走这里。和当面递的差别只在**没有格子**
+ * （东西写信那一拍就离开了背包）和**不占今天送礼的名额**（信是另一条渠道）；
+ * 委托判定、口味四档、进食结算、四个信号一样不少——居民才"知道"你送了。
+ */
+export function giftByMail(residentId: string, itemId: string, quality?: ItemQuality): GiftTier | null {
+  const resident = getResident(residentId);
+  if (!resident || isRemoteWorld()) return null;
+  const favor = deliveryFor(resident.definitionId, itemId);
+  if (favor) {
+    completeFavor(favor.id);
+    return GiftTier.Loved;
+  }
+  const taste = findResidentTaste(resident.definitionId) ?? { loved: [], liked: [], disliked: [], inedible: [], fallback: GiftTier.Liked };
+  const tier = resolveGiftTier(taste, itemId, quality);
+  if (giftConsumesItem(tier)) feedResident(residentId, itemId, tier);
+  emit("story_signal", { kind: "gift_given", subject: itemId });
+  emit("story_signal", { kind: giftSignalKind(tier), subject: itemId });
+  if (giftSignalKind(tier) === "gift_loved") {
+    noteLovedGift(residentId, itemId);
+    emit("story_signal", { kind: "resident_gift_loved", subject: resident.definitionId });
+  }
+  emit("story_signal", { kind: "resident_gift_received", subject: `${resident.definitionId}:${tier}` });
+  return tier;
 }
 
 /** 今天还能不能送。UI 用来把放入框变成"它今天吃饱了"的样子 */

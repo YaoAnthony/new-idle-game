@@ -6,10 +6,13 @@ import {
   findSkillPriority,
   residentIdOf,
   roomCellToWorld,
+  mailTuning,
 } from "core";
 import { registerCommand, type CommandResult } from "../../CommandLine/commands";
 import { listBuildings } from "../../State/buildings";
 import { listDoors } from "../../State/doorsRuntime";
+import { emit } from "../../EventBus";
+import { clearMailbox, deliverLetter, listLetters, listOutbox, processOutbox, writeLetter } from "../mail";
 import { getCount } from "../../State/inventory";
 import { getResidents } from "../../State/residentsRuntime";
 import { ACTION_VERBS, type ActionStep } from "../../State/actions";
@@ -545,6 +548,50 @@ export function registerResidentCommands(): Array<() => void> {
         }
 
         return fail(`不认识的子命令：${sub}\n${USAGE}`);
+      },
+    }),
+    registerCommand({
+      name: "mail",
+      usage: "mail [list|send <letterId> [itemId]|write <谁> <模板序号> [attach]|outbox|process|clear|open]",
+      description: "信箱（10）：看信 / 立即寄一封 / 写一封 / 处理你写的 / 清空 / 打开面板",
+      arguments: [{ name: "动作", suggest: () => ["list", "send", "write", "outbox", "process", "clear", "open"].map((value) => ({ value })) }],
+      handler: (args) => {
+        const op = (args[0] ?? "list").toLowerCase();
+        if (op === "open") {
+          emit("mailbox_open_requested", {});
+          return ok("打开信箱");
+        }
+        if (op === "list") {
+          const rows = listLetters().map((letter) => `  ${letter.opened ? "  " : "● "}${letter.id}  来自 ${letter.fromResidentId ?? "（剧情）"}  ${letter.receivedDayId}${letter.attach ? `  夹 ${letter.attach.itemId}×${letter.attach.quantity}` : ""}`);
+          return ok(rows.length ? ["信箱：", ...rows].join("\n") : "信箱是空的");
+        }
+        if (op === "outbox") {
+          const rows = listOutbox().map((letter) => `  ${letter.id} → ${letter.toResidentId}  ${letter.templateKey}${letter.attach ? `  夹 ${letter.attach.itemId}` : ""}`);
+          return ok(rows.length ? ["待处理的你的信：", ...rows].join("\n") : "没有待处理的信");
+        }
+        if (isRemoteWorld()) return fail("做客中信箱只读");
+        if (op === "send") {
+          const letterId = args[1] ?? "";
+          const itemId = args[2];
+          if (itemId && !findItemDefinition(itemId)) return fail(`没有这种物品：${itemId}`);
+          const letter = deliverLetter(letterId, itemId ? { attach: { itemId, quantity: 1 } } : {});
+          return letter ? ok(`寄到了：${letter.id}`) : fail("寄不了（信不存在 / 信箱满了）");
+        }
+        if (op === "write") {
+          const species = findSpecies(args[1]);
+          if (!species) return fail(`没有这位：${args[1] ?? "(空)"}`);
+          const index = Number(args[2] ?? "1") - 1;
+          const template = mailTuning.playerTemplates[index];
+          if (!template) return fail(`模板序号 1~${mailTuning.playerTemplates.length}`);
+          const letter = writeLetter(species.id, template, (args[3] ?? "").toLowerCase() === "attach");
+          return letter ? ok(`写好了：${letter.id}，明早他收到`) : fail("写不了（手里没东西可夹？）");
+        }
+        if (op === "process") return ok(`处理了 ${processOutbox()} 封`);
+        if (op === "clear") {
+          clearMailbox();
+          return ok("信箱清空了");
+        }
+        return fail("用法：/mail [list|send|write|outbox|process|clear|open]");
       },
     }),
     registerCommand({

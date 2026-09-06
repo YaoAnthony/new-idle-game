@@ -12,6 +12,7 @@ export * from "./talk/pairs.js";
 export * from "./interiors.js";
 export * from "./visitors.js";
 export * from "./trips.js";
+export * from "./letters.js";
 
 import {
   CreatureRole,

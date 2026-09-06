@@ -106,6 +106,7 @@ import { restorePorch, snapshotPorch } from "../../Game/Systems/residents/porch"
 import { restoreInteriors, snapshotInteriors } from "../../Game/Systems/residents/interiors";
 import { restoreResidentTrips, snapshotResidentTrips } from "../../Game/Systems/residents/townTrips";
 import { restoreTripPlans, snapshotTripPlans } from "../../Game/Systems/residents/trips";
+import { restoreMailbox, snapshotMailbox } from "../../Game/Systems/mail";
 import { SAVE_SCHEMA_VERSION } from "./types";
 
 /**
@@ -226,6 +227,7 @@ export function serializeGameSave(previous?: GameSave): GameSave {
       // 出门在外的居民（居民系统 02）：不记的话关掉游戏他就永远消失了
       residentTrips: snapshotResidentTrips(),
       tripPlans: snapshotTripPlans(),
+      mailbox: snapshotMailbox(),
       favors: snapshotFavors(),
       porch: snapshotPorch(),
       interiors: snapshotInteriors(),
@@ -395,6 +397,7 @@ export function hydrateGameSave(save: GameSave): void {
   restoreDayFacts(save.ownWorld.dayFacts);
   restoreResidentTrips(save.ownWorld.residentTrips);
   restoreTripPlans(save.ownWorld.tripPlans);
+  restoreMailbox(save.ownWorld.mailbox);
   restoreFavors(save.ownWorld.favors);
   restorePorch(save.ownWorld.porch);
   restoreInteriors(save.ownWorld.interiors);

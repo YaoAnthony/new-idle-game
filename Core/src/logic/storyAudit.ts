@@ -18,6 +18,7 @@ import type { ReactionDefinition } from "../types/talk.js";
 import { affectionTuning } from "../Data/economy/index.js";
 import { favorDefinitions, findFavorDefinition } from "../Data/residents/favors.js";
 import { findTripDefinition, tripDefinitions } from "../Data/residents/trips.js";
+import { findLetterDefinition, letterDefinitions } from "../Data/residents/letters.js";
 import { pairChats, relationDefinitions } from "../Data/residents/index.js";
 import type { RelationDefinition } from "../types/talk.js";
 import type { FavorDefinition } from "../types/favors.js";
@@ -221,6 +222,25 @@ function auditRelations(checkText: (where: string, key: string) => void): string
 }
 
 /** 委托表（05）：对话、物品、居民、前提都要真的存在；deliver 要有信物和收件人 */
+/** 10：信件表——id 不重、寄件人存在、正文有文案、条件合法、夹的东西存在、resident 类必有寄件人 */
+function auditLetters(checkText: (where: string, key: string) => void): string[] {
+  const problems: string[] = [];
+  const seen = new Set<string>();
+  for (const letter of letterDefinitions) {
+    const where = `信 ${letter.id}`;
+    if (seen.has(letter.id)) problems.push(`${where}：id 重复`);
+    seen.add(letter.id);
+    checkText(where, letter.bodyKey);
+    if (letter.residentId && !findResidentDefinition(letter.residentId)) problems.push(`${where}：寄件人 "${letter.residentId}" 不存在`);
+    if (letter.kind === "resident" && !letter.residentId) problems.push(`${where}：居民自发的信没有寄件人`);
+    for (const condition of letter.requires ?? []) problems.push(...auditCondition(where, condition));
+    if (letter.attach && "itemId" in letter.attach && !findItemDefinition(letter.attach.itemId)) {
+      problems.push(`${where}：夹的 "${letter.attach.itemId}" 不是真物品`);
+    }
+  }
+  return problems;
+}
+
 /** 09：每趟出门每位都有当面说 / 回来两段，礼物池里的东西都存在 */
 function auditTrips(checkText: (where: string, key: string) => void): string[] {
   const problems: string[] = [];
@@ -614,6 +634,17 @@ export function auditStoryContent(options: AuditOptions = {}): string[] {
         // 09
         case "spawn_visitor":
           break;
+        // 10
+        case "send_letter": {
+          const letter = findLetterDefinition(effect.letterId);
+          if (!letter) problems.push(`${where}：send_letter 指向不存在的信 "${effect.letterId}"`);
+          if (effect.fromResidentId && !findResidentDefinition(effect.fromResidentId)) problems.push(`${where}：send_letter 的寄件人 "${effect.fromResidentId}" 不存在`);
+          if (effect.attach && !findItemDefinition(effect.attach.itemId)) problems.push(`${where}：send_letter 夹的 "${effect.attach.itemId}" 不是真物品`);
+          break;
+        }
+        case "send_resident_letter":
+          if (!residentDefinitionOf(effect.residentId)) problems.push(`${where}：send_resident_letter 指向不存在的居民 "${effect.residentId}"`);
+          break;
         case "reset_pool":
           if (!findStoryPool(effect.poolId)) problems.push(`${where}：reset_pool 指向不存在的池 "${effect.poolId}"`);
           break;
@@ -650,6 +681,7 @@ export function auditStoryContent(options: AuditOptions = {}): string[] {
   problems.push(...auditEventDefinitions(eventDefinitions, checkText));
   problems.push(...auditTalk(checkText));
   problems.push(...auditTrips(checkText));
+  problems.push(...auditLetters(checkText));
   problems.push(...auditFavors(checkText));
   problems.push(...auditRelations(checkText));
 

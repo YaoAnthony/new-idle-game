@@ -11,6 +11,7 @@ import { emit } from "../EventBus";
 import { getCount, getSelectedStack, type SlotRef } from "../State/inventory";
 import { getResident, getResidents } from "../State/residentsRuntime";
 import { playerInHomeOf } from "./residents/spots";
+import { letterReplyPending } from "./mail";
 import { isRemoteWorld } from "../Multiplayer/worldLock";
 import { getWeather } from "../State/weather";
 import { factsOfToday, factsOfYesterday } from "./dayRecord";
@@ -138,6 +139,9 @@ export function evaluateCondition(condition: DialogueCondition, residentId: stri
     // ---- 09：改世界的选项只给房主 ----
     case "is_host":
       return !isRemoteWorld();
+    // ---- 10：你写过信、他收到了还没当面提 ----
+    case "letter_replied_pending":
+      return resident !== undefined && letterReplyPending(resident.definitionId);
     default:
       return false;
   }

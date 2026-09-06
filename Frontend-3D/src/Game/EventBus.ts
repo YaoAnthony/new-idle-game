@@ -186,6 +186,8 @@ export type GameEvents = {
   interiors_changed: { reason: string };
   /** 多日出门的计划变了（09）：定下 / 说过了 / 走了 / 礼物给了 */
   trip_plans_changed: { residentId: string };
+  /** 信箱变了（10）：到信 / 拆信 / 收附件 / 写信 / 读档 */
+  mail_changed: { reason: string };
   /** 来访进度（07）：敲门 / 进屋 / 走了 */
   visit_changed: { residentId: string; phase: "knocking" | "inside" | "left"; reason?: string };
   /** 他站到门外开始敲了（07，`knock` 动词开始那一拍） */
@@ -336,6 +338,8 @@ export type GameEvents = {
   consign_open_requested: { instanceId: string };
   /** 今日报纸（期 7）。出刊那天早上自动弹一次，之后从侧边栏开 */
   newspaper_open_requested: Record<string, never>;
+  /** 门口的信箱（10） */
+  mailbox_open_requested: Record<string, never>;
   /**
    * 玩家按 F 请求打开每日任务面板。不带 instanceId——
    * 进度是全家一份（WorldSave.dailyBoard），哪台机器打开的都一样。

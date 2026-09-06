@@ -69,5 +69,7 @@ export const foxTalk: TalkPool = {
     { dialogueId: "fox_chat_home_1", when: [{ kind: "player_in_my_home" }], weight: 100 },
     { dialogueId: "fox_chat_home_2", when: [{ kind: "player_in_my_home" }], weight: 100 },
     { dialogueId: "fox_chat_home_3", when: [{ kind: "player_in_my_home" }], weight: 100 },
+    // ---- 10：你写过信、他收到了还没当面提——见面第一段就是它 ----
+    { dialogueId: "fox_chat_replied_letter", when: [{ kind: "letter_replied_pending" }], weight: 100 },
   ],
 };

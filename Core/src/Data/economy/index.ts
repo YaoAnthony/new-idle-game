@@ -246,6 +246,8 @@ export const affectionTuning = {
     favor: 10,
     /** 他来你家坐了一会儿（07） */
     visited_you: 3,
+    /** 拆了他写的信（10） */
+    letter: 2,
     /** 他坐了你做的椅子 / 在你店里买了东西（02 场所、05 小店） */
     sat_on_your_seat: 1,
     bought_from_shop: 1,

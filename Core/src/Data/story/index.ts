@@ -4,6 +4,7 @@ import { favorDefinitions } from "../residents/favors.js";
 import { findResidentDefinition, residentIdOf } from "../residents/index.js";
 import { tripPool } from "../residents/trips.js";
 import { visitorTuning } from "../residents/visitors.js";
+import { letterDefinitions, mailTuning } from "../residents/letters.js";
 
 /** 专属家具的 id 从定义上取，规则不抄第二遍 */
 function signatureItemOf(definitionId: string): string {
@@ -317,6 +318,26 @@ export const storyRules: StoryRule[] = [
   }),
 
   /*
+   * ==== 信箱（居民系统 10）====
+   * 每位一条规则共享 resident_mail 池（同一天最多一位写信），伙伴档起进池；写哪封在效果里按条件抽。
+   * 拆信的后果由信件表的 onOpened 生成：信箱系统只管收、存、开。
+   */
+  ...NEIGHBORS.map((who): StoryRule => ({
+    id: `mail_${who}`,
+    once: false,
+    triggers: [{ signal: "day_started", poolId: mailTuning.pool.poolId, requiresAffection: { residentId: residentIdOf(who), stage: "familiar_resident" } }],
+    effects: [{ kind: "send_resident_letter", residentId: residentIdOf(who) }],
+  })),
+  ...letterDefinitions
+    .filter((letter) => letter.onOpened && letter.onOpened.length > 0)
+    .map((letter): StoryRule => ({
+      id: `letter_opened_${letter.id}`,
+      once: false,
+      triggers: [{ signal: "letter_opened", subject: letter.id }],
+      effects: [...(letter.onOpened ?? [])],
+    })),
+
+  /*
    * 报纸（期 7）。**用送礼当解锁开关，这是全蓝图第一次。**
    *
    * `gift_given` 信号早就在（"递出去了，不分档位"），把它用在最有性格
@@ -403,6 +424,7 @@ export const storyPools: StoryPoolDefinition[] = [
   // 09：桥头访客 / 多日出门。数字住各自的表，这里只是挂进池子
   visitorTuning.pool,
   tripPool,
+  mailTuning.pool,
   // 04：伙伴档起"他送你东西"。数字住经济表，这里只是把它挂进池子
   { poolId: "resident_present", ...affectionTuning.presentPool },
 ];

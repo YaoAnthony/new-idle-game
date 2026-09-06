@@ -117,6 +117,10 @@ export type StorySignalKind =
   /** 09：定下 / 当面说了一趟多日出门（subject 是 definitionId）。走、回是 resident_away / resident_returned */
   | "trip_planned"
   | "trip_announced"
+  /** 10：信到了 / 拆了 / 你写了一封。subject 是 letterId（写的那封是收信人 definitionId） */
+  | "letter_received"
+  | "letter_opened"
+  | "letter_written"
   /**
    * 居民主动打了招呼 / 玩家按 F 和他聊了（居民系统 03）。subject 是 definitionId。
    * 04 的"每天第一次 +1 好感"接它；这期只发。
@@ -363,7 +367,11 @@ export type StoryEffect =
   /** 定一趟多日出门（09）：明天走，走之前必须当面说 */
   | { kind: "plan_trip"; residentId: ResidentId; tripId: string }
   /** 出门回来那段对话说完，把带回来的礼物经领取面板给你（09） */
-  | { kind: "grant_trip_gift"; residentId: ResidentId };
+  | { kind: "grant_trip_gift"; residentId: ResidentId }
+  /** 寄一封表里的信（10）。剧情信 / 明信片 / 指令都走它；信箱满了不寄 */
+  | { kind: "send_letter"; letterId: string; fromResidentId?: string; attach?: { itemId: ItemId; quantity: number } }
+  /** 这位居民今天自发写一封（10）：从他的信件表里按条件 + 权重抽，every-days 节流、once 不重寄 */
+  | { kind: "send_resident_letter"; residentId: ResidentId };
 
 export type StoryRuleId = string;
 

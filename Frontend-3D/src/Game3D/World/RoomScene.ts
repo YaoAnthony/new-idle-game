@@ -1,4 +1,6 @@
-import { visitorAtDoor } from "../../Game/Systems/residents/visits";
+import { outsideFrontDoor, visitorAtDoor } from "../../Game/Systems/residents/visits";
+import { hasUnread } from "../../Game/Systems/mail";
+import { MailboxView } from "./MailboxView";
 import { residentNickname } from "../../i18n/residentName";
 import { BodyPosture, CreatureRole, DayPhaseId, Facing, FurnitureCapability, constructionProgress, isConstructionQueued, WeatherKind, anchorOf, anchorRectToWorld, findItemDefinition, findResidentDefinition, roomCellToWorld, type AutoStepKind, type DeckRect, type WeatherDefinition, yardBoundsOf, navBoundsOf } from "core";
 import { isHouseStowed } from "core";
@@ -355,7 +357,10 @@ export class RoomScene {
     | { kind: "door"; refId: string }
     | { kind: "building"; instanceId: string }
     | { kind: "shopSpot"; instanceId: string; spot: "crate" | "register" }
+    | { kind: "mailbox" }
     | null = null;
+  /** 门口的信箱（10）。openAir 图没有主屋就没有 */
+  private mailboxView: MailboxView | null = null;
   private interactCheckTimer = 0;
   /** 遮挡检测的限流计时。射线不必每帧打，镜头转得再快也跟得上 */
   private occlusionCheckTimer = 0;
@@ -469,6 +474,26 @@ export class RoomScene {
       this.built.size,
       outdoorTerrainOf(getCurrentMapId()),
     );
+
+    /*
+     * 门口的信箱（10）：大门外两步半、往右挪 0.9 米——**在门框那个视锥里**。镜头固定朝北，
+     * 主屋的门朝北开，站在门里往外看才看得见门前那一片；贴墙放在门边的话哪个角度都看不见它。
+     * 位置从门推（outsideFrontDoor），不写字面量——房子搬了信箱跟着走。旗子跟"有没拆的信"走。
+     */
+    const outside = outsideFrontDoor();
+    if (outside) {
+      const dx = outside.x - outside.doorX;
+      const dz = outside.z - outside.doorZ;
+      const len = Math.hypot(dx, dz) || 1;
+      const sideX = -dz / len;
+      const sideZ = dx / len;
+      const mx = outside.x + sideX * 0.9 + (dx / len) * 1.2;
+      const mz = outside.z + sideZ * 0.9 + (dz / len) * 1.2;
+      this.mailboxView = new MailboxView(mx, groundHeightAt(mx, mz), mz, Math.atan2(dx, dz));
+      this.mailboxView.setFlag(hasUnread());
+      this.scene.add(this.mailboxView.root);
+      this.offEventListeners.push(on("mail_changed", () => this.mailboxView?.setFlag(hasUnread())));
+    }
     // 声明的可走固定件（石阶、平台）。挂 scene 不挂 outdoor.root：
     // 声明里的标高是世界 Y，outdoor.root 整体压了 -floorLevel
     this.scene.add(buildGroundFixtures(getCurrentMap()));
@@ -1588,8 +1613,18 @@ export class RoomScene {
       | { kind: "door"; refId: string }
       | { kind: "building"; instanceId: string }
       | { kind: "shopSpot"; instanceId: string; spot: "crate" | "register" }
+      | { kind: "mailbox" }
       | null = null;
     let bestDistance = INTERACT_RADIUS;
+
+    // 门口的信箱（10）：和门、活物平级按距离竞争
+    if (this.mailboxView) {
+      const distance = Math.hypot(this.mailboxView.root.position.x - probeX, this.mailboxView.root.position.z - probeZ);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = { kind: "mailbox" };
+      }
+    }
 
     /*
      * 家具小店**店内的两个点**（上架箱 / 收银台）也参与竞争。
@@ -1929,6 +1964,23 @@ export class RoomScene {
       }
     }
 
+    if (this.mailboxView) {
+      const at = this.mailboxView.root.position;
+      const distance = Math.hypot(at.x - probeX, at.z - probeZ);
+      if (distance < HINT_RADIUS) {
+        const target: HintTarget = {
+          instanceId: "mailbox",
+          hint: { localizationKey: hasUnread() ? "hint.mailbox_unread" : "hint.mailbox", action: "interact" },
+          world: new Vector3(at.x, at.y + 1.7, at.z),
+        };
+        hintByKey.set("mailbox", target);
+        if (distance < bestHintDistance) {
+          bestHintDistance = distance;
+          bestHint = target;
+        }
+      }
+    }
+
     for (const placed of placedFurniture) {
       const definition = getDefinition(placed.furnitureId);
       if (!definition) continue;
@@ -2011,7 +2063,9 @@ export class RoomScene {
           ? `door:${target.refId}`
           : target.kind === "shopSpot"
             ? `shop:${target.spot}`
-            : `${target.kind === "building" ? "building" : "station"}:${target.instanceId}`;
+            : target.kind === "mailbox"
+              ? "mailbox"
+              : `${target.kind === "building" ? "building" : "station"}:${target.instanceId}`;
 
     this.hintTarget = best ? hintByKey.get(hintKeyOf(best)) ?? null : bestHint;
 
@@ -2028,7 +2082,9 @@ export class RoomScene {
               ? `building:${target.instanceId}`
               : target.kind === "shopSpot"
                 ? `shop:${target.spot}`
-                : `station:${target.instanceId}:${target.capability}`;
+                : target.kind === "mailbox"
+                  ? "mailbox"
+                  : `station:${target.instanceId}:${target.capability}`;
 
     if (keyOf(best) === keyOf(this.interactTarget)) return;
 
@@ -2040,7 +2096,7 @@ export class RoomScene {
       emit("interact_target_changed", { kind: "resident", residentId: best.residentId });
     } else if (best.kind === "door") {
       emit("interact_target_changed", { kind: "door", refId: best.refId });
-    } else if (best.kind === "building" || best.kind === "shopSpot") {
+    } else if (best.kind === "building" || best.kind === "shopSpot" || best.kind === "mailbox") {
       // 建筑和店内交互点不进这条事件（没有"工作站"那套载荷）。订阅方
       // 看到 null 就知道现在没有工作站可开——按 F 干什么由 interact() 分派
       emit("interact_target_changed", null);
@@ -2122,6 +2178,10 @@ export class RoomScene {
     }
 
     if (this.interactTarget) {
+      if (this.interactTarget.kind === "mailbox") {
+        emit("mailbox_open_requested", {});
+        return;
+      }
       if (this.interactTarget.kind === "door") {
         const { refId } = this.interactTarget;
         const agent = findDoorAgent(refId);
@@ -3498,6 +3558,10 @@ export class RoomScene {
     this.heldItemView.dispose();
     this.droppedItemView.dispose();
     this.residentView.dispose();
+    if (this.mailboxView) {
+      this.scene.remove(this.mailboxView.root);
+      this.mailboxView.dispose();
+    }
     this.renderer.stop();
     this.renderer.dispose();
   }

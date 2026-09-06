@@ -41,6 +41,8 @@ export type PanelId =
   | "shopShelf"
   | "consign"
   | "newspaper"
+  /** 门口的信箱（10） */
+  | "mailbox"
   | "reward"
   | "chest"
   | "escMenu";

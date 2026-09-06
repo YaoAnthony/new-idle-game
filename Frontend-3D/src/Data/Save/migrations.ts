@@ -1412,6 +1412,15 @@ export const migrations: Migration[] = [
     to: 37,
     migrate: (save) => save,
   },
+
+  /*
+   * v38 · 居民系统 03：`ResidentSave.memories / movedInDayId / lastTalkDayId / talksToday`。
+   * 四个可选字段，老档读出来 undefined = 什么都不记得、没聊过。空迁移。
+   */
+  {
+    to: 38,
+    migrate: (save) => save,
+  },
 ];
 
 /**

@@ -149,6 +149,44 @@ body {
   overflow: hidden;
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
+
+  /*
+   * 全局关掉文字选中。
+   *
+   * 症状：按住鼠标拖动转视角时，指针扫过 HUD、快捷栏、NPC 名牌，会把上面的
+   * 文字整段刷成蓝底——一次拖拽在浏览器眼里既是我们的镜头手势，也是一次原生
+   * 框选。松手后蓝底还留着，要再点一下空白才消，看着像界面坏了。
+   *
+   * 全屏游戏里 DOM 是界面外壳而不是文档，没有"选中一段来读"的语义，关掉是
+   * 通行做法。**不是 cursor: none**——那条是把鼠标指针本身藏起来，玩家就不
+   * 知道自己指着哪儿了，而且蓝底照样刷。
+   *
+   * 代价：日记 / 报纸 / 邮件的正文也复制不走了。真需要放开某一块，给那块
+   * 元素加 .selectable（见下），别回头把这条删掉——删掉等于全局又开始刷蓝。
+   */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/*
+ * 输入类元素是例外。user-select 会继承，body 上关掉之后，WebKit 里连输入框
+ * 内部的文字都选不中（光标能进去，但拖不出选区、双击不选词），改错字只能一路
+ * 退格。命名输入、聊天框、行动名都吃这条。
+ */
+input,
+textarea,
+[contenteditable="true"],
+.selectable {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/*
+ * 顺手挡掉图片的原生拖拽：物品图标被按住拖会跟出一张半透明幽灵图，和背包
+ * 自己的拖放逻辑叠在一起，两套拖拽同时在动。
+ */
+img {
+  -webkit-user-drag: none;
 }
 
 button,

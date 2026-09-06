@@ -114,7 +114,16 @@ export type StorySignalKind =
    * 04 的"每天第一次 +1 好感"接它；这期只发。
    */
   | "resident_greeted"
-  | "resident_talked";
+  | "resident_talked"
+  /**
+   * 谁收到了什么档的礼（居民系统 04）。subject 是 `<definitionId>:<tier>`。
+   * 好感规则要的是"这位收了礼"，`gift_*` 的 subject 是物品，接不上人。
+   */
+  | "resident_gift_received"
+  /** 好感跨档了。subject 是 `<definitionId>:<stage>`。专属家具、门牌（07）接它 */
+  | "affection_reached"
+  /** 他送了你东西（随机赠礼 / 专属家具），领取面板已弹。subject 是 definitionId */
+  | "resident_present_given";
 
 export type StorySignal = {
   kind: StorySignalKind;
@@ -185,6 +194,12 @@ export type StoryTrigger = {
    * 的表，而那张表会跟着每个新玩法漏更新——比不校验更坏。
    */
   requiresFeature?: FeatureId;
+
+  /**
+   * 这位的好感至少到了这一档（居民系统 04）。随机赠礼"伙伴档起"靠它。
+   * 判的是**档位**不是分数：分数是隐藏的，规则不该知道数字。
+   */
+  requiresAffection?: { residentId: ResidentId; stage: `${AffectionStage}` };
 
   /**
    * 命中概率（0~1，不填 = 必中）。
@@ -275,7 +290,20 @@ export type StoryEffect =
    * 对话、技能都不直接 push——否则"他为什么记得这件事"要翻三处代码才说得清。
    * 重复加同一条是 no-op。做客时不执行（那是房主的邻居）。
    */
-  | { kind: "add_memory"; residentId: ResidentId; memoryId: string };
+  | { kind: "add_memory"; residentId: ResidentId; memoryId: string }
+  /**
+   * 加好感（居民系统 04）。**好感唯一的加分口。** `source` 是经济表 `affectionTuning.gains` 的键，
+   * 执行时查表加分、按日节流（同一来源一天一次）、跨档发 `affection_reached`。
+   * 改"聊天给几分"改的是表，不是代码。做客时不执行（好感是房主和邻居的关系）。
+   */
+  | { kind: "adjust_affection"; residentId: ResidentId; source: string }
+  /**
+   * 他走过来送你东西。`itemId` 不填 = 从他的 `presents` 里确定性挑一件（随机赠礼）；
+   * 填了就是那一件（专属家具）。走过来 → 一段对话 → 领取面板。
+   */
+  | { kind: "resident_present"; residentId: ResidentId; itemId?: ItemId; dialogueId: DialogueId }
+  /** 打开一个单行输入：改他叫你的昵称 / 改他的口头禅。对话选项报告了，规则接这个 */
+  | { kind: "prompt_text"; residentId: ResidentId; target: "nickname" | "catchphrase" };
 
 export type StoryRuleId = string;
 

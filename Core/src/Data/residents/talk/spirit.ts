@@ -32,7 +32,10 @@ export const spiritTalk: TalkPool = {
     { key: "talk.spirit.greet.any_1" },
     { key: "talk.spirit.greet.any_2" },
   ],
+  nicknames: ["talk.spirit.nick.1", "talk.spirit.nick.2", "talk.spirit.nick.3"],
   chats: [
+    // ---- 04：伙伴档起可以在对话里改他叫你的昵称 / 他的口头禅 ----
+    { dialogueId: "spirit_chat_naming", when: [{ kind: "affection_at_least", stage: "life_companion" }], weight: 3 },
     { dialogueId: "spirit_chat_enough", when: [{ kind: "talks_today", atLeast: 3 }], weight: 100 },
     { dialogueId: "spirit_chat_saw_exercise", when: [{ kind: "recent_action_category", category: "exercise" }], weight: 4, oncePerDay: true },
     { dialogueId: "spirit_chat_saw_work", when: [{ kind: "recent_action_category", category: "work_study" }], weight: 4, oncePerDay: true },

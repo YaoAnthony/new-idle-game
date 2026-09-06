@@ -42,6 +42,7 @@ import { Joystick } from "../Components/Mobile/Joystick";
 import { TouchActions } from "../Components/Mobile/TouchActions";
 import { SpeechBubble } from "../Components/Chat/SpeechBubble";
 import { ResidentBubbles } from "../Components/Residents/ResidentBubbles";
+import { TextPrompt } from "../Components/Residents/TextPrompt";
 import { Backpack } from "../Components/Backpack/Backpack";
 import { DailyBoardPanel } from "../Components/DailyBoard/DailyBoardPanel";
 import { RewardPanel } from "../Components/RewardPanel/RewardPanel";
@@ -234,6 +235,8 @@ import { registerResidentCommands } from "../Game/Systems/residents/commands";
 import { startTownTrips } from "../Game/Systems/residents/townTrips";
 import { startRoutineWatch } from "../Game/Systems/residents/routineWatch";
 import { startTalkSystem } from "../Game/Systems/residents/talk";
+import { startAffectionSystem } from "../Game/Systems/residents/affection";
+import { startPresentSystem } from "../Game/Systems/residents/presents";
 import { setShopStockProbe } from "../Game/Systems/residents/spots";
 import { diagnoseSites } from "../Game/State/skills/build";
 import { isRemoteWorldActive } from "../Game/Multiplayer/session";
@@ -420,6 +423,9 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
     const stopRoutineWatch = isRemoteWorldActive() ? () => {} : startRoutineWatch();
     // 对话接线（03）：转身面向玩家、天气 / 落地翻成反应。做客时也挂：房客按 F 也要他转身——不，木偶不转（系统里判）
     const stopTalk = startTalkSystem();
+    // 好感 / 心情的日结 + 他送你东西的领取（04）。做客时里面各自不动
+    const stopAffection = startAffectionSystem();
+    const stopPresents = startPresentSystem();
     // 店门口"有货多站一会"：货架就是店铺的储物库存，只认前几格
     setShopStockProbe((instanceId) => shelfSlotsOf(instanceId).some((slot) => slot !== null));
     // 家具小店的隔夜结算（期 5）。做客时不跑：别人的店别人结
@@ -1929,6 +1935,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       stopTownTrips();
       stopRoutineWatch();
       stopTalk();
+      stopAffection();
+      stopPresents();
       stopShopkeeping();
       stopConsigning();
       stopNewspaper();
@@ -2102,6 +2110,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       <SpeechBubble scene={scene} />
       {/* 居民头顶的招呼气泡 + 表情（居民系统 03） */}
       <ResidentBubbles scene={scene} />
+      {/* "别这么叫我 / 换个口头禅"的单行输入（居民系统 04） */}
+      <TextPrompt />
       {/* 换图加载遮罩：盖住拆旧建新的几帧，也给"去了另一个地方"一点仪式感 */}
       <TravelOverlay />
       <EscMenu />

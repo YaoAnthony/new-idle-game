@@ -5,7 +5,9 @@ import {
   GiftTier,
   SKILL_DECIDE_INTERVAL_SECONDS,
   EXPRESSION_SECONDS,
+  affectionFromSave,
   findExpression,
+  moodSpeed,
   findItemDefinition,
   findResidentDefinition,
   findSkillPriority,
@@ -187,6 +189,16 @@ export class ResidentAgent {
   talksToday = 0;
   /** 这个时段打过招呼了没（不进存档：读档后再打一次很自然） */
   lastGreetPhase: string | null = null;
+
+  // ---- 好感与称呼（居民系统 04）。只有 Systems/residents/affection 的 gainAffection 加分 ----
+  /** 隐藏的好感分，只增不减。`affectionStage` 由它推导后写回 */
+  affection = 0;
+  /** 他给你起的昵称（伙伴档那天抽的；玩家可改） */
+  playerNickname: string | undefined;
+  /** 玩家改过的口头禅；没改用池子里的 */
+  catchphrase: string | undefined;
+  /** 上次打招呼是哪天（"几天没人理"读它） */
+  lastGreetDayId: string | undefined;
   /** 上一帧玩家在哪（onEvent 要给技能一个 ctx） */
   private lastPlayer: { x: number; z: number } = { x: 0, z: 0 };
   private observeCountdown = SKILL_DECIDE_INTERVAL_SECONDS;
@@ -1141,7 +1153,8 @@ export class ResidentAgent {
       return;
     }
 
-    const step = Math.min(this.speed * speedScale * deltaSeconds, distance);
+    // 04：心情影响步子——低落慢一点，高兴轻快一点（纯表现，数字在 moodTuning）
+    const step = Math.min(this.speed * speedScale * moodSpeed(this.mood) * deltaSeconds, distance);
     const nextX = this.x + (dx / distance) * step;
     const nextZ = this.z + (dz / distance) * step;
 
@@ -1199,6 +1212,11 @@ export class ResidentAgent {
       movedInDayId: this.movedInDayId,
       lastTalkDayId: this.lastTalkDayId,
       talksToday: this.talksToday > 0 ? this.talksToday : undefined,
+      // 04：好感分永远写（老档没有的迁移时按档位补）；昵称 / 口头禅 / 招呼日没有就不写
+      affection: this.affection,
+      playerNickname: this.playerNickname,
+      catchphrase: this.catchphrase,
+      lastGreetDayId: this.lastGreetDayId,
       // undefined 而不是 false：醒着是默认态，别往每份存档里写一排 false
       sleeping: this.state === "sleeping" ? true : undefined,
       // 同理：没有零件概念的物种不写这个字段
@@ -1223,6 +1241,11 @@ export class ResidentAgent {
     this.movedInDayId = entry.movedInDayId;
     this.lastTalkDayId = entry.lastTalkDayId;
     this.talksToday = entry.talksToday ?? 0;
+    // 04：老档没分 → 按当前档位的下限补（和迁移 v39 同一个函数）
+    this.affection = affectionFromSave(entry.affection, entry.affectionStage);
+    this.playerNickname = entry.playerNickname;
+    this.catchphrase = entry.catchphrase;
+    this.lastGreetDayId = entry.lastGreetDayId;
     this.needs = {
       hunger: entry.needs?.hunger ?? 80,
       thirst: entry.needs?.thirst ?? 80,

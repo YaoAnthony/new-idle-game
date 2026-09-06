@@ -732,3 +732,26 @@ test("每一段闲聊都是真实对话，且是线性小段（没有选项就�
   }
 });
 
+// ---- 居民系统 04：好感与称呼 ----
+
+test("三位居民都有专属家具、赠礼表和昵称候选，且都指向真实数据", async () => {
+  const { listResidentDefinitions, findTalkPool } = await import("../src/Data/residents/index.js");
+  const { findItemDefinition } = await import("../src/Data/items/index.js");
+  for (const resident of listResidentDefinitions()) {
+    assert.ok(resident.signatureItemId && findItemDefinition(resident.signatureItemId), `${resident.id} 的专属家具不是真物品`);
+    assert.ok((resident.presents ?? []).length >= 2, `${resident.id} 的赠礼表太短`);
+    for (const itemId of resident.presents ?? []) assert.ok(findItemDefinition(itemId), `${resident.id} 送的 ${itemId} 不存在`);
+    const pool = findTalkPool(resident.id);
+    assert.ok((pool?.nicknames ?? []).length >= 2, `${resident.id} 的昵称候选太少`);
+  }
+});
+
+test("好感表：四档下限递增、每种来源都是正数、没有减分项", async () => {
+  const { affectionTuning } = await import("../src/Data/economy/index.js");
+  const t = affectionTuning.stageThresholds;
+  assert.ok(t.stranger < t.familiar_resident && t.familiar_resident < t.life_companion && t.life_companion < t.family);
+  for (const [source, gain] of Object.entries(affectionTuning.gains)) {
+    assert.ok(gain > 0, `${source} 给的不是正数`);
+  }
+});
+

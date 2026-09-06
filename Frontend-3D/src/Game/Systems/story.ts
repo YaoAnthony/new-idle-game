@@ -10,12 +10,15 @@ import {
   type StoryEffect,
 } from "core";
 import { emit, on } from "../EventBus";
+import { isRemoteWorld } from "../Multiplayer/worldLock";
 import { getClock } from "../State/clock";
 import { depositGoldTo, takeGoldUpTo } from "../State/gold";
 import { addItem, getCounts, removeItem } from "../State/inventory";
 import { getResident, setResidentAffection, spawnResident } from "../State/residentsRuntime";
 import { getWeather } from "../State/weather";
 import { startDialogue } from "./dialogue";
+import { gainAffection } from "./residents/affection";
+import { giveResidentPresent } from "./residents/presents";
 import { getEventStage, isFeatureUnlocked, setEventStage, unlockFeature } from "./events";
 
 /**
@@ -89,6 +92,8 @@ function currentContext(): StoryContext {
       if (!featureCache.has(featureId)) featureCache.set(featureId, isFeatureUnlocked(featureId));
       return featureCache.get(featureId) ?? false;
     },
+    // 04：requiresAffection 看的是档位；人不在场 = 不成立
+    affectionStage: (residentId) => getResident(residentId)?.affectionStage ?? null,
   };
 }
 
@@ -152,6 +157,21 @@ function runEffect(effect: StoryEffect): void {
         localizationKey: effect.localizationKey,
         durationMs: effect.durationMs ?? 6000,
       });
+      break;
+
+    // 好感唯一的加分口（04）。一天一次的节流、跨档信号都在 gainAffection 里
+    case "adjust_affection":
+      gainAffection(effect.residentId, effect.source);
+      break;
+
+    // 他走过来送你东西（04）：随机赠礼 / 专属家具同一条路
+    case "resident_present":
+      giveResidentPresent(effect.residentId, effect.dialogueId, effect.itemId);
+      break;
+
+    // 改称呼的输入框（04）。做客时不弹：那是房主的邻居
+    case "prompt_text":
+      if (!isRemoteWorld()) emit("text_prompt_requested", { residentId: effect.residentId, target: effect.target });
       break;
 
     // 记忆唯一的写入口（03）。做客时剧情系统本来就不跑；人不在场就丢掉——

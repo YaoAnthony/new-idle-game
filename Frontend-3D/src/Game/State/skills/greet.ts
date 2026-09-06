@@ -41,6 +41,7 @@ export const greetSkill: Skill = {
     if (!entry) return;
 
     agent.say(entry.key);
+    agent.lastGreetDayId = worldDayId;
     if (entry.expression) agent.showExpression(entry.expression);
     signal("resident_greeted", agent.definitionId);
   },

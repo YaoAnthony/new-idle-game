@@ -39,7 +39,10 @@ export const slimeTalk: TalkPool = {
     { key: "talk.slime.greet.any_1" },
     { key: "talk.slime.greet.any_2" },
   ],
+  nicknames: ["talk.slime.nick.1", "talk.slime.nick.2", "talk.slime.nick.3"],
   chats: [
+    // ---- 04：伙伴档起可以在对话里改他叫你的昵称 / 他的口头禅 ----
+    { dialogueId: "slime_chat_naming", when: [{ kind: "affection_at_least", stage: "life_companion" }], weight: 3 },
     // ---- 说够了：权重压倒一切 ----
     { dialogueId: "slime_chat_enough", when: [{ kind: "talks_today", atLeast: 3 }], weight: 100 },
     // ---- 特殊段（引用上下文） ----

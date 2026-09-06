@@ -85,6 +85,8 @@ export function offerGift(residentId: string, ref: SlotRef): GiftResult {
   if (giftSignalKind(tier) === "gift_loved") {
     emit("story_signal", { kind: "resident_gift_loved", subject: resident.definitionId });
   }
+  // 04：好感规则要"这位收了哪一档"——subject 是 人:档
+  emit("story_signal", { kind: "resident_gift_received", subject: `${resident.definitionId}:${tier}` });
 
   return { ok: true, tier, consumed, itemId: stack.itemId };
 }

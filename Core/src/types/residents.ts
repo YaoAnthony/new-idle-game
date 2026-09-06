@@ -137,6 +137,14 @@ export type ResidentDefinition = {
    */
   personalityId?: PersonalityId;
 
+  /**
+   * 到家人档那天送你的**专属家具**（居民系统 04，动森"照片"的替身）。一次性，一位一件。
+   * 三件都还是现成家具顶着——要建模的等参考图（用户定的规矩：建模前先问图）。
+   */
+  signatureItemId?: ItemId;
+  /** 伙伴档起偶尔送你的小东西。每几天抽一次保底池，抽中了从这里确定性挑一件 */
+  presents?: readonly ItemId[];
+
   behavior?: ResidentBehavior;
 
   /**
@@ -298,6 +306,20 @@ export type ResidentSave = {
   lastTalkDayId?: string;
   /** 今天聊了几次。跨天归零（和 lastTalkDayId 一起判）。"说够了" */
   talksToday?: number;
+
+  // ---- 好感与称呼（居民系统 04）----
+
+  /**
+   * 好感分（隐藏，只增不减）。`affectionStage` 由它推导后写回——存两份是为了老代码和
+   * `affection_at_least` 条件不改。老档没有 → 按当前档位的下限补（迁移 v39）。
+   */
+  affection?: number;
+  /** 他给你起的昵称（伙伴档那天确定性抽一个；玩家可以在对话里改） */
+  playerNickname?: string;
+  /** 玩家改过的口头禅。没改就用池子里的 */
+  catchphrase?: string;
+  /** 上次打招呼是哪天。"连续几天没人理他"的心情读它和 lastTalkDayId 里晚的那个 */
+  lastGreetDayId?: string;
 };
 
 // ---- 动词、Intent、关键帧（居民系统 01，2026-09-06）----
@@ -431,4 +453,6 @@ export type PersonalityDefinition = {
   rainSpeedScale: number;
   /** 走到多近他先开口打招呼（米）。03 的 greet 技能读 */
   greetDistance: number;
+  /** 合口味的天气：那天早上心情 +（04 的 moodTuning） */
+  likesWeather?: readonly string[];
 };

@@ -138,3 +138,9 @@ test("没有口头禅的（薇尔）文案里不写 {cp}；有口头禅的至少
   }
 });
 
+test("04：昵称候选和称呼输入框的文案都在", () => {
+  const keys: string[] = ["ui.prompt.nickname.title", "ui.prompt.catchphrase.title", "ui.prompt.cancel", "ui.prompt.confirm", "loot.resident_present"];
+  for (const pool of talkPools) keys.push(...(pool.nicknames ?? []));
+  expect(missingKeys(keys)).toEqual([]);
+});
+

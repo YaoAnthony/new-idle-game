@@ -27,6 +27,8 @@ export type StoryContext = {
   eventStage: (eventId: EventId) => EventStageId | null;
   /** 这个进度键解锁了没有。`requiresFeature` 查它 */
   isFeatureUnlocked: (featureId: FeatureId) => boolean;
+  /** 这位的好感档。人不在场返回 null（04）。不给 = 所有 requiresAffection 都不成立 */
+  affectionStage?: (residentId: string) => string | null;
   /** 掷点。**注入而不是直接用 Math.random**：测试要能定住，服务端要能复算 */
   roll?: () => number;
 };
@@ -87,6 +89,13 @@ export function triggerMatches(
   }
 
   if (trigger.weatherIs && context.weatherId !== trigger.weatherIs) return false;
+
+  if (trigger.requiresAffection) {
+    const actual = context.affectionStage?.(trigger.requiresAffection.residentId) ?? null;
+    if (!actual) return false;
+    const order = ["stranger", "familiar_resident", "life_companion", "family"];
+    if (order.indexOf(actual) < order.indexOf(trigger.requiresAffection.stage)) return false;
+  }
 
   if (trigger.requiresItem) {
     const { itemId, quantity } = trigger.requiresItem;

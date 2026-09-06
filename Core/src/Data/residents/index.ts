@@ -4,6 +4,7 @@ export * from "./spots.js";
 export * from "./expressions.js";
 export * from "./reactions.js";
 export * from "./talk/index.js";
+export * from "./address.js";
 
 import {
   CreatureRole,
@@ -161,6 +162,9 @@ export const residentDefinitions = [
     role: CreatureRole.Resident,
     residence: { buildingId: "slime_house" },
     personalityId: "easygoing",
+    // 04：家人档送的专属家具先拿云朵灯顶着（他每晚都开着那盏灯——03 的记忆段就在说它）；随机赠礼是他"从家里翻出来的"
+    signatureItemId: "furniture_cloud_lamp",
+    presents: ["tomato", "egg", "cheese"],
     collisionRadius: 0.3,
     behavior: { moveSpeed: 0.9, wanderRadius: 3, sleepiness: 0.3, napSeconds: [60, 150] },
     dialogues: { firstMeet: "slime_asks_to_stay", casual: "slime_casual" },
@@ -174,6 +178,9 @@ export const residentDefinitions = [
     role: CreatureRole.Resident,
     residence: { buildingId: "fox_house" },
     personalityId: "lively",
+    // 04：她去小镇，带回来的都是镇上的吃的；专属家具先用路灯顶着（她夜里跑步靠它）
+    signatureItemId: "furniture_street_lamp",
+    presents: ["cooked_rice", "fried_egg", "green_pepper"],
     collisionRadius: 0.35,
     behavior: { moveSpeed: 1.5, wanderRadius: 4, sleepiness: 0.15 },
     dialogues: { firstMeet: "fox_asks_to_stay", casual: "fox_casual" },
@@ -192,6 +199,9 @@ export const residentDefinitions = [
     role: CreatureRole.Resident,
     residence: { buildingId: "spirit_house" },
     personalityId: "gentle",
+    // 04：树上长的；专属家具先用幸运竹顶着（树洞里养的）
+    signatureItemId: "furniture_lucky_bamboo",
+    presents: ["baby_cabbage", "tomato", "rice"],
     collisionRadius: 0.3,
     behavior: { moveSpeed: 1.2, wanderRadius: 3.5, sleepiness: 0.2 },
     dialogues: { firstMeet: "spirit_asks_to_stay", casual: "spirit_casual" },

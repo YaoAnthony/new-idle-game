@@ -38,6 +38,8 @@ export type TalkPool = {
   catchphrase?: LocalizationKey;
   greetings: readonly GreetingEntry[];
   chats: readonly ChatEntry[];
+  /** 他会给你起的昵称候选（文案键）。伙伴档那天确定性抽一个（04） */
+  nicknames?: readonly LocalizationKey[];
 };
 
 /**

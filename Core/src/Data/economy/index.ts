@@ -227,6 +227,49 @@ export const travelerTuning = {
  * 材料钱是你的——白得一栋楼的话，"给邻居安家"就没有付出感。
  * 15 ≈ 半天的满格任务，占位值。
  */
+/**
+ * 好感（居民系统 04）。分是隐藏的，四档下限和每种来源给几分都在这里。
+ * 没有减分项——"送错不扣好感、心情低不扣好感"是定案，表里根本没有负数的位置。
+ * 每种来源**一天一次**（执行侧节流）；送礼本来就一天一次。
+ */
+export const affectionTuning = {
+  stageThresholds: { stranger: 0, familiar_resident: 30, life_companion: 90, family: 200 },
+  gains: {
+    greet: 1,
+    chat: 1,
+    /** 送错也有 1：递东西本身是心意 */
+    gift_loved: 6,
+    gift_liked: 3,
+    gift_disliked: 1,
+    gift_inedible: 1,
+    /** 05 委托 */
+    favor: 10,
+    /** 他坐了你做的椅子 / 在你店里买了东西（02 场所、05 小店） */
+    sat_on_your_seat: 1,
+    bought_from_shop: 1,
+  },
+  /** 生日当天送礼翻倍（11） */
+  birthdayGiftMultiplier: 2,
+  /** 伙伴档起隔几天抽一次"送你东西"，命中率随错过次数抬（同 storyPools 的保底） */
+  presentPool: { everyDays: 3, base: 0.3, step: 0.2, max: 1 },
+} as const;
+
+/**
+ * 心情（04 起真的有人读它）。走路快慢、几天没人理往下掉、合口味的天气往上抬。
+ * 心情**不进好感**。
+ */
+export const moodTuning = {
+  lowBelow: 30,
+  lowSpeed: 0.8,
+  highAbove: 80,
+  highSpeed: 1.1,
+  /** 连续这么多天没人打招呼也没聊，每天早上掉这么多 */
+  lonelyAfterDays: 2,
+  lonelyPenalty: 8,
+  /** 早上起来是他喜欢的天气：+ */
+  likedWeatherBonus: 6,
+} as const;
+
 export const residentTuning = {
   houseBuildGold: 15,
   /**

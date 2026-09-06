@@ -1,5 +1,10 @@
-import { theftTuning } from "../economy/index.js";
-import { residentIdOf } from "../residents/index.js";
+import { affectionTuning, theftTuning } from "../economy/index.js";
+import { findResidentDefinition, residentIdOf } from "../residents/index.js";
+
+/** 专属家具的 id 从定义上取，规则不抄第二遍 */
+function signatureItemOf(definitionId: string): string {
+  return findResidentDefinition(definitionId)?.signatureItemId ?? "";
+}
 import type { StoryRule, TutorialDefinition } from "../../types/story.js";
 
 /**
@@ -13,7 +18,73 @@ import type { StoryRule, TutorialDefinition } from "../../types/story.js";
  * 写之前先看 `types/story.ts`：18 种信号、10 种效果、触发条件之间是「与」，
  * `triggers` 数组之间是「或」。
  */
+const NEIGHBORS = ["slime_neighbor", "fox_neighbor", "spirit_neighbor"] as const;
+
 export const storyRules: StoryRule[] = [
+  /*
+   * ==== 好感（居民系统 04）====
+   *
+   * 加分**只有** adjust_affection 这一个口，规则接现成的信号：打招呼、聊天、收礼四档。
+   * `once: false`：这些每天都发生；一天一次的节流在效果执行侧。
+   * 三位各一份是因为效果要点名 residentId——由 map 生成，不手抄。
+   */
+  ...NEIGHBORS.flatMap((who): StoryRule[] => {
+    // 对话 id 和 emitEventId 用的是短名（slime / fox / spirit），定义 id 才带 _neighbor
+    const short = who.replace(/_neighbor$/, "");
+    return [
+    {
+      id: `affection_greet_${who}`,
+      once: false,
+      triggers: [{ signal: "resident_greeted", subject: who }],
+      effects: [{ kind: "adjust_affection", residentId: residentIdOf(who), source: "greet" }],
+    },
+    {
+      id: `affection_chat_${who}`,
+      once: false,
+      triggers: [{ signal: "resident_talked", subject: who }],
+      effects: [{ kind: "adjust_affection", residentId: residentIdOf(who), source: "chat" }],
+    },
+    ...(["loved", "liked", "disliked", "inedible"] as const).map((tier): StoryRule => ({
+      id: `affection_gift_${tier}_${who}`,
+      once: false,
+      triggers: [{ signal: "resident_gift_received", subject: `${who}:${tier}` }],
+      effects: [{ kind: "adjust_affection", residentId: residentIdOf(who), source: `gift_${tier}` }],
+    })),
+    /*
+     * 随机赠礼：伙伴档起，每天早上进同一个池掷一次（共享节奏：同一天最多一位来送）。
+     * 走过来 → 对话 → 领取面板，东西从他的 presents 里确定性挑。
+     */
+    {
+      id: `present_${who}`,
+      once: false,
+      triggers: [{ signal: "day_started", poolId: "resident_present", requiresAffection: { residentId: residentIdOf(who), stage: "life_companion" as const } }],
+      effects: [{ kind: "resident_present", residentId: residentIdOf(who), dialogueId: `${short}_gives_present` }],
+    },
+    /* 家人档那天：专属家具，一次性；记忆记一笔（07 的门牌接同一个信号） */
+    {
+      id: `signature_${who}`,
+      triggers: [{ signal: "affection_reached", subject: `${who}:family` }],
+      effects: [
+        { kind: "resident_present", residentId: residentIdOf(who), itemId: signatureItemOf(who), dialogueId: `${short}_gives_signature` },
+        { kind: "add_memory", residentId: residentIdOf(who), memoryId: "gave_signature" },
+      ],
+    },
+    /* 对话里的"别这么叫我 / 换个口头禅"：选项只报告，这里接输入框 */
+    {
+      id: `ask_nickname_${who}`,
+      once: false,
+      triggers: [{ signal: "dialogue_event", subject: `ask_nickname_${short}` }],
+      effects: [{ kind: "prompt_text", residentId: residentIdOf(who), target: "nickname" }],
+    },
+    {
+      id: `ask_catchphrase_${who}`,
+      once: false,
+      triggers: [{ signal: "dialogue_event", subject: `ask_catchphrase_${short}` }],
+      effects: [{ kind: "prompt_text", residentId: residentIdOf(who), target: "catchphrase" }],
+    },
+  ];
+  }),
+
   /*
    * ==== 记忆（居民系统 03）====
    *
@@ -251,6 +322,8 @@ export type StoryPoolDefinition = {
 
 export const storyPools: StoryPoolDefinition[] = [
   { poolId: "resident_arrival", base: 0.12, step: 0.08, max: 1 },
+  // 04：伙伴档起"他送你东西"。数字住经济表，这里只是把它挂进池子
+  { poolId: "resident_present", ...affectionTuning.presentPool },
 ];
 
 export function findStoryPool(

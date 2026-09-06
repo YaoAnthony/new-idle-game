@@ -1,4 +1,5 @@
 import type { DialogueDefinition } from "../../types/dialogue.js";
+import { residentAffectionDialogues } from "./residentAffection.js";
 import { residentChatDialogues } from "./residentChats.js";
 
 /**
@@ -264,7 +265,7 @@ export const dialogueDefinitions: DialogueDefinition[] = [
  * 三位居民的闲聊段（居民系统 03）由表生成，并进同一张注册表：
  * 对话引擎、审计、`/npc <谁> talk` 都只认这一张。
  */
-dialogueDefinitions.push(...residentChatDialogues);
+dialogueDefinitions.push(...residentChatDialogues, ...residentAffectionDialogues);
 
 export function findDialogueDefinition(
   id: string,

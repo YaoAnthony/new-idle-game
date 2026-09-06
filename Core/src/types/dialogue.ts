@@ -30,7 +30,7 @@ export type ResidentGestureId = string;
  * 一处 switch 一种条件一个 case：条件种类本来就是引擎的词汇表，那是唯一允许长的 switch。
  */
 export type DialogueCondition =
-  | { kind: "affection_at_least"; stage: AffectionStage }
+  | { kind: "affection_at_least"; stage: `${AffectionStage}` }
   | { kind: "event_completed"; eventId: EventId }
   | { kind: "event_stage"; eventId: EventId; stageId: EventStageId }
   | { kind: "feature_unlocked"; featureId: FeatureId }

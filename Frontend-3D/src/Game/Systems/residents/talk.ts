@@ -1,4 +1,4 @@
-import { COMMAND_SKILL_ID, findSkillPriority, findTalkPool, renderTalk, type DayPhaseId } from "core";
+import { COMMAND_SKILL_ID, findSkillPriority, findTalkPool, renderAddress, renderTalk, type DayPhaseId } from "core";
 import { on } from "../../EventBus";
 import { getClock } from "../../State/clock";
 import { findDroppedItem } from "../../State/droppedItems";
@@ -6,6 +6,7 @@ import { getLocalParticipant } from "../../State/participants";
 import { getResident, getResidents } from "../../State/residentsRuntime";
 import { t } from "../../../i18n/t";
 import { getActiveDialogue } from "../dialogue";
+import { addressTermFor } from "./affection";
 
 /**
  * 对话的系统层（居民系统 03）。三件事：
@@ -36,15 +37,17 @@ export function setTalkClockSource(source: (() => TalkClock) | null): void {
   });
 }
 
-/** 一位居民的口头禅（文字）。没有口头禅的 undefined */
+/** 一位居民的口头禅（文字）。玩家改过的优先（04）；没有口头禅的 undefined */
 export function catchphraseOf(definitionId: string): string | undefined {
+  const custom = getResidents().find((agent) => agent.definitionId === definitionId)?.catchphrase;
+  if (custom) return custom;
   const key = findTalkPool(definitionId)?.catchphrase;
   return key ? t(key) : undefined;
 }
 
-/** 文案键 → 这位说出来的样子（口头禅已替换） */
+/** 文案键 → 这位说出来的样子：`{cp}` 换口头禅，`{you}` 换他此刻怎么叫你（04） */
 export function talkText(definitionId: string, localizationKey: string): string {
-  return renderTalk(t(localizationKey), catchphraseOf(definitionId));
+  return renderAddress(renderTalk(t(localizationKey), catchphraseOf(definitionId)), addressTermFor(definitionId));
 }
 
 /** 反应的事件半径：扔的东西落在这么近才算"落在身边" */

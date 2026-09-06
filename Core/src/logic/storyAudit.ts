@@ -15,6 +15,7 @@ import {
 import { findPersonality } from "../Data/residents/personalities.js";
 import type { DialogueCondition } from "../types/dialogue.js";
 import type { ReactionDefinition } from "../types/talk.js";
+import { affectionTuning } from "../Data/economy/index.js";
 import { findStoryPool, storyRules, tutorialDefinition } from "../Data/story/index.js";
 import { weatherDefinitions } from "../Data/weather/index.js";
 import type { StoryTrigger } from "../types/story.js";
@@ -172,6 +173,10 @@ function auditTalk(checkText: (where: string, key: string) => void): string[] {
 /** 导出是给用例喂 fixture 用的；正式入口仍是 auditStoryContent */
 export function auditTrigger(where: string, trigger: StoryTrigger): string[] {
   const problems: string[] = [];
+
+  if (trigger.requiresAffection && !residentDefinitionOf(trigger.requiresAffection.residentId)) {
+    problems.push(`${where}：requiresAffection 指向不存在的居民 "${trigger.requiresAffection.residentId}"`);
+  }
 
   if (
     trigger.subject &&
@@ -449,6 +454,40 @@ export function auditStoryContent(options: AuditOptions = {}): string[] {
             problems.push(`${where}：add_memory 指向不存在的居民 "${effect.residentId}"`);
           }
           if (!effect.memoryId) problems.push(`${where}：add_memory 的 memoryId 是空的`);
+          break;
+
+        case "adjust_affection":
+          if (!residentDefinitionOf(effect.residentId)) {
+            problems.push(`${where}：adjust_affection 指向不存在的居民 "${effect.residentId}"`);
+          }
+          if (!(effect.source in affectionTuning.gains)) {
+            problems.push(`${where}：adjust_affection 的来源 "${effect.source}" 不在 affectionTuning.gains 里`);
+          }
+          break;
+
+        case "resident_present":
+          if (!residentDefinitionOf(effect.residentId)) {
+            problems.push(`${where}：resident_present 指向不存在的居民 "${effect.residentId}"`);
+          }
+          if (effect.itemId !== undefined && !findItemDefinition(effect.itemId)) {
+            problems.push(`${where}：resident_present 指向不存在的物品 "${effect.itemId}"`);
+          }
+          if (effect.itemId === undefined) {
+            const presents = residentDefinitionOf(effect.residentId)?.presents ?? [];
+            if (presents.length === 0) problems.push(`${where}：resident_present 没指定物品，这位又没有 presents`);
+            for (const itemId of presents) {
+              if (!findItemDefinition(itemId)) problems.push(`${where}：presents 里的 "${itemId}" 不是真物品`);
+            }
+          }
+          if (!findDialogueDefinition(effect.dialogueId)) {
+            problems.push(`${where}：resident_present 的对话 "${effect.dialogueId}" 不存在`);
+          }
+          break;
+
+        case "prompt_text":
+          if (!residentDefinitionOf(effect.residentId)) {
+            problems.push(`${where}：prompt_text 指向不存在的居民 "${effect.residentId}"`);
+          }
           break;
 
         default:

@@ -19,6 +19,9 @@ import { routinePlanOf } from "../../State/skills/routine";
 import { chatOutlook, resetTalkToday } from "../../State/skills/talk";
 import { findExpression } from "core";
 import { talkText } from "./talk";
+import { describeAffection, gainAffection, setAffection } from "./affection";
+import { giveResidentPresent } from "./presents";
+import { setResidentAddress } from "./naming";
 import { describeSpots, homeDoorstepOf } from "./spots";
 import { debugSendToTown, listResidentTrips, tripPlanOf } from "./townTrips";
 import { listResidentSpecies } from "./moveIn";
@@ -72,6 +75,10 @@ const USAGE = [
   "/npc <谁> talk      —— 此刻闲聊池里满足条件的段落和权重、会抽到哪段、今天聊了几次",
   "/npc <谁> memory add|rm <memoryId> —— 调记忆（正式写入口只有剧情效果 add_memory）",
   "/npc <谁> reset-talk —— 今天的聊天次数归零、招呼节流清空",
+  "/npc <谁> affection [+N|=N|<来源>] —— 看 / 调好感；来源（greet / chat / gift_loved…）走正式的一天一次那条路",
+  "/npc <谁> mood [=N] —— 看 / 调心情",
+  "/npc <谁> nickname <文字> / catchphrase <文字> —— 直接改他叫你的昵称 / 他的口头禅（空 = 清掉）",
+  "/npc <谁> present —— 立即触发一次「他送你东西」（走过来 → 对话 → 领取面板）",
   "/npc spots          —— 当前世界解析出的全部场所和占用",
 ].join("\n");
 
@@ -260,6 +267,33 @@ export function registerResidentCommands(): Array<() => void> {
             steps: near ? [{ verb: "hide" }] : [{ verb: "walk_to", x: door.x, z: door.z }, { verb: "hide" }],
           });
           return ok(`${agent.residentId} 回家`);
+        }
+        if (agent && verb === "affection") {
+          const arg = args[2];
+          if (arg && isRemoteWorld()) return fail("做客中不能改别人邻居的好感");
+          if (arg?.startsWith("=")) setAffection(agent.residentId, Number(arg.slice(1)));
+          else if (arg?.startsWith("+")) setAffection(agent.residentId, agent.affection + Number(arg.slice(1)));
+          else if (arg) {
+            const result = gainAffection(agent.residentId, arg);
+            if (!result) return fail(`没有这种来源：${arg}`);
+            if (result.gained === 0) return ok(`${arg} 今天已经给过了。${describeAffection(agent)}`);
+          }
+          return ok(describeAffection(agent));
+        }
+        if (agent && verb === "mood") {
+          const arg = args[2];
+          if (arg?.startsWith("=")) agent.mood = Math.max(0, Math.min(100, Number(arg.slice(1))));
+          return ok(`${agent.residentId}：心情 ${agent.mood.toFixed(0)}`);
+        }
+        if (agent && (verb === "nickname" || verb === "catchphrase")) {
+          if (isRemoteWorld()) return fail("做客中不能改别人的邻居");
+          setResidentAddress(agent.residentId, verb, args.slice(2).join(" "));
+          return ok(`${agent.residentId}：${verb === "nickname" ? "叫你" : "口头禅"}「${(verb === "nickname" ? agent.playerNickname : agent.catchphrase) ?? "（默认）"}」`);
+        }
+        if (agent && verb === "present") {
+          if (isRemoteWorld()) return fail("做客中不能指挥别人的邻居");
+          const short = agent.definitionId.replace(/_neighbor$/, "");
+          return giveResidentPresent(agent.residentId, `${short}_gives_present`) ? ok(`${agent.residentId} 来送东西了`) : fail("他没有东西可送（不是居民 / 没有 presents）");
         }
         if (agent && verb === "say") {
           if (!args[2]) return fail("用法：say <文案键> [秒]");

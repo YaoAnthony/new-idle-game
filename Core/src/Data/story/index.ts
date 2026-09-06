@@ -7,6 +7,7 @@ import { visitorTuning } from "../residents/visitors.js";
 import { letterDefinitions, mailTuning } from "../residents/letters.js";
 import { birthdayTuning } from "../residents/birthday.js";
 import { festivalDefinitions, festivalTuning } from "../festivals/index.js";
+import { DOOR_NOTE_FLAG } from "../doors/index.js";
 
 /** 专属家具的 id 从定义上取，规则不抄第二遍 */
 function signatureItemOf(definitionId: string): string {
@@ -32,6 +33,18 @@ const FAVORS: readonly FavorDefinition[] = favorDefinitions;
 const NEIGHBORS = ["slime_neighbor", "fox_neighbor", "spirit_neighbor"] as const;
 
 export const storyRules: StoryRule[] = [
+  /*
+   * ==== 开场（居民系统 14）====
+   *
+   * 新档醒来，门上贴着魔女的一张条子（`witch_first`，三行原文）。就这一条：不引导、不列任务、
+   * 不发第二封信、不写独白。`game_started` 只在新档发（读档不发），老档 flags 里没有 door_note 就不出现。
+   */
+  {
+    id: "opening_note",
+    triggers: [{ signal: "game_started" }],
+    effects: [{ kind: "set_flag", key: DOOR_NOTE_FLAG, value: "witch_first" }],
+  },
+
   /*
    * ==== 委托做成了（居民系统 05）====
    *

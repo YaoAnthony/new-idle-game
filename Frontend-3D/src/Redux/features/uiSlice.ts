@@ -43,6 +43,8 @@ export type PanelId =
   | "newspaper"
   /** 门口的信箱（10） */
   | "mailbox"
+  /** 门上的条子（14）：一张信纸，没有别的 */
+  | "note"
   | "reward"
   | "chest"
   | "escMenu";

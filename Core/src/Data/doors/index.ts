@@ -4,10 +4,15 @@ import type { DoorDefinition, DoorDefinitionId } from "../../types/doors.js";
  * 门的注册表。种类差异全在字段里：运行时的 Door/RoomDoor 类只解释
  * 这些数字，不认识任何具体的门——加一种门在这里加一行就够。
  */
+/** 大门上那张条子用的旗子（14）。开场规则写它，门读它 */
+export const DOOR_NOTE_FLAG = "door_note";
+
 export const doorDefinitions: DoorDefinition[] = [
   {
     id: "front_door",
     visualId: "door_front",
+    // 14：开场那张条子贴在这扇门上（旗子的值是信件 id）
+    noteFlag: DOOR_NOTE_FLAG,
     localizationKey: "door.front_door",
     /*
      * 大门的自动开半径收得很小（1.2，房门是 1.6）：只在宠物真的走到

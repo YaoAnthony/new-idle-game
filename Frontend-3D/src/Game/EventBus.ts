@@ -342,6 +342,8 @@ export type GameEvents = {
   newspaper_open_requested: Record<string, never>;
   /** 门口的信箱（10） */
   mailbox_open_requested: Record<string, never>;
+  /** 门上的条子（14）：读哪封信 */
+  note_open_requested: { letterId: string };
   /**
    * 玩家按 F 请求打开每日任务面板。不带 instanceId——
    * 进度是全家一份（WorldSave.dailyBoard），哪台机器打开的都一样。

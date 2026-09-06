@@ -1,5 +1,6 @@
 import { outsideFrontDoor, visitorAtDoor } from "../../Game/Systems/residents/visits";
 import { hasUnread } from "../../Game/Systems/mail";
+import { doorNoteOf, readDoorNote } from "../../Game/Systems/doorNote";
 import { MailboxView } from "./MailboxView";
 import { residentNickname } from "../../i18n/residentName";
 import { BodyPosture, CreatureRole, DayPhaseId, Facing, FurnitureCapability, constructionProgress, isConstructionQueued, WeatherKind, anchorOf, anchorRectToWorld, findItemDefinition, findResidentDefinition, roomCellToWorld, type AutoStepKind, type DeckRect, type WeatherDefinition, yardBoundsOf, navBoundsOf } from "core";
@@ -1949,10 +1950,13 @@ export class RoomScene {
        * 锁着的门也照常显示"开门"——F 试图做的正是开门这件事。
        * 写"锁着"是提前替玩家把门试过了。
        */
+      // 14：门上贴着条子 → 气泡是"？"，别的什么都不写（气泡本身就是提示）
+      const noteAgent = findDoorAgent(door.refId);
+      const hasNote = noteAgent ? doorNoteOf(noteAgent) !== null : false;
       const target: HintTarget = {
         instanceId: door.refId,
         hint: {
-          localizationKey: door.open ? "door.hint.close" : "door.hint.open",
+          localizationKey: hasNote ? "door.hint.note" : door.open ? "door.hint.close" : "door.hint.open",
           action: "interact",
         },
         world: new Vector3(door.center.x, 1.7, door.center.z),
@@ -2189,6 +2193,8 @@ export class RoomScene {
          * 07：门外站着来访的邻居 → 按 F 不是开关门，是"进来吧 / 现在不方便"那段对话。
          * 开门放人是剧情效果（visit_admit）的事，这里只把对话拉起来。
          */
+        // 14：门上有条子 → 按 F 先读条子，不开门。读过旗子就清了，下一次 F 才是开门
+        if (agent && readDoorNote(agent)) return;
         const visitor = visitorAtDoor();
         if (visitor && refId === frontDoorAgent()?.refId) {
           const definitionId = getResident(visitor)?.definitionId;

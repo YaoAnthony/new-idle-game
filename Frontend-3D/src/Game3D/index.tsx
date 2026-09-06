@@ -64,6 +64,7 @@ import { ShopShelfPanel } from "../Components/ShopShelfPanel/ShopShelfPanel";
 import { ConsignPanel } from "../Components/ConsignPanel/ConsignPanel";
 import { NewspaperPanel } from "../Components/NewspaperPanel/NewspaperPanel";
 import { MailboxPanel } from "../Components/Mailbox/MailboxPanel";
+import { NotePanel } from "../Components/Note/NotePanel";
 import {
   parseEnum,
   registerCommand,
@@ -2112,6 +2113,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       <ConsignPanel />
       <NewspaperPanel />
       <MailboxPanel />
+      <NotePanel />
       <DialoguePanel />
       <ActionHub />
       <DiaryPanel />

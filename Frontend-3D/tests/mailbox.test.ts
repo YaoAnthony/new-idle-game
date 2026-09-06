@@ -140,7 +140,7 @@ test("mail_剧情信_满箱不寄_明信片第二天到", () => {
   spawnResident(SLIME, "slime_neighbor");
   const witch = deliverLetter("witch_first")!;
   expect(witch.fromResidentId).toBeUndefined();
-  expect(letterText(witch)).toContain("魔女");
+  expect(letterText(witch)).toContain("学徒");
   for (let i = listLetters().length; i < mailTuning.boxCapacity; i += 1) deliverLetter("witch_first");
   expect(mailboxFull()).toBe(true);
   expect(deliverLetter("witch_first")).toBeNull();

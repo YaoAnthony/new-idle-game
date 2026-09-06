@@ -15,7 +15,7 @@ import { emit } from "../../EventBus";
 import { clearMailbox, deliverLetter, listLetters, listOutbox, processOutbox, writeLetter } from "../mail";
 import { forceBirthdayToday, getPlayerBirthday, setPlayerBirthday } from "./birthday";
 import { activeFestival, endFestival, listFestivals, startFestival } from "../festivals";
-import { listFlags } from "../flags";
+import { listFlags, setFlag } from "../flags";
 import { fireStoryRuleById } from "../story";
 import { getCount } from "../../State/inventory";
 import { getResidents } from "../../State/residentsRuntime";
@@ -329,6 +329,16 @@ export function registerResidentCommands(): Array<() => void> {
         if (sub === "spots") {
           const rows = describeSpots();
           return ok(rows.length ? ["场所：", ...rows].join("\n") : "现在一个场所都没有（没有室外椅子、店、井）");
+        }
+        if (sub === "flags") return ok(`旗子：${JSON.stringify(listFlags())}`);
+        if (sub === "flag") {
+          // 11 / 14 的通用旗子：调试口直接写（正式写入口只有剧情效果 set_flag）
+          if (isRemoteWorld()) return fail("做客中不能动别人的旗子");
+          const key = args[1] ?? "";
+          if (!key) return fail("用法：/npc flag <键> <值|none>");
+          const value = (args[2] ?? "none").toLowerCase() === "none" ? null : args[2]!;
+          setFlag(key, value);
+          return ok(`旗子 ${key} = ${value ?? "（清掉）"}`);
         }
         if (sub === "activities") {
           // 12：活动表 + 每位的爱好

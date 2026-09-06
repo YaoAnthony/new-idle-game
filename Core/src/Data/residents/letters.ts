@@ -60,6 +60,7 @@ export const letterDefinitions: LetterDefinition[] = [
   // 09 的多日出门：第二天到的明信片（寄件人是出门那位）
   { id: "postcard_hometown", kind: "postcard", bodyKey: "postcard.hometown", illustrationId: "postcard_hometown" },
   // 主线（14 开场之后）：魔女来信。没有对应的实体角色，效果直接寄
+  // 14：开场贴在门上的那张条子（三行原文，照抄不改）。没有寄件人：魔女不出场，只留字
   { id: "witch_first", kind: "story", bodyKey: "letter.witch.first", illustrationId: "letter_witch" },
   // 13：咕噜灯亮那晚歪歪扭扭的信；阿茜从镇上带回的、不是她写的信（寄件人空白——魔女线的第一个钩子，拆开 = 她那条线走完）
   { id: "slime_thanks_lamp", kind: "story", residentId: "slime_neighbor", bodyKey: "letter.slime.thanks_lamp" },

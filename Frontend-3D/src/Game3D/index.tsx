@@ -230,6 +230,7 @@ import { registerActionCommands } from "../Game/Systems/actionCommands";
 import { DiaryPanel } from "../Components/Diary/DiaryPanel";
 import { registerChainCommands } from "../Game/Systems/chainCommands";
 import { registerResidentCommands } from "../Game/Systems/residents/commands";
+import { diagnoseSites } from "../Game/State/skills/build";
 import { isRemoteWorldActive } from "../Game/Multiplayer/session";
 import { describeSoundscape, startSoundscape } from "./Engine/Soundscape";
 import { startMusicDirector } from "./Engine/MusicDirector";
@@ -870,7 +871,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
                 状态: golem.state,
                 位置: `${golem.x.toFixed(1)}, ${golem.z.toFixed(1)}`,
                 ...(() => {
-                  const d = golem.diagnoseSites();
+                  const d = diagnoseSites(golem);
                   return { 手上的活: d.errand, 工地: d.sites };
                 })(),
               },

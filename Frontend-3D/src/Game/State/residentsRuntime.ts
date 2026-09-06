@@ -9,9 +9,8 @@ import {
   type ResidentSave,
 } from "core";
 import { emit } from "../EventBus";
-import { ResidentAgent, type ResidentActivity,
-  setPeerLookup,
-} from "./residentAgent";
+import { ResidentAgent, type ResidentActivity, setPeerLookup } from "./residentAgent";
+import { createResident, createResidentFromSave } from "./residents/index";
 import { getWorld, roomIdAt } from "./worldRuntime";
 
 /**
@@ -76,7 +75,7 @@ export function spawnResident(residentId: string, definitionId: string): Residen
   const { room } = getWorld();
   const doorCell = { x: 0, y: Math.floor(room.floorGrid.height / 2) };
   const doorWorld = roomCellToWorld(room, doorCell.x, doorCell.y);
-  const resident = new ResidentAgent(residentId, definitionId, {
+  const resident = createResident(residentId, definitionId, {
     x: doorWorld.x,
     z: doorWorld.z,
     heading: Math.PI / 2,
@@ -111,7 +110,7 @@ export function spawnResidentAt(
   const existing = residents.get(residentId);
   if (existing) return existing;
 
-  const resident = new ResidentAgent(residentId, definitionId, {
+  const resident = createResident(residentId, definitionId, {
     x: from.x,
     z: from.z,
     heading: from.heading ?? 0,
@@ -204,7 +203,7 @@ export function placeSleepingResident(definitionId: string): ResidentAgent | nul
   if (!cell) return null;
 
   const cellWorld = roomCellToWorld(room, cell.x, cell.y);
-  const resident = new ResidentAgent(residentIdOf(definitionId), definitionId, {
+  const resident = createResident(residentIdOf(definitionId), definitionId, {
     x: cellWorld.x,
     z: cellWorld.z,
     heading: 0,
@@ -236,7 +235,7 @@ export function placeCreatureAt(
   const existing = residents.get(residentId);
   if (existing) return existing;
 
-  const resident = new ResidentAgent(residentId, definitionId, {
+  const resident = createResident(residentId, definitionId, {
     x: at.x,
     z: at.z,
     heading: at.heading ?? 0,
@@ -247,7 +246,7 @@ export function placeCreatureAt(
    * 的话，每加一个零件都要回来补一次"记得装上"，漏一次就是一只瘫在地上
    * 的傀儡——默认可用、显式弄坏，是更难出错的那一边。
    */
-  resident.attachedParts.add("head");
+  for (const part of (resident.constructor as typeof ResidentAgent).parts) resident.attachedParts.add(part);
   for (const part of options.missingParts ?? []) resident.attachedParts.delete(part);
 
   if (options.asleep || resident.dormant) resident.fallAsleep();
@@ -319,7 +318,7 @@ export function restoreResidents(saved: Record<string, ResidentSave>): void {
   residents.clear();
 
   for (const entry of Object.values(saved)) {
-    residents.set(entry.residentId, ResidentAgent.fromSave(entry));
+    residents.set(entry.residentId, createResidentFromSave(entry));
     emit("resident_changed", { residentId: entry.residentId, reason: "restored" });
   }
 }

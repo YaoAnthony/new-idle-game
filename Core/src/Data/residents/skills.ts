@@ -1,0 +1,54 @@
+/**
+ * 技能优先级表（居民系统 01，2026-09-06）。
+ *
+ * 一只活物闲下来时按这张表从高到低问每个技能"想干什么"，第一个给出
+ * Intent 的赢；已经在做事时，只有比当前 Intent 优先级高、且当前允许打断的
+ * 才能抢过来。**数字住这里不住代码**：调"饿了要不要放下手里的活"改这一行。
+ *
+ * `command` 是玩家用 `/npc <谁> do …` 下达的，优先级 1000 而不是 Infinity——
+ * Intent 要能上网线（联机木偶按同一份 JSON 执行），`Infinity` 序列化成 null。
+ *
+ * 技能的**实现**在 Frontend（`Game/State/skills/`），这里只有名字和数字：
+ * Core 不知道"找工地"怎么做，只知道它排在"找吃的"前面。
+ */
+export type SkillId = string;
+
+export type SkillPriorityDefinition = {
+  id: SkillId;
+  priority: number;
+  /**
+   * 这个技能下的 Intent 默认能不能被更高优先级抢走。
+   * 技能自己产出的 Intent 可以覆盖（needs 走到最后一步吃到一半时翻成 false）。
+   */
+  interruptible: boolean;
+};
+
+export const COMMAND_SKILL_ID: SkillId = "command";
+
+export const skillPriorityDefinitions = [
+  { id: COMMAND_SKILL_ID, priority: 1000, interruptible: false },
+  /** 石傀儡去工地。压倒游荡，被引开会释放工地 */
+  { id: "build", priority: 80, interruptible: true },
+  /** 饿了渴了找吃找喝。走过去的路上可以被抢，吃到一半不行 */
+  { id: "needs", priority: 60, interruptible: false },
+  /** 闲着打盹（舒舒十次有八次）。只在无事可做时掷 */
+  { id: "nap", priority: 25, interruptible: true },
+  /** 熟了以后偶尔凑到玩家身边 */
+  { id: "approach", priority: 20, interruptible: true },
+  /** 兜底：驻地附近随便走走 */
+  { id: "wander", priority: 10, interruptible: true },
+  /** 商人的交易面板。没有 decide，只回答"按 F 开什么" */
+  { id: "trade", priority: 0, interruptible: true },
+] as const satisfies readonly SkillPriorityDefinition[];
+
+export function findSkillPriority(id: SkillId): SkillPriorityDefinition | undefined {
+  return (skillPriorityDefinitions as readonly SkillPriorityDefinition[]).find(
+    (entry) => entry.id === id,
+  );
+}
+
+/**
+ * 技能问一圈的节流（秒）。每帧都问的话两个技能会一帧一换地互相抢；
+ * 半秒一问，玩家看不出延迟，技能也不会抖。
+ */
+export const SKILL_DECIDE_INTERVAL_SECONDS = 0.5;

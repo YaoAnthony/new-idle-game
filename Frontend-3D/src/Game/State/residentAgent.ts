@@ -1,35 +1,16 @@
 import {
   AffectionStage,
+  COMMAND_SKILL_ID,
   CreatureRole,
-  isConstructionDone,
-  FurnitureCapability,
-  PlacementSurface,
   GiftTier,
+  SKILL_DECIDE_INTERVAL_SECONDS,
   findItemDefinition,
   findResidentDefinition,
-  findResidentTaste,
-  findPlaceableItem,
-  footprintCells,
-  roomCellToWorld,
+  findSkillPriority,
   navBoundsOf,
-  type GridPosition,
   type ResidentSave,
-  type RoomSave,
 } from "core";
 import { emit } from "../EventBus";
-import {
-  findDroppedItem,
-  listDroppedItems,
-  removeDroppedItem,
-} from "./droppedItems";
-import {
-  claimSite,
-  finishSite,
-  listSites,
-  releaseSite,
-} from "./buildings";
-import { findBuildingLevel } from "../../Buildings/index";
-import { getClock } from "./clock";
 import {
   creatureBlockedAt,
   creatureBlockingAt,
@@ -37,7 +18,6 @@ import {
   doorGateBlocks,
   getCurrentMap,
   getCurrentMapId,
-  getRoom,
   getWorld,
   isWalkable,
   withPhasing,
@@ -45,29 +25,45 @@ import {
   setCreatureObstacle,
 } from "./worldRuntime";
 import { findRoute } from "../Systems/navigation";
+import {
+  isParallel,
+  lastWalkIndex,
+  type ActionStep,
+  type FacingTarget,
+  type Intent,
+} from "./actions";
+import type { InteractOffer, Skill, SkillContext } from "./skills/types";
 
 /**
- * 宠物的"父类"：**一只活物的全部基础行为和档案属性都在这一个类里**。
+ * 一只活物的**身体**（居民系统 01，2026-09-06 拆分）。
  *
- * 基础行为：发呆（idle）、乱走（wander）、凑过来（approach）、
- * 吃饭（eat）、喝水（drink）、睡觉（sleeping）。
- * 档案属性（所有物种统一）：昵称、好感、成长值、心情、饱食/水分。
+ * 这个类只管三件事：
  *
- * ## 新物种怎么加
+ * 1. **物理与档案**：位置、朝向、碰撞体、寻路与走路、让路；饱食 / 水分的
+ *    衰减、心情、成长；存档进出。
+ * 2. **执行动词**（`actions.ts`）：把 Intent 里的 `walk_to` / `stand` / `sleep` /
+ *    `work_at` … 逐个变成位置、计时器和对外的 `state`。
+ * 3. **问技能**：闲下来时按优先级问一圈挂着的技能"想干什么"，第一个给出
+ *    Intent 的赢；已经在做事时只有更高优先级、且当前允许打断的才能抢。
  *
- * **实例化，不继承。** 物种差异全部来自 ResidentDefinition 的数字
- * （speed / sleepiness / collisionRadius / 食量），加一只新生物 =
- * 注册表加一条 + 造型表加一条，行为代码零改动——舒舒和三只 wisp
- * 已经是同一个类的实例，只是数字不同。真出现"数字表达不了的独有行为"
- * 再考虑子类，别提前为想象中的需求开继承树。
+ * 它**不认识任何具体身份**：这里不得出现 `if (role === Worker)`、`trySeekSite`、
+ * `Golem` 这类字样——石傀儡去工地、wisp 找吃的、水獭开面板，全是技能
+ * （`skills/`）的事；谁挂什么技能写在子类上（`residents/*.ts`）。`role` 字段
+ * 还在，但只当标签用（客源名单、计数、`dormant` 的判据），不再分支行为。
  *
- * ## 吃与喝的现实含义
+ * ## 一个基类，每种小动物一个子类
+ *
+ * 用户 2026-09-05 定的形状。子类只做三件事：声明挂哪些技能、覆盖少数钩子、
+ * 给自己的技能传参数。子类里出现 `startPathTo` / `this.x =` 就是把行为写回了
+ * 子类，退回基类或技能。（这条推翻了本文件原来"实例化不继承"的规矩——那条
+ * 防的是"每加一只就复制一份状态机"，现在状态机在基类、行为在技能，
+ * 子类只剩声明，那个风险不存在了。）
+ *
+ * ## 吃与喝的现实含义（沿用）
  *
  * - 饿了 → 找**地上扔着的**能吃的东西（尊重口味表，inedible 不碰）。
- *   和扔掷系统天然打通：扔个煎蛋过去，它会自己颠颠地走过来吃掉。
- * - 渴了 → 找带 WaterSource 能力的家具（现在是橱柜的水槽）凑过去喝。
- * - 掉率故意很慢（默认 8/12 点每小时）：宠物是陪伴不是电子鸡，
- *   玩家忘了喂不该是一种惩罚，心情低一点仅此而已。
+ * - 渴了 → 找带 WaterSource 能力的家具凑过去喝。
+ * - 掉率故意很慢（默认 8/12 点每小时）：宠物是陪伴不是电子鸡。
  */
 
 export type ResidentActivity =
@@ -79,40 +75,22 @@ export type ResidentActivity =
   | "sleeping"
   | "eat"
   | "drink"
-  /** 站在工地上干活（`CreatureRole.Worker` 专属） */
+  | "sitting"
+  /** 站在工地上干活 */
   | "work";
 
-/** 到达路径终点后要干的事。走路只是手段，这里记着目的 */
-type Errand =
-  | { kind: "eat"; droppedId: string }
-  | { kind: "drink"; at: { x: number; z: number } }
-  /** 去某块工地干活。到了就认领，认领了才开始走进度 */
-  | { kind: "build"; instanceId: string }
-  | null;
-
-/** 饱食/水分低于这条线就开始主动找吃找喝 */
-const NEED_SEEK_THRESHOLD = 35;
 /** 心情的默认出厂值，也是老存档补默认的值 */
 const DEFAULT_MOOD = 70;
 const DEFAULT_HUNGER_PER_HOUR = 8;
 const DEFAULT_THIRST_PER_HOUR = 12;
 /** 睡觉时代谢放缓的倍率 */
 const SLEEP_METABOLISM = 0.35;
-
-/** 某间屋的格号 → 世界坐标。官方换算（RoomAnchor 感知） */
-function gridToWorldXZ(room: RoomSave, cell: GridPosition): [number, number] {
-  const p = roomCellToWorld(room, cell.x, cell.y);
-  return [p.x, p.z];
-}
+/** `stand` 没给秒数时站多久 */
+const DEFAULT_STAND_SECONDS = 2;
 
 /**
  * 按 residentId 找同伴。**由 `residentsRuntime` 在启动时注入**，不在这里 import。
- *
- * 反过来引会成环：`residentsRuntime` 本来就 import 了 `ResidentAgent`。ESM 能容忍
- * 环，但那让"谁依赖谁"变得要靠猜；注入一个函数则把方向写在明面上——
- * 名册归 `residentsRuntime` 管，个体只是被告知怎么找人。
- *
- * 只有"让路"用它：一只生物要请另一只挪开，除此之外个体之间不互相认识。
+ * 反过来引会成环。只有"让路"用它：一只生物要请另一只挪开。
  */
 let peerLookup: ((residentId: string) => ResidentAgent | undefined) | null = null;
 
@@ -122,7 +100,37 @@ export function setPeerLookup(
   peerLookup = lookup;
 }
 
+/**
+ * `work_at` 这一步"到点没到、工地还在不在"由谁回答。**由 build 技能注入**，
+ * 身体不 import 工地系统——同 peerLookup 的理由：方向写在明面上。
+ */
+export type WorkOutcome = "working" | "done" | "lost";
+let workChecker: ((instanceId: string) => WorkOutcome) | null = null;
+
+export function setWorkChecker(checker: (instanceId: string) => WorkOutcome): void {
+  workChecker = checker;
+}
+
+/** 正在执行的动词的运行时状态（不进存档） */
+type StepRun = {
+  stepIndex: number;
+  /** stand / sit / sleep 的剩余秒数 */
+  timer: number;
+  /** 这个 Intent 的 onArrive 已经调过（只调一次） */
+  arrived: boolean;
+};
+
 export class ResidentAgent {
+  /** 子类声明：这种小动物挂哪些技能（按 id，实现从 `skills/index` 查）。基类为空 */
+  static skills: readonly string[] = [];
+  /**
+   * 子类声明：身上有哪些**可拆的零件**（石傀儡的 "head"）。零件不全 = 休眠，
+   * 自己醒不过来。基类为空 = 没有零件这回事，永远不休眠。
+   * 原来这条判据写的是 `role === Worker`——那是基类在认身份；改成子类声明后
+   * 基类只问"齐不齐"。
+   */
+  static parts: readonly string[] = [];
+
   // ---- 身份 ----
   readonly residentId: string;
   readonly definitionId: string;
@@ -135,7 +143,7 @@ export class ResidentAgent {
   growth = 0;
   /** 心情 0~100：吃喝睡被照顾到就高，饿着渴着就往下走 */
   mood = DEFAULT_MOOD;
-  /** 饱食 / 水分，满 100。掉到阈值以下自己找吃找喝 */
+  /** 饱食 / 水分，满 100 */
   needs = { hunger: 80, thirst: 80 };
 
   // ---- 空间 ----
@@ -146,71 +154,61 @@ export class ResidentAgent {
   readonly radius: number;
   /**
    * 无视碰撞体积（`ResidentDefinition.ignoresObstacles`，今天只有石傀儡）。
-   *
-   * 它有两个后果，一个在**它看别人**，一个在**别人看它**：
-   * 前者靠 `withPhasing` 包住它自己的每一次通行查询，后者靠**不登记**
-   * 成活物障碍。两边都要做——只做前者的话它会停在别人身上，
-   * 那位接下来每个候选落脚点都还压着它，当场卡死。
+   * 它看别人：`withPhasing` 包住每一次通行查询；别人看它：不登记成活物障碍。
+   * 两边都要做——只做前者它会停在别人身上，那位就当场卡死。
    */
-  private readonly phasing: boolean;
+  readonly phasing: boolean;
   readonly speed: number;
   /**
-   * 驻地：出生（或读档落位）的地方。乱走以它为圆心，不超过 `wanderRadius`。
-   *
-   * 屋里的宠物不受影响（不填半径 = 不限，房间本身就是围栏）；院子是一整块
-   * 60×45 的房间，不给半径的话石傀儡会一路溜达到据点另一头。
+   * 驻地：乱走的圆心，配 `wanderRadius`。进存档，不能读档时拿当时站的位置顶——
+   * 那样每存读一次就朝溜达到的地方挪一次。
    */
   homeX: number;
   homeZ: number;
-  private readonly wanderRadius: number;
+  readonly wanderRadius: number;
 
   // ---- 行为状态机（运行时，不进存档） ----
+  /** 对外报的活动名。由正在执行的动词决定；没有动词时是 idle */
   state: ResidentActivity = "idle";
   moving = false;
-  /**
-   * 剩下要走的**世界坐标**路点，来自 `findRoute`（拉过直的）。
-   *
-   * 原来存的是房间格坐标，那是"这只生物只在脚下这间屋里活动"的最后
-   * 一份拷贝：格号只有配上具体哪间屋才有意义，于是走到院子和屋子的
-   * 交界就没法接着往下算。世界坐标没有这个问题——进屋、上桥、换图
-   * 都是同一串数。
-   */
+  /** 剩下要走的**世界坐标**路点（拉过直的）。用例读它判"让路生效了没有" */
   path: Array<[number, number]> = [];
   pathIndex = 0;
+  /** 闲着时离下一次问技能还有多久 */
   idleTimer = 2;
+  /** 睡眠剩余（给旧代码 / 表现层看的镜像，真相在 `run.timer`） */
   sleepTimer = 0;
-  /** 吃/喝的进食动画还要播多久 */
-  private busyTimer = 0;
-  /** 路被活物挡住已经等了多久 */
-  private blockedFor = 0;
-  /**
-   * 刚被请着让过路，这段时间内不再被请第二次。
-   *
-   * 没有这个冷却的话，两只互相挡着的生物会一人一帧地请对方让路，
-   * 谁都走不掉——让路必须是**一次性的动作**，不是持续协商。
-   */
-  private yieldCooldown = 0;
-  private errand: Errand = null;
+  /** 头顶正在说的话（`speak` 动词）。表现层读 */
+  speech: { localizationKey: string; until: number } | null = null;
 
-  /** 陪你的还是干活的。干活的不吃不喝不亲近 */
+  private blockedFor = 0;
+  /** 刚被请着让过路，这段时间内不再被请第二次 */
+  private yieldCooldown = 0;
+  private decideCountdown = 0;
+
+  private current: Intent | null = null;
+  private run: StepRun | null = null;
+  private clock = 0;
+
+  /** 陪你的还是干活的。**只当标签用**，不分支行为 */
   readonly role: CreatureRole;
-  /**
-   * 身上装了哪些零件。只对 `CreatureRole.Worker` 有意义。
-   *
-   * **零件不全 = 休眠**，而且自己醒不过来（见 `dormant`）：石傀儡开场
-   * 没有头，坐在那儿就是一堆石头，不该过一会儿自己站起来溜达。
-   */
+  /** 身上装了哪些零件。零件不全 = 休眠（`dormant`） */
   readonly attachedParts = new Set<string>();
 
-  private readonly sleepiness: number;
-  private readonly napSeconds: [number, number];
+  readonly sleepiness: number;
+  readonly napSeconds: [number, number];
   private readonly hungerPerHour: number;
   private readonly thirstPerHour: number;
+
+  /** 挂着的技能（按优先级降序）和开关。开关是运行时的，不进存档 */
+  readonly skills: readonly Skill[];
+  private readonly disabledSkills = new Set<string>();
 
   constructor(
     residentId: string,
     definitionId: string,
     at: { x: number; z: number; heading: number },
+    skills: readonly Skill[],
   ) {
     this.residentId = residentId;
     this.definitionId = definitionId;
@@ -235,6 +233,10 @@ export class ResidentAgent {
     this.thirstPerHour =
       definition?.behavior?.thirstPerHour ?? DEFAULT_THIRST_PER_HOUR;
 
+    this.skills = [...skills].sort(
+      (a, b) => priorityOf(b.id) - priorityOf(a.id),
+    );
+
     // 挡路的活物从出现那一刻就要挡，等第一帧 tick 会被穿过去一次
     this.registerObstacle();
   }
@@ -243,18 +245,22 @@ export class ResidentAgent {
 
   /** 从门口走进屋（首次登场过场）。走不进去就原地站着，不硬闯 */
   beginEntering(): void {
-    this.state = "entering";
     const spot = this.randomFreeSpot();
-    if (spot) this.startPathTo(spot[0], spot[1]);
+    if (!spot) return;
+    this.perform({
+      skillId: "entering",
+      priority: priorityOf(COMMAND_SKILL_ID),
+      interruptible: false,
+      steps: [{ verb: "walk_to", x: spot[0], z: spot[1], state: "entering" }],
+      idleAfter: 1.5,
+      onDone: () => {
+        emit("resident_changed", { residentId: this.residentId, reason: "entered" });
+        emit("story_signal", { kind: "resident_entered", subject: this.residentId });
+      },
+    });
   }
 
-  /**
-   * 换驻地（期 4：居民搬进自己的房子）。
-   *
-   * 只挪圆心不挪人：他会自己**溜达过去**——乱走的候选点从此只在新驻地
-   * 半径内取，几步之内就走过去了。瞬移过去反而穿帮（正和别人说着话呢）。
-   * home 进存档（ResidentSave.home），读档不漂移。
-   */
+  /** 换驻地（居民搬进自己的房子）。只挪圆心不挪人，他会自己溜达过去 */
   rehome(x: number, z: number): void {
     this.homeX = x;
     this.homeZ = z;
@@ -262,48 +268,277 @@ export class ResidentAgent {
 
   dispose(): void {
     if (this.radius > 0) removeCreatureObstacle(this.residentId);
-    this.abandonSite();
+    this.abandonIntent();
   }
 
+  // ---- 技能开关 ----
+
+  isSkillEnabled(skillId: string): boolean {
+    return !this.disabledSkills.has(skillId);
+  }
+
+  setSkillEnabled(skillId: string, enabled: boolean): void {
+    if (enabled) this.disabledSkills.delete(skillId);
+    else this.disabledSkills.add(skillId);
+  }
+
+  /** 正在做的事（只读视图）。指令 `/npc where` 和技能的 ctx 读它 */
+  get currentIntent(): Intent | null {
+    return this.current;
+  }
+
+  /** 正在执行第几步 */
+  get currentStepIndex(): number {
+    return this.run?.stepIndex ?? -1;
+  }
+
+  // ---- 执行动词 ----
+
   /**
-   * 放开手上的工地（被引开、读档、傀儡没了）。工地退回队列。
+   * 下达一个 Intent。**这是唯一的行为入口**：技能算出来的和 `/npc do` 下的
+   * 走同一条路。返回 false = 没接受（正在做更重要的、或者当前不许打断）。
    *
-   * 必须显式退：`workerId` 留着的话那块地永远等着一个不存在的工人，
-   * 队里后面的也跟着卡死。
+   * 指令（`skillId === command`）无视 `interruptible`——调试口必须立刻生效。
    */
-  private abandonSite(): void {
-    if (this.errand?.kind !== "build") return;
-    releaseSite(this.errand.instanceId);
-    this.errand = null;
+  perform(intent: Intent): boolean {
+    if (this.current) {
+      const isCommand = intent.skillId === COMMAND_SKILL_ID;
+      const canPreempt =
+        isCommand ||
+        (intent.priority > this.current.priority && this.current.interruptible);
+      if (!canPreempt) return false;
+      this.abandonIntent();
+    }
+
+    this.current = intent;
+    this.run = { stepIndex: -1, timer: 0, arrived: false };
+    this.clearPath();
+    this.advanceStep();
+    return true;
   }
 
-  /** 调试用：瞬移过去并回到发呆。只有 /pet 命令经 residentsRuntime 调它 */
-  /**
-   * 走没走在路上。**用例读它判"让路生效了没有"**——直接看 `path.length`
-   * 要把私有字段公开，而那会让任何人都能改路径。
-   */
-  /**
-   * 把自己登记成活物障碍。**穿行的不登记**——单向穿行会让它变成一堵
-   * 会走路的幽灵墙：别人挡不住它，它却挡得住别人，而它停在谁身上，
-   * 谁就再也迈不出一步（每个候选点都还压着它）。
-   */
-  private registerObstacle(): void {
-    if (this.radius <= 0 || this.phasing) return;
-    setCreatureObstacle(this.residentId, this.x, this.z, this.radius);
+  /** 并行槽动词（gesture / speak）：不排队，立刻发出 */
+  performParallel(step: ActionStep): void {
+    if (!isParallel(step)) {
+      this.perform({
+        skillId: COMMAND_SKILL_ID,
+        priority: priorityOf(COMMAND_SKILL_ID),
+        interruptible: false,
+        steps: [step],
+      });
+      return;
+    }
+    this.fireParallel(step);
+  }
+
+  private fireParallel(step: ActionStep): void {
+    if (step.verb === "gesture") {
+      emit("resident_gesture", { residentId: this.residentId, gesture: step.gestureId });
+    } else if (step.verb === "speak") {
+      this.speech = {
+        localizationKey: step.localizationKey,
+        until: this.clock + (step.seconds ?? 3),
+      };
+      emit("resident_changed", { residentId: this.residentId, reason: "speak" });
+    }
+  }
+
+  /** 当前 Intent 作废（被抢、走不到、目的没了）。onInterrupted 收尾，不调 onDone */
+  private abandonIntent(): void {
+    const intent = this.current;
+    this.current = null;
+    this.run = null;
+    this.clearPath();
+    intent?.onInterrupted?.(this);
+    if (this.state !== "hidden") this.state = "idle";
+  }
+
+  /** 全部动词做完。onDone 结算，然后发呆 idleAfter 秒 */
+  private completeIntent(): void {
+    const intent = this.current;
+    this.current = null;
+    this.run = null;
+    this.clearPath();
+    this.moving = false;
+    if (this.state !== "hidden") this.state = "idle";
+    this.idleTimer = intent?.idleAfter ?? 1;
+    intent?.onDone?.(this);
+  }
+
+  /** 进入下一个动词。并行槽的直接发出后继续；串行的设好状态等 tick */
+  private advanceStep(): void {
+    const intent = this.current;
+    const run = this.run;
+    if (!intent || !run) return;
+
+    for (;;) {
+      run.stepIndex += 1;
+      if (run.stepIndex >= intent.steps.length) {
+        this.completeIntent();
+        return;
+      }
+      const step = intent.steps[run.stepIndex];
+
+      if (isParallel(step)) {
+        this.fireParallel(step);
+        continue;
+      }
+
+      // 走到最后一个 walk_to 之后（needs 吃到一半）不再允许被抢
+      if (intent.lockAfterLastWalk && run.stepIndex > lastWalkIndex(intent.steps)) {
+        intent.interruptible = false;
+      }
+
+      if (this.enterStep(step, run)) return;
+      // 进不去（走不到、坐不下）：整个 Intent 作废
+      this.abandonIntent();
+      this.idleTimer = 1;
+      return;
+    }
+  }
+
+  /** 开始执行一个串行动词。返回 false = 这一步做不了 */
+  private enterStep(step: ActionStep, run: StepRun): boolean {
+    switch (step.verb) {
+      case "walk_to": {
+        if (!this.startPathTo(step.x, step.z)) return false;
+        this.state = step.state ?? "wander";
+        return true;
+      }
+      case "stand": {
+        this.state = step.state ?? "idle";
+        run.timer = step.seconds ?? DEFAULT_STAND_SECONDS;
+        if (step.facing !== undefined) this.face(step.facing);
+        this.moving = false;
+        return true;
+      }
+      case "sit": {
+        this.state = "sitting";
+        run.timer = step.seconds ?? Number.POSITIVE_INFINITY;
+        if (step.facing !== undefined) this.face(step.facing);
+        this.moving = false;
+        return true;
+      }
+      case "sleep": {
+        this.state = "sleeping";
+        const [min, max] = this.napSeconds;
+        run.timer = step.seconds ?? min + Math.random() * (max - min);
+        this.sleepTimer = run.timer;
+        this.moving = false;
+        emit("resident_changed", { residentId: this.residentId, reason: "sleep" });
+        return true;
+      }
+      case "hide": {
+        this.state = "hidden";
+        this.moving = false;
+        if (this.radius > 0) removeCreatureObstacle(this.residentId);
+        emit("resident_changed", { residentId: this.residentId, reason: "hide" });
+        return true;
+      }
+      case "show": {
+        this.state = "idle";
+        this.registerObstacle();
+        emit("resident_changed", { residentId: this.residentId, reason: "show" });
+        return true;
+      }
+      case "work_at": {
+        this.state = "work";
+        this.moving = false;
+        if (step.facing !== undefined) this.face(step.facing);
+        emit("resident_changed", { residentId: this.residentId, reason: "work" });
+        return true;
+      }
+      default:
+        return false;
+    }
+  }
+
+  private face(target: FacingTarget): void {
+    this.heading =
+      typeof target === "number"
+        ? target
+        : Math.atan2(target.x - this.x, target.z - this.z);
+  }
+
+  /** 每帧推进当前动词 */
+  private tickStep(deltaSeconds: number): void {
+    const intent = this.current;
+    const run = this.run;
+    if (!intent || !run) return;
+    const step = intent.steps[run.stepIndex];
+    if (!step) return;
+
+    switch (step.verb) {
+      case "walk_to": {
+        if (this.pathIndex < this.path.length) {
+          this.tickMove(deltaSeconds, step.speedScale ?? 1);
+          return;
+        }
+        this.moving = false;
+        // 到了最后一个 walk_to：改世界的那一下在这儿
+        if (!run.arrived && run.stepIndex === lastWalkIndex(intent.steps)) {
+          run.arrived = true;
+          if (intent.onArrive && intent.onArrive(this) === false) {
+            this.abandonIntent();
+            this.idleTimer = 1;
+            return;
+          }
+        }
+        this.advanceStep();
+        return;
+      }
+      case "stand":
+      case "sit": {
+        run.timer -= deltaSeconds;
+        if (run.timer <= 0) this.advanceStep();
+        return;
+      }
+      case "sleep": {
+        // 零件不全的不会自己醒：它不是困了，是没启动
+        if (this.dormant) return;
+        run.timer -= deltaSeconds;
+        this.sleepTimer = run.timer;
+        if (run.timer <= 0) this.wakeUp();
+        return;
+      }
+      case "work_at": {
+        /*
+         * 身体不知道"工地完工"是什么。build 技能在加载时注入一个检查函数
+         * （同 peerLookup 的做法：方向写在明面上，不反向 import）。
+         * 没注入（纯身体的测试）就一直干着。
+         */
+        const outcome = workChecker?.(step.instanceId) ?? "working";
+        if (outcome !== "working") this.finishWorkStep(outcome);
+        return;
+      }
+      case "hide":
+      case "show":
+        this.advanceStep();
+        return;
+      default:
+        return;
+    }
   }
 
   /**
-   * 在自己的通行规则下跑一段。穿行的角色包一层 `withPhasing`，
-   * 其余人原样调用（零开销、零行为变化）。
-   *
-   * 包在**入口**而不是每个 `isWalkable` 调用点上：这个类里有七处通行
-   * 查询，漏掉任何一处都会得到一张自相矛盾的图——寻路说能过、迈步说
-   * 不能，人贴着墙原地抖。包入口的话，以后新加的查询自动跟着对。
+   * `work_at` 这一步由外面（build 技能的每帧检查）宣告完成或失败。
+   * 身体不知道"工地完工"是什么，只知道这一步结束了。
    */
-  private phased<T>(fn: () => T): T {
-    return this.phasing ? withPhasing(fn) : fn();
+  finishWorkStep(outcome: "done" | "lost"): void {
+    const step = this.current?.steps[this.run?.stepIndex ?? -1];
+    if (!step || step.verb !== "work_at") return;
+    if (outcome === "lost") {
+      this.abandonIntent();
+      this.idleTimer = 1;
+      return;
+    }
+    emit("resident_changed", { residentId: this.residentId, reason: "work_done" });
+    this.advanceStep();
   }
 
+  // ---- 调试口 ----
+
+  /** 走没走在路上。用例读它判"让路生效了没有" */
   isMovingSomewhere(): boolean {
     return this.pathIndex < this.path.length;
   }
@@ -317,53 +552,63 @@ export class ResidentAgent {
 
   /** 用例摆状态用（"正在干活的不让路"这类判据要先把他摆成那个状态） */
   debugSetState(state: ResidentActivity): void {
+    this.current = null;
+    this.run = null;
     this.state = state;
     this.clearPath();
   }
 
   debugPlace(x: number, z: number): void {
+    this.abandonIntent();
     this.x = x;
     this.z = z;
     this.state = "idle";
-    this.clearPath();
-    this.errand = null;
     this.idleTimer = 1.5;
     this.registerObstacle();
   }
 
-  // ---- 基础行为：睡 ----
+  // ---- 睡 ----
 
+  /** 剧情 / 指令让他睡下（无视正在做的事） */
   fallAsleep(): void {
-    this.state = "sleeping";
-    const [min, max] = this.napSeconds;
-    this.sleepTimer = min + Math.random() * (max - min);
-    this.clearPath();
-    emit("resident_changed", { residentId: this.residentId, reason: "sleep" });
+    this.perform({
+      skillId: COMMAND_SKILL_ID,
+      priority: priorityOf(COMMAND_SKILL_ID),
+      interruptible: true,
+      steps: [{ verb: "sleep" }],
+      idleAfter: 2 + Math.random() * 3,
+    });
   }
 
   wakeUp(): void {
     // 零件不全的傀儡叫不醒。它不是在睡觉，是**没启动**
     if (this.dormant) return;
-    this.state = "idle";
-    // 醒来先愣一会儿再决定干什么——猫不会睁眼就走
-    this.idleTimer = 2 + Math.random() * 3;
+    if (this.state !== "sleeping") return;
+    const step = this.current?.steps[this.run?.stepIndex ?? -1];
+    if (step?.verb === "sleep") {
+      // 醒来先愣一会儿再决定干什么——猫不会睁眼就走
+      this.advanceStep();
+    } else {
+      this.state = "idle";
+      this.idleTimer = 2 + Math.random() * 3;
+    }
     emit("resident_changed", { residentId: this.residentId, reason: "wake" });
   }
 
-  /**
-   * 零件缺着，动不了。
-   *
-   * 和"睡着"是两回事：睡着的会自己醒（`sleepTimer` 走完），休眠的不会。
-   * 判据只看 `Worker`——宠物没有零件这回事，永远不休眠。
-   */
-  get dormant(): boolean {
-    return this.role === CreatureRole.Worker && !this.attachedParts.has("head");
+  /** 这种动物声明的零件表（子类的 static） */
+  private get parts(): readonly string[] {
+    return (this.constructor as typeof ResidentAgent).parts;
   }
 
   /**
-   * 装一个零件上去。装齐了就**自己醒过来**——玩家把头按回脖子上，
-   * 期待的就是它当场活过来，不该还要再戳一下。
+   * 零件缺着，动不了。和"睡着"是两回事：睡着的会自己醒，休眠的不会。
+   * 没声明零件的物种永远不休眠。
    */
+  get dormant(): boolean {
+    return this.parts.some((part) => !this.attachedParts.has(part));
+  }
+
+  /** 装一个零件上去。装齐了就**自己醒过来** */
   attachPart(part: string): void {
     if (this.attachedParts.has(part)) return;
     this.attachedParts.add(part);
@@ -371,12 +616,8 @@ export class ResidentAgent {
     if (!this.dormant && this.state === "sleeping") this.wakeUp();
   }
 
-  // ---- 基础行为：吃（外部喂食也走这里，送礼那边调用） ----
+  // ---- 吃（地上捡的和玩家手递的都汇到这一条） ----
 
-  /**
-   * 吃进一份东西。地上捡的和玩家手递的都汇到这一条：
-   * 饱食按物品的 hungerRestore 恢复，心情按爱不爱吃涨，成长值 +1（爱吃 +2）。
-   */
   feed(itemId: string, tier: GiftTier): void {
     const restore = findItemDefinition(itemId)?.food?.hungerRestore ?? 18;
     this.needs.hunger = Math.min(100, this.needs.hunger + restore);
@@ -389,10 +630,39 @@ export class ResidentAgent {
     emit("resident_changed", { residentId: this.residentId, reason: "eat" });
   }
 
+  // ---- F 交互：问技能 ----
+
+  /** 玩家按 F。第一个愿意回答的技能说了算；都不答 → null，调用方走默认对话 */
+  interact(player: { x: number; z: number }): InteractOffer | null {
+    const ctx = this.contextFor(player);
+    for (const skill of this.skills) {
+      if (!skill.interact || !this.isSkillEnabled(skill.id)) continue;
+      const offer = skill.interact(ctx);
+      if (offer) return offer;
+    }
+    return null;
+  }
+
   // ---- 每帧 ----
 
   tick(deltaSeconds: number, player: { x: number; z: number }): void {
-    if (this.state === "hidden") return;
+    this.clock += deltaSeconds;
+    if (this.speech && this.speech.until <= this.clock) this.speech = null;
+    if (this.state === "hidden") {
+      /*
+       * 藏起来的（在屋里）不占格、不衰减、不走路，但**动词照样推进、技能照样问**——
+       * 不然 `hide` 之后永远没人能让他 `show`（02 的回家 / 出门靠这个）。
+       */
+      if (this.current) {
+        this.tickStep(deltaSeconds);
+      } else {
+        this.idleTimer -= deltaSeconds;
+        if (this.idleTimer <= 0 && !this.consultSkills(player)) {
+          this.idleTimer = 3 + Math.random() * 5;
+        }
+      }
+      return;
+    }
     this.phased(() => this.tickInner(deltaSeconds, player));
   }
 
@@ -400,469 +670,47 @@ export class ResidentAgent {
     this.registerObstacle();
 
     if (this.yieldCooldown > 0) this.yieldCooldown -= deltaSeconds;
-
     this.decayNeeds(deltaSeconds);
     this.driftMood(deltaSeconds);
 
-    if (this.state === "sleeping") {
-      // 零件不全的不会自己醒：它不是困了，是没启动
-      if (this.dormant) return;
-      this.sleepTimer -= deltaSeconds;
-      if (this.sleepTimer <= 0) this.wakeUp();
+    if (this.current) {
+      this.tickStep(deltaSeconds);
+      // 做着事也定期问一圈：有更要紧的（饿了、有活了）就抢过来
+      this.decideCountdown -= deltaSeconds;
+      if (this.decideCountdown <= 0) {
+        this.decideCountdown = SKILL_DECIDE_INTERVAL_SECONDS;
+        if (this.current?.interruptible) this.consultSkills(player);
+      }
       return;
     }
 
-    if (this.state === "eat" || this.state === "drink") {
-      this.busyTimer -= deltaSeconds;
-      if (this.busyTimer <= 0) this.finishBusy();
-      return;
-    }
-
-    if (this.state === "work") {
-      this.tickWork(deltaSeconds);
-      return;
-    }
-
-    if (this.pathIndex < this.path.length) {
-      this.tickMove(deltaSeconds);
-      return;
-    }
-
-    // 路走完了
     this.moving = false;
-
-    if (this.state === "entering") {
-      this.state = "idle";
-      this.idleTimer = 1.5;
-      emit("resident_changed", { residentId: this.residentId, reason: "entered" });
-      emit("story_signal", { kind: "resident_entered", subject: this.residentId });
-      return;
-    }
-
-    if (this.errand) {
-      this.arriveAtErrand();
-      return;
-    }
-
     this.idleTimer -= deltaSeconds;
     if (this.idleTimer > 0) return;
 
-    this.chooseNextActivity(player);
+    if (!this.consultSkills(player)) {
+      // 没人想干什么：过几秒再问
+      this.idleTimer = 3 + Math.random() * 5;
+    }
   }
 
-  // ---- 行为选择：需求 > 睡意 > 亲近 > 乱走 ----
-
-  private chooseNextActivity(player: { x: number; z: number }): void {
-    /*
-     * 干活的不吃不喝不亲近（`CreatureRole.Worker`）。
-     *
-     * 跳过这三支而不是给它一套"永不饿"的数字：石傀儡是石头，"它不饿"
-     * 不是把 `hungerPerHour` 调成 0 那种意思，是**这个概念对它不成立**。
-     * 数字调法还会让它在存档里带着一组永远 80 的饱食度，看着像忘了实现。
-     *
-     * 施工那一支（去工地干活）等下一期，接在这里。
-     */
-    const worker = this.role === CreatureRole.Worker;
-
-    // 有活就先干活，压倒一切（包括游荡）。工地不会自己等人
-    if (worker && this.trySeekSite()) return;
-
-    if (!worker) {
-      // 饿了渴了优先于一切安排——但找不到吃的就不硬找，继续过日子
-      if (this.needs.hunger < NEED_SEEK_THRESHOLD && this.trySeekFood()) return;
-      if (this.needs.thirst < NEED_SEEK_THRESHOLD && this.trySeekWater()) return;
-    }
-
-    if (this.sleepiness > 0 && Math.random() < this.sleepiness) {
-      this.fallAsleep();
-      return;
-    }
-
-    // 熟悉后偶尔主动走向玩家（好感度的空间表现）
-    const nearPlayer = Math.hypot(player.x - this.x, player.z - this.z) < 2.2;
-    const wantsApproach =
-      !worker &&
-      this.affectionStage !== AffectionStage.Stranger &&
-      !nearPlayer &&
-      Math.random() < 0.45;
-
-    if (wantsApproach && this.startPathTo(player.x, player.z)) {
-      this.state = "approach";
-      this.idleTimer = 4 + Math.random() * 4;
-      return;
-    }
-
-    const spot = this.randomFreeSpot();
-    if (spot && this.startPathTo(spot[0], spot[1])) {
-      this.state = "wander";
-    }
-    this.idleTimer = 3 + Math.random() * 5;
+  private contextFor(player: { x: number; z: number }): SkillContext {
+    return { agent: this, player, current: this.current };
   }
-
-  // ---- 干活：去工地 ----
 
   /**
-   * 找一块该干的工地走过去。
-   *
-   * **一次只认一块**：手上已经有活（`construction.workerId` 是自己）就
-   * 接着干那块，不会半路改主意跑去另一个工地——那正是用户要的"建 A 的
-   * 时候 B 不会动工"。
-   *
-   * 挑的是**最早下单的**那块（`listSites()` 保持数组顺序 = 下单顺序）。
-   * 先来先建是玩家唯一能预测的规则；按距离挑的话，玩家下单的顺序和
-   * 开工的顺序对不上，看着像随机。
+   * 按优先级问一圈。已经在做事时只问比它优先级高的。
+   * 返回 true = 有技能接手了。
    */
-  private trySeekSite(): boolean {
-    const mine = listSites().find(
-      (site) => site.construction?.workerId === this.residentId,
-    );
-    /*
-     * 候选是**所有**没人认领的工地，按下单顺序试——不是只看第一块。
-     *
-     * 只看第一块的话，一块他去不了的地会把整个队列钉死：体型进寻路
-     * 之后"去不了"从边缘情况变成了常态（石傀儡半径 1.1，门洞 2 米，
-     * 他进不了屋），玩家在屋里下一单，院子里那十堵墙就再也没人建了。
-     *
-     * 去不了的地不认领、也不报错，就跳过。它留在队列里等一个**过得去**
-     * 的工人——将来有小个子工人时那一单自然会被接走，今天则是一直空着。
-     *
-     * 顺序仍是**先下单先建**（用户定的排队语义），不改成"就近先建"：
-     * 玩家下单的次序是他自己的计划，寻路的方便不该把它打乱。跳过的
-     * 只有真去不了的，能去的一块都不越队。
-     */
-    const candidates = mine
-      ? [mine]
-      : listSites().filter((site) => !site.construction?.workerId);
-
-    for (const target of candidates) {
-      const level = findBuildingLevel(
-        target.buildingId,
-        target.construction?.targetLevelId ?? target.levelId,
-      );
-      const reach =
-        this.radius +
-        0.9 +
-        Math.max(level?.footprint.width ?? 2, level?.footprint.height ?? 2) / 2;
-
-      // 已经站在跟前了 → 直接开工，不用再走
-      if (Math.hypot(target.x - this.x, target.z - this.z) <= reach) {
-        this.beginWork(target.instanceId);
-        return true;
-      }
-
-      /*
-       * 把**楼占多大**也传进去：落脚点只在楼外面找。不传的话前几圈
-       * 采样点全落在楼里，等于把候选数从三十几个砍到八个。
-       */
-      const blocked =
-        Math.max(level?.footprint.width ?? 2, level?.footprint.height ?? 2) / 2;
-      // 排不出路 = 这块地他过不去（门太窄、地没解锁）。换下一块
-      if (!this.seekNear(target.x, target.z, reach, blocked)) continue;
-
-      this.state = "wander";
-      this.errand = { kind: "build", instanceId: target.instanceId };
-      this.idleTimer = 6;
-      return true;
+  private consultSkills(player: { x: number; z: number }): boolean {
+    const ctx = this.contextFor(player);
+    for (const skill of this.skills) {
+      if (!skill.decide || !this.isSkillEnabled(skill.id)) continue;
+      if (this.current && priorityOf(skill.id) <= this.current.priority) break;
+      const intent = skill.decide(ctx);
+      if (intent && this.perform(intent)) return true;
     }
     return false;
-  }
-
-  /**
-   * **为什么不去建**：逐块工地报原因（调试用）。
-   *
-   * 用户 2026-08-25 报"石傀儡不过来建造"，而当时完全没有工具能回答这个
-   * 问题——`/buildings` 连工地都不显示，`trySeekSite` 里那句"去不了就
-   * 跳过"是静默的。三种原因（有人认领了 / 已经站到了 / 排不出路）
-   * 从外面长得一模一样：他就是站着不动。
-   *
-   * 这个方法不改任何状态，只把 `trySeekSite` 的判断复述一遍。
-   */
-  diagnoseSites(): ReturnType<ResidentAgent["diagnoseSitesInner"]> {
-    return this.phased(() => this.diagnoseSitesInner());
-  }
-
-  private diagnoseSitesInner(): {
-    errand: string;
-    sites: Array<{ instanceId: string; verdict: string }>;
-  } {
-    const errand =
-      this.errand?.kind === "build" ? this.errand.instanceId : (this.errand?.kind ?? "(空)");
-    return { errand, sites: this.listSiteVerdicts() };
-  }
-
-  private listSiteVerdicts(): Array<{ instanceId: string; verdict: string }> {
-    return listSites().map((site) => {
-      if (site.construction?.workerId && site.construction.workerId !== this.residentId) {
-        return { instanceId: site.instanceId, verdict: `别人在建（${site.construction.workerId}）` };
-      }
-      const level = findBuildingLevel(
-        site.buildingId,
-        site.construction?.targetLevelId ?? site.levelId,
-      );
-      const reach =
-        this.radius +
-        0.9 +
-        Math.max(level?.footprint.width ?? 2, level?.footprint.height ?? 2) / 2;
-      const distance = Math.hypot(site.x - this.x, site.z - this.z);
-      if (distance <= reach) {
-        return { instanceId: site.instanceId, verdict: `够得着（距离 ${distance.toFixed(1)} ≤ ${reach.toFixed(1)}）` };
-      }
-      /*
-       * 这里**真的去排一次路**（和 `trySeekSite` 走同一个 `seekNear`），
-       * 排完把路撤掉——只有真排一次才知道过不过得去，估算不算数。
-       */
-      const savedPath = this.path;
-      const savedIndex = this.pathIndex;
-      const blocked =
-        Math.max(level?.footprint.width ?? 2, level?.footprint.height ?? 2) / 2;
-      const reachable = this.seekNear(site.x, site.z, reach, blocked);
-      this.path = savedPath;
-      this.pathIndex = savedIndex;
-      if (reachable) {
-        return {
-          instanceId: site.instanceId,
-          verdict: `走得到（距离 ${distance.toFixed(1)}）`,
-        };
-      }
-      /*
-       * 去不了的话，**分清是"没地方站"还是"站得下但走不过去"**。
-       * 两者的修法完全不同：前者要放宽落脚点的搜法，后者是地图或
-       * 障碍物的问题。只报一句"排不出路"的话，这两条路要各试一遍。
-       */
-      let standable = 0;
-      let tried = 0;
-      const inner = blocked + this.radius;
-      const RINGS = 4;
-      const DIRECTIONS = 12;
-      for (let ring = 0; ring <= RINGS; ring += 1) {
-        const d = inner >= reach ? reach : inner + ((reach - inner) * ring) / RINGS;
-        const spokes = d <= 0.01 ? 1 : DIRECTIONS;
-        const phase = (ring * Math.PI) / DIRECTIONS;
-        for (let spoke = 0; spoke < spokes; spoke += 1) {
-          const angle = phase + (spoke * Math.PI * 2) / spokes;
-          tried += 1;
-          if (
-            isWalkable(
-              site.x + Math.cos(angle) * d,
-              site.z + Math.sin(angle) * d,
-              this.radius,
-              this.residentId,
-            )
-          ) {
-            standable += 1;
-          }
-        }
-      }
-      /*
-       * 走不过去时再问一句：**换个小个子过得去吗**。
-       *
-       * 过得去 = 路太窄（石傀儡半径 1.1 要 2.2 米净宽，而院子里的过道
-       * 未必有）；过不去 = 那片地压根和这儿不连通（地没开、被墙围死）。
-       * 两者的修法完全不同：前者是把过道让开或者换个小工人，
-       * 后者是那块地根本不该能下单。
-       */
-      let narrowOnly = false;
-      if (standable > 0) {
-        const tiny = findRoute(
-          { x: this.x, z: this.z },
-          { x: site.x, z: site.z },
-          { radius: 0.25, snapRings: 4, phasing: this.phasing },
-        );
-        narrowOnly = Boolean(tiny && tiny.length >= 2);
-      }
-      return {
-        instanceId: site.instanceId,
-        verdict:
-          standable === 0
-            ? `**没地方站**（环带 ${inner.toFixed(1)}~${reach.toFixed(1)}，${tried} 个候选点一个都站不下，半径 ${this.radius}）`
-            : narrowOnly
-              ? `**路太窄**（小个子过得去，他半径 ${this.radius} 过不去；${standable}/${tried} 个落脚点可站）`
-              : `**那片地不连通**（小个子也过不去；${standable}/${tried} 个落脚点可站，距离 ${distance.toFixed(1)}）`,
-      };
-    });
-  }
-
-  /** 站定、转向工地、认领它。认领那一刻才开始走进度 */
-  private beginWork(instanceId: string): void {
-    const site = listSites().find((item) => item.instanceId === instanceId);
-    if (!site) {
-      this.state = "idle";
-      this.idleTimer = 1;
-      return;
-    }
-    claimSite(instanceId, this.residentId, getClock().sample.nowUtc);
-    this.heading = Math.atan2(site.x - this.x, site.z - this.z);
-    this.state = "work";
-    this.clearPath();
-    this.errand = { kind: "build", instanceId };
-    emit("resident_changed", { residentId: this.residentId, reason: "work" });
-  }
-
-  /**
-   * 干活那一帧：到点就完工，然后接着找下一块。
-   *
-   * 进度不在这里推——它是从 `startUtc / finishUtc` 算出来的（Core 的
-   * `constructionProgress`）。这里只负责**看时候到没到**，以及"人还在不在
-   * 工地上"：玩家把石傀儡引开的话，工地要退回队列，不能人走了活还在干。
-   */
-  private tickWork(deltaSeconds: number): void {
-    void deltaSeconds;
-    const instanceId =
-      this.errand?.kind === "build" ? this.errand.instanceId : undefined;
-    const site = instanceId
-      ? listSites().find((item) => item.instanceId === instanceId)
-      : undefined;
-
-    if (!site) {
-      // 工地没了（被拆了 / 读档换了世界）：回去发呆
-      this.errand = null;
-      this.state = "idle";
-      this.idleTimer = 1;
-      return;
-    }
-
-    if (isConstructionDone(site, getClock().sample.nowUtc)) {
-      finishSite(site.instanceId);
-      this.errand = null;
-      this.state = "idle";
-      // 完工立刻找下一块：队里还有的话，玩家看见他转身就走
-      this.idleTimer = 0.4;
-      emit("resident_changed", { residentId: this.residentId, reason: "work_done" });
-    }
-  }
-
-  // ---- 基础行为：吃（找地上的） ----
-
-  private trySeekFood(): boolean {
-    const taste = findResidentTaste(this.definitionId);
-
-    let best: { id: string; x: number; z: number } | null = null;
-    let bestDistance = Number.POSITIVE_INFINITY;
-    for (const entity of listDroppedItems()) {
-      const definition = findItemDefinition(entity.stack.itemId);
-      // 只吃"食物"；口味表明说不能吃的不碰（生米生肉对它是真的没法吃）
-      if (!definition?.food) continue;
-      if (taste?.inedible.includes(entity.stack.itemId)) continue;
-
-      const distance = Math.hypot(entity.x - this.x, entity.z - this.z);
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        best = { id: entity.id, x: entity.x, z: entity.z };
-      }
-    }
-    if (!best) return false;
-
-    if (!this.seekNear(best.x, best.z, this.radius + 0.9)) return false;
-    this.errand = { kind: "eat", droppedId: best.id };
-    this.state = "wander";
-    return true;
-  }
-
-  // ---- 基础行为：喝（找水源家具） ----
-
-  private trySeekWater(): boolean {
-    const { placedFurniture } = getWorld();
-
-    for (const placed of placedFurniture) {
-      const item = findPlaceableItem(placed.furnitureId);
-      if (!item?.placement.capabilities.includes(FurnitureCapability.WaterSource)) {
-        continue;
-      }
-      if (placed.placement.kind !== PlacementSurface.Floor) continue;
-
-      // 家具中心 = 占地格的平均。水槽在台面哪一端注册表没说，
-      // 先凑到家具边上喝——"够得着"由 reach 半径表达
-      const cells = footprintCells(
-        placed.placement.gridPosition,
-        item.placement.footprint,
-        placed.placement.facing,
-        item.placement.footprintMask,
-      );
-      let sumX = 0;
-      let sumZ = 0;
-      // 家具的格号属于**它自己那个房间**，不是这只生物脚下的那个
-      const furnitureRoom = getRoom(placed.placement.roomId) ?? getWorld().room;
-      for (const cell of cells) {
-        const [wx, wz] = gridToWorldXZ(furnitureRoom, cell);
-        sumX += wx;
-        sumZ += wz;
-      }
-      const centerX = sumX / cells.length;
-      const centerZ = sumZ / cells.length;
-
-      if (this.seekNear(centerX, centerZ, this.radius + 2.2)) {
-        this.errand = { kind: "drink", at: { x: centerX, z: centerZ } };
-        this.state = "wander";
-        return true;
-      }
-    }
-    return false;
-  }
-
-  /** 到达差事地点：确认目标还在、够得着，然后开始吃/喝 */
-  private arriveAtErrand(): void {
-    const errand = this.errand;
-    this.errand = null;
-    if (!errand) return;
-
-    if (errand.kind === "eat") {
-      const entity = findDroppedItem(errand.droppedId);
-      // 路上被玩家捡走了 → 白跑一趟，回去发呆（这本身就挺像猫的）
-      if (!entity) {
-        this.idleTimer = 1;
-        this.state = "idle";
-        return;
-      }
-      const distance = Math.hypot(entity.x - this.x, entity.z - this.z);
-      if (distance > this.radius + 1.2) {
-        this.idleTimer = 1;
-        this.state = "idle";
-        return;
-      }
-
-      this.heading = Math.atan2(entity.x - this.x, entity.z - this.z);
-      this.state = "eat";
-      this.busyTimer = 2.6;
-      this.errand = errand; // 吃完要知道吃的是哪一份
-      emit("resident_changed", { residentId: this.residentId, reason: "eat" });
-      return;
-    }
-
-    if (errand.kind === "build") {
-      this.beginWork(errand.instanceId);
-      return;
-    }
-
-    this.heading = Math.atan2(errand.at.x - this.x, errand.at.z - this.z);
-    this.state = "drink";
-    this.busyTimer = 3.2;
-    emit("resident_changed", { residentId: this.residentId, reason: "drink" });
-  }
-
-  /** 吃/喝动画播完，结算 */
-  private finishBusy(): void {
-    if (this.state === "eat" && this.errand?.kind === "eat") {
-      const entity = removeDroppedItem(this.errand.droppedId);
-      if (entity) {
-        const taste = findResidentTaste(this.definitionId);
-        const itemId = entity.stack.itemId;
-        const tier = taste?.loved.includes(itemId)
-          ? GiftTier.Loved
-          : taste?.disliked.includes(itemId)
-            ? GiftTier.Disliked
-            : GiftTier.Liked;
-        this.feed(itemId, tier);
-      }
-    }
-
-    if (this.state === "drink") {
-      this.needs.thirst = Math.min(100, this.needs.thirst + 60);
-      this.mood = Math.min(100, this.mood + 3);
-    }
-
-    this.errand = null;
-    this.state = "idle";
-    this.idleTimer = 2 + Math.random() * 2;
   }
 
   // ---- 需求与心情 ----
@@ -874,11 +722,7 @@ export class ResidentAgent {
     this.needs.thirst = Math.max(0, this.needs.thirst - this.thirstPerHour * hours);
   }
 
-  /**
-   * 心情不是直接加减，是**朝目标漂**：目标由需求算出来（被照顾 → 高，
-   * 饿着渴着 → 低）。吃到爱吃的那些瞬间加成会被慢慢拉回目标——
-   * 一顿好饭高兴一阵子，日子过得好不好才决定长期心情。
-   */
+  /** 心情朝需求算出的目标漂：一顿好饭高兴一阵子，日子过得好不好才决定长期心情 */
   private driftMood(deltaSeconds: number): void {
     const worst = Math.min(this.needs.hunger, this.needs.thirst);
     const target = worst < 20 ? 25 : worst >= 60 ? 85 : 55;
@@ -887,6 +731,20 @@ export class ResidentAgent {
 
   // ---- 寻路与移动（所有物种共用，体型由 radius 表达） ----
 
+  /**
+   * 把自己登记成活物障碍。**穿行的不登记**——单向穿行会让它变成一堵
+   * 会走路的幽灵墙。
+   */
+  private registerObstacle(): void {
+    if (this.radius <= 0 || this.phasing) return;
+    setCreatureObstacle(this.residentId, this.x, this.z, this.radius);
+  }
+
+  /** 在自己的通行规则下跑一段。穿行的角色包一层 `withPhasing` */
+  private phased<T>(fn: () => T): T {
+    return this.phasing ? withPhasing(fn) : fn();
+  }
+
   private clearPath(): void {
     this.path = [];
     this.pathIndex = 0;
@@ -894,152 +752,103 @@ export class ResidentAgent {
   }
 
   /**
-   * 驻地附近随便挑一个**站得进去**的世界点。
+   * 驻地附近随便挑一个**站得进去**的世界点。技能（wander / entering）用。
    *
-   * 抽样范围先收到驻地圆里，不全图均匀抽：院子 60×45，5 米半径的圆
-   * 只占其中不到 3%，均匀抽 24 次有一半机会一个都中不了，表现就是
-   * 石傀儡走一段呆站十几秒。不限驻地半径的（屋里的宠物）退回按整张
-   * 可走边界抽，和以前一样。
-   *
-   * 判据只有 `isWalkable(..., this.radius, this.residentId)` 一条——它就是
-   * 玩家走路用的那条（领地、地形、家具、建筑、体型全在里面）。以前这里
-   * 还要先过一遍房间占用图的 `cellHasClearance`，那是两套判定，
-   * 而两套判定迟早会给出两个答案。
+   * 抽样范围先收到驻地圆里，不全图均匀抽：院子 60×45，5 米半径的圆只占
+   * 不到 3%，均匀抽 24 次有一半机会一个都中不了。判据只有
+   * `isWalkable(..., this.radius, this.residentId)` 一条——它就是玩家走路用的那条。
    */
-  private randomFreeSpot(): [number, number] | null {
-    const map = getCurrentMap();
-    /*
-     * 抽点范围用**导航范围**不是可走范围。
-     *
-     * 可走范围现在是整块地形（225×215）——上面那段注释已经算过这笔账：
-     * 可落脚的地方"只占其中不到 3%，均匀抽 24 次有一半机会一个都中不了，
-     * 表现就是石傀儡走一段呆站十几秒"。范围再放大 8.4 倍，命中率跟着掉
-     * 一个数量级，不限驻地半径的宠物基本就不动了。
-     *
-     * 而且语义上也该是导航范围：宠物是**在有内容的地方过日子**，
-     * 不该自己溜达到没做完的山里去。
-     */
-    const bounds = navBoundsOf(map, getWorld().room.floorGrid);
-    let minX = bounds.minX + this.radius;
-    let maxX = bounds.maxX - this.radius;
-    let minZ = bounds.minZ + this.radius;
-    let maxZ = bounds.maxZ - this.radius;
-    if (Number.isFinite(this.wanderRadius)) {
-      minX = Math.max(minX, this.homeX - this.wanderRadius);
-      maxX = Math.min(maxX, this.homeX + this.wanderRadius);
-      minZ = Math.max(minZ, this.homeZ - this.wanderRadius);
-      maxZ = Math.min(maxZ, this.homeZ + this.wanderRadius);
-    }
-    if (maxX <= minX || maxZ <= minZ) return null;
+  randomFreeSpot(): [number, number] | null {
+    return this.phased(() => {
+      const map = getCurrentMap();
+      const bounds = navBoundsOf(map, getWorld().room.floorGrid);
+      let minX = bounds.minX + this.radius;
+      let maxX = bounds.maxX - this.radius;
+      let minZ = bounds.minZ + this.radius;
+      let maxZ = bounds.maxZ - this.radius;
+      if (Number.isFinite(this.wanderRadius)) {
+        minX = Math.max(minX, this.homeX - this.wanderRadius);
+        maxX = Math.min(maxX, this.homeX + this.wanderRadius);
+        minZ = Math.max(minZ, this.homeZ - this.wanderRadius);
+        maxZ = Math.min(maxZ, this.homeZ + this.wanderRadius);
+      }
+      if (maxX <= minX || maxZ <= minZ) return null;
 
-    for (let attempt = 0; attempt < 24; attempt += 1) {
-      const x = minX + Math.random() * (maxX - minX);
-      const z = minZ + Math.random() * (maxZ - minZ);
-      // 上面收的是方框，这里才是真的圆
-      if (Math.hypot(x - this.homeX, z - this.homeZ) > this.wanderRadius) continue;
-      if (!isWalkable(x, z, this.radius, this.residentId)) continue;
-      return [x, z];
-    }
-    return null;
+      for (let attempt = 0; attempt < 24; attempt += 1) {
+        const x = minX + Math.random() * (maxX - minX);
+        const z = minZ + Math.random() * (maxZ - minZ);
+        // 上面收的是方框，这里才是真的圆
+        if (Math.hypot(x - this.homeX, z - this.homeZ) > this.wanderRadius) continue;
+        if (!isWalkable(x, z, this.radius, this.residentId)) continue;
+        return [x, z];
+      }
+      return null;
+    });
   }
 
   /**
-   * 往一个世界点走。**这是全场唯一的寻路入口**（玩家的自动跑腿走的是
-   * 同一个 `findRoute`，只是半径不同）。
+   * 在目标附近找一个"离得够近、而且这只生物**真站得进去、真走得到**"的落脚点。
+   * 技能用它把"凑到工地 / 食物跟前"解析成一个确切坐标，再写进 `walk_to`。
    *
-   * 体型进参数之后，"太大过不去"就是 `findRoute` 返回 null——路根本
-   * 排不出来，这只生物原地待着，不会走到门口顶着门框磨。调用方拿
-   * false 当"这趟去不了"处理即可。
-   *
-   * `snapRings` 收得很紧（2 环 = 1 米）：给大家伙吸得远，等于把
-   * "屋里那块地他进不去"偷偷改写成"那就走到屋外墙根站着"。
+   * 目标往往落在阻挡格里（水槽在橱柜上、工地中心是要盖房子的地方），
+   * 所以只在 `blockedRadius + 自己的半径` 到 `reach` 这条环带里采样，
+   * 每圈 12 个方位、每圈错开半个扇区。每个候选点都真排一次路——
+   * 只有真排一次才知道过不过得去。**不改自己的路径**（排完撤掉）。
    */
-  private startPathTo(x: number, z: number): boolean {
+  findSpotNear(
+    targetX: number,
+    targetZ: number,
+    reach: number,
+    blockedRadius = 0,
+  ): { x: number; z: number } | null {
+    return this.phased(() => {
+      const inner = blockedRadius > 0 ? blockedRadius + this.radius : 0;
+      const RINGS = 4;
+      const DIRECTIONS = 12;
+      for (let ring = 0; ring <= RINGS; ring += 1) {
+        const distance =
+          inner >= reach ? reach : inner + ((reach - inner) * ring) / RINGS;
+        const spokes = distance <= 0.01 ? 1 : DIRECTIONS;
+        const phase = (ring * Math.PI) / DIRECTIONS;
+        for (let spoke = 0; spoke < spokes; spoke += 1) {
+          const angle = phase + (spoke * Math.PI * 2) / spokes;
+          const x = targetX + Math.cos(angle) * distance;
+          const z = targetZ + Math.sin(angle) * distance;
+          if (!isWalkable(x, z, this.radius, this.residentId)) continue;
+          if (this.routeTo(x, z)) return { x, z };
+        }
+      }
+      return null;
+    });
+  }
+
+  /** 排一条路但不走。`findSpotNear` 和 diagnose 用 */
+  routeTo(x: number, z: number): Array<[number, number]> | null {
     const route = findRoute(
       { x: this.x, z: this.z },
       { x, z },
       { radius: this.radius, snapRings: 2, phasing: this.phasing },
     );
-    if (!route || route.length < 2) return false;
+    return route && route.length >= 2 ? route : null;
+  }
 
+  /**
+   * 往一个世界点走。**这是全场唯一的寻路入口**。体型进参数之后，"太大过不去"
+   * 就是 `findRoute` 返回 null——这只生物原地待着，不会走到门口顶着门框磨。
+   * `snapRings` 收得很紧（2 环 = 1 米）：给大家伙吸得远，等于把"屋里那块地
+   * 他进不去"偷偷改写成"那就走到屋外墙根站着"。
+   */
+  private startPathTo(x: number, z: number): boolean {
+    const route = this.routeTo(x, z);
+    if (!route) return false;
     this.path = route;
     this.pathIndex = 1;
     return true;
   }
 
   /**
-   * 走到"离目标够近、而且这只生物**真站得进去**"的地方。
-   *
-   * 为什么不直接走目标点：目标往往落在**阻挡格**里（水槽在橱柜上、
-   * 工地中心是要盖房子的地方），谁也站不进去。`reach` 表达的是
-   * "凑到跟前就行"。
-   *
-   * 取样从近到远一圈圈来，每圈八个方位。原来是扫整张房间格表再排序，
-   * 那既绑死了"只在这间屋里"，又在院子那种 2700 格的房间上做无谓的
-   * 全表扫描。环形取样只关心目标附近那一小块，和房间多大无关。
-   *
-   * 每个候选点都要过 `isWalkable(..., this.radius, ...)`：**体型在这里
-   * 第一次起作用**——大家伙够不到的地方直接不是候选。真一个都没有
-   * （比如工地在屋里、他进不去），返回 false，调用方就当这活儿他干不了。
-   */
-  private seekNear(
-    targetX: number,
-    targetZ: number,
-    reach: number,
-    /**
-     * 目标本身占多大（半径，米）。给了就**只在它外面找落脚点**——
-     * 里面那几圈横竖站不下，试也是白试。
-     */
-    blockedRadius = 0,
-  ): boolean {
-    /*
-     * ## 只在"站得下的那条环带"里采样
-     *
-     * 原来是从 0 到 reach 均分五圈。对一颗小摆件没问题，对一栋楼是灾难：
-     * 狐狸家 3×3、reach = 半径 1.1 + 0.9 + 占地半宽 1.5 = 3.5，而他至少要
-     * 站在 1.5 + 1.1 = 2.6 之外——**前三圈全在房子里**，真正可用的只有最外
-     * 那一圈 8 个点。挡掉几个就整栋楼都去不了，而外面看到的只是
-     * "石傀儡站着不动"。
-     *
-     * 现在从 `blockedRadius + 自己的半径` 起步、到 reach 为止均分，
-     * 采样点全落在可能站得住的那条环带里；方向也从 8 加到 12，
-     * 因为环带窄了，只能靠角度铺开。
-     */
-    const inner = blockedRadius > 0 ? blockedRadius + this.radius : 0;
-    const RINGS = 4;
-    const DIRECTIONS = 12;
-    for (let ring = 0; ring <= RINGS; ring += 1) {
-      const distance =
-        inner >= reach
-          ? // 环带被压没了（楼太大 / reach 太小）：退回只试最远那一圈
-            reach
-          : inner + ((reach - inner) * ring) / RINGS;
-      // 目标点本身只在没有体积时才值得试一次
-      const spokes = distance <= 0.01 ? 1 : DIRECTIONS;
-      // 每圈错开半个扇区，免得所有圈的候选点排成几条直线
-      const phase = (ring * Math.PI) / DIRECTIONS;
-      for (let spoke = 0; spoke < spokes; spoke += 1) {
-        const angle = phase + (spoke * Math.PI * 2) / spokes;
-        const x = targetX + Math.cos(angle) * distance;
-        const z = targetZ + Math.sin(angle) * distance;
-        if (!isWalkable(x, z, this.radius, this.residentId)) continue;
-        if (this.startPathTo(x, z)) return true;
-      }
-    }
-    return false;
-  }
-
-  /**
    * 前面暂时过不去：**先请对方让一让，还不行才原地等，等太久才放弃**。
-   *
-   * 原来只有"等 + 放弃"两档。那对门是对的（门会自己被推开），对生物
-   * 不对：**挡路的那位没有任何理由挪开**。一只站在路口的史莱姆能让
-   * 石傀儡等满 2.5 秒、然后把整个工地扔掉——而外面看到的只是
-   * "石傀儡不来建造"（用户 2026-08-25 报的就是这个）。
-   *
-   * 所以中间插一档：认出挡路的是谁，请他让开。让路是**一次性动作**
-   * 不是持续协商——请过的人进冷却，否则两只互相挡着的会一人一帧地
-   * 请对方，谁都走不掉。
+   * 让路是一次性动作不是持续协商——请过的人进冷却。
    */
   private waitBlocked(deltaSeconds: number): void {
     this.moving = false;
@@ -1051,19 +860,12 @@ export class ResidentAgent {
 
     if (this.blockedFor > 2.5) {
       this.blockedFor = 0;
-      this.clearPath();
-      this.errand = null;
-      this.state = "idle";
+      this.abandonIntent();
       this.idleTimer = 2 + Math.random() * 3;
     }
   }
 
-  /**
-   * 请挡在下一个路点上的那位让开。
-   *
-   * **不请玩家**：他自己会走，而且被 NPC 推着走很怪。也不请正在忙的
-   * （吃、睡、干活）——那会把他从活里拽出来，代价比等一等大。
-   */
+  /** 请挡在下一个路点上的那位让开。不请玩家，也不请正在忙的 */
   private askBlockerToYield(): void {
     const [tx, tz] = this.path[this.pathIndex];
     const who = creatureBlockingAt(tx, tz, this.radius * 0.85, this.residentId);
@@ -1072,13 +874,8 @@ export class ResidentAgent {
   }
 
   /**
-   * 有人要过，往旁边挪一步。
-   *
-   * 挪的方向是**背对来人**：他从哪边来，我就往反方向让。原地打转或者
-   * 随便挑一边的话，有一半概率让到对方要去的方向上，等于没让。
-   *
-   * 挪的距离只有一步多（1.4 米）——让路是"侧身"不是"逃跑"，
-   * 让完还在原地附近，玩家看着才像礼貌而不是受惊。
+   * 有人要过，往旁边挪一步。方向是**背对来人**；距离只有一步多（1.4 米）——
+   * 让路是"侧身"不是"逃跑"。
    */
   yieldAsideFrom(fromX: number, fromZ: number): void {
     this.phased(() => this.yieldAsideFromInner(fromX, fromZ));
@@ -1093,25 +890,26 @@ export class ResidentAgent {
 
     const away = Math.atan2(this.x - fromX, this.z - fromZ);
     const STEP = 1.4;
-    /*
-     * 先试正背方向，不行就左右各偏 45°、90°。八个方向全试不到就算了
-     * ——那说明他自己也被围着，让不出来。
-     */
+    // 先试正背方向，不行就左右各偏 45°、90°。八个方向全试不到就算了
     for (const turn of [0, 0.79, -0.79, 1.57, -1.57, 2.36, -2.36, Math.PI]) {
       const angle = away + turn;
       const x = this.x + Math.sin(angle) * STEP;
       const z = this.z + Math.cos(angle) * STEP;
       if (!isWalkable(x, z, this.radius, this.residentId)) continue;
-      if (!this.startPathTo(x, z)) continue;
-      this.state = "wander";
-      this.errand = null;
+      if (!this.routeTo(x, z)) continue;
       this.yieldCooldown = 3;
+      this.perform({
+        skillId: "yield",
+        priority: priorityOf("nap"),
+        interruptible: true,
+        steps: [{ verb: "walk_to", x, z }],
+      });
       emit("resident_changed", { residentId: this.residentId, reason: "yield" });
       return;
     }
   }
 
-  private tickMove(deltaSeconds: number): void {
+  private tickMove(deltaSeconds: number, speedScale: number): void {
     const [tx, tz] = this.path[this.pathIndex];
     const dx = tx - this.x;
     const dz = tz - this.z;
@@ -1123,64 +921,30 @@ export class ResidentAgent {
       return;
     }
 
-    const step = Math.min(this.speed * deltaSeconds, distance);
+    const step = Math.min(this.speed * speedScale * deltaSeconds, distance);
     const nextX = this.x + (dx / distance) * step;
     const nextZ = this.z + (dz / distance) * step;
 
     if (this.radius > 0) {
-      /**
-       * 步进只查**活物**（玩家堵在路上、别的大家伙路过）。
-       * 静态的墙和家具不再查——A* 已经按体型算过路，重复查会在
-       * 两格心之间的线段中点误杀（圆到障碍的距离沿线段是凸的，
-       * 中点可以比两端更贴近障碍），表现是 moving=true 原地空转。
-       * 代价是拐角处毛皮可能蹭进家具一拳深——毛就是软的，蹭着才对。
-       *
-       * 对活物用 0.85 倍半径：玩家贴脸站着时两圆正好相切（实测过，
-       * 玩家的移动恰停在 1.27m 切点上），按全尺寸判它就被贴身的玩家
-       * 永久堵死。缩一点等于允许毛皮和人轻微重叠地擦过去。
-       *
-       * **不做轴分离**。宠物的路径是正交的（A* 格子路），运动轴被挡时
-       * 另一轴步长本来就是零——"沿另一轴滑"永远假成功，零进度还
-       * 永远触发不了放弃（上一版就是这么原地磨了三百秒）。被挡就
-       * **原地等**：玩家走开自然继续；等太久才放弃重打算。
-       * 站着等的猫和绕着你钻的猫，前者才像个大家伙。
-       */
       /*
-       * ---- 门是**唯一**要在步进里查的静态物 ----
-       *
-       * 上面那条"静态障碍归 A*"对墙和家具成立，因为它们在规划和行走
-       * 两个时刻是同一副样子。门不是：A* 是在"所有没锁的门都开着"的
-       * 假设下规划的（withDoorsOpen），那个假设本身没错——一扇关着的
-       * 门是"到了要开一下"的动作，不是障碍——但**没人兑现那个动作**。
-       * 于是石傀儡照着路径径直穿门而过（2026-08-23 用户报的）。
-       *
-       * 兑现的方式是站着等：走到门板跟前停下，自动开门（tickDoors）
-       * 看见有生物贴上来就把门推开，下一帧路就通了。等的这几帧复用
-       * 被活物堵住那套——包括 2.5 秒还不通就放弃重打算，锁着的门
-       * 就是这么脱身的。
+       * 步进只查**活物**和**门**。静态的墙和家具归 A*——重复查会在两格心之间
+       * 的线段中点误杀。门是唯一要在步进里查的静态物：A* 假设没锁的门都开着，
+       * 兑现那个假设的方式是走到门板跟前站着等，自动开门看见有生物贴上来就推开。
+       * 被活物挡就**原地等**：玩家走开自然继续；等太久才放弃重打算。
        */
       if (doorGateBlocks(nextX, nextZ, this.radius)) {
         this.waitBlocked(deltaSeconds);
         return;
       }
-
-      /*
-       * 逐帧的活物避让。`creatureBlockedAt` 住在 obstacles 里，读不到
-       * walkable 那个作用域开关（反过来 import 会成环），所以穿行在
-       * 这儿单独判一次——它压根不参与活物避让这一层。
-       */
       const squeeze = this.radius * 0.85;
       if (!this.phasing && creatureBlockedAt(nextX, nextZ, squeeze, this.residentId)) {
         this.waitBlocked(deltaSeconds);
         return;
       }
       this.blockedFor = 0;
-      this.x = nextX;
-      this.z = nextZ;
-    } else {
-      this.x = nextX;
-      this.z = nextZ;
     }
+    this.x = nextX;
+    this.z = nextZ;
 
     const targetHeading = Math.atan2(dx, dz);
     let diff = targetHeading - this.heading;
@@ -1197,13 +961,10 @@ export class ResidentAgent {
       definitionId: this.definitionId,
       roomId,
       position: {
-        // 宠物跟着世界走：存的是当前地图（多地图时代宠物在哪张图存哪张）
         mapId: getCurrentMapId(),
         x: this.x,
         y: this.z,
-        // v19 起存连续弧度。原来这里是 headingToFacing(this.heading)——
-        // agent 内部全程连续转身，只在存盘那一刹被砍成 4 档，
-        // 读档后宠物会"啪"地扭一下。同玩家那条，见 Core 的 WorldPosition
+        // v19 起存连续弧度
         heading: this.heading,
       },
       affectionStage: this.affectionStage,
@@ -1216,53 +977,47 @@ export class ResidentAgent {
       // undefined 而不是 false：醒着是默认态，别往每份存档里写一排 false
       sleeping: this.state === "sleeping" ? true : undefined,
       // 同理：没有零件概念的物种不写这个字段
-      attachedParts:
-        this.role === CreatureRole.Worker ? [...this.attachedParts] : undefined,
+      attachedParts: this.parts.length > 0 ? [...this.attachedParts] : undefined,
     };
   }
 
-  static fromSave(entry: ResidentSave): ResidentAgent {
-    const agent = new ResidentAgent(entry.residentId, entry.definitionId, {
-      x: entry.position.x,
-      z: entry.position.y,
-      heading: entry.position.heading,
-    });
-
+  /** 从存档回填档案。构造由工厂（`residents/index`）负责，这里只填字段 */
+  applySave(entry: ResidentSave): void {
     // 驻地：老存档没有就用读档位置兜底
     if (entry.home) {
-      agent.homeX = entry.home.x;
-      agent.homeZ = entry.home.z;
+      this.homeX = entry.home.x;
+      this.homeZ = entry.home.z;
     }
-
-    agent.affectionStage = entry.affectionStage;
-    agent.nickname = entry.nickname;
-    agent.lastGiftWorldDayId = entry.lastGiftWorldDayId;
-    agent.growth = entry.growth ?? 0;
-    agent.mood = entry.mood ?? DEFAULT_MOOD;
-    agent.needs = {
+    this.affectionStage = entry.affectionStage;
+    this.nickname = entry.nickname;
+    this.lastGiftWorldDayId = entry.lastGiftWorldDayId;
+    this.growth = entry.growth ?? 0;
+    this.mood = entry.mood ?? DEFAULT_MOOD;
+    this.needs = {
       hunger: entry.needs?.hunger ?? 80,
       thirst: entry.needs?.thirst ?? 80,
     };
 
     /*
-     * 零件：**老存档没有这个字段 → 按齐全算**。现有四只宠物本来就没有
-     * 零件这回事，不能因为新加了字段就集体判成"缺零件"而全体瘫在地上。
-     * 只有 Worker 才可能真的缺——它的存档一定写了这个字段。
+     * 零件：**老存档没有这个字段 → 按齐全算**。有零件的物种存档一定写了它；
+     * 没有的物种也不能因为字段缺失被判成"缺零件"集体瘫掉。
      */
     if (entry.attachedParts) {
-      for (const part of entry.attachedParts) agent.attachedParts.add(part);
-    } else if (agent.role === CreatureRole.Worker) {
-      agent.attachedParts.add("head");
+      for (const part of entry.attachedParts) this.attachedParts.add(part);
+    } else {
+      for (const part of this.parts) this.attachedParts.add(part);
     }
 
     // 存盘时睡着的接着睡（时长重掷）。读档不重放"从门口进来"的登场
     if (entry.sleeping) {
-      agent.state = "sleeping";
-      const [min, max] = agent.napSeconds;
-      agent.sleepTimer = min + Math.random() * (max - min);
+      this.fallAsleep();
     } else {
-      agent.idleTimer = 1 + Math.random() * 3;
+      this.idleTimer = 1 + Math.random() * 3;
     }
-    return agent;
   }
+}
+
+/** 技能 id → 优先级。表里没有的（yield / entering 这种内部 Intent）按给的数 */
+export function priorityOf(skillId: string): number {
+  return findSkillPriority(skillId)?.priority ?? 0;
 }

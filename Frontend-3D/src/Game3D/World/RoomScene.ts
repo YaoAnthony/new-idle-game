@@ -2318,26 +2318,21 @@ export class RoomScene {
         }
 
         /*
-         * 醒着的干活生物：**F 直接开建造面板**，没有对话这一步
-         * （用户定："不用说话，点开就是面板"）。他是工头不是村民，
-         * 走过去就该看到能盖什么。
+         * 按 F 开什么，**先问这只活物挂的技能**（居民系统 01）：石傀儡的 build
+         * 技能答"开建造面板"，商人的 trade 技能答"开交易面板"。都不答的才落到
+         * 下面按定义查对话——对话选段是内容不是逻辑，仍留在这里。
          */
-        if (resident && resident.role === CreatureRole.Worker && !resident.dormant) {
+        const offer = resident?.interact({ x: this.controller.x, z: this.controller.z }) ?? null;
+        if (offer?.kind === "build_shop") {
           emit("build_shop_open_requested", {});
           return;
         }
-
-        /*
-         * 商人同理（期 3）：F 开交易面板。寒暄由剧情主动拉起，不占 F。
-         *
-         * **是哪个商人由物种推**（期 6 加了第二个）。不写死"水獭"，
-         * 也不在面板里判——面板只认一个 merchantId，谁递给它都行。
-         */
-        if (resident && resident.role === CreatureRole.Merchant && !resident.dormant) {
-          emit("trade_open_requested", {
-            merchantId:
-              resident.definitionId === "fish_trader" ? "traveling_peddler" : "otter_trader",
-          });
+        if (offer?.kind === "trade") {
+          emit("trade_open_requested", { merchantId: offer.merchantId });
+          return;
+        }
+        if (offer?.kind === "dialogue") {
+          startDialogue(offer.dialogueId, residentId);
           return;
         }
 

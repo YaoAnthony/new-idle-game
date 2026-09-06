@@ -27,8 +27,8 @@
 ## 硬编码守卫（每轮都跑，红了就是 bug）
 
 ```bash
-# 基类不认识身份
-grep -n "CreatureRole\." Frontend-3D/src/Game/State/resident.ts
+# 基类不认识身份（唯一允许的是构造函数里 `?? CreatureRole.Pet` 那个默认标签）
+grep -nE "CreatureRole\.(Worker|Merchant|Resident)" Frontend-3D/src/Game/State/residentAgent.ts
 # 技能和子类里没有直接改位置 / 寻路
 grep -rn "startPathTo\|this\.x = \|this\.z = " Frontend-3D/src/Game/State/skills Frontend-3D/src/Game/State/residents
 # gameplay 代码里没有台词、没有居民 id 分支

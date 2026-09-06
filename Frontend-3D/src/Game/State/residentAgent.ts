@@ -802,8 +802,11 @@ export class ResidentAgent {
    */
   private consultSkills(player: { x: number; z: number }): boolean {
     const ctx = this.contextFor(player);
+    const hidden = this.state === "hidden";
     for (const skill of this.skills) {
       if (!skill.decide || !this.isSkillEnabled(skill.id)) continue;
+      // 藏着的时候只问声明过"藏着也管"的技能，别让 wander 把人拉出去
+      if (hidden && !skill.worksWhileHidden) continue;
       if (this.current && priorityOf(skill.id) <= this.current.priority) break;
       const intent = skill.decide(ctx);
       if (intent && this.perform(intent)) return true;

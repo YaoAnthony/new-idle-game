@@ -220,3 +220,21 @@ test("skills_where打印Intent来源_描述里有技能名和步骤", () => {
   expect(where.message).toContain(COMMAND_SKILL_ID);
   expect(where.message).toContain("sleep");
 });
+
+test("skills_hide之后填充技能不再把他拉出来_直到show", () => {
+  const slime = parked("resident-a", "slime_neighbor");
+  slime.needs.hunger = 80;
+  slime.needs.thirst = 80;
+
+  expect(runCommand("/npc slime do hide").ok).toBe(true);
+  expect(slime.state).toBe("hidden");
+
+  // 藏着：idleTimer 归零后 wander / nap / approach 都不该把他弄出来
+  slime.idleTimer = 0;
+  tickFor(slime, 10);
+  expect(slime.state).toBe("hidden");
+  expect(slime.currentIntent).toBeNull();
+
+  expect(runCommand("/npc slime do show").ok).toBe(true);
+  expect(slime.state).toBe("idle");
+});

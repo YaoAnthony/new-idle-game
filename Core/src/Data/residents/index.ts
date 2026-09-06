@@ -6,6 +6,8 @@ export * from "./reactions.js";
 export * from "./talk/index.js";
 export * from "./address.js";
 export * from "./favors.js";
+export * from "./relations.js";
+export * from "./talk/pairs.js";
 
 import {
   CreatureRole,
@@ -395,4 +397,6 @@ export const RESIDENT_FACT_KINDS = {
   stayedIn: "resident_stayed_in",
   /** 做完了一件委托（05）。subject 是委托人的实例 id，报纸用名字说"咕噜终于拿到了灯" */
   favorDone: "favor_done",
+  /** 两位居民聊了（06）。subject 是这一对的键（a|b） */
+  chatted: "residents_chatted",
 } as const;

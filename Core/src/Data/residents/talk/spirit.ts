@@ -43,6 +43,9 @@ export const spiritTalk: TalkPool = {
     { dialogueId: "spirit_chat_saw_rest", when: [{ kind: "recent_action_category", category: "rest" }], weight: 4, oncePerDay: true },
     { dialogueId: "spirit_chat_holding_food", when: [{ kind: "holding_item", food: true }], weight: 5 },
     { dialogueId: "spirit_chat_fox_around", when: [{ kind: "neighbor_present", residentId: "fox_neighbor" }], weight: 3, oncePerDay: true },
+    // ---- 06：八卦 ----
+    { dialogueId: "spirit_chat_gossip_slime_sick", when: [{ kind: "neighbor_remembers", residentId: "slime_neighbor", memoryId: "favor_slime_sick" }], weight: 4, oncePerDay: true },
+    { dialogueId: "spirit_chat_gossip_fox_town", when: [{ kind: "neighbor_fact_yesterday", residentId: "fox_neighbor", fact: "resident_town_trip" }], weight: 5, oncePerDay: true },
     { dialogueId: "spirit_chat_gift_memory", when: [{ kind: "remembers", memoryId: "gift_loved" }], weight: 3 },
     { dialogueId: "spirit_chat_dragon_memory", when: [{ kind: "remembers", memoryId: "story_dragon_caught" }], weight: 2 },
     { dialogueId: "spirit_chat_long_time", when: [{ kind: "days_since_last_talk", atLeast: 3 }], weight: 10, oncePerDay: true },

@@ -768,3 +768,18 @@ test("五种委托各至少一条，信物标了 favorToken 且没有价，草�
   assert.ok(merchantDefinitions.some((merchant) => merchant.stock.includes("herbal_medicine")), "草药没人卖，生病的委托无解");
 });
 
+// ---- 居民系统 06：居民之间 ----
+
+test("关系表：三位两两之间都写了关系，且都是正面或中性", async () => {
+  const { relationDefinitions, relationBetween, listResidentDefinitions } = await import("../src/Data/residents/index.js");
+  const ids = listResidentDefinitions().map((r) => r.id);
+  for (let i = 0; i < ids.length; i += 1) {
+    for (let j = i + 1; j < ids.length; j += 1) {
+      assert.ok(relationBetween(ids[i], ids[j]), `${ids[i]} 和 ${ids[j]} 之间没写关系`);
+    }
+  }
+  for (const relation of relationDefinitions) {
+    assert.ok(["friends", "curious", "shy"].includes(relation.kind), `${relation.kind} 不是允许的关系`);
+  }
+});
+

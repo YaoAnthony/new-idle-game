@@ -222,6 +222,11 @@ function lineOf(item: { kind: string; subject?: string }): string {
   if (item.kind === "resident_town_trip" || item.kind === "resident_stayed_in" || item.kind === "favor_done") {
     return t(`ui.news.line.${item.kind}`).replace("{who}", whoName(what) ?? t("ui.news.someone"));
   }
+  if (item.kind === "residents_chatted") {
+    // subject 是这一对的键（a|b，definitionId）
+    const [a, b] = what.split("|").map((id) => t(findResidentDefinition(id)?.localizationKey ?? `pet.${id}`));
+    return t("ui.news.line.residents_chatted").replace("{a}", a ?? "").replace("{b}", b ?? "");
+  }
   if (item.kind === "resident_moved_in") {
     return t("ui.news.line.moved_in").replace("{who}", t(findResidentDefinition(what)?.localizationKey ?? `pet.${what}`));
   }

@@ -238,6 +238,7 @@ import { startTalkSystem } from "../Game/Systems/residents/talk";
 import { startAffectionSystem } from "../Game/Systems/residents/affection";
 import { startPresentSystem } from "../Game/Systems/residents/presents";
 import { startFavorSystem } from "../Game/Systems/residents/favors";
+import { startSocialSystem } from "../Game/Systems/residents/social";
 import { setShopStockProbe } from "../Game/Systems/residents/spots";
 import { diagnoseSites } from "../Game/State/skills/build";
 import { isRemoteWorldActive } from "../Game/Multiplayer/session";
@@ -429,6 +430,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
     const stopPresents = startPresentSystem();
     // 委托（05）：每天早上提不提、过期收掉。做客时里面 no-op
     const stopFavors = startFavorSystem();
+    // 居民之间的双人对话节拍（06）。做客时没人发起（技能不在木偶上跑）
+    const stopSocial = startSocialSystem();
     // 店门口"有货多站一会"：货架就是店铺的储物库存，只认前几格
     setShopStockProbe((instanceId) => shelfSlotsOf(instanceId).some((slot) => slot !== null));
     // 家具小店的隔夜结算（期 5）。做客时不跑：别人的店别人结
@@ -1941,6 +1944,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       stopAffection();
       stopPresents();
       stopFavors();
+      stopSocial();
       stopShopkeeping();
       stopConsigning();
       stopNewspaper();

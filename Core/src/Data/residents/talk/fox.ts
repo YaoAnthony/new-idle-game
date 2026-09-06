@@ -43,6 +43,9 @@ export const foxTalk: TalkPool = {
     { dialogueId: "fox_chat_saw_rest", when: [{ kind: "recent_action_category", category: "rest" }], weight: 4, oncePerDay: true },
     { dialogueId: "fox_chat_holding_food", when: [{ kind: "holding_item", food: true }], weight: 5 },
     { dialogueId: "fox_chat_slime_around", when: [{ kind: "neighbor_present", residentId: "slime_neighbor" }], weight: 3, oncePerDay: true },
+    // ---- 06：八卦 ----
+    { dialogueId: "fox_chat_gossip_slime_lamp", when: [{ kind: "neighbor_remembers", residentId: "slime_neighbor", memoryId: "favor_slime_lamp" }], weight: 4, oncePerDay: true },
+    { dialogueId: "fox_chat_gossip_spirit_soup", when: [{ kind: "neighbor_remembers", residentId: "spirit_neighbor", memoryId: "favor_spirit_soup" }], weight: 4, oncePerDay: true },
     { dialogueId: "fox_chat_gift_memory", when: [{ kind: "remembers", memoryId: "gift_loved" }], weight: 3 },
     { dialogueId: "fox_chat_dragon_memory", when: [{ kind: "remembers", memoryId: "story_dragon_caught" }], weight: 2 },
     { dialogueId: "fox_chat_long_time", when: [{ kind: "days_since_last_talk", atLeast: 3 }], weight: 10, oncePerDay: true },

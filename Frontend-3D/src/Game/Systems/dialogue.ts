@@ -2,6 +2,7 @@ import {
   daysBetweenDayIds,
   findDialogueDefinition,
   findItemDefinition,
+  residentIdOf,
   type DialogueChoice,
   type DialogueCondition,
   type DialogueNode,
@@ -10,7 +11,7 @@ import { emit } from "../EventBus";
 import { getCount, getSelectedStack, type SlotRef } from "../State/inventory";
 import { getResident, getResidents } from "../State/residentsRuntime";
 import { getWeather } from "../State/weather";
-import { factsOfToday } from "./dayRecord";
+import { factsOfToday, factsOfYesterday } from "./dayRecord";
 import { getEventStage, isEventCompleted, isFeatureUnlocked } from "./events";
 import { offerGift, type GiftResult } from "./gifting";
 import { talkClock } from "./residents/talk";
@@ -119,6 +120,16 @@ export function evaluateCondition(condition: DialogueCondition, residentId: stri
       return resident !== undefined && resident.memories.has(condition.memoryId);
     case "neighbor_present":
       return getResidents().some((agent) => agent.definitionId === condition.residentId && agent.residentId !== residentId);
+    // ---- 居民系统 06：八卦 = 引用别人的记忆 / 昨天的事实 ----
+    case "neighbor_remembers": {
+      const other = getResidents().find((agent) => agent.definitionId === condition.residentId);
+      return other !== undefined && other.memories.has(condition.memoryId);
+    }
+    case "neighbor_fact_yesterday": {
+      // 昨天的事实是房主的存档字段；做客时读不到 → 一律不成立（可接受的降级）
+      const subject = residentIdOf(condition.residentId);
+      return (factsOfYesterday()?.headlines ?? []).some((fact) => fact.kind === condition.fact && fact.subject === subject);
+    }
     default:
       return false;
   }

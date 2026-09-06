@@ -41,6 +41,8 @@ export const skillPriorityDefinitions = [
    * 打招呼（03）。**并行槽**：它不下串行 Intent，走 `observe` 每半秒看一眼玩家多近，
    * 到了就往嘴上放一句——所以这个数字实际不参与抢占，只是把它排在表里。
    */
+  /** 居民之间（06）：碰面停下聊两句、shy 挪一步、一起待着时隔一会儿聊一段 */
+  { id: "social", priority: 45, interruptible: true },
   /** 有事求你（05）：委托挂着、你在附近，他走过来站到你跟前。不追人 */
   { id: "favor", priority: 35, interruptible: true },
   { id: "greet", priority: 30, interruptible: true },

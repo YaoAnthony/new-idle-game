@@ -42,6 +42,38 @@ export type TalkPool = {
   nicknames?: readonly LocalizationKey[];
 };
 
+/** 双人对话的一句：谁说、说什么、做什么表情（居民系统 06） */
+export type PairLine = readonly [speaker: ResidentDefinitionId, key: LocalizationKey, expression?: ExpressionId];
+
+/** 双人对话的一段：2~4 句交替。`when` 仍是对话条件 */
+export type PairChat = {
+  lines: readonly PairLine[];
+  when?: readonly DialogueCondition[];
+  weight?: number;
+};
+
+export type RelationKind = "friends" | "curious" | "shy" | "neutral";
+
+/** 两位居民的关系（无向）。没写的一对是 neutral */
+export type RelationDefinition = {
+  a: ResidentDefinitionId;
+  b: ResidentDefinitionId;
+  kind: RelationKind;
+  /** 双人对话池的键（`Data/residents/talk/pairs.ts`）。没有 = 不聊 */
+  chatPool?: string;
+};
+
+export type RelationKindDefinition = {
+  /** 碰面停下聊的概率 */
+  stopToChat: number;
+  /** 作息里同去一个场所时，到了会面对面、隔一会儿聊一段 */
+  hangoutTogether: boolean;
+  /** 走路时保持的距离（米） */
+  keepDistance: number;
+  /** 对方走近就挪开一步 */
+  stepAside?: boolean;
+};
+
 /**
  * 表情注册表：头顶冒的小图标 + 可选的一次性动作。
  * 造型没实现 `gesture` 就只冒图标——表现层的事，Core 不校验动作名。

@@ -46,9 +46,9 @@ const ROWS: readonly Row[] = [
 
 /** 只有这一位才有的段 */
 const EXTRA: Record<(typeof WHO)[number], readonly Row[]> = {
-  slime: [["holding_tomato", 1, ["surprised"]]],
-  fox: [["slime_around", 1]],
-  spirit: [["fox_around", 1]],
+  slime: [["holding_tomato", 1, ["surprised"]], ["gossip_fox_town", 2, ["puzzled"]], ["gossip_fox_parcel", 1]],
+  fox: [["slime_around", 1], ["gossip_slime_lamp", 2, ["happy"]], ["gossip_spirit_soup", 1]],
+  spirit: [["fox_around", 1], ["gossip_slime_sick", 2], ["gossip_fox_town", 1]],
 };
 
 function chatOf(who: (typeof WHO)[number], row: Row): DialogueDefinition {

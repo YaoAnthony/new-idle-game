@@ -55,7 +55,14 @@ export type DialogueCondition =
   /** 记得某件事（`ResidentSave.memories`，只有剧情效果 add_memory 会写） */
   | { kind: "remembers"; memoryId: string }
   /** 场上有没有另一位（06 用；这期先加条件） */
-  | { kind: "neighbor_present"; residentId: ResidentDefinitionId };
+  | { kind: "neighbor_present"; residentId: ResidentDefinitionId }
+  /** 另一位记得某件事（06 的八卦 = 引用别人记忆的闲聊） */
+  | { kind: "neighbor_remembers"; residentId: ResidentDefinitionId; memoryId: string }
+  /**
+   * 另一位昨天发生过某种事实（昨日事实的头条：resident_town_trip / favor_done …）。
+   * 房客读不到房主的 dayRecord → 做客时一律 false，那些段落不出现（可接受的降级）。
+   */
+  | { kind: "neighbor_fact_yesterday"; residentId: ResidentDefinitionId; fact: string };
 
 export type DialogueChoice = {
   choiceId: DialogueChoiceId;

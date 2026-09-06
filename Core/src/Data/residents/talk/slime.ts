@@ -52,6 +52,9 @@ export const slimeTalk: TalkPool = {
     { dialogueId: "slime_chat_saw_rest", when: [{ kind: "recent_action_category", category: "rest" }], weight: 4, oncePerDay: true },
     { dialogueId: "slime_chat_holding_food", when: [{ kind: "holding_item", food: true }], weight: 5 },
     { dialogueId: "slime_chat_holding_tomato", when: [{ kind: "holding_item", itemId: "tomato" }], weight: 8 },
+    // ---- 06：八卦 = 引用别人记忆 / 昨天事实的闲聊 ----
+    { dialogueId: "slime_chat_gossip_fox_town", when: [{ kind: "neighbor_fact_yesterday", residentId: "fox_neighbor", fact: "resident_town_trip" }], weight: 6, oncePerDay: true },
+    { dialogueId: "slime_chat_gossip_fox_parcel", when: [{ kind: "neighbor_remembers", residentId: "fox_neighbor", memoryId: "favor_fox_parcel" }], weight: 3, oncePerDay: true },
     { dialogueId: "slime_chat_gift_memory", when: [{ kind: "remembers", memoryId: "gift_loved" }], weight: 3 },
     { dialogueId: "slime_chat_dragon_memory", when: [{ kind: "remembers", memoryId: "story_dragon_caught" }], weight: 2 },
     { dialogueId: "slime_chat_long_time", when: [{ kind: "days_since_last_talk", atLeast: 3 }], weight: 10, oncePerDay: true },

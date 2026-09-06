@@ -178,6 +178,8 @@ export type GameEvents = {
   text_prompt_requested: { residentId: string; target: "nickname" | "catchphrase" };
   /** 委托状态表变了（05）：日记本右页、"！"气泡、联机切片都读它 */
   favors_changed: { reason: string };
+  /** 两位居民开聊 / 聊完（06）。调试和以后的表现层用 */
+  residents_chatting: { key: string; a: string; b: string; active: boolean; reason?: string };
   /**
    * 一只活物换上了新 Intent（居民系统 01c）。房主端的联机层把它原样发成
    * `resident_intent` op；木偶不发（否则回环）。单机时空转。

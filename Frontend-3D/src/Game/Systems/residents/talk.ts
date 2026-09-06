@@ -1,9 +1,10 @@
-import { COMMAND_SKILL_ID, findSkillPriority, findTalkPool, renderAddress, renderTalk, type DayPhaseId } from "core";
+import { COMMAND_SKILL_ID, findSkillPriority, findTalkPool, renderAddress, renderTalk, residentIdOf, type DayPhaseId } from "core";
 import { on } from "../../EventBus";
 import { getClock } from "../../State/clock";
 import { findDroppedItem } from "../../State/droppedItems";
 import { getLocalParticipant } from "../../State/participants";
 import { getResident, getResidents } from "../../State/residentsRuntime";
+import { residentNickname } from "../../../i18n/residentName";
 import { t } from "../../../i18n/t";
 import { getActiveDialogue } from "../dialogue";
 import { addressTermFor } from "./affection";
@@ -45,9 +46,15 @@ export function catchphraseOf(definitionId: string): string | undefined {
   return key ? t(key) : undefined;
 }
 
-/** 文案键 → 这位说出来的样子：`{cp}` 换口头禅，`{you}` 换他此刻怎么叫你（04） */
+/** 文案里的 `{name:<definitionId>}` → 那位的昵称（06 的八卦引用别人） */
+export function renderNames(text: string): string {
+  if (!text.includes("{name:")) return text;
+  return text.replace(/\{name:([a-z_]+)\}/g, (_match, definitionId: string) => residentNickname(residentIdOf(definitionId)));
+}
+
+/** 文案键 → 这位说出来的样子：`{cp}` 换口头禅，`{you}` 换他此刻怎么叫你（04），`{name:x}` 换别人的名字（06） */
 export function talkText(definitionId: string, localizationKey: string): string {
-  return renderAddress(renderTalk(t(localizationKey), catchphraseOf(definitionId)), addressTermFor(definitionId));
+  return renderNames(renderAddress(renderTalk(t(localizationKey), catchphraseOf(definitionId)), addressTermFor(definitionId)));
 }
 
 /** 反应的事件半径：扔的东西落在这么近才算"落在身边" */

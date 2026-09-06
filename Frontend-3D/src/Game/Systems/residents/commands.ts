@@ -23,6 +23,9 @@ import { describeAffection, gainAffection, setAffection } from "./affection";
 import { giveResidentPresent } from "./presents";
 import { setResidentAddress } from "./naming";
 import { completeFavor, describeFavors, expireFavor, listFavors, makeSick, offerFavor, acceptFavor } from "./favors";
+import { describeRelations, forcePairTalk } from "./social";
+import { listTalkCandidates, findTalkPool } from "core";
+import { evaluateCondition } from "../dialogue";
 import { describeSpots, homeDoorstepOf } from "./spots";
 import { debugSendToTown, listResidentTrips, tripPlanOf } from "./townTrips";
 import { listResidentSpecies } from "./moveIn";
@@ -83,6 +86,9 @@ const USAGE = [
   "/npc favor list —— 全部委托定义 + 当前状态 + 今天为什么没提出",
   "/npc favor offer|accept|done|expire <favorId> —— 立即提出 / 跳到接受 / 完成 / 过期",
   "/npc <谁> sick [天数] —— 让他病倒（整天在家、窗灯白天也亮）",
+  "/npc pair <谁> <谁> —— 立即发起一段双人对话（无视距离，先把两人拉到一起）",
+  "/npc relations —— 关系表 + 今天各对聊过几次",
+  "/npc <谁> gossip —— 他此刻能讲的八卦段（引用别人记忆 / 昨天事实的闲聊）",
   "/npc spots          —— 当前世界解析出的全部场所和占用",
 ].join("\n");
 
@@ -238,6 +244,14 @@ export function registerResidentCommands(): Array<() => void> {
           return ok(`${name} 托人送来了图纸。放到地上、盖好，他就搬来`);
         }
 
+        if (sub === "relations") return ok(["关系：", ...describeRelations()].join("\n"));
+        if (sub === "pair") {
+          if (isRemoteWorld()) return fail("做客中不能指挥别人的邻居");
+          const a = findAgent(args[1]);
+          const b = findAgent(args[2]);
+          if (!a || !b || a === b) return fail("用法：pair <谁> <谁>（两位都得在场）");
+          return forcePairTalk(a, b) ? ok(`${a.residentId} 和 ${b.residentId} 聊起来了`) : fail("聊不起来（没有话可聊的关系，或者一方正忙着不可打断）");
+        }
         if (sub === "favor") {
           const op = (args[1] ?? "list").toLowerCase();
           if (op === "list") return ok(["委托：", ...describeFavors()].join("\n"));
@@ -290,6 +304,13 @@ export function registerResidentCommands(): Array<() => void> {
             steps: near ? [{ verb: "hide" }] : [{ verb: "walk_to", x: door.x, z: door.z }, { verb: "hide" }],
           });
           return ok(`${agent.residentId} 回家`);
+        }
+        if (agent && verb === "gossip") {
+          const pool = findTalkPool(agent.definitionId);
+          if (!pool) return ok(`${agent.residentId} 没有对话池`);
+          const gossip = pool.chats.filter((entry) => (entry.when ?? []).some((c) => c.kind === "neighbor_remembers" || c.kind === "neighbor_fact_yesterday"));
+          const rows = listTalkCandidates(gossip, (c) => evaluateCondition(c, agent.residentId)).map(({ entry, weight }) => `  ${entry.dialogueId}（${weight}）`);
+          return ok([`${agent.residentId} 此刻能讲的八卦：`, ...(rows.length ? rows : ["  （没有——别人还没发生过值得说的事）"])].join("\n"));
         }
         if (agent && verb === "sick") {
           if (isRemoteWorld()) return fail("做客中不能指挥别人的邻居");

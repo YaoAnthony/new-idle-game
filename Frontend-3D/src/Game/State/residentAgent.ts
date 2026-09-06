@@ -175,8 +175,11 @@ export class ResidentAgent {
   idleTimer = 2;
   /** 睡眠剩余（给旧代码 / 表现层看的镜像，真相在 `run.timer`） */
   sleepTimer = 0;
-  /** 头顶正在说的话（`speak` 动词）。表现层读 */
-  speech: { localizationKey: string; until: number } | null = null;
+  /**
+   * 头顶正在说的话（`speak` 动词）。表现层读。
+   * `pair`：是和另一位居民说的（06）——这种要同步给房客（对玩家说的不同步，03 定的）。
+   */
+  speech: { localizationKey: string; until: number; pair?: boolean } | null = null;
   /** 头顶正在做的表情（`showExpression`）。表现层读；关键帧带给木偶 */
   expression: { id: string; until: number } | null = null;
 
@@ -789,7 +792,8 @@ export class ResidentAgent {
       flavor: step?.verb === "stand" ? step.flavor : undefined,
       hidden: this.state === "hidden",
       expression: this.expression?.id,
-      speaking: this.speech?.localizationKey,
+      // 只带居民之间说的（06）；对玩家说的不同步（03）
+      speaking: this.speech?.pair ? this.speech.localizationKey : undefined,
     };
   }
 
@@ -814,6 +818,12 @@ export class ResidentAgent {
 
     // 表情跟着房主（03）：房客看得见他在做什么表情，台词第一版不同步（那是对着房主说的）
     if (frame.expression && frame.expression !== this.expression?.id) this.showExpression(frame.expression);
+    // 居民之间说的话跟着房主（06）：两位聊天不是对着谁说的，房客看见文字是对的
+    const pairLine = this.speech?.pair ? this.speech.localizationKey : undefined;
+    if ((frame.speaking ?? undefined) !== pairLine) {
+      if (frame.speaking) this.sayPair(frame.speaking, 3);
+      else if (this.speech?.pair) this.speech = null;
+    }
 
     const hidden = this.state === "hidden";
     if (frame.hidden !== hidden) {
@@ -901,6 +911,37 @@ export class ResidentAgent {
   /** 往嘴上放一句（并行槽，不打断手里的事） */
   say(localizationKey: string, seconds?: number): void {
     this.performParallel({ verb: "speak", localizationKey, seconds });
+  }
+
+  /** 和另一位居民说的一句（06）：标成 pair，关键帧会带给房客 */
+  sayPair(localizationKey: string, seconds: number): void {
+    this.speech = { localizationKey, until: this.clock + seconds, pair: true };
+    emit("resident_changed", { residentId: this.residentId, reason: "speak" });
+  }
+
+  /**
+   * 请另一位换上一个 Intent（06 的"技能对技能说话"）。**对方有权拒绝**：
+   * 木偶、正做着不可打断的事、已经在聊——都拒。这是技能唯一能碰到别人的口，
+   * 而且走的还是对方自己的 perform，没有绕过身体那层的规矩。
+   */
+  invite(other: ResidentAgent, intent: Intent): boolean {
+    if (other.puppet || other.dormant) return false;
+    if (other.current && !other.current.interruptible) return false;
+    if (other.current?.skillId === "social") return false;
+    return other.perform(intent);
+  }
+
+  /** 双人对话收尾：还站着面对面就撤掉（06）。不是 social 的 Intent 不动 */
+  cancelSocial(): void {
+    if (this.current?.skillId !== "social") return;
+    // 收尾走 completeIntent 的路（onDone 已由 social 系统 delete 了 talk，不会递归）
+    const intent = this.current;
+    this.current = null;
+    this.run = null;
+    this.clearPath();
+    this.moving = false;
+    if (this.state !== "hidden") this.state = "idle";
+    this.idleTimer = intent.idleAfter ?? 1;
   }
 
   /** 做个表情：头顶冒图标；表情表里有动作的顺手播（造型没实现就只冒图标） */

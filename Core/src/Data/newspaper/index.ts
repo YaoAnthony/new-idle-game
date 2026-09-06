@@ -36,6 +36,8 @@ export const headlinePriority: Record<string, number> = {
   consign_sold: 40,
   /** 帮邻居做成了一件事（05）。和卖货同一档：都是"家里发生了一件好事" */
   favor_done: 40,
+  /** 两位邻居聊了一下午（06）。生活不是事件 */
+  residents_chatted: 15,
   /** 邻居去了趟小镇 / 下雨闷在家。比卖货轻：是生活不是事件 */
   resident_town_trip: 20,
   resident_stayed_in: 15,
@@ -59,6 +61,8 @@ export const neighborKinds = new Set([
   "resident_stayed_in",
   // 委托做成了（05）
   "favor_done",
+  // 邻居之间聊了（06）
+  "residents_chatted",
 ]);
 
 /**

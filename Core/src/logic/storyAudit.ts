@@ -17,6 +17,8 @@ import type { DialogueCondition } from "../types/dialogue.js";
 import type { ReactionDefinition } from "../types/talk.js";
 import { affectionTuning } from "../Data/economy/index.js";
 import { favorDefinitions, findFavorDefinition } from "../Data/residents/favors.js";
+import { pairChats, relationDefinitions } from "../Data/residents/index.js";
+import type { RelationDefinition } from "../types/talk.js";
 import type { FavorDefinition } from "../types/favors.js";
 import { findStoryPool, storyRules, tutorialDefinition } from "../Data/story/index.js";
 import { weatherDefinitions } from "../Data/weather/index.js";
@@ -81,9 +83,12 @@ export function auditCondition(where: string, condition: DialogueCondition): str
       }
       break;
     case "neighbor_present":
+    case "neighbor_remembers":
+    case "neighbor_fact_yesterday":
       if (!findResidentDefinition(condition.residentId)) {
-        problems.push(`${where}：neighbor_present 指向不存在的居民 "${condition.residentId}"`);
+        problems.push(`${where}：${condition.kind} 指向不存在的居民 "${condition.residentId}"`);
       }
+      if (condition.kind === "neighbor_remembers" && !condition.memoryId) problems.push(`${where}：neighbor_remembers 的 memoryId 是空的`);
       break;
     case "remembers":
       if (!condition.memoryId) problems.push(`${where}：remembers 的 memoryId 是空的`);
@@ -150,8 +155,8 @@ function auditTalk(checkText: (where: string, key: string) => void): string[] {
     const walk = (where: string, when: readonly DialogueCondition[] | undefined): void => {
       for (const condition of when ?? []) {
         problems.push(...auditCondition(where, condition));
-        if (condition.kind === "remembers" && !writers.has(condition.memoryId)) {
-          problems.push(`${where}：remembers "${condition.memoryId}" 没有任何规则会写它，这段永远不出现`);
+        if ((condition.kind === "remembers" || condition.kind === "neighbor_remembers") && !writers.has(condition.memoryId)) {
+          problems.push(`${where}：${condition.kind} "${condition.memoryId}" 没有任何规则会写它，这段永远不出现`);
         }
       }
     };
@@ -167,6 +172,48 @@ function auditTalk(checkText: (where: string, key: string) => void): string[] {
       if (!findDialogueDefinition(entry.dialogueId)) problems.push(`${where}：对话不存在`);
       if (entry.weight !== undefined && entry.weight <= 0) problems.push(`${where}：权重不是正数，永远抽不到`);
       walk(where, entry.when);
+    }
+  }
+  return problems;
+}
+
+/** 关系表 + 双人对话池（06）：每对最多一条、两端是居民、池存在且说话人在这一对里 */
+function auditRelations(checkText: (where: string, key: string) => void): string[] {
+  const problems: string[] = [];
+  const writers = memoryWriters();
+  const seenPairs = new Set<string>();
+  for (const relation of relationDefinitions as readonly RelationDefinition[]) {
+    const where = `关系 ${relation.a}-${relation.b}`;
+    if (relation.a === relation.b) problems.push(`${where}：自己和自己`);
+    const key = [relation.a, relation.b].sort().join("|");
+    if (seenPairs.has(key)) problems.push(`${where}：这一对写了两条`);
+    seenPairs.add(key);
+    for (const who of [relation.a, relation.b]) {
+      if (!findResidentDefinition(who)) problems.push(`${where}："${who}" 不是居民`);
+    }
+    if (relation.chatPool) {
+      const pool = pairChats[relation.chatPool];
+      if (!pool) {
+        problems.push(`${where}：双人池 "${relation.chatPool}" 不存在`);
+        continue;
+      }
+      if (pool.length === 0) problems.push(`${where}：双人池 "${relation.chatPool}" 是空的`);
+      if (!pool.some((chat) => !chat.when || chat.when.length === 0)) problems.push(`${where}：双人池没有无条件兜底`);
+      pool.forEach((chat, index) => {
+        const chatWhere = `${where} 双人段 #${index + 1}`;
+        if (chat.lines.length < 2) problems.push(`${chatWhere}：不到两句，算不上对话`);
+        for (const [speaker, lineKey, expression] of chat.lines) {
+          if (speaker !== relation.a && speaker !== relation.b) problems.push(`${chatWhere}：说话人 "${speaker}" 不在这一对里`);
+          checkText(chatWhere, lineKey);
+          if (expression && !findExpression(expression)) problems.push(`${chatWhere}：表情 "${expression}" 不在表情表里`);
+        }
+        for (const condition of chat.when ?? []) {
+          problems.push(...auditCondition(chatWhere, condition));
+          if (condition.kind === "neighbor_remembers" && !writers.has(condition.memoryId)) {
+            problems.push(`${chatWhere}：neighbor_remembers "${condition.memoryId}" 没有任何规则会写它`);
+          }
+        }
+      });
     }
   }
   return problems;
@@ -546,6 +593,7 @@ export function auditStoryContent(options: AuditOptions = {}): string[] {
   problems.push(...auditEventDefinitions(eventDefinitions, checkText));
   problems.push(...auditTalk(checkText));
   problems.push(...auditFavors(checkText));
+  problems.push(...auditRelations(checkText));
 
   for (const step of tutorialDefinition.steps) {
     const where = `教程步骤 ${step.stepId}`;

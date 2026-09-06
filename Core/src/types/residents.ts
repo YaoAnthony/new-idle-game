@@ -132,6 +132,12 @@ export type ResidentDefinition = {
   residence?: { buildingId: string };
 
   /**
+   * 能不能作为**访客**在桥头出现（居民系统 09）。不填 = 能。
+   * 候选 = 有房子（`residence`）、还没住下、图纸不在你手上……过滤在运行时；这里只是"永远不来"的开关。
+   */
+  visitorEligible?: boolean;
+
+  /**
    * **性格**（居民系统 02）：决定几点起几点睡、一天去哪、下雨怎么办。
    * 查 `personalityDefinitions`。没填的（访客、宠物）`routine` 技能直接不作声，退回 wander。
    */
@@ -322,6 +328,13 @@ export type ResidentSave = {
   lastGreetDayId?: string;
   /** 病到哪天（含）。有效期内 routine 整天待在家、窗灯全天亮（居民系统 05） */
   sickUntilDayId?: string;
+
+  /**
+   * 访客状态（居民系统 09）：桥头站着的陌生人。有它 = 还不是居民——作息 / 委托 / 串门 / 来访
+   * 都不跑，只 wander + 打招呼 + 一段"想住下来吗"的对话；到 `leaveAtLocalTime` 走人。
+   * 邀请了照样走：房子建好那天走 02 的搬入链从桥头回来。
+   */
+  visiting?: { leaveAtLocalTime: string };
 };
 
 // ---- 动词、Intent、关键帧（居民系统 01，2026-09-06）----

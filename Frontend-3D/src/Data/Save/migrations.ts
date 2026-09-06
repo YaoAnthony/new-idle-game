@@ -1466,6 +1466,16 @@ export const migrations: Migration[] = [
     to: 42,
     migrate: (save) => save,
   },
+
+  /*
+   * v43 · 居民系统 09：`WorldSave.tripPlans`（多日出门的计划）、`ResidentSave.visiting`（桥头访客）。
+   * 都是可选字段：老档没有 = 没人打算出门、桥头没人。`residentTrips` 形状不变（dayId 从"出发那天"
+   * 变成"回来那天"只对多日出门有意义，当天往返两者相同）。空迁移。
+   */
+  {
+    to: 43,
+    migrate: (save) => save,
+  },
 ];
 
 /**

@@ -262,6 +262,13 @@ export type WorldSave = {
   interiors?: Record<string, { gifts: Array<string | null>; boxed: string[] }>;
 
   /**
+   * 多日出门的计划（居民系统 09）：residentId → 哪一趟、哪天走、当面说过没有、回来了等着说第一句。
+   * 出门期间人不在 `pets` 里，在 `residentTrips`（同 02 的小镇）；这张表管的是**走之前**（必须当面说，
+   * 没说到就推迟）和**回来之后**（见面第一句 + 礼物）。房主侧自治状态，不进切片。
+   */
+  tripPlans?: Record<string, { tripId: string; leaveDayId: string; announced: boolean; stage: "planned" | "back" }>;
+
+  /**
    * 旅行商人这一趟的摊子（期 6，save v31）。
    *
    * 只记**哪一天的摊**和**还剩什么**。为什么要存：限量是这个角色的命，

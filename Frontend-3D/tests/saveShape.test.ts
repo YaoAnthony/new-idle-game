@@ -62,6 +62,8 @@ const SHAPE: string[] = [
   "ownWorld.porch",
   // v42：居民房室内槽位（居民系统 08）。进切片
   "ownWorld.interiors",
+  // v43：多日出门的计划（居民系统 09）。房主侧，不进切片
+  "ownWorld.tripPlans",
   // 期 6：旅行商人这一趟卖掉了什么。联机不跟——摊子是房主世界的事
   "ownWorld.travelerStock.day",
   "ownWorld.travelerStock.sold[]",

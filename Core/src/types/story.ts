@@ -48,6 +48,12 @@ export type StorySignalKind =
   | "gift_liked"
   | "gift_disliked"
   | "gift_inedible"
+  /**
+   * 谁收到了爱吃的（居民系统 03）。subject 是**收礼那位的 definitionId**。
+   * 上面四条的 subject 是物品——"送对了咕噜就记住你"这条规则要的是人不是物，
+   * 两条信号同一拍发，各接各的。
+   */
+  | "resident_gift_loved"
   | "action_started"
   | "action_completed"
   | "sleep_ended"
@@ -102,7 +108,13 @@ export type StorySignalKind =
   | "resident_used_spot"
   /** 居民出门（去小镇）/ 回来了。subject 是 definitionId */
   | "resident_away"
-  | "resident_returned";
+  | "resident_returned"
+  /**
+   * 居民主动打了招呼 / 玩家按 F 和他聊了（居民系统 03）。subject 是 definitionId。
+   * 04 的"每天第一次 +1 好感"接它；这期只发。
+   */
+  | "resident_greeted"
+  | "resident_talked";
 
 export type StorySignal = {
   kind: StorySignalKind;
@@ -255,7 +267,15 @@ export type StoryEffect =
    *
    * 做客时不执行：那是主人家的金库。
    */
-  | { kind: "adjust_gold"; amount: number };
+  | { kind: "adjust_gold"; amount: number }
+  /**
+   * 往一位居民的记忆里加一条（居民系统 03）。**记忆唯一的写入口。**
+   *
+   * 送礼爱吃档 → `gift_loved` 信号 → 一条规则 → 这个效果；委托完成（05）同理。
+   * 对话、技能都不直接 push——否则"他为什么记得这件事"要翻三处代码才说得清。
+   * 重复加同一条是 no-op。做客时不执行（那是房主的邻居）。
+   */
+  | { kind: "add_memory"; residentId: ResidentId; memoryId: string };
 
 export type StoryRuleId = string;
 

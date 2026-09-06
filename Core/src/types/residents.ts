@@ -284,6 +284,20 @@ export type ResidentSave = {
    * 老存档没有 → 取默认 70。
    */
   mood?: number;
+
+  // ---- 对话与记忆（居民系统 03）。四个都是可选：老档 undefined = 空 / 0 ----
+
+  /**
+   * 记忆：只加不减的 id 列表（`gift_<itemId>` / `favor_<favorId>` / `story_<eventId>_<stage>`）。
+   * **只有剧情效果 `add_memory` 会写**——对话系统、技能都不直接写，和"后果由 storyRules 声明"一致。
+   */
+  memories?: string[];
+  /** 搬进自己房子那天。"刚搬来三天内"的闲聊段读它 */
+  movedInDayId?: string;
+  /** 上次按 F 聊过是哪个世界日。"好几天没见了" */
+  lastTalkDayId?: string;
+  /** 今天聊了几次。跨天归零（和 lastTalkDayId 一起判）。"说够了" */
+  talksToday?: number;
 };
 
 // ---- 动词、Intent、关键帧（居民系统 01，2026-09-06）----
@@ -415,4 +429,6 @@ export type PersonalityDefinition = {
   napSeconds: [number, number];
   /** go_out_slow 的走路倍率 */
   rainSpeedScale: number;
+  /** 走到多近他先开口打招呼（米）。03 的 greet 技能读 */
+  greetDistance: number;
 };

@@ -41,6 +41,7 @@ import {
 import { Joystick } from "../Components/Mobile/Joystick";
 import { TouchActions } from "../Components/Mobile/TouchActions";
 import { SpeechBubble } from "../Components/Chat/SpeechBubble";
+import { ResidentBubbles } from "../Components/Residents/ResidentBubbles";
 import { Backpack } from "../Components/Backpack/Backpack";
 import { DailyBoardPanel } from "../Components/DailyBoard/DailyBoardPanel";
 import { RewardPanel } from "../Components/RewardPanel/RewardPanel";
@@ -232,6 +233,7 @@ import { registerChainCommands } from "../Game/Systems/chainCommands";
 import { registerResidentCommands } from "../Game/Systems/residents/commands";
 import { startTownTrips } from "../Game/Systems/residents/townTrips";
 import { startRoutineWatch } from "../Game/Systems/residents/routineWatch";
+import { startTalkSystem } from "../Game/Systems/residents/talk";
 import { setShopStockProbe } from "../Game/Systems/residents/spots";
 import { diagnoseSites } from "../Game/State/skills/build";
 import { isRemoteWorldActive } from "../Game/Multiplayer/session";
@@ -416,6 +418,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
     // 出门在外的居民该回来了没（居民系统 02）。做客时是房主的事
     const stopTownTrips = isRemoteWorldActive() ? () => {} : startTownTrips();
     const stopRoutineWatch = isRemoteWorldActive() ? () => {} : startRoutineWatch();
+    // 对话接线（03）：转身面向玩家、天气 / 落地翻成反应。做客时也挂：房客按 F 也要他转身——不，木偶不转（系统里判）
+    const stopTalk = startTalkSystem();
     // 店门口"有货多站一会"：货架就是店铺的储物库存，只认前几格
     setShopStockProbe((instanceId) => shelfSlotsOf(instanceId).some((slot) => slot !== null));
     // 家具小店的隔夜结算（期 5）。做客时不跑：别人的店别人结
@@ -1924,6 +1928,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       stopResidents();
       stopTownTrips();
       stopRoutineWatch();
+      stopTalk();
       stopShopkeeping();
       stopConsigning();
       stopNewspaper();
@@ -2095,6 +2100,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
           标题界面上还没有世界，开个输入框对着空气打字没有意义 */}
       <ChatPanel />
       <SpeechBubble scene={scene} />
+      {/* 居民头顶的招呼气泡 + 表情（居民系统 03） */}
+      <ResidentBubbles scene={scene} />
       {/* 换图加载遮罩：盖住拆旧建新的几帧，也给"去了另一个地方"一点仪式感 */}
       <TravelOverlay />
       <EscMenu />

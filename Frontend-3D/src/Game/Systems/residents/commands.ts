@@ -16,6 +16,9 @@ import { getCurrentMap, getRoom } from "../../State/worldRuntime";
 import { isRemoteWorld } from "../../Multiplayer/worldLock";
 import { formatMinute } from "core";
 import { routinePlanOf } from "../../State/skills/routine";
+import { chatOutlook, resetTalkToday } from "../../State/skills/talk";
+import { findExpression } from "core";
+import { talkText } from "./talk";
 import { describeSpots, homeDoorstepOf } from "./spots";
 import { debugSendToTown, listResidentTrips, tripPlanOf } from "./townTrips";
 import { listResidentSpecies } from "./moveIn";
@@ -64,6 +67,11 @@ const USAGE = [
   "/npc <谁> home      —— 立即回家（走到门口、进屋），看窗灯用",
   "/npc <谁> town      —— 立即出发去小镇，十分钟后回",
   "/npc <谁> place <格X> <格Y> —— 瞬移到院子某格（调试：两只叠在一格会互相挡死）",
+  "/npc <谁> say <文案键> —— 立即冒一句气泡（口头禅已替换）",
+  "/npc <谁> expr <表情id> —— 立即做一个表情",
+  "/npc <谁> talk      —— 此刻闲聊池里满足条件的段落和权重、会抽到哪段、今天聊了几次",
+  "/npc <谁> memory add|rm <memoryId> —— 调记忆（正式写入口只有剧情效果 add_memory）",
+  "/npc <谁> reset-talk —— 今天的聊天次数归零、招呼节流清空",
   "/npc spots          —— 当前世界解析出的全部场所和占用",
 ].join("\n");
 
@@ -252,6 +260,39 @@ export function registerResidentCommands(): Array<() => void> {
             steps: near ? [{ verb: "hide" }] : [{ verb: "walk_to", x: door.x, z: door.z }, { verb: "hide" }],
           });
           return ok(`${agent.residentId} 回家`);
+        }
+        if (agent && verb === "say") {
+          if (!args[2]) return fail("用法：say <文案键> [秒]");
+          agent.say(args[2], args[3] ? Number(args[3]) : undefined);
+          return ok(`${agent.residentId}：「${talkText(agent.definitionId, args[2])}」`);
+        }
+        if (agent && verb === "expr") {
+          const id = args[2] ?? "";
+          if (!findExpression(id)) return fail(`没有这个表情：${id || "(空)"}`);
+          agent.showExpression(id);
+          return ok(`${agent.residentId}：${id}`);
+        }
+        if (agent && verb === "talk") {
+          const outlook = chatOutlook(agent);
+          if (!outlook) return ok(`${agent.residentId} 没有对话池`);
+          const rows = outlook.candidates.map(({ entry, weight }) => `  ${entry.dialogueId}（${weight}）${entry.oncePerDay ? " 一天一次" : ""}`);
+          return ok([
+            `${agent.residentId}：今天聊了 ${outlook.talksToday} 次，记得 ${[...agent.memories].join(" / ") || "（什么都不记得）"}`,
+            `  会抽到：${outlook.pick?.dialogueId ?? "（没有能说的）"}`,
+            "  候选：",
+            ...(rows.length ? rows : ["  （空）"]),
+          ].join("\n"));
+        }
+        if (agent && verb === "memory") {
+          const op = (args[2] ?? "").toLowerCase();
+          const id = args[3];
+          if (!id || (op !== "add" && op !== "rm")) return fail("用法：memory add|rm <memoryId>");
+          const changed = op === "add" ? agent.remember(id) : agent.forget(id);
+          return ok(`${agent.residentId} ${op === "add" ? "记住了" : "忘了"} ${id}${changed ? "" : "（本来就是这样）"}`);
+        }
+        if (agent && verb === "reset-talk") {
+          resetTalkToday(agent);
+          return ok(`${agent.residentId} 今天的账清了`);
         }
         if (agent && verb === "place") {
           if (isRemoteWorld()) return fail("做客中不能指挥别人的邻居");

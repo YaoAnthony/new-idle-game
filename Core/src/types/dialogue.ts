@@ -1,7 +1,9 @@
 import type { FeatureId, LocalizationKey } from "./base.js";
 import type { EventId, EventStageId } from "./events.js";
+import type { ActionCategory } from "./actions.js";
 import type { ItemId } from "./items.js";
-import type { AffectionStage, GiftTier } from "./residents.js";
+import type { AffectionStage, GiftTier, ResidentDefinitionId } from "./residents.js";
+import type { DayPhaseId } from "./time.js";
 import type { WeatherId } from "./weather.js";
 
 export type DialogueId = string;
@@ -20,14 +22,40 @@ export type DialogueChoiceId = string;
  */
 export type ResidentGestureId = string;
 
-/** 选项或节点的显示条件，全部满足才生效 */
+/**
+ * 选项或节点的显示条件，全部满足才生效。
+ *
+ * 居民系统 03 起，招呼池 / 闲聊池的 `when` 用的也是这一套——一套条件两处用，
+ * 不发明第二种条件语言。求值集中在前端 `Systems/dialogue.ts` 的 `evaluateCondition`，
+ * 一处 switch 一种条件一个 case：条件种类本来就是引擎的词汇表，那是唯一允许长的 switch。
+ */
 export type DialogueCondition =
   | { kind: "affection_at_least"; stage: AffectionStage }
   | { kind: "event_completed"; eventId: EventId }
   | { kind: "event_stage"; eventId: EventId; stageId: EventStageId }
   | { kind: "feature_unlocked"; featureId: FeatureId }
   | { kind: "has_item"; itemId: ItemId; quantity: number }
-  | { kind: "weather_is"; weatherId: WeatherId };
+  | { kind: "weather_is"; weatherId: WeatherId }
+  // ---- 03 加的九种。读的都是运行时现状，不进存档的只有 lastGreetPhase ----
+  /** 此刻的时段（黎明 / 白天 / 黄昏 / 夜里） */
+  | { kind: "day_phase_is"; phase: `${DayPhaseId}` }
+  /** 对话对象的心情（0~100）。心情终于有人读了 */
+  | { kind: "mood_below"; value: number }
+  | { kind: "mood_at_least"; value: number }
+  /** 搬来第几天了（`ResidentSave.movedInDayId`）。刚搬来三天内的话 */
+  | { kind: "days_since_moved_in"; atLeast?: number; atMost?: number }
+  /** 多少天没聊过（`ResidentSave.lastTalkDayId`）。久别 */
+  | { kind: "days_since_last_talk"; atLeast: number }
+  /** 今天已经聊了几次（`ResidentSave.talksToday`）。"说够了" */
+  | { kind: "talks_today"; atLeast: number }
+  /** 玩家**今天**做完过这一类行动（昨日事实里今天那条）。本作独有 */
+  | { kind: "recent_action_category"; category: `${ActionCategory}` }
+  /** 玩家手里拿着什么。都不填 = 手里有东西就行；`food` = 是吃的 */
+  | { kind: "holding_item"; itemId?: ItemId; food?: boolean }
+  /** 记得某件事（`ResidentSave.memories`，只有剧情效果 add_memory 会写） */
+  | { kind: "remembers"; memoryId: string }
+  /** 场上有没有另一位（06 用；这期先加条件） */
+  | { kind: "neighbor_present"; residentId: ResidentDefinitionId };
 
 export type DialogueChoice = {
   choiceId: DialogueChoiceId;
@@ -76,6 +104,12 @@ export type DialogueNode = {
 
   /** 进入该节点时让对话对象（宠物）演一下这个动作。不填就什么都不做 */
   residentGesture?: ResidentGestureId;
+
+  /**
+   * 进入该节点时对话对象做的**表情**（居民系统 03）：查表情注册表 → 头顶冒图标 +
+   * 播表里的动作。和 `residentGesture` 的分别：那个是裸的动作名，这个是有图标的情绪。
+   */
+  expression?: string;
 };
 
 export type DialogueDefinition = {

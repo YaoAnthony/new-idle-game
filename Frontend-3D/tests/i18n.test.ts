@@ -3,9 +3,12 @@ import {
   auditAvatarContent,
   auditDoorContent,
   auditStoryContent,
+  expressionDefinitions,
   itemDefinitions,
+  reactionDefinitions,
   residentDefinitions,
   recipeDefinitions,
+  talkPools,
   weatherDefinitions,
 } from "core";
 
@@ -112,3 +115,26 @@ test("没有空文案——空串和键名一样，都是看着像做完了", ()
     expect(text.trim().length, `${item.id} 的文案是空的`).toBeGreaterThan(0);
   }
 });
+
+// ---- 居民系统 03：三位的话 ----
+
+test("招呼池 / 口头禅 / 表情图标 / 反应台词全都有文案", () => {
+  const keys: string[] = [];
+  for (const pool of talkPools) {
+    if (pool.catchphrase) keys.push(pool.catchphrase);
+    for (const entry of pool.greetings) keys.push(entry.key);
+  }
+  for (const expression of expressionDefinitions) keys.push(expression.iconKey);
+  for (const reaction of reactionDefinitions) if ("say" in reaction && reaction.say) keys.push(reaction.say);
+  expect(missingKeys(keys)).toEqual([]);
+});
+
+test("没有口头禅的（薇尔）文案里不写 {cp}；有口头禅的至少一半招呼带 {cp}", () => {
+  for (const pool of talkPools) {
+    const texts = pool.greetings.map((entry) => t(entry.key));
+    const withCp = texts.filter((text) => text.includes("{cp}")).length;
+    if (!pool.catchphrase) expect(withCp, `${pool.residentId} 没有口头禅却写了 {cp}`).toBe(0);
+    else expect(withCp, `${pool.residentId} 的口头禅太少用`).toBeGreaterThanOrEqual(6);
+  }
+});
+

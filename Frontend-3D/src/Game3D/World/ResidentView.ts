@@ -1,5 +1,5 @@
 import { findResidentDefinition } from "core";
-import { Object3D } from "three";
+import { Box3, Object3D } from "three";
 import { on } from "../../Game/EventBus";
 import { getResident, getResidents } from "../../Game/State/residentsRuntime";
 import { groundHeightAt } from "../../Game/State/worldRuntime";
@@ -59,6 +59,21 @@ export class ResidentView {
 
   dispose(): void {
     this.unsubscribe();
+  }
+
+  /**
+   * 某只的头顶世界坐标（气泡挂这里，居民系统 03）。模型高度量一次缓存在 userData：
+   * 每帧 Box3 太贵，而模型不会长高。藏着的（进了屋）没有头顶。
+   */
+  headAnchorOf(residentId: string): { x: number; y: number; z: number } | null {
+    const view = this.views.get(residentId);
+    if (!view || !view.visible) return null;
+    let top = view.userData.headTop as number | undefined;
+    if (top === undefined) {
+      top = new Box3().setFromObject(view).max.y - view.position.y;
+      view.userData.headTop = top;
+    }
+    return { x: view.position.x, y: view.position.y + top + 0.2, z: view.position.z };
   }
 
   /**

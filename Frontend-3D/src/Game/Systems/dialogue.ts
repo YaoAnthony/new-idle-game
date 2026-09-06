@@ -1,15 +1,19 @@
 import {
+  daysBetweenDayIds,
   findDialogueDefinition,
+  findItemDefinition,
   type DialogueChoice,
   type DialogueCondition,
   type DialogueNode,
 } from "core";
 import { emit } from "../EventBus";
-import { getCount, type SlotRef } from "../State/inventory";
-import { getResident } from "../State/residentsRuntime";
+import { getCount, getSelectedStack, type SlotRef } from "../State/inventory";
+import { getResident, getResidents } from "../State/residentsRuntime";
 import { getWeather } from "../State/weather";
+import { factsOfToday } from "./dayRecord";
 import { getEventStage, isEventCompleted, isFeatureUnlocked } from "./events";
 import { offerGift, type GiftResult } from "./gifting";
+import { talkClock } from "./residents/talk";
 import { signal } from "./story";
 
 /**
@@ -37,9 +41,18 @@ export function getCurrentNode(): DialogueNode | null {
 }
 
 function conditionMet(condition: DialogueCondition): boolean {
+  return evaluateCondition(condition, active?.residentId ?? null);
+}
+
+/**
+ * 一条条件此刻成不成立。**引擎里唯一允许长的 switch**：条件种类就是引擎的词汇表，
+ * 一种一个 case。对话节点、招呼池、闲聊池都走这一个口（居民系统 03）。
+ * `residentId` 是"对话对象"——池子在对话还没开始时就要问，所以不能只读 active。
+ */
+export function evaluateCondition(condition: DialogueCondition, residentId: string | null): boolean {
+  const resident = residentId ? getResident(residentId) : undefined;
   switch (condition.kind) {
     case "affection_at_least": {
-      const resident = active?.residentId ? getResident(active.residentId) : undefined;
       if (!resident) return false;
       const order = ["stranger", "familiar_resident", "life_companion", "family"];
       return (
@@ -64,6 +77,48 @@ function conditionMet(condition: DialogueCondition): boolean {
       return getCount(condition.itemId) >= condition.quantity;
     case "weather_is":
       return getWeather().id === condition.weatherId;
+
+    // ---- 居民系统 03 ----
+    case "day_phase_is":
+      return talkClock().phase === condition.phase;
+    case "mood_below":
+      return resident !== undefined && resident.mood < condition.value;
+    case "mood_at_least":
+      return resident !== undefined && resident.mood >= condition.value;
+    case "days_since_moved_in": {
+      if (!resident?.movedInDayId) return false;
+      const days = daysBetweenDayIds(resident.movedInDayId, talkClock().worldDayId);
+      if (condition.atLeast !== undefined && days < condition.atLeast) return false;
+      if (condition.atMost !== undefined && days > condition.atMost) return false;
+      return true;
+    }
+    case "days_since_last_talk": {
+      // 从没聊过 = 隔了无数天：久别那段对"第一次见面"也成立，这是有意的
+      if (!resident) return false;
+      if (!resident.lastTalkDayId) return true;
+      return daysBetweenDayIds(resident.lastTalkDayId, talkClock().worldDayId) >= condition.atLeast;
+    }
+    case "talks_today":
+      return resident !== undefined && resident.talksOn(talkClock().worldDayId) >= condition.atLeast;
+    case "recent_action_category":
+      // 只算**今天做完的**（昨日事实里今天那条），不算清单里躺着没做的
+      return (factsOfToday()?.actions ?? []).some((entry) => entry.category === condition.category);
+    case "holding_item": {
+      const stack = getSelectedStack();
+      if (!stack) return false;
+      if (condition.itemId !== undefined && stack.itemId !== condition.itemId) return false;
+      if (condition.food !== undefined) {
+        // "是吃的"：做好的菜（food）和生的食材（ingredient）都算——番茄拿在手里也是吃的
+        const definition = findItemDefinition(stack.itemId);
+        const isFood = Boolean(definition?.food || definition?.ingredient);
+        if (isFood !== condition.food) return false;
+      }
+      return true;
+    }
+    case "remembers":
+      return resident !== undefined && resident.memories.has(condition.memoryId);
+    case "neighbor_present":
+      return getResidents().some((agent) => agent.definitionId === condition.residentId && agent.residentId !== residentId);
     default:
       return false;
   }
@@ -92,6 +147,8 @@ function announceNode(node: DialogueNode, residentId: string | null): void {
   if (node.residentGesture && residentId) {
     emit("resident_gesture", { residentId, gesture: node.residentGesture });
   }
+  // 03：节点上的表情——查表冒图标 + 播表里的动作，和台词同一拍
+  if (node.expression && residentId) getResident(residentId)?.showExpression(node.expression);
 }
 
 function enterNode(nodeId: string): void {

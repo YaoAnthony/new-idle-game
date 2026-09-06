@@ -1,3 +1,4 @@
+import { TALK_ZH } from "./talk";
 /**
  * i18n 最小壳。Core 里所有名字都是 localizationKey，这里做 key → 文案。
  * 目前只有中文；日文以后填进同结构的词典即可。
@@ -1058,6 +1059,9 @@ const ZH: Record<string, string> = {
   "avatar.part.shoes_plain": "布鞋",
   "avatar.part.shoes_boots": "小靴子",
 };
+
+// 三位居民的台词（居民系统 03）单独一张表，这里并进来
+Object.assign(ZH, TALK_ZH);
 
 export function t(key: string): string {
   return ZH[key] ?? key;

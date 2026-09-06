@@ -18,6 +18,9 @@ export type SkillContext = {
   current: Intent | null;
 };
 
+/** 世界里发生了什么（`Systems/residents/talk.ts` 从 EventBus 翻成事件键）。reactions 技能吃它 */
+export type ResidentEvent = { key: string; x?: number; z?: number };
+
 export type InteractOffer =
   | { kind: "trade"; merchantId: string }
   | { kind: "build_shop" }
@@ -35,4 +38,12 @@ export type Skill = {
   decide?: (ctx: SkillContext) => Intent | null;
   /** 玩家按 F 时开什么。null = 这个技能不管 F */
   interact?: (ctx: SkillContext) => InteractOffer | null;
+  /**
+   * 每半秒看一眼——**不管手上有没有事、也不看优先级**（居民系统 03）。
+   * 并行槽技能（greet）用它：它不下串行 Intent，只往嘴上放话，所以不需要抢占。
+   * 藏着时按 `worksWhileHidden` 决定问不问；木偶不问。
+   */
+  observe?: (ctx: SkillContext) => void;
+  /** 世界里发生了什么。只有 reactions 这类"被动"技能实现它 */
+  onEvent?: (ctx: SkillContext, event: ResidentEvent) => void;
 };

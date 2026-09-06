@@ -9,6 +9,7 @@ export * from "./consign.js";
 export * from "./chat.js";
 export * from "./clock.js";
 export * from "./routine.js";
+export * from "./talk.js";
 export * from "./cookingRules.js";
 export * from "./crafting.js";
 export * from "./facing.js";

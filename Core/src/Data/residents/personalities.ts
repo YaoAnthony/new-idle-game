@@ -31,6 +31,7 @@ export const personalityDefinitions = [
     roamRadius: 6,
     napSeconds: [90, 150],
     rainSpeedScale: 0.7,
+    greetDistance: 2.5,
   },
   {
     // 阿茜（狐狸）：早起、爱跑、隔三天去一趟小镇
@@ -51,6 +52,8 @@ export const personalityDefinitions = [
     roamRadius: 12,
     napSeconds: [60, 120],
     rainSpeedScale: 0.7,
+    // 话多的先开口：三米半就喊
+    greetDistance: 3.5,
   },
   {
     // 薇尔（精灵）：晨昏活动、雨天反而出来看雨、常在井边
@@ -70,6 +73,7 @@ export const personalityDefinitions = [
     roamRadius: 8,
     napSeconds: [60, 120],
     rainSpeedScale: 0.8,
+    greetDistance: 3,
   },
 ] as const satisfies readonly PersonalityDefinition[];
 

@@ -4,6 +4,8 @@ import {
   CreatureRole,
   GiftTier,
   SKILL_DECIDE_INTERVAL_SECONDS,
+  EXPRESSION_SECONDS,
+  findExpression,
   findItemDefinition,
   findResidentDefinition,
   findSkillPriority,
@@ -36,7 +38,7 @@ import {
   type Intent,
   type WireIntent,
 } from "./actions";
-import type { InteractOffer, Skill, SkillContext } from "./skills/types";
+import type { InteractOffer, ResidentEvent, Skill, SkillContext } from "./skills/types";
 
 /**
  * 一只活物的**身体**（居民系统 01，2026-09-06 拆分）。
@@ -173,6 +175,21 @@ export class ResidentAgent {
   sleepTimer = 0;
   /** 头顶正在说的话（`speak` 动词）。表现层读 */
   speech: { localizationKey: string; until: number } | null = null;
+  /** 头顶正在做的表情（`showExpression`）。表现层读；关键帧带给木偶 */
+  expression: { id: string; until: number } | null = null;
+
+  // ---- 对话与记忆（居民系统 03）。前四个进存档，后两个是运行时 ----
+  /** 记忆：只加不减。**只有剧情效果 add_memory 写** */
+  readonly memories = new Set<string>();
+  movedInDayId: string | undefined;
+  lastTalkDayId: string | undefined;
+  /** 今天聊了几次；和 lastTalkDayId 一起判（换了天就是 0） */
+  talksToday = 0;
+  /** 这个时段打过招呼了没（不进存档：读档后再打一次很自然） */
+  lastGreetPhase: string | null = null;
+  /** 上一帧玩家在哪（onEvent 要给技能一个 ctx） */
+  private lastPlayer: { x: number; z: number } = { x: 0, z: 0 };
+  private observeCountdown = SKILL_DECIDE_INTERVAL_SECONDS;
 
   private blockedFor = 0;
   /** 刚被请着让过路，这段时间内不再被请第二次 */
@@ -182,6 +199,10 @@ export class ResidentAgent {
   private current: Intent | null = null;
   private run: StepRun | null = null;
   private clock = 0;
+  /** 这只活过了多少秒（tick 累加）。技能做节流用（reactions 十秒一次） */
+  get elapsedSeconds(): number {
+    return this.clock;
+  }
 
   /**
    * **木偶模式**（联机做客，01c）：运行时里装着的是房主的世界，这只活物的
@@ -674,7 +695,12 @@ export class ResidentAgent {
 
   tick(deltaSeconds: number, player: { x: number; z: number }): void {
     this.clock += deltaSeconds;
+    this.lastPlayer = player;
     if (this.speech && this.speech.until <= this.clock) this.speech = null;
+    if (this.expression && this.expression.until <= this.clock) {
+      this.expression = null;
+      emit("resident_changed", { residentId: this.residentId, reason: "expression" });
+    }
     if (this.state === "hidden") {
       /*
        * 藏起来的（在屋里）不占格、不衰减、不走路，但**动词照样推进、技能照样问**——
@@ -702,6 +728,15 @@ export class ResidentAgent {
       this.driftMood(deltaSeconds);
     }
     this.tickCorrection(deltaSeconds);
+
+    // 并行槽技能（greet）每半秒看一眼，不管手上有没有事、不看优先级
+    if (!this.puppet) {
+      this.observeCountdown -= deltaSeconds;
+      if (this.observeCountdown <= 0) {
+        this.observeCountdown = SKILL_DECIDE_INTERVAL_SECONDS;
+        this.observeSkills(player);
+      }
+    }
 
     if (this.current) {
       this.tickStep(deltaSeconds);
@@ -739,6 +774,7 @@ export class ResidentAgent {
       verb: step && !isParallel(step) ? step.verb : null,
       flavor: step?.verb === "stand" ? step.flavor : undefined,
       hidden: this.state === "hidden",
+      expression: this.expression?.id,
       speaking: this.speech?.localizationKey,
     };
   }
@@ -761,6 +797,9 @@ export class ResidentAgent {
     } else if (distance >= 0.6) {
       this.correction = { x: frame.x, z: frame.z, remaining: 0.3 };
     }
+
+    // 表情跟着房主（03）：房客看得见他在做什么表情，台词第一版不同步（那是对着房主说的）
+    if (frame.expression && frame.expression !== this.expression?.id) this.showExpression(frame.expression);
 
     const hidden = this.state === "hidden";
     if (frame.hidden !== hidden) {
@@ -820,6 +859,77 @@ export class ResidentAgent {
       if (intent && this.perform(intent)) return true;
     }
     return false;
+  }
+
+  /** 问一遍所有实现了 `observe` 的技能（并行槽）。藏着时只问声明过的 */
+  private observeSkills(player: { x: number; z: number }): void {
+    const ctx = this.contextFor(player);
+    const hidden = this.state === "hidden";
+    for (const skill of this.skills) {
+      if (!skill.observe || !this.isSkillEnabled(skill.id)) continue;
+      if (hidden && !skill.worksWhileHidden) continue;
+      skill.observe(ctx);
+    }
+  }
+
+  /** 世界里发生了什么，告诉挂了 `onEvent` 的技能（reactions）。木偶不管 */
+  notify(event: ResidentEvent): void {
+    if (this.puppet) return;
+    const ctx = this.contextFor(this.lastPlayer);
+    for (const skill of this.skills) {
+      if (!skill.onEvent || !this.isSkillEnabled(skill.id)) continue;
+      skill.onEvent(ctx, event);
+    }
+  }
+
+  // ---- 对话与记忆（居民系统 03） ----
+
+  /** 往嘴上放一句（并行槽，不打断手里的事） */
+  say(localizationKey: string, seconds?: number): void {
+    this.performParallel({ verb: "speak", localizationKey, seconds });
+  }
+
+  /** 做个表情：头顶冒图标；表情表里有动作的顺手播（造型没实现就只冒图标） */
+  showExpression(id: string, seconds = EXPRESSION_SECONDS): void {
+    this.expression = { id, until: this.clock + seconds };
+    const gesture = findExpression(id)?.gesture;
+    if (gesture) emit("resident_gesture", { residentId: this.residentId, gesture });
+    emit("resident_changed", { residentId: this.residentId, reason: "expression" });
+  }
+
+  /** 记一件事。已经记得就 no-op。**只给剧情效果 add_memory 调** */
+  remember(memoryId: string): boolean {
+    if (this.memories.has(memoryId)) return false;
+    this.memories.add(memoryId);
+    return true;
+  }
+
+  forget(memoryId: string): boolean {
+    return this.memories.delete(memoryId);
+  }
+
+  /** 今天聊了几次。换了天就是 0 */
+  talksOn(worldDayId: string): number {
+    return this.lastTalkDayId === worldDayId ? this.talksToday : 0;
+  }
+
+  /** 按 F 聊了一次 */
+  noteTalk(worldDayId: string): void {
+    this.talksToday = this.talksOn(worldDayId) + 1;
+    this.lastTalkDayId = worldDayId;
+  }
+
+  resetTalks(): void {
+    this.talksToday = 0;
+    this.lastTalkDayId = undefined;
+    this.lastGreetPhase = null;
+  }
+
+  /** 撤掉正在执行的指令 Intent（对话关掉后不用再面向玩家站着） */
+  cancelCommand(): void {
+    if (this.current?.skillId !== COMMAND_SKILL_ID) return;
+    this.abandonIntent();
+    this.idleTimer = 0.5;
   }
 
   // ---- 需求与心情 ----
@@ -1084,6 +1194,11 @@ export class ResidentAgent {
       nickname: this.nickname,
       lastGiftWorldDayId: this.lastGiftWorldDayId,
       home: { x: this.homeX, z: this.homeZ },
+      // 03：记忆 / 搬来 / 上次聊 / 今天聊了几次。空的不写，和 sleeping 同一个理由
+      memories: this.memories.size > 0 ? [...this.memories] : undefined,
+      movedInDayId: this.movedInDayId,
+      lastTalkDayId: this.lastTalkDayId,
+      talksToday: this.talksToday > 0 ? this.talksToday : undefined,
       // undefined 而不是 false：醒着是默认态，别往每份存档里写一排 false
       sleeping: this.state === "sleeping" ? true : undefined,
       // 同理：没有零件概念的物种不写这个字段
@@ -1103,6 +1218,11 @@ export class ResidentAgent {
     this.lastGiftWorldDayId = entry.lastGiftWorldDayId;
     this.growth = entry.growth ?? 0;
     this.mood = entry.mood ?? DEFAULT_MOOD;
+    this.memories.clear();
+    for (const memory of entry.memories ?? []) this.memories.add(memory);
+    this.movedInDayId = entry.movedInDayId;
+    this.lastTalkDayId = entry.lastTalkDayId;
+    this.talksToday = entry.talksToday ?? 0;
     this.needs = {
       hunger: entry.needs?.hunger ?? 80,
       thirst: entry.needs?.thirst ?? 80,

@@ -2680,6 +2680,19 @@ export class RoomScene {
     };
   }
 
+  /** 某位居民头顶的屏幕坐标（03 的招呼气泡）。和 getSpeechAnchor 同一套投影 */
+  getResidentAnchor(residentId: string): { x: number; y: number } | null {
+    const head = this.residentView.headAnchorOf(residentId);
+    if (!head) return null;
+    this.projectScratch.set(head.x, head.y, head.z).project(this.rig.camera);
+    if (this.projectScratch.z > 1) return null;
+    const rect = this.container.getBoundingClientRect();
+    return {
+      x: rect.left + ((this.projectScratch.x + 1) / 2) * rect.width,
+      y: rect.top + ((1 - this.projectScratch.y) / 2) * rect.height,
+    };
+  }
+
   /**
    * 从相机往角色身上的若干采样点打射线，挡在中间的家具要让开。
    *

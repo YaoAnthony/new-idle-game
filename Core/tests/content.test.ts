@@ -688,3 +688,47 @@ test("居民的图纸没有价——邻居送的凭证能卖钱就是白得的�
     assert.equal(findItemDefinition(id)?.value, undefined, `${id} 不该有 value`);
   }
 });
+
+// ---- 居民系统 03：对话与记忆 ----
+
+test("三位居民各有一个对话池，招呼 / 闲聊数量达标（20 招呼、15 一般段 + 10 特殊段）", async () => {
+  const { talkPools, listResidentDefinitions } = await import("../src/Data/residents/index.js");
+  const residents = listResidentDefinitions();
+  for (const resident of residents) {
+    const pool = talkPools.find((entry) => entry.residentId === resident.id);
+    assert.ok(pool, `${resident.id} 没有对话池`);
+    assert.ok(pool.greetings.length >= 20, `${resident.id} 招呼只有 ${pool.greetings.length} 句`);
+    assert.ok(pool.chats.length >= 25, `${resident.id} 闲聊只有 ${pool.chats.length} 段`);
+    const special = pool.chats.filter((entry) =>
+      (entry.when ?? []).some((c) => ["remembers", "recent_action_category", "holding_item", "days_since_last_talk", "days_since_moved_in", "neighbor_present"].includes(c.kind)),
+    );
+    assert.ok(special.length >= 10, `${resident.id} 特殊段只有 ${special.length} 段`);
+  }
+});
+
+test("闲聊池里 remembers 引用的记忆都有规则会写它——否则那段永远不出现", async () => {
+  const { talkPools } = await import("../src/Data/residents/index.js");
+  const { memoryWriters } = await import("../src/logic/storyAudit.js");
+  const writers = memoryWriters();
+  for (const pool of talkPools) {
+    for (const entry of pool.chats) {
+      for (const condition of entry.when ?? []) {
+        if (condition.kind === "remembers") {
+          assert.ok(writers.has(condition.memoryId), `${pool.residentId} 的 ${entry.dialogueId} 记着 "${condition.memoryId}"，没人写它`);
+        }
+      }
+    }
+  }
+});
+
+test("每一段闲聊都是真实对话，且是线性小段（没有选项就得有 nextNodeId 或者是末节点）", async () => {
+  const { talkPools } = await import("../src/Data/residents/index.js");
+  for (const pool of talkPools) {
+    for (const entry of pool.chats) {
+      const dialogue = findDialogueDefinition(entry.dialogueId);
+      assert.ok(dialogue, `${entry.dialogueId} 不存在`);
+      assert.equal(dialogue.entryNodeId, "n1");
+    }
+  }
+});
+

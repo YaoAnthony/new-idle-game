@@ -37,6 +37,11 @@ export const skillPriorityDefinitions = [
    * 让给饿了渴了；睡觉那条 Intent 自己翻成不可打断。
    */
   { id: "routine", priority: 40, interruptible: true },
+  /**
+   * 打招呼（03）。**并行槽**：它不下串行 Intent，走 `observe` 每半秒看一眼玩家多近，
+   * 到了就往嘴上放一句——所以这个数字实际不参与抢占，只是把它排在表里。
+   */
+  { id: "greet", priority: 30, interruptible: true },
   /** 闲着打盹（舒舒十次有八次）。只在无事可做时掷 */
   { id: "nap", priority: 25, interruptible: true },
   /** 熟了以后偶尔凑到玩家身边 */
@@ -45,6 +50,10 @@ export const skillPriorityDefinitions = [
   { id: "wander", priority: 10, interruptible: true },
   /** 商人的交易面板。没有 decide，只回答"按 F 开什么" */
   { id: "trade", priority: 0, interruptible: true },
+  /** 居民的闲聊（03）。没有 decide，只回答"按 F 开哪段"——段落由闲聊池按条件抽 */
+  { id: "talk", priority: 0, interruptible: true },
+  /** 反应（03）。没有 decide，只有 onEvent：暴风来了做个表情 */
+  { id: "reactions", priority: 0, interruptible: true },
 ] as const satisfies readonly SkillPriorityDefinition[];
 
 export function findSkillPriority(id: SkillId): SkillPriorityDefinition | undefined {

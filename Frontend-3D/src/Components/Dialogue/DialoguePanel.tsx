@@ -1,4 +1,4 @@
-import { findDialogueDefinition } from "core";
+import { findDialogueDefinition, findExpression } from "core";
 import { useEffect, useState } from "react";
 import { on } from "../../Game/EventBus";
 import {
@@ -9,6 +9,8 @@ import {
   getCurrentNode,
   visibleChoices,
 } from "../../Game/Systems/dialogue";
+import { getResident } from "../../Game/State/residentsRuntime";
+import { talkText } from "../../Game/Systems/residents/talk";
 import { residentNickname } from "../../i18n/residentName";
 import { t } from "../../i18n/t";
 import { GiftBox } from "./GiftBox";
@@ -33,6 +35,12 @@ export function DialoguePanel() {
   useEffect(() => {
     return on("dialogue_changed", () => force((n) => n + 1));
   }, []);
+  // 03：他做表情时名字旁边的小图标要跟着换
+  useEffect(() => {
+    return on("resident_changed", ({ reason }) => {
+      if (reason === "expression") force((n) => n + 1);
+    });
+  }, []);
 
   const node = getCurrentNode();
   const active = getActiveDialogue();
@@ -46,6 +54,11 @@ export function DialoguePanel() {
       ? t(definition.speakerNameKey)
       : t("pet.unknown");
   const portrait = portraitFor(active.dialogueId);
+  const speakerAgent = active.residentId ? getResident(active.residentId) : undefined;
+  const expression = speakerAgent?.expression ?? null;
+  // 03：台词里的 {cp} 换成这位的口头禅——气泡和面板走同一个口，别在这里再拼一遍
+  const line = (key: string): string => (speakerAgent ? talkText(speakerAgent.definitionId, key) : t(key));
+  const expressionIcon = expression ? t(findExpression(expression.id)?.iconKey ?? "") : null;
 
   const choices = visibleChoices();
   const request = node.itemRequest;
@@ -67,12 +80,17 @@ export function DialoguePanel() {
         <span className="text-[16px] font-bold tracking-wide text-[#4a3b2a]">
           {node.speaker === "npc" ? speakerName : t("ui.you")}
         </span>
+        {node.speaker === "npc" && expressionIcon && (
+          <span className="text-[16px] leading-none" aria-label={expression?.id}>
+            {expressionIcon}
+          </span>
+        )}
       </div>
 
       <div className="ui-dialogue -mt-4 rounded-[26px] px-8 pb-7 pt-7">
         <div className="min-h-[76px]">
           <div className="text-[21px] leading-[1.75] tracking-wide text-[#463726]">
-            {t(node.localizationKey)}
+            {line(node.localizationKey)}
           </div>
         </div>
 
@@ -85,7 +103,7 @@ export function DialoguePanel() {
                 className="ui-dialogue-choice rounded-full px-5 py-2 text-[16px]"
                 onClick={() => choose(choice.choiceId)}
               >
-                {t(choice.localizationKey)}
+                {line(choice.localizationKey)}
               </button>
             ))}
           </div>

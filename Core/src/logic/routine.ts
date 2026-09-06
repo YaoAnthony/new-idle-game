@@ -35,6 +35,7 @@ export type ResolvedPersonality = {
   roamRadius: number;
   napSeconds: [number, number];
   rainSpeedScale: number;
+  greetDistance: number;
 };
 
 export function resolvePersonality(definition: PersonalityDefinition): ResolvedPersonality {
@@ -51,6 +52,7 @@ export function resolvePersonality(definition: PersonalityDefinition): ResolvedP
     })),
     onRain: definition.onRain,
     onStorm: definition.onStorm,
+    greetDistance: definition.greetDistance,
     townTripEveryDays: definition.townTripEveryDays,
     townTrip: definition.townTrip
       ? {

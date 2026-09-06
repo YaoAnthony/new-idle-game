@@ -4,7 +4,17 @@ import {
 } from "../Data/dialogues/index.js";
 import { eventDefinitions, findEventDefinition } from "../Data/events/index.js";
 import { findItemDefinition } from "../Data/items/index.js";
-import { findResidentDefinition } from "../Data/residents/index.js";
+import {
+  expressionDefinitions,
+  findExpression,
+  findResidentDefinition,
+  reactionDefinitions,
+  residentDefinitionOf,
+  talkPools,
+} from "../Data/residents/index.js";
+import { findPersonality } from "../Data/residents/personalities.js";
+import type { DialogueCondition } from "../types/dialogue.js";
+import type { ReactionDefinition } from "../types/talk.js";
 import { findStoryPool, storyRules, tutorialDefinition } from "../Data/story/index.js";
 import { weatherDefinitions } from "../Data/weather/index.js";
 import type { StoryTrigger } from "../types/story.js";
@@ -48,6 +58,116 @@ const ITEM_SUBJECT_SIGNALS = new Set([
 ]);
 
 const WEATHER_IDS = new Set(weatherDefinitions.map((weather) => weather.id));
+
+/**
+ * 对话条件里能查的引用（居民系统 03 起招呼 / 闲聊池也用这一套条件）。
+ * `remembers` 的写手在 auditTalk 里统一查——一条条查会把同一个 id 报三遍。
+ */
+export function auditCondition(where: string, condition: DialogueCondition): string[] {
+  const problems: string[] = [];
+  switch (condition.kind) {
+    case "weather_is":
+      if (!WEATHER_IDS.has(condition.weatherId)) {
+        problems.push(`${where}：weather_is 指向未登记的天气 "${condition.weatherId}"`);
+      }
+      break;
+    case "has_item":
+    case "holding_item":
+      if (condition.itemId && !findItemDefinition(condition.itemId)) {
+        problems.push(`${where}：${condition.kind} 指向不存在的物品 "${condition.itemId}"`);
+      }
+      break;
+    case "neighbor_present":
+      if (!findResidentDefinition(condition.residentId)) {
+        problems.push(`${where}：neighbor_present 指向不存在的居民 "${condition.residentId}"`);
+      }
+      break;
+    case "remembers":
+      if (!condition.memoryId) problems.push(`${where}：remembers 的 memoryId 是空的`);
+      break;
+    default:
+      break;
+  }
+  return problems;
+}
+
+/** 剧情规则里所有 add_memory 会写的 memoryId */
+export function memoryWriters(): Set<string> {
+  const written = new Set<string>();
+  for (const rule of storyRules) {
+    for (const effect of rule.effects) {
+      if (effect.kind === "add_memory") written.add(effect.memoryId);
+    }
+  }
+  return written;
+}
+
+/**
+ * 对话池 / 表情表 / 反应表的引用（居民系统 03）。
+ * 写错一个 dialogueId 或 memoryId 的表现是"那段话永远不出现"——和 subject 写错同一种病。
+ */
+function auditTalk(checkText: (where: string, key: string) => void): string[] {
+  const problems: string[] = [];
+  const writers = memoryWriters();
+
+  const seenExpression = new Set<string>();
+  for (const expression of expressionDefinitions) {
+    if (seenExpression.has(expression.id)) problems.push(`表情 ${expression.id}：id 重复`);
+    seenExpression.add(expression.id);
+    checkText(`表情 ${expression.id}`, expression.iconKey);
+  }
+
+  for (const reaction of reactionDefinitions as readonly ReactionDefinition[]) {
+    const where = `反应 ${reaction.on}`;
+    if (!findExpression(reaction.expression)) problems.push(`${where}：表情 "${reaction.expression}" 不在表情表里`);
+    if (reaction.say) checkText(where, reaction.say);
+  }
+
+  const seenPool = new Set<string>();
+  for (const pool of talkPools) {
+    const poolWhere = `对话池 ${pool.residentId}`;
+    if (seenPool.has(pool.residentId)) problems.push(`${poolWhere}：一位居民两个池`);
+    seenPool.add(pool.residentId);
+    const definition = findResidentDefinition(pool.residentId);
+    if (!definition) {
+      problems.push(`${poolWhere}：不是一位真实居民`);
+      continue;
+    }
+    if (!definition.personalityId || !findPersonality(definition.personalityId)) {
+      problems.push(`${poolWhere}：这位没有性格，greet 永远不知道该走多近开口`);
+    }
+    if (pool.catchphrase) checkText(poolWhere, pool.catchphrase);
+    if (pool.greetings.length === 0) problems.push(`${poolWhere}：一句招呼都没有`);
+    if (!pool.greetings.some((entry) => !entry.when || entry.when.length === 0)) {
+      problems.push(`${poolWhere}：招呼没有无条件兜底，某些时刻会没话说`);
+    }
+    if (!pool.chats.some((entry) => !entry.when || entry.when.length === 0)) {
+      problems.push(`${poolWhere}：闲聊没有无条件兜底，按 F 可能没话说`);
+    }
+    const walk = (where: string, when: readonly DialogueCondition[] | undefined): void => {
+      for (const condition of when ?? []) {
+        problems.push(...auditCondition(where, condition));
+        if (condition.kind === "remembers" && !writers.has(condition.memoryId)) {
+          problems.push(`${where}：remembers "${condition.memoryId}" 没有任何规则会写它，这段永远不出现`);
+        }
+      }
+    };
+    for (const entry of pool.greetings) {
+      const where = `${poolWhere} 招呼 ${entry.key}`;
+      checkText(where, entry.key);
+      if (entry.expression && !findExpression(entry.expression)) problems.push(`${where}：表情 "${entry.expression}" 不在表情表里`);
+      if (entry.weight !== undefined && entry.weight <= 0) problems.push(`${where}：权重不是正数，永远抽不到`);
+      walk(where, entry.when);
+    }
+    for (const entry of pool.chats) {
+      const where = `${poolWhere} 闲聊 ${entry.dialogueId}`;
+      if (!findDialogueDefinition(entry.dialogueId)) problems.push(`${where}：对话不存在`);
+      if (entry.weight !== undefined && entry.weight <= 0) problems.push(`${where}：权重不是正数，永远抽不到`);
+      walk(where, entry.when);
+    }
+  }
+  return problems;
+}
 
 /** 导出是给用例喂 fixture 用的；正式入口仍是 auditStoryContent */
 export function auditTrigger(where: string, trigger: StoryTrigger): string[] {
@@ -225,6 +345,10 @@ export function auditStoryContent(options: AuditOptions = {}): string[] {
       const where = `${dialogueWhere} 节点 ${node.nodeId}`;
       checkText(where, node.localizationKey);
       checkEmitEventId(where, node.emitEventId);
+      if (node.expression && !findExpression(node.expression)) {
+        problems.push(`${where}：表情 "${node.expression}" 不在表情表里`);
+      }
+      for (const condition of node.conditions ?? []) problems.push(...auditCondition(where, condition));
 
       if (node.nextNodeId) checkNodeRef(where, "nextNodeId", node.nextNodeId);
 
@@ -320,6 +444,13 @@ export function auditStoryContent(options: AuditOptions = {}): string[] {
           }
           break;
 
+        case "add_memory":
+          if (!residentDefinitionOf(effect.residentId)) {
+            problems.push(`${where}：add_memory 指向不存在的居民 "${effect.residentId}"`);
+          }
+          if (!effect.memoryId) problems.push(`${where}：add_memory 的 memoryId 是空的`);
+          break;
+
         default:
           break;
       }
@@ -327,6 +458,7 @@ export function auditStoryContent(options: AuditOptions = {}): string[] {
   }
 
   problems.push(...auditEventDefinitions(eventDefinitions, checkText));
+  problems.push(...auditTalk(checkText));
 
   for (const step of tutorialDefinition.steps) {
     const where = `教程步骤 ${step.stepId}`;

@@ -110,6 +110,8 @@ test("skills_饿了地上有吃的_needs抢过wander_吃到跟前不再可打断
   // 把两个掷骰子的填充技能关掉，这条用例只看 needs 和 wander 的关系
   slime.setSkillEnabled("nap", false);
   slime.setSkillEnabled("approach", false);
+  // 作息（40）读的是真时钟：白天会给一条 roam 抢在 wander 前面，这条用例不看它
+  slime.setSkillEnabled("routine", false);
   // 先让他在游荡（一个可打断的低优先级 Intent）
   slime.idleTimer = 0;
   slime.needs.hunger = 80;
@@ -206,7 +208,8 @@ test("skills_按F问技能_商人开交易_工头开建造_居民落回对话", 
   expect(golem.interact(PLAYER)).toEqual({ kind: "build_shop" });
 
   const slime = parked("resident-a", "slime_neighbor");
-  expect(slime.interact(PLAYER)).toBeNull();
+  // 03 起居民挂了 talk 技能：按 F 答的是闲聊池抽出来的一段（不再落回 RoomScene 的兜底对话）
+  expect(slime.interact(PLAYER)?.kind).toBe("dialogue");
 });
 
 test("skills_where打印Intent来源_描述里有技能名和步骤", () => {

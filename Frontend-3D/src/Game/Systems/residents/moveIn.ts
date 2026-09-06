@@ -7,6 +7,7 @@ import {
   type ResidentDefinition,
 } from "core";
 import { on } from "../../EventBus";
+import { getClock } from "../../State/clock";
 import { findPlacement } from "../../State/buildings";
 import { getResidents, spawnResidentAt } from "../../State/residentsRuntime";
 import { getCurrentMap } from "../../State/worldRuntime";
@@ -80,10 +81,13 @@ function moveResidentIn(instanceId: string, buildingId: string): void {
     const present = getResidents().find((agent) => agent.definitionId === definition.id);
     if (present) {
       present.rehome(doorstep.x, doorstep.z);
+      // 03："刚搬来三天内"读它；只记第一次（换房、升级都不算重新搬来）
+      present.movedInDayId ??= getClock().worldDayId;
     } else {
       const arrive = () => {
         const entrance = visitorEntranceOf(getCurrentMap().mapId);
-        spawnResidentAt(residentIdOf(definition.id), definition.id, entrance, doorstep);
+        const agent = spawnResidentAt(residentIdOf(definition.id), definition.id, entrance, doorstep);
+        agent.movedInDayId ??= getClock().worldDayId;
       };
       // 0 = 立马到（用户 2026-09-04 定）；以后"隔天到"改 Core 的调参
       if (residentTuning.arriveAfterBuiltMs > 0) {

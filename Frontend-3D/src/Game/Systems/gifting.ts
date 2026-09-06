@@ -81,6 +81,10 @@ export function offerGift(residentId: string, ref: SlotRef): GiftResult {
   // 先发不分档的，再发档位——主线挂前者，具体反应挂后者
   emit("story_signal", { kind: "gift_given", subject: stack.itemId });
   emit("story_signal", { kind: giftSignalKind(tier), subject: stack.itemId });
+  // 03：记忆规则要的是**人**不是物——"送对了咕噜就记住你"按收礼那位接
+  if (giftSignalKind(tier) === "gift_loved") {
+    emit("story_signal", { kind: "resident_gift_loved", subject: resident.definitionId });
+  }
 
   return { ok: true, tier, consumed, itemId: stack.itemId };
 }

@@ -15,6 +15,29 @@ import type { StoryRule, TutorialDefinition } from "../../types/story.js";
  */
 export const storyRules: StoryRule[] = [
   /*
+   * ==== 记忆（居民系统 03）====
+   *
+   * 记忆**只有这里能写**。"送对了他就记得"是一位一条（每位第一次收到爱吃的记一笔，
+   * once 缺省 true）；"那天小龙被拎回来"三位一起记（对话 dragon_caught 结束那一拍）。
+   * 闲聊池里 `remembers` 引用的每一个 memoryId 都必须在这里有一条写它的规则，
+   * 不然那段话永远不出现——content 测试查这件事。
+   */
+  ...(["slime_neighbor", "fox_neighbor", "spirit_neighbor"] as const).map((who): StoryRule => ({
+    id: `memory_gift_loved_${who}`,
+    triggers: [{ signal: "resident_gift_loved", subject: who }],
+    effects: [{ kind: "add_memory", residentId: residentIdOf(who), memoryId: "gift_loved" }],
+  })),
+  {
+    id: "memory_dragon_caught",
+    triggers: [{ signal: "dialogue_ended", subject: "dragon_caught" }],
+    effects: (["slime_neighbor", "fox_neighbor", "spirit_neighbor"] as const).map((who) => ({
+      kind: "add_memory" as const,
+      residentId: residentIdOf(who),
+      memoryId: "story_dragon_caught",
+    })),
+  },
+
+  /*
    * ==== 金库失窃 · 五幕（期 3）====
    *
    * 一天一步的节奏靠 day_started + requiresEventStage 的组合——

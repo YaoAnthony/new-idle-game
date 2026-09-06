@@ -53,6 +53,11 @@ function personalityOf(agent: ResidentAgent): ResolvedPersonality | null {
   return resolved;
 }
 
+/** 给别的技能（greet 读招呼距离）用的同一份解析结果 */
+export function resolvedPersonalityOf(agent: ResidentAgent): ResolvedPersonality | null {
+  return personalityOf(agent);
+}
+
 /** 每只正在执行的计划键，用来判"还是同一件事" */
 const activePlanKey = new WeakMap<ResidentAgent, string>();
 

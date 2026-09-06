@@ -154,6 +154,12 @@ function runEffect(effect: StoryEffect): void {
       });
       break;
 
+    // 记忆唯一的写入口（03）。做客时剧情系统本来就不跑；人不在场就丢掉——
+    // 不在场的人没经历这件事，"记得"就不成立
+    case "add_memory":
+      getResident(effect.residentId)?.remember(effect.memoryId);
+      break;
+
     case "adjust_gold":
       // 正数入库照常走溢出规则；负数"扣到底为止"（被偷的语义，
       // 不是买东西的全有或全无）。做客守卫在 gold.ts 那两个函数里

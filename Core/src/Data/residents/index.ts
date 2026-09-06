@@ -1,6 +1,9 @@
 export * from "./skills.js";
 export * from "./personalities.js";
 export * from "./spots.js";
+export * from "./expressions.js";
+export * from "./reactions.js";
+export * from "./talk/index.js";
 
 import {
   CreatureRole,

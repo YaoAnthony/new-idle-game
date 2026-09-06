@@ -1403,6 +1403,15 @@ export const migrations: Migration[] = [
       return save;
     },
   },
+
+  /*
+   * v37 · 居民系统 02：`WorldSave.residentTrips`（出门在外的居民）。可选字段，
+   * 老档读出来 undefined = 没人出门。空迁移，只把版本号推上去。
+   */
+  {
+    to: 37,
+    migrate: (save) => save,
+  },
 ];
 
 /**

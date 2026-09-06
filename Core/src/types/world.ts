@@ -235,6 +235,13 @@ export type WorldSave = {
   dayFacts?: DayFactsSave[];
 
   /**
+   * 出门在外的居民（居民系统 02）：谁去了小镇、几点回。**唯一进存档的作息状态**——
+   * 不记的话关掉游戏他就永远消失了（去小镇 = 从运行时整只移除）。
+   * 房主端的自治状态，不进刷新切片：房客靠 `pets` 切片看到人消失 / 出现即可。
+   */
+  residentTrips?: Record<string, { kind: string; backAtLocalTime: string; dayId: string }>;
+
+  /**
    * 旅行商人这一趟的摊子（期 6，save v31）。
    *
    * 只记**哪一天的摊**和**还剩什么**。为什么要存：限量是这个角色的命，

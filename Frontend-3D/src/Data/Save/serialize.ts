@@ -101,6 +101,7 @@ import {
   restoreSignalCounts,
 } from "../../Game/Systems/story";
 import { getDayFacts, restoreDayFacts } from "../../Game/Systems/dayRecord";
+import { restoreResidentTrips, snapshotResidentTrips } from "../../Game/Systems/residents/townTrips";
 import { SAVE_SCHEMA_VERSION } from "./types";
 
 /**
@@ -218,6 +219,8 @@ export function serializeGameSave(previous?: GameSave): GameSave {
 
       // 「昨日事实」（报纸素材，最多两条）。世界的事跟着世界走
       dayFacts: getDayFacts(),
+      // 出门在外的居民（居民系统 02）：不记的话关掉游戏他就永远消失了
+      residentTrips: snapshotResidentTrips(),
       travelerStock: snapshotTravelerStock(),
       newspaper: snapshotNewspaper(),
 
@@ -382,6 +385,7 @@ export function hydrateGameSave(save: GameSave): void {
   restoreSignalCounts(save.ownWorld.progression.signalCounts);
   restorePoolMisses(save.ownWorld.progression.poolMisses);
   restoreDayFacts(save.ownWorld.dayFacts);
+  restoreResidentTrips(save.ownWorld.residentTrips);
   restoreTravelerStock(save.ownWorld.travelerStock);
   restoreNewspaper(save.ownWorld.newspaper);
 

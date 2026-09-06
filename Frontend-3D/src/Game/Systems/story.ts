@@ -20,6 +20,9 @@ import { startDialogue } from "./dialogue";
 import { gainAffection } from "./residents/affection";
 import { giveResidentPresent } from "./residents/presents";
 import { declineFavor } from "./residents/favors";
+import { placeOnPorch, setNamePlate } from "./residents/porch";
+import { pickPresentFor } from "./residents/presents";
+import { beginHouseVisit, refuseVisit } from "./residents/visits";
 import { presentItems } from "./unpack";
 import { getEventStage, isFeatureUnlocked, setEventStage, unlockFeature } from "./events";
 
@@ -180,6 +183,31 @@ function runEffect(effect: StoryEffect): void {
     case "favor_decline":
       declineFavor(effect.favorId);
       break;
+
+    // 来访（07）：开门放人 / 回绝
+    case "visit_admit":
+      beginHouseVisit(effect.residentId);
+      break;
+    case "visit_refuse":
+      refuseVisit(effect.residentId);
+      break;
+
+    // 门口展示位 / 门牌（07）：只有这里写
+    case "porch_place":
+      placeOnPorch(effect.residentId, effect.itemId);
+      break;
+    case "porch_nameplate":
+      setNamePlate(effect.residentId, true);
+      break;
+
+    // 来访临走的礼物（07）：从他的 presents 里挑，不用再走过来
+    case "grant_present": {
+      if (isRemoteWorld()) break;
+      const definitionId = getResident(effect.residentId)?.definitionId;
+      const itemId = definitionId ? pickPresentFor(definitionId, getClock().worldDayId) : undefined;
+      if (itemId) presentItems("loot.resident_present", [{ itemId, quantity: 1 }]);
+      break;
+    }
 
     // 改称呼的输入框（04）。做客时不弹：那是房主的邻居
     case "prompt_text":

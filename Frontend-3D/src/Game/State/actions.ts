@@ -38,6 +38,7 @@ export const ACTION_VERBS: readonly ActionVerb[] = [
   "hide",
   "show",
   "work_at",
+  "knock",
   "gesture",
   "speak",
 ];

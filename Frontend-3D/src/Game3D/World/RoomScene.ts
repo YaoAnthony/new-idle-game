@@ -1,3 +1,4 @@
+import { visitorAtDoor } from "../../Game/Systems/residents/visits";
 import { BodyPosture, CreatureRole, DayPhaseId, Facing, FurnitureCapability, constructionProgress, isConstructionQueued, WeatherKind, anchorOf, anchorRectToWorld, findItemDefinition, findResidentDefinition, roomCellToWorld, type AutoStepKind, type DeckRect, type WeatherDefinition, yardBoundsOf, navBoundsOf } from "core";
 import { isHouseStowed } from "core";
 import type { InteractHint, PlacedFurniture, RoomSave } from "core";
@@ -85,6 +86,7 @@ import { pushChatMessage } from "../../Game/State/chatLog";
 import { t } from "../../i18n/t";
 import {
   findDoorAgent,
+  frontDoorAgent,
   initDoors,
   listDoors,
   tickDoors,
@@ -2122,6 +2124,18 @@ export class RoomScene {
       if (this.interactTarget.kind === "door") {
         const { refId } = this.interactTarget;
         const agent = findDoorAgent(refId);
+        /*
+         * 07：门外站着来访的邻居 → 按 F 不是开关门，是"进来吧 / 现在不方便"那段对话。
+         * 开门放人是剧情效果（visit_admit）的事，这里只把对话拉起来。
+         */
+        const visitor = visitorAtDoor();
+        if (visitor && refId === frontDoorAgent()?.refId) {
+          const definitionId = getResident(visitor)?.definitionId;
+          if (definitionId) {
+            startDialogue(`${definitionId.replace(/_neighbor$/, "")}_knocks`, visitor);
+            return;
+          }
+        }
         if (agent?.interact() === "locked") {
           /*
            * 锁着不是靠气泡预告的，是**推一下才发现**：门板顶一下弹回来，

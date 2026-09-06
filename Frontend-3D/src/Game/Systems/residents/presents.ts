@@ -20,7 +20,11 @@ import { presentItems } from "../unpack";
 type Pending = { residentId: string; itemId: string; dialogueId: string };
 const pending = new Map<string, Pending>();
 
-/** 从他的 presents 里确定性挑一件（同一天同一位同一件） */
+/** 从他的 presents 里确定性挑一件（同一天同一位同一件）。07 的来访临走礼物也用它 */
+export function pickPresentFor(definitionId: string, worldDayId: string): string | undefined {
+  return pickPresent(definitionId, worldDayId);
+}
+
 function pickPresent(definitionId: string, worldDayId: string): string | undefined {
   const presents = findResidentDefinition(definitionId)?.presents ?? [];
   if (presents.length === 0) return undefined;

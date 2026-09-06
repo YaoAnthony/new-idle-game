@@ -160,10 +160,14 @@ function furnitureCenter(placed: (typeof getWorld extends () => infer W ? W : ne
 /**
  * 解析某一种场所此刻在世界里的全部实例。`exclude` 是"别把自己家算成邻居门口"。
  */
-export function resolveSpots(kind: SpotKind, exclude: { residentId?: string } = {}): Spot[] {
+export function resolveSpots(kind: SpotKind, exclude: { residentId?: string; scope?: "indoor" | "outdoor" } = {}): Spot[] {
   const definition = findSpotDefinition(kind);
   if (!definition) return [];
   const spots: Spot[] = [];
+  const scoped = (list: Spot[]): Spot[] => {
+    if (!exclude.scope) return list;
+    return list.filter((spot) => isIndoors(spot.x, spot.z) === (exclude.scope === "indoor"));
+  };
 
   for (const source of definition.sources) {
     switch (source.kind) {
@@ -173,7 +177,8 @@ export function resolveSpots(kind: SpotKind, exclude: { residentId?: string } = 
           if (!item?.placement.capabilities.includes(source.capability)) continue;
           const center = furnitureCenter(placed);
           if (!center) continue;
-          if (source.outdoor && isIndoors(center.x, center.z)) continue;
+          // 07：来访要的是**你家室内**的椅子——scope 说了 indoor 就不管源上的 outdoor 限定
+          if (source.outdoor && exclude.scope !== "indoor" && isIndoors(center.x, center.z)) continue;
           spots.push({
             key: `furniture:${placed.instanceId}`,
             kind,
@@ -233,7 +238,7 @@ export function resolveSpots(kind: SpotKind, exclude: { residentId?: string } = 
       }
     }
   }
-  return spots;
+  return scoped(spots);
 }
 
 /** 货架上有没有货。店铺的货架就是它的储物库存（期 5 定的），只认前几格 */
@@ -246,10 +251,10 @@ function shopIsStocked(instanceId: string): boolean {
 }
 
 /** 离这只活物最近的、没被别人占的场所 */
-export function nearestFreeSpot(kind: SpotKind, from: { x: number; z: number; residentId: string }): Spot | null {
+export function nearestFreeSpot(kind: SpotKind, from: { x: number; z: number; residentId: string; scope?: "indoor" | "outdoor" }): Spot | null {
   let best: Spot | null = null;
   let bestDistance = Number.POSITIVE_INFINITY;
-  for (const spot of resolveSpots(kind, { residentId: from.residentId })) {
+  for (const spot of resolveSpots(kind, { residentId: from.residentId, scope: from.scope })) {
     const holder = occupied.get(spot.key);
     if (holder && holder !== from.residentId) continue;
     const distance = Math.hypot(spot.x - from.x, spot.z - from.z);

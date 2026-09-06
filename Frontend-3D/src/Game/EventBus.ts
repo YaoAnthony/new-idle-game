@@ -180,6 +180,12 @@ export type GameEvents = {
   favors_changed: { reason: string };
   /** 两位居民开聊 / 聊完（06）。调试和以后的表现层用 */
   residents_chatting: { key: string; a: string; b: string; active: boolean; reason?: string };
+  /** 门口展示位 / 门牌变了（07）：BuildingsView 重摆、联机切片 */
+  porch_changed: { reason: string };
+  /** 来访进度（07）：敲门 / 进屋 / 走了 */
+  visit_changed: { residentId: string; phase: "knocking" | "inside" | "left"; reason?: string };
+  /** 他站到门外开始敲了（07，`knock` 动词开始那一拍） */
+  resident_knocked: { residentId: string };
   /**
    * 一只活物换上了新 Intent（居民系统 01c）。房主端的联机层把它原样发成
    * `resident_intent` op；木偶不发（否则回环）。单机时空转。

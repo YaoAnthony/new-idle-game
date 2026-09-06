@@ -244,6 +244,8 @@ export const affectionTuning = {
     gift_inedible: 1,
     /** 05 委托 */
     favor: 10,
+    /** 他来你家坐了一会儿（07） */
+    visited_you: 3,
     /** 他坐了你做的椅子 / 在你店里买了东西（02 场所、05 小店） */
     sat_on_your_seat: 1,
     bought_from_shop: 1,

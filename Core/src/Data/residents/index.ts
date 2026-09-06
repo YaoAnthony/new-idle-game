@@ -7,6 +7,7 @@ export * from "./talk/index.js";
 export * from "./address.js";
 export * from "./favors.js";
 export * from "./relations.js";
+export * from "./visits.js";
 export * from "./talk/pairs.js";
 
 import {

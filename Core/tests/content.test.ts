@@ -783,3 +783,15 @@ test("关系表：三位两两之间都写了关系，且都是正面或中性",
   }
 });
 
+// ---- 居民系统 07：来访与门口 ----
+
+test("来访：评论表有兜底、条件引用的家具是真的、时段格式合法", async () => {
+  const { houseCommentDefinitions, visitTuning } = await import("../src/Data/residents/visits.js");
+  const { findItemDefinition } = await import("../src/Data/items/index.js");
+  assert.ok(houseCommentDefinitions.some((c) => "fallback" in c.when), "评论表没有兜底");
+  for (const comment of houseCommentDefinitions) {
+    if ("furnitureId" in comment.when) assert.ok(findItemDefinition(comment.when.furnitureId), `${comment.id} 指向不存在的家具`);
+  }
+  for (const window of visitTuning.windows) assert.match(window, /^\d\d:\d\d-\d\d:\d\d$/);
+});
+

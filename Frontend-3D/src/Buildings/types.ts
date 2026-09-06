@@ -79,6 +79,10 @@ export type BuildingLevel = {
    * 不填的从 footprint 正面中点外一米推（`Systems/residents/spots.ts` 的 doorstepOf）。
    */
   doorstep?: [number, number];
+  /** 门口展示位（本地坐标，居民系统 07）：你送的东西摆这儿。不占格、不碰撞 */
+  porchSlots?: ReadonlyArray<readonly [number, number]>;
+  /** 门牌（本地坐标 x, y, z，居民系统 07）：家人档那天挂上，写你的名字 */
+  namePlate?: readonly [number, number, number];
 
   /** 建出本地坐标的模型：正面朝 +z，地面 y=0，中心在原点 */
   /**

@@ -24,6 +24,9 @@ import { giveResidentPresent } from "./presents";
 import { setResidentAddress } from "./naming";
 import { completeFavor, describeFavors, expireFavor, listFavors, makeSick, offerFavor, acceptFavor } from "./favors";
 import { describeRelations, forcePairTalk } from "./social";
+import { forceVisit, houseCommentKeysFor, houseSnapshot, playerIndoors, visitInProgress } from "./visits";
+import { clearPorch, listPorch, placeOnPorch, setNamePlate } from "./porch";
+import { evaluateHouseComments } from "core";
 import { listTalkCandidates, findTalkPool } from "core";
 import { evaluateCondition } from "../dialogue";
 import { describeSpots, homeDoorstepOf } from "./spots";
@@ -89,6 +92,10 @@ const USAGE = [
   "/npc pair <谁> <谁> —— 立即发起一段双人对话（无视距离，先把两人拉到一起）",
   "/npc relations —— 关系表 + 今天各对聊过几次",
   "/npc <谁> gossip —— 他此刻能讲的八卦段（引用别人记忆 / 昨天事实的闲聊）",
+  "/npc <谁> visit —— 立即来访（无视时段与抽签，但仍要求你在屋里）",
+  "/npc <谁> porch <itemId> | porch clear —— 摆 / 清门口展示位",
+  "/npc <谁> nameplate on|off —— 门牌",
+  "/npc housecomment —— 此刻室内快照求值出的评论 id 和各位会说的文案键",
   "/npc spots          —— 当前世界解析出的全部场所和占用",
 ].join("\n");
 
@@ -245,6 +252,12 @@ export function registerResidentCommands(): Array<() => void> {
         }
 
         if (sub === "relations") return ok(["关系：", ...describeRelations()].join("\n"));
+        if (sub === "housecomment") {
+          const snapshot = houseSnapshot();
+          const ids = evaluateHouseComments(snapshot);
+          const rows = ["slime_neighbor", "fox_neighbor", "spirit_neighbor"].map((who) => `  ${who}：${houseCommentKeysFor(who).join(" → ")}`);
+          return ok([`室内 ${snapshot.furniture.length} 件 / ${snapshot.floorCells} 格 → ${ids.join(", ")}`, ...rows, `门口：${JSON.stringify(listPorch())}`, `来访：${JSON.stringify(visitInProgress())}`, `你在屋里：${playerIndoors()}`].join("\n"));
+        }
         if (sub === "pair") {
           if (isRemoteWorld()) return fail("做客中不能指挥别人的邻居");
           const a = findAgent(args[1]);
@@ -304,6 +317,23 @@ export function registerResidentCommands(): Array<() => void> {
             steps: near ? [{ verb: "hide" }] : [{ verb: "walk_to", x: door.x, z: door.z }, { verb: "hide" }],
           });
           return ok(`${agent.residentId} 回家`);
+        }
+        if (agent && verb === "visit") {
+          const why = forceVisit(agent.residentId);
+          return why ? fail(`来不了：${why}`) : ok(`${agent.residentId} 来敲门了`);
+        }
+        if (agent && verb === "porch") {
+          if (isRemoteWorld()) return fail("做客中不能动别人的门口");
+          const what = args[2] ?? "";
+          if (what === "clear") return clearPorch(agent.residentId) ? ok("门口清空了") : fail("门口本来就是空的 / 没有房子");
+          if (!findItemDefinition(what)) return fail(`没有这种物品：${what || "(空)"}`);
+          const placed = placeOnPorch(agent.residentId, what);
+          return placed ? ok(`${what} 摆到了 ${placed} 门口`) : fail("摆不了（没有房子 / 没有展示位）");
+        }
+        if (agent && verb === "nameplate") {
+          if (isRemoteWorld()) return fail("做客中不能动别人的门口");
+          const on = (args[2] ?? "on").toLowerCase() !== "off";
+          return setNamePlate(agent.residentId, on) ? ok(`门牌${on ? "挂上了" : "摘了"}`) : fail("没有房子");
         }
         if (agent && verb === "gossip") {
           const pool = findTalkPool(agent.definitionId);

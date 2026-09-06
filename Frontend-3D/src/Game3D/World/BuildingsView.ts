@@ -1,12 +1,10 @@
 import { DayPhaseId } from "core";
-import { Box3, Object3D, Vector3, type Scene,
-  Color,
-  Material,
-  Mesh,
-} from "three";
+import { Box3, BoxGeometry, CanvasTexture, Color, Material, Mesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, PlaneGeometry, SRGBColorSpace, Vector3, type Scene } from "three";
 
 import { on } from "../../Game/EventBus";
 import { getClock } from "../../Game/State/clock";
+import { porchOf } from "../../Game/Systems/residents/porch";
+import { playerDisplayName } from "../../Game/Systems/residents/affection";
 import { homesWithSomeoneIn } from "../../Game/Systems/residents/spots";
 import { listBuildings } from "../../Game/State/buildings";
 import { groundHeightAt } from "../../Game/State/worldRuntime";
@@ -39,6 +37,39 @@ import { disposeTree } from "../Visual/primitives";
  *   玩家一眼看出还能装多少。
  * - 农田的阶段（`stage-*`）：只显示当前阶段那一组。
  */
+/**
+ * 门牌：一块小木牌，名字画在 CanvasTexture 上。字体走系统回退——这块牌只有几个字，
+ * 不值得为它加载一套字。名字不存进世界：谁在看就读谁那份存档里的玩家名。
+ */
+function buildNamePlate(name: string, x: number, y: number, z: number): Object3D {
+  const plate = new Object3D();
+  plate.name = "name-plate";
+  const board = new Mesh(new BoxGeometry(0.62, 0.22, 0.04), new MeshStandardMaterial({ color: "#8a5a34", roughness: 0.9 }));
+  board.castShadow = false;
+  plate.add(board);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 96;
+  const context = canvas.getContext("2d");
+  if (context) {
+    context.fillStyle = "#f3e2b8";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "#4a2f1a";
+    context.font = "bold 44px 'LXGW WenKai GB', 'Kaiti SC', 'Nunito', sans-serif";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText(name.slice(0, 8), canvas.width / 2, canvas.height / 2 + 2);
+  }
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  const face = new Mesh(new PlaneGeometry(0.56, 0.17), new MeshBasicMaterial({ map: texture }));
+  face.position.z = 0.025;
+  plate.add(face);
+  plate.position.set(x, y, z);
+  return plate;
+}
+
 export class BuildingsView {
   readonly root = new Object3D();
   private readonly offListeners: Array<() => void> = [];
@@ -71,6 +102,7 @@ export class BuildingsView {
     this.offListeners.push(on("resident_changed", () => this.refreshWindowLights()));
     this.offListeners.push(on("day_phase_changed", () => this.refreshWindowLights()));
     this.offListeners.push(on("favors_changed", () => this.refreshWindowLights()));
+    this.offListeners.push(on("porch_changed", () => this.refreshPorch()));
 
     /*
      * 货架一变就重摆店里的展示位（上架面板关不关都无所谓——storage 的
@@ -133,6 +165,56 @@ export class BuildingsView {
     // 楼是重建出来的，橱窗里的货也要跟着回来
     this.refreshShopGoods();
     this.refreshWindowLights();
+    this.refreshPorch();
+  }
+
+  /**
+   * 门口展示位与门牌（居民系统 07）。数据在 `WorldSave.porch`（只有剧情效果写）。
+   * 展示位上的家具按包围盒缩到 0.8，底压到地上；标 `noCollide`——它不是 placedFurniture，
+   * 不占格也不参与碰撞。门牌是一块木牌 + 画上去的名字（渲染时读玩家名，不存进世界）。
+   */
+  refreshPorch(): void {
+    for (const node of this.root.children) {
+      if (!node.name.startsWith("building-")) continue;
+      const instanceId = node.name.slice("building-".length);
+      const old = node.getObjectByName("porch");
+      if (old) {
+        node.remove(old);
+        disposeTree(old);
+      }
+      const entry = porchOf(instanceId);
+      if (!entry || (entry.items.length === 0 && !entry.namePlate)) continue;
+      const placement = listBuildings().find((item) => item.instanceId === instanceId);
+      const level = placement ? findBuildingLevel(placement.buildingId, placement.levelId) : undefined;
+      if (!placement || !level) continue;
+
+      const porch = new Object3D();
+      porch.name = "porch";
+      porch.userData.noCollide = true;
+
+      const bounds = new Box3();
+      const size = new Vector3();
+      const slots = level.porchSlots ?? [];
+      entry.items.forEach((itemId, index) => {
+        const slot = slots[index];
+        if (!itemId || !slot) return;
+        const visual = buildItemVisual(itemId);
+        if (!visual) return;
+        bounds.setFromObject(visual);
+        bounds.getSize(size);
+        const scale = Math.min(0.8, 0.9 / Math.max(size.x, size.z, 0.001));
+        visual.scale.setScalar(scale);
+        visual.position.set(slot[0], -bounds.min.y * scale, slot[1]);
+        visual.userData.noCollide = true;
+        porch.add(visual);
+      });
+
+      if (entry.namePlate && level.namePlate) {
+        const [x, y, z] = level.namePlate;
+        porch.add(buildNamePlate(playerDisplayName(), x, y, z));
+      }
+      node.add(porch);
+    }
   }
 
   /**

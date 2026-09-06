@@ -372,6 +372,11 @@ export type ResidentActionStep =
       flavor?: string;
     }
   | { verb: "sit"; facing?: ResidentFacingTarget; seconds?: number }
+  /**
+   * 敲门（居民系统 07）：站在门外等你开。有等待、有中断（你开了门这一步提前结束），
+   * 符合动词的定义；也让 `/npc <谁> do knock` 能调。`seconds` 是等多久不开就走。
+   */
+  | { verb: "knock"; seconds?: number }
   | { verb: "sleep"; seconds?: number }
   | { verb: "hide" }
   | { verb: "show" }

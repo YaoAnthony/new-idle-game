@@ -197,6 +197,7 @@ export function initDoors(): void {
         );
         doors.set(door.refId, door);
         frontDoorRef = door.refId;
+        frontDoorRefId = door.refId;
       }
     }
   }
@@ -512,6 +513,12 @@ export function tickDoors(): void {
       }
     }
   }
+}
+
+/** 主屋的前门（07 的来访敲这扇）。没有主屋（openAir 图）就没有 */
+let frontDoorRefId: string | null = null;
+export function frontDoorAgent(): Door | undefined {
+  return frontDoorRefId ? doors.get(frontDoorRefId) : undefined;
 }
 
 export function listDoors(): Door[] {

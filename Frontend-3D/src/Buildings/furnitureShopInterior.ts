@@ -82,8 +82,9 @@ function displayTable(x: number, z: number): Object3D {
  * RoomScene 的交互判定和这里的模型读**同一个函数**，造型挪了判定自动
  * 跟着——石碑那套"位置只算一遍"的纪律（见 buildPlacedBuilding）。
  */
-export function shopCrateLocal(halfW: number, _halfD: number): { x: number; z: number } {
-  // 东墙根那只上架箱
+export function shopCrateLocal(halfW: number, halfD: number): { x: number; z: number } {
+  // 东墙根那只上架箱：贴东墙，和进深无关（参数留着是为了和别的锚点函数同签名）
+  void halfD;
   return { x: halfW - 0.72, z: 0.1 };
 }
 

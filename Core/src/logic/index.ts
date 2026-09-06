@@ -13,6 +13,7 @@ export * from "./talk.js";
 export * from "./affection.js";
 export * from "./favors.js";
 export * from "./social.js";
+export * from "./houseComment.js";
 export * from "./cookingRules.js";
 export * from "./crafting.js";
 export * from "./facing.js";

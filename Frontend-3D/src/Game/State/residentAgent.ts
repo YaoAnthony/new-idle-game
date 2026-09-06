@@ -469,6 +469,15 @@ export class ResidentAgent {
         this.moving = false;
         return true;
       }
+      case "knock": {
+        // 站在门外等你开（07）。开始那一拍喊一声，来访系统接；等够了没人开就往下走
+        this.state = "idle";
+        run.timer = step.seconds ?? 45;
+        this.moving = false;
+        emit("resident_knocked", { residentId: this.residentId });
+        this.say("talk.common.knock", 3);
+        return true;
+      }
       case "sit": {
         this.state = "sitting";
         run.timer = step.seconds ?? Number.POSITIVE_INFINITY;
@@ -549,6 +558,15 @@ export class ResidentAgent {
       case "sit": {
         run.timer -= deltaSeconds;
         if (run.timer <= 0) this.advanceStep();
+        return;
+      }
+      case "knock": {
+        run.timer -= deltaSeconds;
+        if (run.timer <= 0) {
+          // 没人开门：喊一声再走，来访系统把"今天来过"记上
+          emit("resident_changed", { residentId: this.residentId, reason: "knock_timeout" });
+          this.advanceStep();
+        }
         return;
       }
       case "sleep": {
@@ -978,6 +996,12 @@ export class ResidentAgent {
     this.talksToday = 0;
     this.lastTalkDayId = undefined;
     this.lastGreetPhase = null;
+  }
+
+  /** 正在敲门就别敲了（07：你开了门 / 说了不方便）。整条 Intent 作废 */
+  cancelKnock(): void {
+    const step = this.current?.steps[this.run?.stepIndex ?? -1];
+    if (step?.verb === "knock") this.abandonIntent();
   }
 
   /** 撤掉正在执行的指令 Intent（对话关掉后不用再面向玩家站着） */

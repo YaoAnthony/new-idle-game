@@ -41,6 +41,7 @@ import {
 import { SAVE_SCHEMA_VERSION } from "../../Data/Save/types";
 import { emit, on } from "../EventBus";
 import { restoreFavors, snapshotFavors } from "../Systems/residents/favors";
+import { restorePorch, snapshotPorch } from "../Systems/residents/porch";
 import { snapshotAvatar } from "../State/avatar";
 import { pushChatMessage, pushSystemMessage } from "../State/chatLog";
 import { restoreClock, snapshotClock } from "../State/clock";
@@ -474,6 +475,8 @@ function applyWorldRefresh(event: WorldRefreshEvent): void {
   if (slices.pets) reconcileResidents(slices.pets);
   // 委托状态表（协议 v9）：房客只读——画"！"用
   if (slices.favors !== undefined) restoreFavors(slices.favors);
+  // 门口展示位 / 门牌（协议 v10）：房客看得见摆的东西；牌上的名字读房主名（世界是房主的）
+  if (slices.porch !== undefined) restorePorch(slices.porch);
 }
 
 // ---- 房主端：世界变了就整片刷给全房 ----
@@ -513,6 +516,7 @@ function startHostRefreshWatch(): void {
       pets: snapshotResidents(),
       // 委托（协议 v9，居民系统 05）：房客要看到谁头顶挂着"！"
       favors: snapshotFavors() ?? {},
+      porch: snapshotPorch() ?? {},
     });
   };
 
@@ -543,6 +547,7 @@ function startHostRefreshWatch(): void {
       ["spawn", "removed", "seeded", "restored", "entered"].includes(reason) && schedule()),
     // 委托状态表变了（05）：房客那边的"！"要跟着挂上 / 摘掉
     on("favors_changed", () => schedule()),
+    on("porch_changed", () => schedule()),
   ];
   stopRefreshWatch = () => {
     for (const off of offs) off();

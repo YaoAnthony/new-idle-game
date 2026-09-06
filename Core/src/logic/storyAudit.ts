@@ -575,6 +575,24 @@ export function auditStoryContent(options: AuditOptions = {}): string[] {
           if (!findFavorDefinition(effect.favorId)) problems.push(`${where}：favor_decline 指向不存在的委托 "${effect.favorId}"`);
           break;
 
+        case "visit_admit":
+        case "visit_refuse":
+        case "porch_nameplate":
+        case "grant_present":
+          if (!residentDefinitionOf(effect.residentId)) {
+            problems.push(`${where}：${effect.kind} 指向不存在的居民 "${effect.residentId}"`);
+          }
+          break;
+
+        case "porch_place":
+          if (!residentDefinitionOf(effect.residentId)) {
+            problems.push(`${where}：porch_place 指向不存在的居民 "${effect.residentId}"`);
+          }
+          if (effect.itemId !== undefined && !findItemDefinition(effect.itemId)) {
+            problems.push(`${where}：porch_place 指向不存在的物品 "${effect.itemId}"`);
+          }
+          break;
+
         case "grant_items":
           checkText(where, effect.localizationKey);
           if (effect.items.length === 0) problems.push(`${where}：grant_items 一件都没给`);

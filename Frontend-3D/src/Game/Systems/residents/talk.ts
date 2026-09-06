@@ -75,6 +75,9 @@ export function startTalkSystem(): () => void {
     if (open) {
       const agent = active?.residentId ? getResident(active.residentId) : undefined;
       if (!agent || agent.puppet || agent.state === "hidden") return;
+      // 正在你门外敲门的那位（07）已经站定在等你，别把 knock 那条 Intent 抢掉——
+      // 抢掉等于"没人开门他走了"，来访状态会被清空，开门对话选了"进来吧"也进不来
+      if (agent.currentIntent?.steps[agent.currentStepIndex]?.verb === "knock") return;
       const { transform } = getLocalParticipant();
       agent.perform({
         skillId: COMMAND_SKILL_ID,

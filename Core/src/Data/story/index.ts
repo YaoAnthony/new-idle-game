@@ -41,6 +41,10 @@ export const storyRules: StoryRule[] = [
     effects: [
       { kind: "adjust_affection", residentId: residentIdOf(favor.residentId), source: "favor" },
       ...(favor.reward ? [{ kind: "grant_items" as const, localizationKey: "loot.favor_reward", items: favor.reward.items }] : []),
+      // 07：find 要的家具做完摆到他门口（"咕噜门口的地上摆着你送他的云朵灯"）
+      ...(favor.kind === "find" && favor.wants?.itemId.startsWith("furniture_")
+        ? [{ kind: "porch_place" as const, residentId: residentIdOf(favor.residentId), itemId: favor.wants.itemId }]
+        : []),
       ...(favor.onDone ?? []),
     ],
   })),
@@ -56,6 +60,44 @@ export const storyRules: StoryRule[] = [
     // 对话 id 和 emitEventId 用的是短名（slime / fox / spirit），定义 id 才带 _neighbor
     const short = who.replace(/_neighbor$/, "");
     return [
+    /*
+     * ==== 来访与门口（居民系统 07）====
+     * 门口那段对话的两个选项只报告；开门放人 / 回绝是效果。来访结束：好感 + 记忆 + 临走的礼物。
+     * 送对了爱吃的家具 → 摆到他门口；家人档那天 → 门牌。
+     */
+    {
+      id: `visit_admit_${who}`,
+      once: false,
+      triggers: [{ signal: "dialogue_event", subject: `visit_admit_${short}` }],
+      effects: [{ kind: "visit_admit", residentId: residentIdOf(who) }],
+    },
+    {
+      id: `visit_refuse_${who}`,
+      once: false,
+      triggers: [{ signal: "dialogue_event", subject: `visit_refuse_${short}` }],
+      effects: [{ kind: "visit_refuse", residentId: residentIdOf(who) }],
+    },
+    {
+      id: `visited_you_${who}`,
+      once: false,
+      triggers: [{ signal: "resident_visited_player", subject: who }],
+      effects: [
+        { kind: "adjust_affection", residentId: residentIdOf(who), source: "visited_you" },
+        { kind: "add_memory", residentId: residentIdOf(who), memoryId: "visited_you" },
+        { kind: "grant_present", residentId: residentIdOf(who) },
+      ],
+    },
+    {
+      id: `porch_gift_${who}`,
+      once: false,
+      triggers: [{ signal: "resident_gift_loved", subject: who }],
+      effects: [{ kind: "porch_place", residentId: residentIdOf(who) }],
+    },
+    {
+      id: `porch_nameplate_${who}`,
+      triggers: [{ signal: "affection_reached", subject: `${who}:family` }],
+      effects: [{ kind: "porch_nameplate", residentId: residentIdOf(who) }],
+    },
     {
       id: `affection_greet_${who}`,
       once: false,

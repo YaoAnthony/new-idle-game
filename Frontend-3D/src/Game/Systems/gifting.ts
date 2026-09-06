@@ -12,6 +12,7 @@ import { isRemoteWorld } from "../Multiplayer/worldLock";
 import { getStackAt, removeFromSlot, type SlotRef } from "../State/inventory";
 import { feedResident, getResident, markResidentGifted } from "../State/residentsRuntime";
 import { completeFavor, deliveryFor } from "./residents/favors";
+import { noteLovedGift } from "./residents/porch";
 
 /**
  * 送礼。判定全在 Core 的 `resolveGiftTier`（联机时服务端跑同一份），
@@ -95,6 +96,8 @@ export function offerGift(residentId: string, ref: SlotRef): GiftResult {
   emit("story_signal", { kind: giftSignalKind(tier), subject: stack.itemId });
   // 03：记忆规则要的是**人**不是物——"送对了咕噜就记住你"按收礼那位接
   if (giftSignalKind(tier) === "gift_loved") {
+    // 07：爱吃档的家具会被摆到他门口——规则接 resident_gift_loved 时 porch_place 不带 itemId，读这一笔
+    noteLovedGift(residentId, stack.itemId);
     emit("story_signal", { kind: "resident_gift_loved", subject: resident.definitionId });
   }
   // 04：好感规则要"这位收了哪一档"——subject 是 人:档

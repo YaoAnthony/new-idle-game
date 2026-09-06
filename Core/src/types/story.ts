@@ -132,7 +132,14 @@ export type StorySignalKind =
   | "favor_accepted"
   | "favor_completed"
   | "favor_expired"
-  | "favor_declined";
+  | "favor_declined"
+  /**
+   * 来访（居民系统 07）。subject 都是 definitionId。
+   * 敲了门 / 你开了门他进来坐了一会儿走了 / 你没开（或说了现在不方便）。
+   */
+  | "resident_knocked"
+  | "resident_visited_player"
+  | "visit_refused";
 
 export type StorySignal = {
   kind: StorySignalKind;
@@ -316,7 +323,20 @@ export type StoryEffect =
   /** 经领取面板给东西（委托奖励，05）。和 give_item 的分别：这个有仪式感，那个是静默入包 */
   | { kind: "grant_items"; localizationKey: LocalizationKey; items: ReadonlyArray<{ itemId: ItemId; quantity: number }> }
   /** 玩家在对话里拒绝了一件委托（05）：直接过期，不进 cooldown 惩罚。对话选项报告，规则接 */
-  | { kind: "favor_decline"; favorId: string };
+  | { kind: "favor_decline"; favorId: string }
+  /** 门外的他进屋（07）：开门、进来看看、坐你的椅子、说几句、临走送东西。对话选项报告，规则接 */
+  | { kind: "visit_admit"; residentId: ResidentId }
+  /** 你说现在不方便（07）：他回作息，今天不再来 */
+  | { kind: "visit_refuse"; residentId: ResidentId }
+  /**
+   * 把一件东西摆到他门口（07）。`itemId` 不填 = 他最近一次收到的、爱吃档的家具
+   * （送礼那一拍记的运行时账）；填了就是那一件（委托 find 做完把要的那件摆出来）。
+   */
+  | { kind: "porch_place"; residentId: ResidentId; itemId?: ItemId }
+  /** 他门上挂一块写你名字的牌（07，家人档那天） */
+  | { kind: "porch_nameplate"; residentId: ResidentId }
+  /** 从他的 presents 里确定性挑一件经领取面板给你（07 来访临走那一下；不走过来） */
+  | { kind: "grant_present"; residentId: ResidentId };
 
 export type StoryRuleId = string;
 

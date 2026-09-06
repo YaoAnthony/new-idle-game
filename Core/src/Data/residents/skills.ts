@@ -31,6 +31,12 @@ export const skillPriorityDefinitions = [
   { id: "build", priority: 80, interruptible: true },
   /** 饿了渴了找吃找喝。走过去的路上可以被抢，吃到一半不行 */
   { id: "needs", priority: 60, interruptible: false },
+  /**
+   * 作息（02）：到点回家睡、雨天回屋、小镇日出门、白天去场所。
+   * 压过打盹 / 亲近 / 游荡（不然夜里在院子里打盹就不回家了），
+   * 让给饿了渴了；睡觉那条 Intent 自己翻成不可打断。
+   */
+  { id: "routine", priority: 40, interruptible: true },
   /** 闲着打盹（舒舒十次有八次）。只在无事可做时掷 */
   { id: "nap", priority: 25, interruptible: true },
   /** 熟了以后偶尔凑到玩家身边 */

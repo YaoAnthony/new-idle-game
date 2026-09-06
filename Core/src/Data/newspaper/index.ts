@@ -34,6 +34,9 @@ export const headlinePriority: Record<string, number> = {
   shop_sold: 40,
   /** 寄售箱隔夜出了货。和小店同一档：都是"家里做成了生意" */
   consign_sold: 40,
+  /** 邻居去了趟小镇 / 下雨闷在家。比卖货轻：是生活不是事件 */
+  resident_town_trip: 20,
+  resident_stayed_in: 15,
   /** 做完了一件事 */
   action_completed: 10,
 };
@@ -49,6 +52,9 @@ export const neighborKinds = new Set([
   "shop_sold",
   "consign_sold",
   "restaurant_served",
+  // 居民的作息（居民系统 02）：去了小镇、下雨没出门。用 RESIDENT_FACT_KINDS 的同一份字串
+  "resident_town_trip",
+  "resident_stayed_in",
 ]);
 
 /**

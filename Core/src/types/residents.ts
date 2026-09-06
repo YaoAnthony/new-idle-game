@@ -131,6 +131,12 @@ export type ResidentDefinition = {
    */
   residence?: { buildingId: string };
 
+  /**
+   * **性格**（居民系统 02）：决定几点起几点睡、一天去哪、下雨怎么办。
+   * 查 `personalityDefinitions`。没填的（访客、宠物）`routine` 技能直接不作声，退回 wander。
+   */
+  personalityId?: PersonalityId;
+
   behavior?: ResidentBehavior;
 
   /**
@@ -369,4 +375,44 @@ export type ResidentKeyframe = {
   expression?: string;
   speaking?: string;
   heldProp?: string;
+};
+
+// ---- 性格与场所（居民系统 02，2026-09-06）----
+
+export type PersonalityId = string;
+
+/** 场所种类。表在 `Data/residents/spots.ts`——哪种东西算哪种场所 */
+export type SpotKind = "seat" | "water" | "shop" | "consign" | "neighbor_door";
+
+export type RoutineSegment = {
+  /** "HH:MM"，世界时区的本地钟点 */
+  from: string;
+  to: string;
+  /**
+   * hang_home 门口转圈（今天的行为）/ visit 去场所 / roam 大半径乱走 / nap_out 就地打盹。
+   * 去小镇不写在段里，由 `townTrip` 生成。
+   */
+  do: "hang_home" | "visit" | "roam" | "nap_out";
+  spot?: SpotKind;
+  /** 只在这些天气执行（WeatherKind 的字符串值）；不满足退到 hang_home */
+  weather?: readonly string[];
+};
+
+export type PersonalityDefinition = {
+  id: PersonalityId;
+  wakeAt: string;
+  sleepAt: string;
+  routine: readonly RoutineSegment[];
+  /** stay_home 回屋 / go_out_slow 照常出门但走慢 / go_out_watch 站在屋檐下看雨 */
+  onRain: "stay_home" | "go_out_slow" | "go_out_watch";
+  onStorm: "stay_home";
+  /** 0 = 不去小镇；N = 每 N 天一趟（按世界日绝对天数取模，确定性） */
+  townTripEveryDays: number;
+  townTrip?: { leaveAt: string; backAt: string };
+  /** roam 段的乱走半径（米） */
+  roamRadius: number;
+  /** nap_out 一觉多久（秒） */
+  napSeconds: [number, number];
+  /** go_out_slow 的走路倍率 */
+  rainSpeedScale: number;
 };

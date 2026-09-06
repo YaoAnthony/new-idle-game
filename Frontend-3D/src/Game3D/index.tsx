@@ -230,6 +230,9 @@ import { registerActionCommands } from "../Game/Systems/actionCommands";
 import { DiaryPanel } from "../Components/Diary/DiaryPanel";
 import { registerChainCommands } from "../Game/Systems/chainCommands";
 import { registerResidentCommands } from "../Game/Systems/residents/commands";
+import { startTownTrips } from "../Game/Systems/residents/townTrips";
+import { startRoutineWatch } from "../Game/Systems/residents/routineWatch";
+import { setShopStockProbe } from "../Game/Systems/residents/spots";
 import { diagnoseSites } from "../Game/State/skills/build";
 import { isRemoteWorldActive } from "../Game/Multiplayer/session";
 import { describeSoundscape, startSoundscape } from "./Engine/Soundscape";
@@ -410,6 +413,11 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
     const stopTrading = isRemoteWorldActive() ? () => {} : startTrading();
     // 居民搬入（期 4）：房子完工 → 驻地重定向 + resident_moved_in
     const stopResidents = isRemoteWorldActive() ? () => {} : startResidents();
+    // 出门在外的居民该回来了没（居民系统 02）。做客时是房主的事
+    const stopTownTrips = isRemoteWorldActive() ? () => {} : startTownTrips();
+    const stopRoutineWatch = isRemoteWorldActive() ? () => {} : startRoutineWatch();
+    // 店门口"有货多站一会"：货架就是店铺的储物库存，只认前几格
+    setShopStockProbe((instanceId) => shelfSlotsOf(instanceId).some((slot) => slot !== null));
     // 家具小店的隔夜结算（期 5）。做客时不跑：别人的店别人结
     const stopShopkeeping = isRemoteWorldActive() ? () => {} : startShopkeeping();
     // 寄售箱的隔夜结算。和小店同理：做客时不跑，别人的箱子别人结
@@ -1914,6 +1922,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       stopStory();
       stopTrading();
       stopResidents();
+      stopTownTrips();
+      stopRoutineWatch();
       stopShopkeeping();
       stopConsigning();
       stopNewspaper();

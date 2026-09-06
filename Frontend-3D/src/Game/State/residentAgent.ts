@@ -439,7 +439,8 @@ export class ResidentAgent {
         return true;
       }
       case "sleep": {
-        this.state = "sleeping";
+        // 藏着（进了屋）的时候睡：人还是藏着——身子不能在门口露出来；窗灯读 isAtHome
+        if (this.state !== "hidden") this.state = "sleeping";
         const [min, max] = this.napSeconds;
         run.timer = step.seconds ?? min + Math.random() * (max - min);
         this.sleepTimer = run.timer;
@@ -599,10 +600,17 @@ export class ResidentAgent {
     });
   }
 
+  /** 在睡：露在外面睡（state）或藏在屋里睡（动词是 sleep、身子藏着） */
+  get asleep(): boolean {
+    if (this.state === "sleeping") return true;
+    const step = this.current?.steps[this.run?.stepIndex ?? -1];
+    return this.state === "hidden" && step?.verb === "sleep";
+  }
+
   wakeUp(): void {
     // 零件不全的傀儡叫不醒。它不是在睡觉，是**没启动**
     if (this.dormant) return;
-    if (this.state !== "sleeping") return;
+    if (!this.asleep) return;
     const step = this.current?.steps[this.run?.stepIndex ?? -1];
     if (step?.verb === "sleep") {
       // 醒来先愣一会儿再决定干什么——猫不会睁眼就走
@@ -859,7 +867,8 @@ export class ResidentAgent {
    * 不到 3%，均匀抽 24 次有一半机会一个都中不了。判据只有
    * `isWalkable(..., this.radius, this.residentId)` 一条——它就是玩家走路用的那条。
    */
-  randomFreeSpot(): [number, number] | null {
+  randomFreeSpot(radiusOverride?: number): [number, number] | null {
+    const wanderRadius = radiusOverride ?? this.wanderRadius;
     return this.phased(() => {
       const map = getCurrentMap();
       const bounds = navBoundsOf(map, getWorld().room.floorGrid);
@@ -867,11 +876,11 @@ export class ResidentAgent {
       let maxX = bounds.maxX - this.radius;
       let minZ = bounds.minZ + this.radius;
       let maxZ = bounds.maxZ - this.radius;
-      if (Number.isFinite(this.wanderRadius)) {
-        minX = Math.max(minX, this.homeX - this.wanderRadius);
-        maxX = Math.min(maxX, this.homeX + this.wanderRadius);
-        minZ = Math.max(minZ, this.homeZ - this.wanderRadius);
-        maxZ = Math.min(maxZ, this.homeZ + this.wanderRadius);
+      if (Number.isFinite(wanderRadius)) {
+        minX = Math.max(minX, this.homeX - wanderRadius);
+        maxX = Math.min(maxX, this.homeX + wanderRadius);
+        minZ = Math.max(minZ, this.homeZ - wanderRadius);
+        maxZ = Math.min(maxZ, this.homeZ + wanderRadius);
       }
       if (maxX <= minX || maxZ <= minZ) return null;
 
@@ -879,7 +888,7 @@ export class ResidentAgent {
         const x = minX + Math.random() * (maxX - minX);
         const z = minZ + Math.random() * (maxZ - minZ);
         // 上面收的是方框，这里才是真的圆
-        if (Math.hypot(x - this.homeX, z - this.homeZ) > this.wanderRadius) continue;
+        if (Math.hypot(x - this.homeX, z - this.homeZ) > wanderRadius) continue;
         if (!isWalkable(x, z, this.radius, this.residentId)) continue;
         return [x, z];
       }

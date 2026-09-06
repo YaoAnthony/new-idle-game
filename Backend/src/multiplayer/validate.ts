@@ -56,7 +56,9 @@ export function parseTransform(value: unknown): ParticipantTransform | null {
   ) {
     return null
   }
-  if (!isFiniteNumber(raw.liftHeight) || raw.liftHeight < 0 || raw.liftHeight > 10) {
+  // 地面本身可以低于 0（院子里有洼地、-0.45 的坑），站在那儿 liftHeight 就是负的。
+  // 原来只收 0..10，房主在洼地上开房就被拒（居民 02 双端验收抓到的）
+  if (!isFiniteNumber(raw.liftHeight) || Math.abs(raw.liftHeight) > 10) {
     return null
   }
 

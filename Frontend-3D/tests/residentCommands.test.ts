@@ -135,7 +135,7 @@ test("npc_join_整条链_完工后人到场_再join报已住下", () => {
 
   const resident = getResident("resident-slime_neighbor");
   expect(resident).toBeDefined();
-  expect(resident!.homeZ).toBeCloseTo(12.5 + 2.2);
+  expect(resident!.homeZ).toBeCloseTo(12.5 + 2.5);
 
   const again = runCommand("/npc join slime");
   expect(again.ok).toBe(false);

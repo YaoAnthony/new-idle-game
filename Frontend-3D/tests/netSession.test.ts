@@ -567,6 +567,44 @@ describe("整片刷新", () => {
     ]);
   });
 
+  test("新房客进来时房主把全场关键帧重发一遍（藏在屋里的不能只有房主看得见）", async () => {
+    vi.useFakeTimers();
+    try {
+      const { spawnResident, removeResident } = await import("../src/Game/State/residentsRuntime");
+      const agent = spawnResident("resident-slime_neighbor", "slime_neighbor");
+      agent.perform({ skillId: "command", priority: 1000, interruptible: false, steps: [{ verb: "hide" }] });
+      agent.tick(0.1, { x: 0, z: 0 });
+      expect(agent.state).toBe("hidden");
+
+      await hostSession();
+      // 第一拍：全场首发（发给空房间）
+      vi.advanceTimersByTime(600);
+      const firstBatch = fakeApi.outbound.filter((entry) => entry.kind === "residents").length;
+      expect(firstBatch).toBe(1);
+      // 没人动：再过几拍一帧都不发
+      vi.advanceTimersByTime(2000);
+      expect(fakeApi.outbound.filter((entry) => entry.kind === "residents").length).toBe(1);
+
+      // 房客进来：下一拍必须把"藏着"重发，否则他只有 pets 切片里的位置，看见的是站在门口的人
+      fakeApi.inbound("participantJoined", {
+        participant: {
+          profile: { playerId: "p-guest01", name: "客人", avatar: { slots: {} } },
+          transform: { mapId: "base", x: 0, y: 0, heading: 0, locomotion: "idle", liftHeight: 0 },
+          appearance: { posture: "stand", activity: null, heldItem: null, restingOn: null },
+        },
+      });
+      vi.advanceTimersByTime(600);
+      const batches = fakeApi.outbound.filter((entry) => entry.kind === "residents");
+      expect(batches.length).toBe(2);
+      const resent = (batches[1].payload as { residents: Array<{ id: string; hidden: boolean }> }).residents;
+      expect(resent.find((frame) => frame.id === "resident-slime_neighbor")?.hidden).toBe(true);
+
+      removeResident("resident-slime_neighbor");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test("房主自己收到刷新要无视——世界的权威在他这边", async () => {
     await hostSession();
     placeFurniture("furniture_table", homeCell(), Facing.North, yardId());

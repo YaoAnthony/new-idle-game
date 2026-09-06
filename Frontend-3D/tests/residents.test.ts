@@ -79,9 +79,9 @@ test("residents_房子完工_驻地挪到门口_信号发出", () => {
   // Act：完工（finishSite 发的那条事件）
   emit("building_completed", { buildingId: "slime_house", instanceId: "h1" });
 
-  // Assert：驻地在门口外一步（North = 本地 +z），信号计到他名下
+  // Assert：驻地在门口外一步（North = 本地 +z；3×3 占地半深 1.5 + 1 米），信号计到他名下
   expect(resident.homeX).toBeCloseTo(4.5);
-  expect(resident.homeZ).toBeCloseTo(12.5 + 2.2);
+  expect(resident.homeZ).toBeCloseTo(12.5 + 2.5);
   expect(getSignalCounts()["resident_moved_in"]).toBe(1);
   expect(getSignalCounts()["resident_moved_in|slime_neighbor"]).toBe(1);
 });
@@ -124,7 +124,7 @@ test("residents_人不在场时完工_他从领地入口登场_驻地就是门�
   const resident = getResident("resident-fox_neighbor");
   expect(resident).toBeDefined();
   expect(resident!.homeX).toBeCloseTo(4.5);
-  expect(resident!.homeZ).toBeCloseTo(12.5 + 2.2);
+  expect(resident!.homeZ).toBeCloseTo(12.5 + 2.5);
   expect(getSignalCounts()["resident_moved_in|fox_neighbor"]).toBe(1);
   // 登场是登场：resident_spawned 照发（和剧情路的 spawn_resident 一样）
   expect(getSignalCounts()["resident_spawned|resident-fox_neighbor"]).toBe(1);

@@ -154,17 +154,38 @@ export function buildResidentHut(style: HutStyle, cells = 3): Object3D {
     ),
 
     // 两侧的窗：一块深色玻璃 + 一圈木框。窗里透光 = 有人住
+    // 墙厚 0.13，外皮在 half+0.065：框和玻璃都得贴在外皮**外面**，
+    // 不然埋在墙里根本看不见（02 验收才发现三栋房子从来没露过窗）
     ...[-1, 1].flatMap((sx) => [
       box([0.06, 0.5, 0.62], {
-        position: [sx * (half + 0.01), wallH * 0.62, -0.1],
+        position: [sx * (half + 0.09), wallH * 0.62, -0.1],
         color: PALETTE.shopWood,
       }),
-      box([0.04, 0.38, 0.5], {
-        position: [sx * (half + 0.03), wallH * 0.62, -0.1],
+      // 玻璃打上 window 标：夜里有人在家时 BuildingsView 让它发光（居民系统 02）
+      Object.assign(
+        box([0.04, 0.38, 0.5], {
+          position: [sx * (half + 0.115), wallH * 0.62, -0.1],
+          color: "#2f3a44",
+          castShadow: false,
+        }),
+        { userData: { window: true } },
+      ),
+    ]),
+
+    // 正面门右边再开一扇：摄像机固定朝北看，侧窗是**侧对**镜头的一条线，
+    // 夜里亮了也看不见（02 验收抓到的）。灯要给玩家看，得开在朝镜头的那面
+    box([0.62, 0.5, 0.06], {
+      position: [(doorW + (w - doorW) / 2) / 2, wallH * 0.62, half + 0.09],
+      color: PALETTE.shopWood,
+    }),
+    Object.assign(
+      box([0.5, 0.38, 0.04], {
+        position: [(doorW + (w - doorW) / 2) / 2, wallH * 0.62, half + 0.115],
         color: "#2f3a44",
         castShadow: false,
       }),
-    ]),
+      { userData: { window: true } },
+    ),
 
     // 前后山墙：按每层上缘收宽，才不会戳出瓦面
     ...[1, -1].flatMap((sz) =>

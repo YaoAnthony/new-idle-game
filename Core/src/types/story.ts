@@ -93,7 +93,16 @@ export type StorySignalKind =
    * 「去过小镇之后才解锁餐厅」用它。判"去过"而不是"开了桥那块地"：
    * 到过镇上的人才见过餐厅长什么样，条件和叙事对得上。
    */
-  | "map_entered";
+  | "map_entered"
+
+  /**
+   * 居民到了一个场所（居民系统 02）。subject 是场所种类（seat / shop / water …）。
+   * 04 的"他坐了你做的椅子 +1 好感"、报纸的"咕噜在你店门口站了半天"都接它。
+   */
+  | "resident_used_spot"
+  /** 居民出门（去小镇）/ 回来了。subject 是 definitionId */
+  | "resident_away"
+  | "resident_returned";
 
 export type StorySignal = {
   kind: StorySignalKind;

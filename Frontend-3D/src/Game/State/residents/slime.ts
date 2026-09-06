@@ -5,5 +5,5 @@ import { ResidentAgent } from "../residentAgent";
  * 吃喝亲近照走，区别只在身份（有房子、算客源）。02 起在这里加 `routine`。
  */
 export class Slime extends ResidentAgent {
-  static override skills = ["needs", "nap", "approach", "wander"] as const;
+  static override skills = ["routine", "needs", "nap", "approach", "wander"] as const; // 02 起有作息：性格 easygoing（注册表里）
 }

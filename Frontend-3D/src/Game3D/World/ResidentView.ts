@@ -125,6 +125,14 @@ export class ResidentView {
         | undefined;
       setHead?.(resident.attachedParts.has("head"));
 
+      /*
+       * 藏起来（进了屋、钻了树洞）= 模型整个不画（居民系统 02）。
+       * 01 定了 hide 这个动词，视图却一直没接——人"进了屋"身子还杵在门口，
+       * 02 浏览器验收在小狐家门口抓到的。木偶的 hidden 走关键帧，同一条路。
+       */
+      view.visible = resident.state !== "hidden";
+      if (!view.visible) continue;
+
       // 脚下的承托面（缘侧那类室外平台）。溜达到廊子上的猫要站在板上，
       // 不是陷进去半截——和玩家读的是同一个地形高度
       const ground = groundHeightAt(resident.x, resident.z);

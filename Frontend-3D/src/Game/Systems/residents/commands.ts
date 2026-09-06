@@ -3,6 +3,7 @@ import {
   findBlueprintForBuilding,
   findItemDefinition,
   findSkillPriority,
+  residentIdOf,
   roomCellToWorld,
 } from "core";
 import { registerCommand, type CommandResult } from "../../CommandLine/commands";
@@ -13,6 +14,10 @@ import { ACTION_VERBS, type ActionStep } from "../../State/actions";
 import type { ResidentAgent } from "../../State/residentAgent";
 import { getCurrentMap, getRoom } from "../../State/worldRuntime";
 import { isRemoteWorld } from "../../Multiplayer/worldLock";
+import { formatMinute } from "core";
+import { routinePlanOf } from "../../State/skills/routine";
+import { describeSpots, homeDoorstepOf } from "./spots";
+import { debugSendToTown, listResidentTrips, tripPlanOf } from "./townTrips";
 import { listResidentSpecies } from "./moveIn";
 import { getPendingUnpack, presentItems } from "../unpack";
 import { t } from "../../../i18n/t";
@@ -55,6 +60,11 @@ const USAGE = [
   "/npc <谁> skill <id> on|off —— 开关一个技能（运行时，不进存档）",
   "/npc <谁> skills    —— 挂了哪些技能、哪个在决策",
   "/npc <谁> where     —— 在哪、在做什么、Intent 来自谁",
+  "/npc <谁> routine   —— 性格、此刻的计划、今天是不是小镇日",
+  "/npc <谁> home      —— 立即回家（走到门口、进屋），看窗灯用",
+  "/npc <谁> town      —— 立即出发去小镇，十分钟后回",
+  "/npc <谁> place <格X> <格Y> —— 瞬移到院子某格（调试：两只叠在一格会互相挡死）",
+  "/npc spots          —— 当前世界解析出的全部场所和占用",
 ].join("\n");
 
 /**
@@ -138,7 +148,7 @@ export function registerResidentCommands(): Array<() => void> {
         {
           name: "动作或谁",
           suggest: () => [
-            ...["list", "join"].map((value) => ({ value })),
+            ...["list", "join", "spots"].map((value) => ({ value })),
             ...getResidents().map((agent) => ({ value: shortName(agent.definitionId), description: agent.residentId })),
           ],
         },
@@ -168,6 +178,9 @@ export function registerResidentCommands(): Array<() => void> {
               status =
                 `在场（驻地 ${present.homeX.toFixed(1)}, ${present.homeZ.toFixed(1)}；` +
                 `现在在 ${present.x.toFixed(1)}, ${present.z.toFixed(1)}）`;
+            } else if (listResidentTrips()[residentIdOf(resident.id)]) {
+              const trip = listResidentTrips()[residentIdOf(resident.id)];
+              status = `出门了（${trip.kind}，${trip.backAtLocalTime} 回）`;
             } else if (houseOnGround(buildingId)) {
               status = "房子在场上，人还没到";
             } else if (blueprint && getCount(blueprint.id) > 0) {
@@ -206,10 +219,52 @@ export function registerResidentCommands(): Array<() => void> {
           return ok(`${name} 托人送来了图纸。放到地上、盖好，他就搬来`);
         }
 
-        // ---- /npc <谁> do|skill|skills|where ----
+        if (sub === "spots") {
+          const rows = describeSpots();
+          return ok(rows.length ? ["场所：", ...rows].join("\n") : "现在一个场所都没有（没有室外椅子、店、井）");
+        }
+
+        // ---- /npc <谁> do|skill|skills|where|routine|home|town ----
         const agent = findAgent(args[0]);
         const verb = (args[1] ?? "").toLowerCase();
         if (agent && verb === "where") return ok(describeAgent(agent));
+        if (agent && verb === "routine") {
+          const info = routinePlanOf(agent);
+          if (!info) return ok(`${agent.residentId} 没有性格（不是居民 / 访客），routine 不作声`);
+          const trip = tripPlanOf(agent.definitionId);
+          const away = listResidentTrips()[agent.residentId];
+          return ok([
+            `${agent.residentId}：性格 ${info.personality.id}，起 ${formatMinute(info.personality.wakeAt)} 睡 ${formatMinute(info.personality.sleepAt)}`,
+            `  现在 ${formatMinute(info.nowMinute)} → 计划 ${JSON.stringify(info.plan)}`,
+            trip ? `  小镇：每 ${info.personality.townTripEveryDays} 天一趟，${formatMinute(trip.leaveAt)} 走 ${formatMinute(trip.backAt)} 回` : "  不去小镇",
+            away ? `  现在在外面，${away.backAtLocalTime} 回` : "",
+          ].filter(Boolean).join("\n"));
+        }
+        if (agent && verb === "home") {
+          if (isRemoteWorld()) return fail("做客中不能指挥别人的邻居");
+          const door = homeDoorstepOf(agent.definitionId);
+          if (!door) return fail(`${agent.residentId} 没有房子`);
+          const near = Math.hypot(agent.x - door.x, agent.z - door.z) <= 1.2;
+          agent.perform({
+            skillId: COMMAND_SKILL_ID,
+            priority: findSkillPriority(COMMAND_SKILL_ID)?.priority ?? 1000,
+            interruptible: false,
+            steps: near ? [{ verb: "hide" }] : [{ verb: "walk_to", x: door.x, z: door.z }, { verb: "hide" }],
+          });
+          return ok(`${agent.residentId} 回家`);
+        }
+        if (agent && verb === "place") {
+          if (isRemoteWorld()) return fail("做客中不能指挥别人的邻居");
+          const step = parseStep("walk_to", args.slice(2));
+          if (typeof step === "string") return fail(step.replace("do walk_to", "place"));
+          if (step.verb !== "walk_to") return fail("用法：place <格X> <格Y>");
+          agent.debugPlace(step.x, step.z);
+          return ok(`${agent.residentId} 放到了 ${step.x.toFixed(1)}, ${step.z.toFixed(1)}`);
+        }
+        if (agent && verb === "town") {
+          if (isRemoteWorld()) return fail("做客中不能指挥别人的邻居");
+          return debugSendToTown(agent.definitionId) ? ok(`${agent.residentId} 去小镇了，十分钟后回`) : fail("没走成");
+        }
         if (agent && verb === "skills") {
           const rows = agent.skills.map((skill) => {
             const priority = findSkillPriority(skill.id)?.priority ?? 0;
@@ -252,6 +307,14 @@ export function registerResidentCommands(): Array<() => void> {
           return ok(`${agent.residentId}：${step.verb}`);
         }
         if (agent) return fail(`不认识的动作：${verb}\n${USAGE}`);
+
+        // 认识这位、但人不在场：出门了就说出门了，别答"不认识的子命令"
+        const species = findSpecies(args[0]);
+        if (species) {
+          const trip = listResidentTrips()[residentIdOf(species.id)];
+          if (trip) return fail(`${shortName(species.id)} 出门了（${trip.kind}），${trip.backAtLocalTime} 回来`);
+          return fail(`${shortName(species.id)} 现在不在场`);
+        }
 
         return fail(`不认识的子命令：${sub}\n${USAGE}`);
       },

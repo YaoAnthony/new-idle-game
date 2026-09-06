@@ -121,6 +121,11 @@ export const baseMapDefinition: MapDefinition = {
    * initial 格内。
    */
   spawn: { x: -2.5, y: 4.5, heading: 0 },
+  /**
+   * 访客入口（居民系统 02）：东桥桥面对岸这一头，和 town 那边回 base 的落点同一处。
+   * 新邻居到来、去小镇回来、以后的桥头访客都从这里走进来。
+   */
+  visitorEntry: { x: 42, y: -4, heading: -Math.PI / 2 },
 
   /**
    * 缘侧走**北面 + 东面转角**（2026-08-08 定，随宅迁入不动）。

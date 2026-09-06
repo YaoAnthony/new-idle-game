@@ -218,6 +218,10 @@ function lineOf(item: { kind: string; subject?: string }): string {
     // 寄售没有买主——保底渠道，东西是"被收走"的，不是"谁买走"的
     return t("ui.news.line.consign_sold").replace("{what}", t(nameKeyOf(what)));
   }
+  // 居民的作息新闻（居民系统 02）：subject 是实例 id，名字查注册表
+  if (item.kind === "resident_town_trip" || item.kind === "resident_stayed_in") {
+    return t(`ui.news.line.${item.kind}`).replace("{who}", whoName(what) ?? t("ui.news.someone"));
+  }
   if (item.kind === "resident_moved_in") {
     return t("ui.news.line.moved_in").replace("{who}", t(findResidentDefinition(what)?.localizationKey ?? `pet.${what}`));
   }

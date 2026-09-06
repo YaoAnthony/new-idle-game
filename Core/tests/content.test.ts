@@ -27,6 +27,8 @@ import { cookingRecipeDefinitions, mysteryDish } from "../src/Data/cooking/index
 import { lootTableDefinitions } from "../src/Data/loot/index.js";
 import { actionDefinitions } from "../src/Data/actions/index.js";
 import { residentDefinitions, residentTastes } from "../src/Data/residents/index.js";
+import { findPersonality, personalityDefinitions } from "../src/Data/residents/personalities.js";
+import { SPOT_KINDS } from "../src/Data/residents/spots.js";
 import type { ResidentDefinition } from "../src/types/residents.js";
 import { findDialogueDefinition } from "../src/Data/dialogues/index.js";
 import { findEventDefinition } from "../src/Data/events/index.js";
@@ -379,6 +381,23 @@ test("居民的住处指向一张真实存在的图纸，且只有居民档才�
     .map((resident) => resident.residence?.buildingId)
     .filter(Boolean);
   assert.equal(new Set(houses).size, houses.length, "两位居民认领了同一种房子");
+});
+
+test("居民的性格都在性格表里，性格表里的场所都在场所表里", () => {
+  for (const pet of residentDefinitions as readonly ResidentDefinition[]) {
+    if (!pet.residence) continue;
+    assert.ok(pet.personalityId, `${pet.id} 有房子却没有性格，routine 会永远不作声`);
+    assert.ok(findPersonality(pet.personalityId!), `${pet.id} 的性格 ${pet.personalityId} 不在性格表里`);
+  }
+  for (const personality of personalityDefinitions) {
+    for (const segment of personality.routine) {
+      if (segment.do === "visit") {
+        assert.ok(segment.spot && SPOT_KINDS.includes(segment.spot), `${personality.id} 的 visit 段指向未知场所 ${segment.spot}`);
+      }
+      assert.match(segment.from, /^\d{2}:\d{2}$/, `${personality.id} 时段格式 ${segment.from}`);
+      assert.match(segment.to, /^\d{2}:\d{2}$/, `${personality.id} 时段格式 ${segment.to}`);
+    }
+  }
 });
 
 test("宠物 id 和造型 id 都不为空且不重复", () => {

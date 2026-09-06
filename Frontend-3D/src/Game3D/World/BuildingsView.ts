@@ -1,6 +1,13 @@
-import { Box3, Object3D, Vector3, type Scene } from "three";
+import { DayPhaseId } from "core";
+import { Box3, Object3D, Vector3, type Scene,
+  Color,
+  Material,
+  Mesh,
+} from "three";
 
 import { on } from "../../Game/EventBus";
+import { getClock } from "../../Game/State/clock";
+import { homesWithSomeoneIn } from "../../Game/Systems/residents/spots";
 import { listBuildings } from "../../Game/State/buildings";
 import { groundHeightAt } from "../../Game/State/worldRuntime";
 import { GOLD_STAGES } from "../../Buildings/goldJar";
@@ -55,6 +62,14 @@ export class BuildingsView {
     this.offListeners.push(
       on("building_state_changed", ({ instanceId }) => this.refreshOne(instanceId)),
     );
+
+    /*
+     * 窗灯（居民系统 02）：**纯表现**——谁在家由运行时算（`homesWithSomeoneIn`），
+     * 不进存档、不进建筑状态。活物一动就重算一次；傍晚 / 夜里才亮，白天顶着一盏
+     * 灯看不见也费。木偶也有 hidden 和位置，房客那边算出来一样。
+     */
+    this.offListeners.push(on("resident_changed", () => this.refreshWindowLights()));
+    this.offListeners.push(on("day_phase_changed", () => this.refreshWindowLights()));
 
     /*
      * 货架一变就重摆店里的展示位（上架面板关不关都无所谓——storage 的
@@ -116,6 +131,7 @@ export class BuildingsView {
 
     // 楼是重建出来的，橱窗里的货也要跟着回来
     this.refreshShopGoods();
+    this.refreshWindowLights();
   }
 
   /**
@@ -206,6 +222,18 @@ export class BuildingsView {
     node.add(goods);
   }
 
+  /** 谁在家谁的窗就亮（夜里）。窗户网格由建模配方打 `userData.window` 标 */
+  refreshWindowLights(): void {
+    const phase = getClock().phase;
+    const dark = phase === DayPhaseId.Dusk || phase === DayPhaseId.Night;
+    const lit = dark ? homesWithSomeoneIn() : new Set<string>();
+    for (const node of this.root.children) {
+      if (!node.name.startsWith("building-")) continue;
+      const instanceId = node.name.slice("building-".length);
+      setWindowsLit(node, lit.has(instanceId));
+    }
+  }
+
   /** 按实例 id 找到那一栋，只把状态重新贴一遍 */
   private refreshOne(instanceId: string): void {
     const node = this.root.getObjectByName(`building-${instanceId}`);
@@ -254,4 +282,29 @@ function applyState(node: Object3D, state: Record<string, unknown> | undefined):
       child.visible = child.name === `stage-${stage}`;
     });
   }
+}
+
+/**
+ * 窗户亮 / 灭：换玻璃的自发光。材质先克隆一次（配方里的材质可能是共享的），
+ * 之后只改 emissive。没有 emissive 的材质（Basic）就什么都不做。
+ */
+function setWindowsLit(node: Object3D, lit: boolean): void {
+  node.traverse((child) => {
+    if (!child.userData.window) return;
+    const mesh = child as Mesh;
+    if (!mesh.isMesh) return;
+    if (!mesh.userData.windowMaterialOwned) {
+      mesh.material = (mesh.material as Material).clone();
+      mesh.userData.windowMaterialOwned = true;
+    }
+    const material = mesh.material as Material & { emissive?: Color; emissiveIntensity?: number };
+    if (!material.emissive) return;
+    if (lit) {
+      material.emissive.set("#ffb95c");
+      material.emissiveIntensity = 1.4;
+    } else {
+      material.emissive.set("#000000");
+      material.emissiveIntensity = 0;
+    }
+  });
 }

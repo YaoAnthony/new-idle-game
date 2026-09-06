@@ -374,6 +374,13 @@ function bindInbound(): void {
     if (state.kind === "idle") return;
     const player = upsertRemote(event.participant);
     pushSystemMessage(`${player.name} 来了`);
+    /*
+     * 新来的房客只拿到 pets 切片（位置 + 睡没睡），"藏在屋里"这种只走关键帧。
+     * 关键帧只发**变过的**——夜里一屋子人都睡着不动，他永远等不到那一帧，
+     * 于是房主看两只都进了屋、房客看两只站在门口（02 双端验收抓到的）。
+     * 所以有人进来就把"上次发过什么"清空，下一拍全场重发一遍。
+     */
+    if (state.kind === "hosting") resetKeyframeFilter();
     emit("net_participant_joined", { playerId: player.playerId, name: player.name });
   });
 
@@ -617,6 +624,11 @@ function startKeyframePump(): void {
 function stopKeyframePump(): void {
   if (keyframeTimer) clearInterval(keyframeTimer);
   keyframeTimer = null;
+  lastKeyframes = new Map();
+}
+
+/** 忘掉"上次发过什么"：下一拍把全场关键帧重发（新房客进来时用） */
+function resetKeyframeFilter(): void {
   lastKeyframes = new Map();
 }
 

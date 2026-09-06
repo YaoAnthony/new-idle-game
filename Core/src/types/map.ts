@@ -501,6 +501,13 @@ export type MapDefinition = {
   spawn: { x: number; y: number; heading: number };
 
   /**
+   * 访客从哪儿走进这张图（世界坐标；居民系统 02）：新邻居到来、去小镇回来、
+   * 以后的桥头访客都从这里登场。**显式声明**，不从出入口落点推——多一座桥
+   * 就随机了。没填的图退回"别的图通向这里的出入口落点"，再没有退回出生点。
+   */
+  visitorEntry?: { x: number; y: number; heading: number };
+
+  /**
    * 这张图的几何是**内容不是状态**：每次进图都重新生成，存档里那份
    * 直接忽略。
    *

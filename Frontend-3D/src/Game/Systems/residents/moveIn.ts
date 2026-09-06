@@ -12,6 +12,7 @@ import { getResidents, spawnResidentAt } from "../../State/residentsRuntime";
 import { getCurrentMap } from "../../State/worldRuntime";
 import { mapDefinitions } from "../../../Maps/index";
 import { signal } from "../story";
+import { doorstepOf, visitorEntryOf } from "./spots";
 
 /**
  * 居民（期 4，2026-09-04 重排）：**房子建成 → 他来 → 住下**。
@@ -59,46 +60,9 @@ export function listResidentSpecies(): ResidentDefinition[] {
   return listResidentDefinitions();
 }
 
-/**
- * 门口外一步的世界坐标。**不是房子中心**：中心在墙里面，乱走的候选点会
- * 全部落进屋里，他就永远"闷在家里"。门口那一步让他在自家门前转悠——
- * 那才是"住在这儿"的样子。
- *
- * 门在正面（本地 +z），实例的 facing 决定正面朝世界的哪边——
- * 占位壳是 3×3，门口外一步 ≈ 沿正面方向 2.2。四个朝向查表，
- * 和家具的 FACING_ROTATION 同一套语义。
- */
-function doorstepOf(placement: { x: number; z: number; facing: string }): {
-  x: number;
-  z: number;
-} {
-  const OUT: Record<string, [number, number]> = {
-    north: [0, 2.2],
-    south: [0, -2.2],
-    east: [2.2, 0],
-    west: [-2.2, 0],
-  };
-  const [dx, dz] = OUT[placement.facing] ?? [0, 2.2];
-  return { x: placement.x + dx, z: placement.z + dz };
-}
-
-/**
- * 访客从哪儿进这张图：别的图通往这里的出入口落点。
- *
- * 据点只有东桥一座，所以就是桥面对岸那一头（town/portals 里 landing 到
- * base 的那条）。不在这里写坐标——桥挪了、多一座桥，这里自动跟着。
- * 找不到（露天图、没人通向它）退回本图出生点。
- */
+/** 访客从哪儿进这张图。解析在 spots.ts（地图定义显式声明 > 出入口落点 > 出生点） */
 export function visitorEntranceOf(mapId: string): { x: number; z: number; heading: number } {
-  for (const map of mapDefinitions) {
-    for (const portal of map.portals ?? []) {
-      if (portal.targetMapId === mapId && portal.landing) {
-        return { x: portal.landing.x, z: portal.landing.y, heading: portal.landing.heading };
-      }
-    }
-  }
-  const spawn = getCurrentMap().spawn;
-  return { x: spawn.x, z: spawn.y, heading: spawn.heading };
+  return visitorEntryOf(mapId, mapDefinitions);
 }
 
 /**

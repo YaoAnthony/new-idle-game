@@ -71,7 +71,9 @@ test('transform：坐标和抬升有界', () => {
 
   assert.ok(parseTransform({ ...goodTransform, liftHeight: 10 }))
   assert.equal(parseTransform({ ...goodTransform, liftHeight: 10.1 }), null)
-  assert.equal(parseTransform({ ...goodTransform, liftHeight: -0.1 }), null, '不能是负的高度')
+  // 站在洼地里（地面 -0.45）liftHeight 就是负的——房主在那儿开房不该被拒
+  assert.ok(parseTransform({ ...goodTransform, liftHeight: -0.45 }), '洼地上的负高度合法')
+  assert.equal(parseTransform({ ...goodTransform, liftHeight: -10.1 }), null, '负得离谱也不行')
 })
 
 test('transform：locomotion 必须是三个枚举值之一', () => {

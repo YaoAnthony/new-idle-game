@@ -1,4 +1,6 @@
 export * from "./skills.js";
+export * from "./personalities.js";
+export * from "./spots.js";
 
 import {
   CreatureRole,
@@ -155,6 +157,7 @@ export const residentDefinitions = [
     species: "slime",
     role: CreatureRole.Resident,
     residence: { buildingId: "slime_house" },
+    personalityId: "easygoing",
     collisionRadius: 0.3,
     behavior: { moveSpeed: 0.9, wanderRadius: 3, sleepiness: 0.3, napSeconds: [60, 150] },
     dialogues: { firstMeet: "slime_asks_to_stay", casual: "slime_casual" },
@@ -167,6 +170,7 @@ export const residentDefinitions = [
     species: "fox",
     role: CreatureRole.Resident,
     residence: { buildingId: "fox_house" },
+    personalityId: "lively",
     collisionRadius: 0.35,
     behavior: { moveSpeed: 1.5, wanderRadius: 4, sleepiness: 0.15 },
     dialogues: { firstMeet: "fox_asks_to_stay", casual: "fox_casual" },
@@ -184,6 +188,7 @@ export const residentDefinitions = [
     species: "spirit_folk",
     role: CreatureRole.Resident,
     residence: { buildingId: "spirit_house" },
+    personalityId: "gentle",
     collisionRadius: 0.3,
     behavior: { moveSpeed: 1.2, wanderRadius: 3.5, sleepiness: 0.2 },
     dialogues: { firstMeet: "spirit_asks_to_stay", casual: "spirit_casual" },
@@ -366,3 +371,12 @@ export const residentTastes: Record<string, ResidentTaste> = {
 export function findResidentTaste(definitionId: string): ResidentTaste | undefined {
   return residentTastes[definitionId];
 }
+
+/**
+ * 居民相关的报纸事实种类（居民系统 02）。`dayRecord` 记事实时用这里的常量，
+ * 报纸的 `neighborKinds` 引用同一份——kind 是字串，拼错的后果是静默不登。
+ */
+export const RESIDENT_FACT_KINDS = {
+  townTrip: "resident_town_trip",
+  stayedIn: "resident_stayed_in",
+} as const;

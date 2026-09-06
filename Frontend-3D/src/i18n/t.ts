@@ -258,6 +258,8 @@ const ZH: Record<string, string> = {
   "ui.news.line.consign_sold": "寄售箱替你卖掉了{what}",
   "ui.news.line.moved_in": "{who} 搬来了",
   "ui.news.line.restaurant_served": "有人在你的餐厅吃了一顿",
+  "ui.news.line.resident_town_trip": "{who} 昨天去了趟小镇",
+  "ui.news.line.resident_stayed_in": "下雨，{who} 一整天没出门",
   "ui.news.headline.quiet": "昨天很安静，什么也没发生",
   "ui.news.headline.quiet_span": "这 {n} 天里，家里静悄悄的",
   "ui.news.headline.theft": "金库失窃！有东西溜进了院子",

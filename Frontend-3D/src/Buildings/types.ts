@@ -74,6 +74,11 @@ export type BuildingLevel = {
    * 语义（家具用了两年的那套），不另造一个类型。
    */
   footprint: GridFootprint;
+  /**
+   * 门口外一步（本地坐标，居民系统 02）：居民回家站哪、住户搬入的驻地。
+   * 不填的从 footprint 正面中点外一米推（`Systems/residents/spots.ts` 的 doorstepOf）。
+   */
+  doorstep?: [number, number];
 
   /** 建出本地坐标的模型：正面朝 +z，地面 y=0，中心在原点 */
   /**

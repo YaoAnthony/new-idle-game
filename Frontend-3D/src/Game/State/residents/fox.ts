@@ -2,5 +2,5 @@ import { ResidentAgent } from "../residentAgent";
 
 /** 阿茜（狐狸）。同 Slime：行为暂同宠物，02 起加作息 */
 export class Fox extends ResidentAgent {
-  static override skills = ["needs", "nap", "approach", "wander"] as const;
+  static override skills = ["routine", "needs", "nap", "approach", "wander"] as const; // 02 起有作息：性格 lively，隔三天去一趟小镇
 }

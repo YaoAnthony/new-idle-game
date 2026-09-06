@@ -62,6 +62,7 @@ vi.mock("../src/Api/game/websocket", () => ({
   sendChat: (p: unknown) => fakeApi.record("chat", p),
   sendWorldOp: (p: unknown) => fakeApi.record("op", p),
   sendWorldRefresh: (p: unknown) => fakeApi.record("refresh", p),
+  sendResidentKeyframes: (p: unknown) => fakeApi.record("residents", p),
 
   onParticipantJoined: (l: Listener) => fakeApi.subscribe("participantJoined", l),
   onParticipantLeft: (l: Listener) => fakeApi.subscribe("participantLeft", l),
@@ -71,6 +72,7 @@ vi.mock("../src/Api/game/websocket", () => ({
   onChat: (l: Listener) => fakeApi.subscribe("chat", l),
   onWorldOp: (l: Listener) => fakeApi.subscribe("worldOp", l),
   onWorldRefresh: (l: Listener) => fakeApi.subscribe("worldRefresh", l),
+  onResidentKeyframes: (l: Listener) => fakeApi.subscribe("residents", l),
   onSessionEnded: (l: Listener) => fakeApi.subscribe("sessionEnded", l),
   onDisconnect: (l: Listener) => fakeApi.subscribe("disconnect", l),
 }));

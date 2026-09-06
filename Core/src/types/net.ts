@@ -13,6 +13,7 @@ import type {
 import type { WorldClockSave, WorldDayId } from "./time.js";
 import type { WeatherSave } from "./weather.js";
 import type { DroppedItem, WorldSave } from "./world.js";
+import type { ResidentKeyframe, ResidentSave, ResidentWireIntent } from "./residents.js";
 
 /**
  * 联机协议的共享形状。**客户端和服务端 import 的是同一个文件**——
@@ -47,7 +48,7 @@ import type { DroppedItem, WorldSave } from "./world.js";
  * v5（2026-08-19）：加浴缸水位转折（bath_water_set）。
  * v6（2026-08-23）：加灯的开关（lamp_switched）+ lamps 刷新切片。
  */
-export const NET_PROTOCOL_VERSION = 7;
+export const NET_PROTOCOL_VERSION = 8;
 
 /** 服务端强制的上限。放在共享类型里，客户端可以在发送前先自查 */
 export const NET_LIMITS = {
@@ -59,6 +60,8 @@ export const NET_LIMITS = {
   maxChatLength: 200,
   /** 玩家名长度 */
   maxNameLength: 24,
+  /** 一条 `sync:residents` 里最多几只（协议 v8）。五人房里活物不会超过这个数 */
+  maxResidentKeyframes: 64,
 } as const;
 
 /**
@@ -235,6 +238,16 @@ export type WorldRefreshSlices = {
    * 漏包、乱序都收敛到同一个结果。和灯那片发绝对状态是同一个道理。
    */
   unlockedFeatureIds?: string[];
+
+  /**
+   * 活物（协议 v8，居民系统 01c）。形状同 `WorldSave.pets`（字段名跟存档一致）。
+   *
+   * 补这一片之前，房客进场时拿到一次快照，之后两端各跑各的状态机、各掷各的
+   * 骰子——A 看见史莱姆在北边、B 看见它在南边是必然。这一片管**生灭与对账**
+   * （谁来了、谁走了、位置差太多就放回去）；逐步的行为靠 `resident_intent` op，
+   * 走路途中的偏差靠 `sync:residents` 关键帧。
+   */
+  pets?: Record<string, ResidentSave>;
 };
 
 /**
@@ -262,6 +275,7 @@ export const WORLD_REFRESH_KEYS = [
   "lamps",
   "buildings",
   "unlockedFeatureIds",
+  "pets",
 ] as const;
 
 /**
@@ -427,7 +441,55 @@ export type WorldOp =
       instanceId: string;
       level: number;
       flow: "in" | "out" | "still";
+    }
+  | {
+      /**
+       * 房主端一只活物换上了新 Intent（协议 v8）。房客用同一套动词自己走——
+       * 意图复制 + 关键帧纠偏，不是全量位置流（见居民系统 01 的联机那节）。
+       * **只有房主发**；房客是木偶，自己不决策。
+       */
+      kind: "resident_intent";
+      residentId: string;
+      intent: ResidentWireIntent;
+      atMs: number;
     };
+
+/**
+ * op 的 kind 白名单。**Backend 从这里读**，不再手抄一份——手抄那份和类型
+ * 各写各的，正是 `WORLD_REFRESH_KEYS` 在 2026-08-23 走散过的那种 bug
+ * （加了 lamps 没加白名单，整条刷新被静默打回）。下面的编译期断言把它和
+ * `WorldOp` 钉在一起：往联合里加一种 op 却忘了加进这张表，Core 当场编译不过。
+ */
+export const WORLD_OP_KINDS = [
+  "furniture_placed",
+  "furniture_removed",
+  "kitchen_slot_set",
+  "item_thrown",
+  "item_settled",
+  "item_removed",
+  "storage_box_set",
+  "gramophone_record_set",
+  "lamp_switched",
+  "daily_board_ticked",
+  "daily_board_claimed",
+  "bath_water_set",
+  "resident_intent",
+] as const;
+
+type MissingOpKinds = Exclude<WorldOp["kind"], (typeof WORLD_OP_KINDS)[number]>;
+type AssertNoMissingOpKinds<T extends never> = T;
+export type WorldOpKindsAreComplete = AssertNoMissingOpKinds<MissingOpKinds>;
+const _opKindsAreReal: readonly WorldOp["kind"][] = WORLD_OP_KINDS;
+void _opKindsAreReal;
+
+/**
+ * 活物关键帧流（协议 v8）。房主每 0.5 秒发一次**有变化的**那几只；房客拿它纠偏：
+ * 偏差 < 0.6 m 忽略，0.6~3 m 用 0.3 s 插过去，> 3 m 直接放。服务端只接受房主发的。
+ */
+export type ResidentKeyframesEvent = {
+  atMs: number;
+  residents: ResidentKeyframe[];
+};
 
 export type WorldOpEvent = {
   playerId: PlayerId;
@@ -451,6 +513,7 @@ export const NET_EVENTS = {
     chat: "chat:send",
     worldOp: "world:op",
     worldRefresh: "world:refresh",
+    residents: "sync:residents",
   },
   s2c: {
     sessionEnded: "session:ended",
@@ -462,5 +525,6 @@ export const NET_EVENTS = {
     chat: "chat:message",
     worldOp: "world:op",
     worldRefresh: "world:refresh",
+    residents: "sync:residents",
   },
 } as const;

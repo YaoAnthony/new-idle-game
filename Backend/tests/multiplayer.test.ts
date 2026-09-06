@@ -366,3 +366,66 @@ test('房客断开广播 participant:left；房主断开广播 session:ended 且
   assert.equal(ghost.joined.ok, false)
   assert.equal((ghost.joined as unknown as { code: string }).code, 'not_found')
 })
+
+test('活物：resident_intent op 在白名单内、房主发到房客；sync:residents 只认房主', async () => {
+  const { socket: hostSocket, created } = await host()
+  const { socket: guestSocket } = await join(created.joinCode)
+
+  // op：房主换 Intent → 房客收到同一份（白名单从 Core 读，忘加会编译不过）
+  const opSeen = nextEvent<{ playerId: string; op: { kind: string; residentId: string; intent: { steps: unknown[] } } }>(
+    guestSocket,
+    NET_EVENTS.s2c.worldOp,
+  )
+  hostSocket.emit(NET_EVENTS.c2s.worldOp, {
+    kind: 'resident_intent',
+    residentId: 'resident-slime_neighbor',
+    intent: { skillId: 'routine', priority: 40, interruptible: true, steps: [{ verb: 'sleep', seconds: 30 }] },
+    atMs: 1,
+  })
+  const op = await opSeen
+  assert.equal(op.op.kind, 'resident_intent')
+  assert.equal(op.op.residentId, 'resident-slime_neighbor')
+  assert.equal(op.op.intent.steps.length, 1)
+  assert.equal(op.playerId, created.playerId)
+
+  // 关键帧：房客先发一条（该被丢），房主再发一条；房客只收到房主那条
+  guestSocket.emit(NET_EVENTS.c2s.residents, {
+    atMs: 1,
+    residents: [{ id: 'resident-slime_neighbor', x: 99, z: 99, heading: 0, verb: null, hidden: false }],
+  })
+  const frameSeen = nextEvent<{ atMs: number; residents: Array<{ id: string; x: number }> }>(
+    guestSocket,
+    NET_EVENTS.s2c.residents,
+  )
+  const hostFrameSeen = nextEvent<{ atMs: number }>(hostSocket, NET_EVENTS.s2c.residents).then(
+    () => 'host got a frame',
+    () => 'host got nothing',
+  )
+  hostSocket.emit(NET_EVENTS.c2s.residents, {
+    atMs: 2,
+    residents: [{ id: 'resident-slime_neighbor', x: 1.5, z: 8, heading: 0, verb: 'sleep', hidden: false }],
+  })
+  const frame = await frameSeen
+  assert.equal(frame.atMs, 2)
+  assert.equal(frame.residents[0].x, 1.5)
+  // 房客那条被丢：房主端 200ms 内没收到任何关键帧
+  const raced = await Promise.race([
+    hostFrameSeen,
+    new Promise<string>((resolve) => setTimeout(() => resolve('host got nothing'), 200)),
+  ])
+  assert.equal(raced, 'host got nothing')
+})
+
+test('活物：超限的关键帧被拒（条数、体积、缺 atMs）', async () => {
+  const { socket: hostSocket, created } = await host()
+  const { socket: guestSocket } = await join(created.joinCode)
+
+  const seen = nextEvent<{ atMs: number; residents: unknown[] }>(guestSocket, NET_EVENTS.s2c.residents)
+  hostSocket.emit(NET_EVENTS.c2s.residents, { atMs: 1, residents: new Array(65).fill({ id: 'x', x: 0, z: 0, heading: 0, verb: null, hidden: false }) })
+  hostSocket.emit(NET_EVENTS.c2s.residents, { residents: [] })
+  hostSocket.emit(NET_EVENTS.c2s.residents, { atMs: 1, residents: [{ id: 'x'.repeat(70_000) }] })
+  // 合法的最后发：前面三条都没到，第一条到的就是它
+  hostSocket.emit(NET_EVENTS.c2s.residents, { atMs: 9, residents: [] })
+  const frame = await seen
+  assert.equal(frame.atMs, 9)
+})

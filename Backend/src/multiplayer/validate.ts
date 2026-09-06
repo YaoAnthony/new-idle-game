@@ -3,6 +3,7 @@ import {
   Locomotion,
   NET_LIMITS,
   WORLD_REFRESH_KEYS,
+  WORLD_OP_KINDS,
   auditAvatarConfig,
   type NetError,
   type NetErrorCode,
@@ -12,6 +13,7 @@ import {
   type ProfileDraft,
   type WorldOp,
   type WorldRefreshSlices,
+  type ResidentKeyframesEvent,
 } from 'core'
 
 /**
@@ -174,19 +176,8 @@ export function jsonBytes(value: unknown): number {
  * kind 必须认识（不认识 = 更新的客户端或恶意载荷，都不该进房间），
  * 体积必须有界（一条 op 犯不着 64KB，超了就是在灌水）。
  */
-const OP_KINDS = new Set([
-  'furniture_placed',
-  'furniture_removed',
-  'kitchen_slot_set',
-  'item_thrown',
-  'item_settled',
-  'item_removed',
-  'storage_box_set',
-  'daily_board_ticked',
-  'daily_board_claimed',
-  'gramophone_record_set',
-  'bath_water_set',
-])
+// 白名单住 Core（和 WorldOp 类型用编译期断言钉在一起），这里只是 Set 化
+const OP_KINDS = new Set<string>(WORLD_OP_KINDS)
 
 const MAX_OP_BYTES = 65_536
 
@@ -228,4 +219,19 @@ export function parseRefreshSlices(value: unknown): WorldRefreshSlices | null {
   if (jsonBytes(slices) > NET_LIMITS.maxWorldBytes) return null
 
   return slices as WorldRefreshSlices
+}
+
+/**
+ * `sync:residents`（协议 v8）：房主推的活物关键帧。只把两条底线：
+ * 数组、条数有界、体积有界。逐字段不校验——房客端的 applyKeyframe 自带防御
+ * （不认识的 id 跳过、NaN 不动）。
+ */
+export function parseResidentKeyframes(value: unknown): ResidentKeyframesEvent | null {
+  if (typeof value !== 'object' || value === null) return null
+  const raw = value as Record<string, unknown>
+  if (!Array.isArray(raw.residents)) return null
+  if (raw.residents.length > NET_LIMITS.maxResidentKeyframes) return null
+  if (typeof raw.atMs !== 'number') return null
+  if (jsonBytes(value) > MAX_OP_BYTES) return null
+  return value as ResidentKeyframesEvent
 }

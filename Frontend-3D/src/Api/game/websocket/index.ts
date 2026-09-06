@@ -36,6 +36,7 @@ export {
   sendTransform,
   sendWorldOp,
   sendWorldRefresh,
+  sendResidentKeyframes,
 } from "./outbound.js";
 
 export {
@@ -49,4 +50,5 @@ export {
   onTransform,
   onWorldOp,
   onWorldRefresh,
+  onResidentKeyframes,
 } from "./inbound.js";

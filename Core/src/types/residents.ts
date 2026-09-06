@@ -279,3 +279,94 @@ export type ResidentSave = {
    */
   mood?: number;
 };
+
+// ---- 动词、Intent、关键帧（居民系统 01，2026-09-06）----
+
+/**
+ * 一只活物对外报的活动名。表现层挑动画、旧代码判 `state === "sleeping"` 用它；
+ * 它是**动词执行的结果**，不是决策依据。
+ */
+export type ResidentActivity =
+  | "hidden"
+  | "entering"
+  | "idle"
+  | "wander"
+  | "approach"
+  | "sleeping"
+  | "eat"
+  | "drink"
+  | "sitting"
+  | "work";
+
+export type ResidentFacingTarget = { x: number; z: number } | number;
+
+/**
+ * 动词表：一只活物**能做的全部事**。技能只能用这张表里的词说"去哪、做什么"，
+ * 身体负责把词变成位置、计时器和动画钩子。
+ *
+ * 住在 Core 是因为它就是**联机协议的一部分**：房主把 Intent 原样发给房客，
+ * 房客用同一套动词自己走（`resident_intent` op）。词表有限、封口——加词等于改协议。
+ * `walk_to` `stand` `sit` `sleep` `hide` `show` `work_at` 串行；`gesture` `speak` 并行。
+ */
+export type ResidentActionStep =
+  | {
+      verb: "walk_to";
+      x: number;
+      z: number;
+      /** 走路速度倍率（雨天慢一点、心情低慢一点）。缺省 1 */
+      speedScale?: number;
+      /** 走路期间对外报的活动名。缺省 "wander" */
+      state?: ResidentActivity;
+    }
+  | {
+      verb: "stand";
+      /** 站多久（秒）。缺省 2 */
+      seconds?: number;
+      facing?: ResidentFacingTarget;
+      state?: ResidentActivity;
+      /** 表现层挑动画用的口味标签（eating / drinking / browsing …），身体不解释它 */
+      flavor?: string;
+    }
+  | { verb: "sit"; facing?: ResidentFacingTarget; seconds?: number }
+  | { verb: "sleep"; seconds?: number }
+  | { verb: "hide" }
+  | { verb: "show" }
+  | { verb: "work_at"; instanceId: string; facing?: ResidentFacingTarget }
+  | { verb: "gesture"; gestureId: string }
+  | { verb: "speak"; localizationKey: string; seconds?: number };
+
+export type ResidentActionVerb = ResidentActionStep["verb"];
+
+/**
+ * 能上网线的那一半 Intent：谁下的、多重要、按顺序做哪几个动词。
+ * 回调（到达 / 完成 / 被抢）不上网线——房客不改世界。
+ * `steps` 里的目标必须**已经解析成坐标 / 实例 id**："最近的椅子"这种描述
+ * 在对端会搜出另一把椅子。
+ */
+export type ResidentWireIntent = {
+  skillId: string;
+  priority: number;
+  steps: ResidentActionStep[];
+  interruptible: boolean;
+  lockAfterLastWalk?: boolean;
+  idleAfter?: number;
+};
+
+/**
+ * 关键帧（`sync:residents`，2 Hz、只发有变化的）：房客拿它纠偏。
+ * 字段**一次定全**：`expression` `speaking` `heldProp` 分别给 03 / 06 / 12 用，
+ * 免得协议号加三次。
+ */
+export type ResidentKeyframe = {
+  id: ResidentId;
+  x: number;
+  z: number;
+  heading: number;
+  /** 正在执行的动词；闲着是 null */
+  verb: ResidentActionVerb | null;
+  flavor?: string;
+  hidden: boolean;
+  expression?: string;
+  speaking?: string;
+  heldProp?: string;
+};

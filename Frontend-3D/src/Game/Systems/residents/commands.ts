@@ -12,6 +12,7 @@ import { getResidents } from "../../State/residentsRuntime";
 import { ACTION_VERBS, type ActionStep } from "../../State/actions";
 import type { ResidentAgent } from "../../State/residentAgent";
 import { getCurrentMap, getRoom } from "../../State/worldRuntime";
+import { isRemoteWorld } from "../../Multiplayer/worldLock";
 import { listResidentSpecies } from "./moveIn";
 import { getPendingUnpack, presentItems } from "../unpack";
 import { t } from "../../../i18n/t";
@@ -217,6 +218,10 @@ export function registerResidentCommands(): Array<() => void> {
             return `  ${skill.id}（${priority}）${enabled ? "" : " [关]"}${active}`;
           });
           return ok([`${agent.residentId} 的技能：`, ...rows].join("\n"));
+        }
+        // 做客中：场上的是房主的邻居，房客不能指挥（他们是木偶，只听房主的）
+        if (agent && (verb === "skill" || verb === "do") && isRemoteWorld()) {
+          return fail("做客中不能指挥别人的邻居");
         }
         if (agent && verb === "skill") {
           const id = args[2];

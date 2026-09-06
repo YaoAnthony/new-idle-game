@@ -200,6 +200,8 @@ export class SessionManager {
     if (slices.inventories) session.world.inventories = slices.inventories
     if (slices.weather) session.world.weather = slices.weather
     if (slices.clock) session.world.clock = slices.clock
+    // 活物（协议 v8）：晚加入的人要拿到房主此刻的活物，不是开房时的
+    if (slices.pets) session.world.pets = slices.pets
     session.revision += 1
     return session.revision
   }

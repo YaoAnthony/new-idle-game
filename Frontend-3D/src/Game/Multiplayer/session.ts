@@ -25,6 +25,8 @@ import {
   onTransform,
   onWorldOp,
   onWorldRefresh,
+  onResidentKeyframes,
+  sendResidentKeyframes,
   sendWorldRefresh,
   sendWorldOp,
 } from "../../Api/game/websocket";
@@ -71,6 +73,13 @@ import {
   upsertRemote,
 } from "./roster";
 import { applyWorldOp } from "./opApply";
+import {
+  applyResidentKeyframes,
+  reconcileResidents,
+  setPuppetMode,
+  snapshotResidentKeyframes,
+  snapshotResidents,
+} from "../State/residentsRuntime";
 import { startSyncPump, stopSyncPump } from "./sync";
 
 /**
@@ -173,6 +182,7 @@ export async function hostSession(): Promise<string> {
   setDailyRewardShareCounter(() => listRemote().length + 1);
   startSyncPump();
   startHostRefreshWatch();
+  startKeyframePump();
   emit("net_session_changed", { state: "hosting" });
   return created.joinCode;
 }
@@ -256,6 +266,8 @@ function enterRemoteWorld(ownSnapshot: GameSave, hostWorld: WorldSave): void {
   };
 
   hydrateGameSave(synthetic);
+  // 从这一刻起场上的活物全是房主的：不问技能、不掷骰子，只听 op 和关键帧
+  setPuppetMode(true);
   emit("net_world_swapped", {});
 }
 
@@ -288,6 +300,8 @@ function exitRemoteWorld(ownSnapshot: GameSave): void {
   const final = composeGuestSave(ownSnapshot);
   setSaveComposer(null);
   hydrateGameSave(final);
+  // 自家的活物回来了，脑子也还给它们
+  setPuppetMode(false);
 
   /*
    * **顺序是死的**：先把自家世界灌回来，再翻掉"在别人家"这个位，
@@ -311,6 +325,7 @@ export async function leaveSession(): Promise<void> {
   const leaving = state;
   stopSyncPump();
   stopHostRefreshWatch();
+  stopKeyframePump();
   clearRoster();
 
   // 连不上也照样往下走——服务器联系不上时，本地状态更要收干净
@@ -334,6 +349,7 @@ function endedRemotely(reason: string): void {
   const leaving = state;
   stopSyncPump();
   stopHostRefreshWatch();
+  stopKeyframePump();
   clearRoster();
   state = { kind: "idle" };
 
@@ -402,6 +418,11 @@ function bindInbound(): void {
     applyWorldRefresh(event);
   });
 
+  onResidentKeyframes((event) => {
+    if (state.kind !== "guest") return;
+    applyResidentKeyframes(event);
+  });
+
   onSessionEnded((event) => {
     endedRemotely(event.reason === "host_left" ? "房主离开了" : "房主结束了联机");
   });
@@ -441,6 +462,8 @@ function applyWorldRefresh(event: WorldRefreshEvent): void {
   }
   if (slices.weather) restoreWeather(slices.weather);
   if (slices.clock) restoreClock(slices.clock);
+  // 活物（协议 v8）：对账不重建——正在走的路、正在做的动词都保住
+  if (slices.pets) reconcileResidents(slices.pets);
 }
 
 // ---- 房主端：世界变了就整片刷给全房 ----
@@ -476,6 +499,8 @@ function startHostRefreshWatch(): void {
       buildings: snapshotBuildings(),
       // 开了哪几块地（协议 v7）。领地围栏靠它跟着房主往外挪
       unlockedFeatureIds: [...getUnlockedFeatures()],
+      // 活物（协议 v8）：谁在场、在哪。房客拿它对账生灭
+      pets: snapshotResidents(),
     });
   };
 
@@ -500,6 +525,10 @@ function startHostRefreshWatch(): void {
     on("lamp_changed", () => schedule()),
     on("weather_changed", () => schedule()),
     on("kitchen_changed", () => schedule()),
+    // 活物的生灭（登场、移除、读档）才值得整片刷；吃睡走这类每秒好几条的不刷，
+    // 那些由 op 和关键帧管
+    on("resident_changed", ({ reason }) =>
+      ["spawn", "removed", "seeded", "restored", "entered"].includes(reason) && schedule()),
   ];
   stopRefreshWatch = () => {
     for (const off of offs) off();
@@ -549,6 +578,48 @@ on("daily_board_claimed_locally", () => {
   sendWorldOp({ kind: "daily_board_claimed", worldDayId: getClock().worldDayId });
 });
 
+// ---- 活物（协议 v8，居民系统 01c）：房主权威，房客是木偶 ----
+//
+// 意图复制：房主端每一只换上新 Intent 就原样发一条 op，房客用同一套动词自己走。
+// 只有房主发——木偶不发 resident_intent_started（residentAgent 里判 puppet），
+// 这里再判一次 hosting 是双保险。
+on("resident_intent_started", ({ residentId, intent }) => {
+  if (state.kind !== "hosting") return;
+  sendWorldOp({ kind: "resident_intent", residentId, intent, atMs: Date.now() });
+});
+
+/** 关键帧节拍（毫秒）。2 Hz：足够兜住走路分叉，又不至于像玩家位置流那样一直发 */
+const KEYFRAME_INTERVAL_MS = 500;
+let keyframeTimer: ReturnType<typeof setInterval> | null = null;
+let lastKeyframes = new Map<string, string>();
+
+/**
+ * 房主每 0.5 秒把**有变化的**活物关键帧推给全房。变化 = 位置动了超过 5 cm、
+ * 朝向变了、动词 / 隐身 / 台词变了。全场没变就不发。
+ */
+function startKeyframePump(): void {
+  stopKeyframePump();
+  keyframeTimer = setInterval(() => {
+    if (state.kind !== "hosting") return;
+    const frames = snapshotResidentKeyframes();
+    const changed = frames.filter((frame) => {
+      const key = `${frame.x.toFixed(1)}|${frame.z.toFixed(1)}|${frame.heading.toFixed(2)}|${frame.verb ?? ""}|${frame.flavor ?? ""}|${frame.hidden ? 1 : 0}|${frame.speaking ?? ""}`;
+      const seen = lastKeyframes.get(frame.id);
+      if (seen === key) return false;
+      lastKeyframes.set(frame.id, key);
+      return true;
+    });
+    if (changed.length === 0) return;
+    sendResidentKeyframes({ atMs: Date.now(), residents: changed });
+  }, KEYFRAME_INTERVAL_MS);
+}
+
+function stopKeyframePump(): void {
+  if (keyframeTimer) clearInterval(keyframeTimer);
+  keyframeTimer = null;
+  lastKeyframes = new Map();
+}
+
 // ---- 出站 op：本地世界突变 → 发给全房 ----
 //
 // State 层的公开写入口做了什么都会喊一声 world_op（见 EventBus 注释）。
@@ -574,6 +645,7 @@ on("ui_return_to_title", () => {
   const leaving = state;
   stopSyncPump();
   stopHostRefreshWatch();
+  stopKeyframePump();
   clearRoster();
   state = { kind: "idle" };
   setIdIssuer(LOCAL_PLAYER_ID);

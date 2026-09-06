@@ -175,6 +175,11 @@ export type GameEvents = {
   /** 宠物离散状态变化（出场 / 好感度） */
   resident_changed: { residentId: string; reason: string };
   /**
+   * 一只活物换上了新 Intent（居民系统 01c）。房主端的联机层把它原样发成
+   * `resident_intent` op；木偶不发（否则回环）。单机时空转。
+   */
+  resident_intent_started: { residentId: string; intent: import("core").ResidentWireIntent };
+  /**
    * 让某只宠物演一下一次性动作（摇头之类）。纯表现层，ResidentView 转发给
    * 造型自己的 `userData.playGesture`——没实现对应手势的物种静默不理。
    */

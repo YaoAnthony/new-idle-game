@@ -9,6 +9,7 @@ import {
   type TransformEvent,
   type WorldOpEvent,
   type WorldRefreshEvent,
+  type ResidentKeyframesEvent,
 } from "core";
 
 import { rawSocket } from "./connection.js";
@@ -77,4 +78,8 @@ export function onSessionEnded(cb: (e: SessionEndedEvent) => void): Off {
  */
 export function onDisconnect(cb: () => void): Off {
   return subscribe("disconnect", cb);
+}
+
+export function onResidentKeyframes(cb: (e: ResidentKeyframesEvent) => void): Off {
+  return subscribe(NET_EVENTS.s2c.residents, cb);
 }

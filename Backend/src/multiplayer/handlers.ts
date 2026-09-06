@@ -29,6 +29,7 @@ import {
   parseRefreshSlices,
   parseTransform,
   parseWorldOp,
+  parseResidentKeyframes,
 } from './validate.js'
 
 /**
@@ -206,6 +207,17 @@ export function registerMultiplayer(io: SocketServer): SessionManager {
         op,
       }
       socket.to(room(found.session.sessionId)).emit(NET_EVENTS.s2c.worldOp, event)
+    })
+
+    socket.on(NET_EVENTS.c2s.residents, (payload) => {
+      const found = manager.find(socket.id)
+      if (!found) return
+      // 活物是房主的：房客发关键帧 = 坏客户端，静默丢弃（同 world:refresh）
+      if (found.participant.profile.playerId !== found.session.hostPlayerId) return
+      const event = parseResidentKeyframes(payload)
+      if (!event) return
+      // volatile：关键帧丢一条无所谓，下一条 0.5 秒后就来
+      socket.to(room(found.session.sessionId)).volatile.emit(NET_EVENTS.s2c.residents, event)
     })
 
     socket.on(NET_EVENTS.c2s.worldRefresh, (payload) => {

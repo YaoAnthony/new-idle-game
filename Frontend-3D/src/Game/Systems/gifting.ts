@@ -8,6 +8,7 @@ import {
 } from "core";
 import { emit } from "../EventBus";
 import { getClock } from "../State/clock";
+import { isRemoteWorld } from "../Multiplayer/worldLock";
 import { getStackAt, removeFromSlot, type SlotRef } from "../State/inventory";
 import { feedResident, getResident, markResidentGifted } from "../State/residentsRuntime";
 
@@ -24,7 +25,9 @@ export type GiftResult =
   | { ok: true; tier: GiftTier; consumed: boolean; itemId: string }
   /** 今天已经送过了。不是失败，是节流——文案要写成"它今天吃饱了" */
   | { ok: false; reason: "already_gifted_today" }
-  | { ok: false; reason: "no_such_item" | "unknown_pet" };
+  | { ok: false; reason: "no_such_item" | "unknown_pet" }
+  /** 做客中：这是房主家的活物，好感是房主和它的关系，房客递东西不算 */
+  | { ok: false; reason: "remote_world" };
 
 /**
  * 递一件东西过去。
@@ -35,6 +38,7 @@ export type GiftResult =
 export function offerGift(residentId: string, ref: SlotRef): GiftResult {
   const resident = getResident(residentId);
   if (!resident) return { ok: false, reason: "unknown_pet" };
+  if (isRemoteWorld()) return { ok: false, reason: "remote_world" };
 
   const stack = getStackAt(ref);
   if (!stack) return { ok: false, reason: "no_such_item" };

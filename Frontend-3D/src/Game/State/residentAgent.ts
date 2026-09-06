@@ -8,6 +8,8 @@ import {
   findResidentDefinition,
   findSkillPriority,
   navBoundsOf,
+  type ResidentActivity,
+  type ResidentKeyframe,
   type ResidentSave,
 } from "core";
 import { emit } from "../EventBus";
@@ -28,9 +30,11 @@ import { findRoute } from "../Systems/navigation";
 import {
   isParallel,
   lastWalkIndex,
+  toWire,
   type ActionStep,
   type FacingTarget,
   type Intent,
+  type WireIntent,
 } from "./actions";
 import type { InteractOffer, Skill, SkillContext } from "./skills/types";
 
@@ -66,18 +70,7 @@ import type { InteractOffer, Skill, SkillContext } from "./skills/types";
  * - 掉率故意很慢（默认 8/12 点每小时）：宠物是陪伴不是电子鸡。
  */
 
-export type ResidentActivity =
-  | "hidden"
-  | "entering"
-  | "idle"
-  | "wander"
-  | "approach"
-  | "sleeping"
-  | "eat"
-  | "drink"
-  | "sitting"
-  /** 站在工地上干活 */
-  | "work";
+export type { ResidentActivity } from "core";
 
 /** 心情的默认出厂值，也是老存档补默认的值 */
 const DEFAULT_MOOD = 70;
@@ -189,6 +182,15 @@ export class ResidentAgent {
   private current: Intent | null = null;
   private run: StepRun | null = null;
   private clock = 0;
+
+  /**
+   * **木偶模式**（联机做客，01c）：运行时里装着的是房主的世界，这只活物的
+   * 行为由房主决定。木偶不问技能、不衰减需求、不掷骰子，只执行网线送来的
+   * Intent（`performWire`）和按关键帧纠偏（`applyKeyframe`）。
+   */
+  puppet = false;
+  /** 关键帧纠偏中：0.3 秒内插到这个点 */
+  private correction: { x: number; z: number; remaining: number } | null = null;
 
   /** 陪你的还是干活的。**只当标签用**，不分支行为 */
   readonly role: CreatureRole;
@@ -310,11 +312,28 @@ export class ResidentAgent {
       this.abandonIntent();
     }
 
+    this.start(intent);
+    // 房主端：让联机层把这个 Intent 原样发给房客（木偶自己不发，否则回环）
+    if (!this.puppet) {
+      emit("resident_intent_started", { residentId: this.residentId, intent: toWire(intent) });
+    }
+    return true;
+  }
+
+  /**
+   * 网线送来的 Intent（房客木偶）。无条件换上——木偶没有别的来源，不存在抢占。
+   * 不发 `resident_intent_started`（那是房主的事）。
+   */
+  performWire(intent: WireIntent): void {
+    if (this.current) this.abandonIntent();
+    this.start({ ...intent, steps: [...intent.steps] });
+  }
+
+  private start(intent: Intent): void {
     this.current = intent;
     this.run = { stepIndex: -1, timer: 0, arrived: false };
     this.clearPath();
     this.advanceStep();
-    return true;
   }
 
   /** 并行槽动词（gesture / speak）：不排队，立刻发出 */
@@ -655,7 +674,7 @@ export class ResidentAgent {
        */
       if (this.current) {
         this.tickStep(deltaSeconds);
-      } else {
+      } else if (!this.puppet) {
         this.idleTimer -= deltaSeconds;
         if (this.idleTimer <= 0 && !this.consultSkills(player)) {
           this.idleTimer = 3 + Math.random() * 5;
@@ -670,11 +689,15 @@ export class ResidentAgent {
     this.registerObstacle();
 
     if (this.yieldCooldown > 0) this.yieldCooldown -= deltaSeconds;
-    this.decayNeeds(deltaSeconds);
-    this.driftMood(deltaSeconds);
+    if (!this.puppet) {
+      this.decayNeeds(deltaSeconds);
+      this.driftMood(deltaSeconds);
+    }
+    this.tickCorrection(deltaSeconds);
 
     if (this.current) {
       this.tickStep(deltaSeconds);
+      if (this.puppet) return;
       // 做着事也定期问一圈：有更要紧的（饿了、有活了）就抢过来
       this.decideCountdown -= deltaSeconds;
       if (this.decideCountdown <= 0) {
@@ -685,12 +708,87 @@ export class ResidentAgent {
     }
 
     this.moving = false;
+    if (this.puppet) return;
     this.idleTimer -= deltaSeconds;
     if (this.idleTimer > 0) return;
 
     if (!this.consultSkills(player)) {
       // 没人想干什么：过几秒再问
       this.idleTimer = 3 + Math.random() * 5;
+    }
+  }
+
+  // ---- 联机：关键帧 ----
+
+  /** 此刻的关键帧（房主每 0.5 秒发一次有变化的） */
+  keyframe(): ResidentKeyframe {
+    const step = this.current?.steps[this.run?.stepIndex ?? -1];
+    return {
+      id: this.residentId,
+      x: this.x,
+      z: this.z,
+      heading: this.heading,
+      verb: step && !isParallel(step) ? step.verb : null,
+      flavor: step?.verb === "stand" ? step.flavor : undefined,
+      hidden: this.state === "hidden",
+      speaking: this.speech?.localizationKey,
+    };
+  }
+
+  /**
+   * 房客按房主的关键帧纠偏：偏差 < 0.6 m 忽略（两端寻路格子略有差异是正常的）；
+   * 0.6~3 m 用 0.3 秒插过去；> 3 m 直接放。动词不一致就切——房主在睡，
+   * 木偶还站着，就让它睡下。
+   */
+  applyKeyframe(frame: ResidentKeyframe): void {
+    if (!Number.isFinite(frame.x) || !Number.isFinite(frame.z)) return;
+    const distance = Math.hypot(frame.x - this.x, frame.z - this.z);
+    if (distance > 3) {
+      this.x = frame.x;
+      this.z = frame.z;
+      this.heading = frame.heading;
+      this.correction = null;
+      this.clearPath();
+      this.registerObstacle();
+    } else if (distance >= 0.6) {
+      this.correction = { x: frame.x, z: frame.z, remaining: 0.3 };
+    }
+
+    const hidden = this.state === "hidden";
+    if (frame.hidden !== hidden) {
+      this.performWire({ skillId: "keyframe", priority: 0, interruptible: true, steps: [{ verb: frame.hidden ? "hide" : "show" }] });
+      return;
+    }
+    const step = this.current?.steps[this.run?.stepIndex ?? -1];
+    const verb = step && !isParallel(step) ? step.verb : null;
+    if (frame.verb === verb) return;
+    if (frame.verb === "sleep" || frame.verb === "sit" || frame.verb === "stand") {
+      this.performWire({
+        skillId: "keyframe",
+        priority: 0,
+        interruptible: true,
+        steps: [frame.verb === "sleep"
+          ? { verb: "sleep", seconds: 3600 }
+          : frame.verb === "sit"
+            ? { verb: "sit", facing: frame.heading }
+            : { verb: "stand", seconds: 3600, facing: frame.heading, flavor: frame.flavor, state: frame.flavor === "eating" ? "eat" : frame.flavor === "drinking" ? "drink" : undefined }],
+      });
+    } else if (frame.verb === null && this.current) {
+      this.abandonIntent();
+    }
+  }
+
+  private tickCorrection(deltaSeconds: number): void {
+    const c = this.correction;
+    if (!c) return;
+    const t = Math.min(1, deltaSeconds / Math.max(c.remaining, 1e-3));
+    this.x += (c.x - this.x) * t;
+    this.z += (c.z - this.z) * t;
+    c.remaining -= deltaSeconds;
+    if (c.remaining <= 0) {
+      this.x = c.x;
+      this.z = c.z;
+      this.correction = null;
     }
   }
 

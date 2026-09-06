@@ -5,6 +5,7 @@ import {
   type ParticipantTransform,
   type WorldOp,
   type WorldRefreshSlices,
+  type ResidentKeyframesEvent,
 } from "core";
 
 import { ensureConnected, isConnected, rawSocket } from "./connection.js";
@@ -58,4 +59,9 @@ export function sendWorldOp(op: WorldOp): void {
 /** 房主的整片刷新。只有房主发得出去，服务端那边也会再核一次身份 */
 export function sendWorldRefresh(slices: WorldRefreshSlices): void {
   send(NET_EVENTS.c2s.worldRefresh, slices);
+}
+
+/** 房主的活物关键帧（协议 v8）。只有房主发得出去，服务端会再核一次身份 */
+export function sendResidentKeyframes(event: ResidentKeyframesEvent): void {
+  send(NET_EVENTS.c2s.residents, event);
 }

@@ -11,6 +11,7 @@ import {
 import { replayGramophoneRecord } from "../State/gramophones";
 import { replayLampSwitch } from "../State/lamps";
 import { replayStorageBox } from "../State/storage";
+import { replayResidentIntent } from "../State/residentsRuntime";
 import {
   replayBathWater,
   replayPlaceFurniture,
@@ -74,6 +75,11 @@ export function applyWorldOp(op: WorldOp): void {
     case "bath_water_set":
       // 只记转折点：本地的 tickBath 从这个水位按同一速率接着涨/放
       replayBathWater(op.instanceId, op.level, op.flow);
+      return;
+    case "resident_intent":
+      // 房主那边一只活物换了 Intent，木偶照着做。非木偶（房主自己、单机）忽略——
+      // 房客不会发这条，收到就是坏客户端
+      replayResidentIntent(op.residentId, op.intent);
       return;
   }
 }

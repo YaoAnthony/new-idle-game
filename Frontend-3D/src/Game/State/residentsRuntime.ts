@@ -6,7 +6,10 @@ import {
   roomCellToWorld,
   type GiftTier,
   type GridPosition,
+  type ResidentKeyframe,
+  type ResidentKeyframesEvent,
   type ResidentSave,
+  type ResidentWireIntent,
 } from "core";
 import { emit } from "../EventBus";
 import { ResidentAgent, type ResidentActivity, setPeerLookup } from "./residentAgent";
@@ -31,6 +34,63 @@ export type ResidentRuntime = ResidentAgent;
 export type ResidentState = ResidentActivity;
 
 const residents = new Map<string, ResidentAgent>();
+
+/**
+ * 木偶模式（联机做客，01c）：运行时里是房主的世界，场上每一只都只听房主的。
+ * 进场 `setPuppetMode(true)`、回家 `setPuppetMode(false)`；期间新造的（切片对账
+ * 造出来的）也自动是木偶。
+ */
+let puppetMode = false;
+
+export function setPuppetMode(on: boolean): void {
+  puppetMode = on;
+  for (const resident of residents.values()) resident.puppet = on;
+}
+
+export function isPuppetMode(): boolean {
+  return puppetMode;
+}
+
+/** 房主端：此刻全场的关键帧。联机层挑有变化的发 */
+export function snapshotResidentKeyframes(): ResidentKeyframe[] {
+  return [...residents.values()].map((resident) => resident.keyframe());
+}
+
+/** 房客端：房主推来的关键帧，逐只纠偏。不认识的 id 跳过（切片对账会造它） */
+export function applyResidentKeyframes(event: ResidentKeyframesEvent): void {
+  if (!puppetMode) return;
+  for (const frame of event.residents) residents.get(frame.id)?.applyKeyframe(frame);
+}
+
+/** 房客端：房主那边某只换了 Intent，木偶照着做 */
+export function replayResidentIntent(residentId: string, intent: ResidentWireIntent): void {
+  if (!puppetMode) return;
+  residents.get(residentId)?.performWire(intent);
+}
+
+/**
+ * 房客端：按房主的 `pets` 切片**对账**——多出来的 id 造木偶、少了的移除、
+ * 已有的只校位置（> 3 m 放回去）。不整体重建：正在走的路、正在做的动词都保住。
+ * 不发 `resident_spawned` 剧情信号：做客时剧情本来就闭嘴，而且那是房主的登场，不是这里的。
+ */
+export function reconcileResidents(saved: Record<string, ResidentSave>): void {
+  if (!puppetMode) return;
+  for (const id of [...residents.keys()]) {
+    if (!(id in saved)) removeResident(id);
+  }
+  for (const entry of Object.values(saved)) {
+    const existing = residents.get(entry.residentId);
+    if (existing) {
+      const distance = Math.hypot(entry.position.x - existing.x, entry.position.y - existing.z);
+      if (distance > 3) existing.debugPlace(entry.position.x, entry.position.y);
+      continue;
+    }
+    const agent = createResidentFromSave(entry);
+    agent.puppet = true;
+    residents.set(entry.residentId, agent);
+    emit("resident_changed", { residentId: entry.residentId, reason: "restored" });
+  }
+}
 
 export function getResidents(): ResidentAgent[] {
   return [...residents.values()];
@@ -82,6 +142,7 @@ export function spawnResident(residentId: string, definitionId: string): Residen
   });
 
   residents.set(residentId, resident);
+  resident.puppet = puppetMode;
   resident.beginEntering();
   emit("resident_changed", { residentId, reason: "spawn" });
   emit("story_signal", { kind: "resident_spawned", subject: residentId });
@@ -117,6 +178,7 @@ export function spawnResidentAt(
   });
   resident.rehome(home.x, home.z);
   residents.set(residentId, resident);
+  resident.puppet = puppetMode;
 
   resident.beginEntering();
   if (!resident.isMovingSomewhere()) resident.debugPlace(home.x, home.z);
@@ -252,6 +314,7 @@ export function placeCreatureAt(
   if (options.asleep || resident.dormant) resident.fallAsleep();
 
   residents.set(residentId, resident);
+  resident.puppet = puppetMode;
   emit("resident_changed", { residentId, reason: "seeded" });
   return resident;
 }
@@ -318,7 +381,9 @@ export function restoreResidents(saved: Record<string, ResidentSave>): void {
   residents.clear();
 
   for (const entry of Object.values(saved)) {
-    residents.set(entry.residentId, createResidentFromSave(entry));
+    const agent = createResidentFromSave(entry);
+    agent.puppet = puppetMode;
+    residents.set(entry.residentId, agent);
     emit("resident_changed", { residentId: entry.residentId, reason: "restored" });
   }
 }

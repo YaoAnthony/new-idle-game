@@ -1,5 +1,3 @@
-import type { ResidentActivity } from "./residentAgent";
-
 /**
  * 动词表（居民系统 01，2026-09-06）：一只活物**能做的全部事**。
  *
@@ -15,59 +13,22 @@ import type { ResidentActivity } from "./residentAgent";
  * 每个词都带 `state?`：身体执行这个词时对外报的活动名。它是给表现层和
  * 旧代码（`resident.state === "sleeping"`）看的，不是决策依据。
  */
-export type FacingTarget = { x: number; z: number } | number;
+import type {
+  ResidentActionStep,
+  ResidentActionVerb,
+  ResidentFacingTarget,
+  ResidentWireIntent,
+} from "core";
 
-export type ActionStep =
-  | {
-      verb: "walk_to";
-      x: number;
-      z: number;
-      /** 走路速度倍率（雨天慢一点、心情低慢一点）。缺省 1 */
-      speedScale?: number;
-      /** 走路期间对外报的活动名。缺省 "wander"（凑向玩家的填 "approach"） */
-      state?: ResidentActivity;
-    }
-  | {
-      verb: "stand";
-      /** 站多久（秒）。缺省 2 */
-      seconds?: number;
-      facing?: FacingTarget;
-      state?: ResidentActivity;
-      /** 表现层挑动画用的口味标签（eating / drinking / browsing …），身体不解释它 */
-      flavor?: string;
-    }
-  | {
-      /**
-       * 坐下（01 先只有语义，02 场所到了再接坐姿锚点）。到这一步之前
-       * 调用方已经把 `walk_to` 排到了座旁；这里只是站定 + 报 "sitting"。
-       */
-      verb: "sit";
-      facing?: FacingTarget;
-      seconds?: number;
-    }
-  | {
-      verb: "sleep";
-      /** 睡多久（秒）。缺省按性情表的 napSeconds 随机 */
-      seconds?: number;
-    }
-  | { verb: "hide" }
-  | { verb: "show" }
-  | {
-      /**
-       * 站在工地上干活。进度由 Core 按 startUtc/finishUtc 算，这一步只看
-       * "到点没到"和"工地还在不在"。完工即完成；被抢走时释放工地由
-       * Intent 的 `onInterrupted` 负责。
-       */
-      verb: "work_at";
-      instanceId: string;
-      /** 站定时朝哪（工地中心）。原 beginWork 转身面向工地那一下 */
-      facing?: FacingTarget;
-    }
-  /** —— 并行槽：遇到就立刻发出，不占用串行队列 —— */
-  | { verb: "gesture"; gestureId: string }
-  | { verb: "speak"; localizationKey: string; seconds?: number };
-
-export type ActionVerb = ActionStep["verb"];
+/**
+ * 动词、Intent 的**形状住在 Core**（`types/residents.ts`）：它们是联机协议的一部分
+ * （`resident_intent` op 原样发 `WireIntent`）。这里只留前端才需要的东西——
+ * 带回调的 `Intent`、并行槽判定、动词常量表。
+ */
+export type FacingTarget = ResidentFacingTarget;
+export type ActionStep = ResidentActionStep;
+export type ActionVerb = ResidentActionVerb;
+export type WireIntent = ResidentWireIntent;
 
 export const ACTION_VERBS: readonly ActionVerb[] = [
   "walk_to",
@@ -91,19 +52,7 @@ export const PARALLEL_VERBS: ReadonlySet<ActionVerb> = new Set<ActionVerb>(["ges
  * 技能产出 Intent 时 `steps` 里的目标必须已经解析成坐标 / 实例 id——
  * "最近的椅子"这种描述在对端会搜出另一把椅子。
  */
-export type Intent = {
-  skillId: string;
-  priority: number;
-  steps: ActionStep[];
-  /** 能不能被更高优先级的技能抢走。指令（command）无视它 */
-  interruptible: boolean;
-  /**
-   * 走到最后一个 `walk_to` 时翻成不可打断（吃到一半不该被叫走，
-   * 但走过去的路上可以）。needs 用。
-   */
-  lockAfterLastWalk?: boolean;
-  /** 做完之后发呆多久再问技能（秒）。缺省 1 */
-  idleAfter?: number;
+export type Intent = WireIntent & {
   /**
    * 到达**最后一个** `walk_to` 时调，改世界的部分放这里（认领工地、确认
    * 食物还在）。返回 false = 目的没了，整个 Intent 作废、回去发呆。
@@ -115,7 +64,17 @@ export type Intent = {
   onInterrupted?: (agent: IntentAgent) => void;
 };
 
-export type WireIntent = Omit<Intent, "onArrive" | "onDone" | "onInterrupted">;
+/** 剥掉回调，剩下能上网线的那一半 */
+export function toWire(intent: Intent): WireIntent {
+  return {
+    skillId: intent.skillId,
+    priority: intent.priority,
+    steps: intent.steps,
+    interruptible: intent.interruptible,
+    lockAfterLastWalk: intent.lockAfterLastWalk,
+    idleAfter: intent.idleAfter,
+  };
+}
 
 /**
  * 回调里能拿到的身体。**只有这些**——回调不该去改位置和路径，那是身体的事。

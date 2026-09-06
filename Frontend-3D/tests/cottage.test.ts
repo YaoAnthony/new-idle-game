@@ -65,7 +65,7 @@ test("9×12、墙高 3、一扇大门在南墙、屋里没有内墙和房门", (
   expect(room.interiorWalls).toEqual([]);
   expect(room.platforms).toHaveLength(1);
   const dais = room.platforms![0];
-  expect(dais.rect).toEqual({ x: 0, y: 0, width: 3, height: 4 });
+  expect(dais.rect).toEqual({ x: 0, y: 0, width: 4, height: 4 });
   expect(dais.elevation).toBe(0.45);
   expect(dais.stairs).toEqual({ cell: { x: 1, y: 3 }, from: Facing.South, steps: 2 });
 });
@@ -172,7 +172,8 @@ test("石台：台面 0.45、台阶两级、台阶格能走不能摆、屋里其
   const at = (x: number, y: number) => { const w = roomCellToWorld(room, x, y); return groundHeightAt(w.x, w.z); };
   expect(at(0, 0)).toBe(0.45);
   expect(at(2, 3)).toBe(0.45);
-  expect(at(3, 0)).toBe(0);
+  expect(at(3, 0)).toBe(0.45);
+  expect(at(4, 0)).toBe(0);
   expect(at(1, 4)).toBe(0);
   // 台阶格的中心落在两块踏板之一上：比地板高、比台面低
   expect(at(1, 3)).toBeGreaterThan(0);

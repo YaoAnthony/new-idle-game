@@ -328,8 +328,8 @@ export const COTTAGE_WALL_HEIGHT = 3;
  * 小屋（l1）的室内布置：内墙、门洞、分区、高台。**单独导出**是给存档迁移用的——
  * 老档把户型存在 RoomSave 里，布局一改就得把这几项重写一遍，迁移和生成器读的必须是同一份。
  *
- * 2026-09-06：洗手间拆了（用户定的：不需要厕所）。左上角 3×4 改成膝盖高的石台，
- * 原门洞那一格 (1,3) 做两节台阶从南边上；石台 11 格能摆东西，以后炼药锅之类就放这儿。
+ * 2026-09-06：洗手间拆了（用户定的：不需要厕所）。左上角 4×4 改成膝盖高的石台（先做的 3×4，用户看过要更大），
+ * 原门洞那一格 (1,3) 做两节台阶从南边上；石台 15 格能摆东西，以后炼药锅之类就放这儿。
  * 屋里从此没有内墙、没有房门；瓷砖分区也不要了。
  */
 export function cottageL1Interior(): Required<Pick<RoomSave, "interiorDoorways" | "interiorWalls" | "zones" | "platforms">> {
@@ -344,7 +344,7 @@ export function cottageL1Interior(): Required<Pick<RoomSave, "interiorDoorways" 
   const platforms: RoomPlatform[] = [
     {
       platformId: "hearth-dais",
-      rect: { x: 0, y: 0, width: 3, height: 4 },
+      rect: { x: 0, y: 0, width: 4, height: 4 },
       // 膝盖高：和屋子地板比院子高出的那一截一样（FLOOR_LEVEL）。一步迈得上去，台阶是正经的上法但不是唯一的路
       elevation: 0.45,
       stairs: { cell: { x: 1, y: 3 }, from: Facing.South, steps: 2 },

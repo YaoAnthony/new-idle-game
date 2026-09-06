@@ -276,49 +276,31 @@ function buildPlatforms(room: RoomSave): Object3D | null {
   const halfD = room.floorGrid.height / 2;
   const root = new Object3D();
   root.name = "platforms";
-  const SKIRT = 0.02;
 
   for (const platform of platforms) {
     const { rect, elevation, stairs } = platform;
-    const inside = (x: number, y: number) => x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height;
     const isStair = (x: number, y: number) => stairs !== undefined && stairs.cell.x === x && stairs.cell.y === y;
-    const quads: Quad[] = [];
 
+    /*
+     * 每格一块**实心**石块，顶面就是台面。不再用"零厚度顶面 + 贴边侧板"那一套：
+     * 侧板的顶面和台面共面又重叠两厘米，走近了整条边缘闪锯齿（z-fighting，
+     * 和贴面装饰跟墙共面是同一个病）。实心块之间只有共边没有重叠面，边缘是干净的。
+     */
     for (let y = rect.y; y < rect.y + rect.height; y += 1) {
       for (let x = rect.x; x < rect.x + rect.width; x += 1) {
         if (isStair(x, y)) continue;
         const tone = Math.floor(hash01(x * 5.3 + y * 9.7) * 3);
         const base = tone === 0 ? PALETTE.pavingLight : tone === 1 ? PALETTE.pavingMid : PALETTE.pavingJoint;
-        quads.push({
-          corners: [
-            [x - halfW, elevation, y - halfD],
-            [x - halfW, elevation, y - halfD + 1],
-            [x - halfW + 1, elevation, y - halfD + 1],
-            [x - halfW + 1, elevation, y - halfD],
-          ],
-          normal: [0, 1, 0],
-          color: jitterShade(base, x, y, 0.02),
-        });
-        // 露出来的侧壁：邻格不在台上（也不是台阶格）才画，贴墙那几面省掉
-        const sides: Array<[dx: number, dy: number]> = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-        for (const [dx, dy] of sides) {
-          const nx = x + dx;
-          const ny = y + dy;
-          const neighborOnDais = inside(nx, ny) && !isStair(nx, ny);
-          const outsideRoom = nx < 0 || ny < 0 || nx >= room.floorGrid.width || ny >= room.floorGrid.height;
-          if (neighborOnDais || outsideRoom) continue;
-          root.add(
-            box([dx === 0 ? 1 : SKIRT, elevation, dy === 0 ? 1 : SKIRT], {
-              color: PALETTE.stoneWarmDark,
-              position: [x - halfW + 0.5 + dx * (0.5 - SKIRT / 2), elevation / 2, y - halfD + 0.5 + dy * (0.5 - SKIRT / 2)],
-            }),
-          );
-        }
+        root.add(
+          box([1, elevation, 1], {
+            color: jitterShade(base, x, y, 0.02),
+            position: [x - halfW + 0.5, elevation / 2, y - halfD + 0.5],
+          }),
+        );
       }
     }
-    root.add(createQuadMesh(quads, `platform-${platform.platformId}`));
 
-    // 台阶：每一级一块实心石板，高度和承托面编译器算的完全一致（同一个公式）
+    // 台阶：每一级一块实心石板，矩形和高度用的是承托面编译器同一个公式（stairTreadRect）
     if (stairs) {
       const rise = elevation / (stairs.steps + 1);
       for (let index = 0; index < stairs.steps; index += 1) {

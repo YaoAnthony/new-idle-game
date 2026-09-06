@@ -118,6 +118,11 @@ export function creatureBlockedAt(
  *
  * 撞上好几个时回**最近**那个：请错人没意义，得请真正堵着的那位。
  */
+/** 某只活物登记的障碍圆（16 的绕行要知道挡路的那位在哪、多大） */
+export function creatureObstacleOf(id: string): CreatureObstacle | undefined {
+  return creatureObstacles.get(id);
+}
+
 export function creatureBlockingAt(
   x: number,
   z: number,

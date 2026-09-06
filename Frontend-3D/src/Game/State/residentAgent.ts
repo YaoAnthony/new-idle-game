@@ -18,8 +18,8 @@ import {
 } from "core";
 import { emit } from "../EventBus";
 import {
-  creatureBlockedAt,
   creatureBlockingAt,
+  creatureObstacleOf,
   PLAYER_OBSTACLE_ID,
   doorGateBlocks,
   getCurrentMap,
@@ -117,6 +117,12 @@ type StepRun = {
   /** 这个 Intent 的 onArrive 已经调过（只调一次） */
   arrived: boolean;
 };
+
+/** 脚下站不住时，排路起点最多吸附几格（0.5 m 一格）。见 routeTo */
+const RESCUE_SNAP_RINGS = 8;
+/** 一条 Intent 里最多绕几次路；绕路时挡路者周围一格的地面代价（≥ 1 才不破坏 A* 的估值） */
+const MAX_DETOURS_PER_INTENT = 2;
+const DETOUR_CELL_COST = 30;
 
 export class ResidentAgent {
   /** 子类声明：这种小动物挂哪些技能（按 id，实现从 `skills/index` 查）。基类为空 */
@@ -216,6 +222,8 @@ export class ResidentAgent {
 
   private current: Intent | null = null;
   private run: StepRun | null = null;
+  /** 这条 Intent 里还能绕几次路（被站着不动的人挡住时）。见 detourAroundBlocker */
+  private detoursLeft = 0;
   /**
    * 天气道具（居民系统 12）：雨天照常出门的那位举伞。**不是 Intent 的一部分**——伞跨越好几条 Intent，
    * 由 `weatherProps` 系统按天气写；进了屋（isIndoors）不举。木偶不用它：关键帧直接给 heldProp
@@ -395,6 +403,7 @@ export class ResidentAgent {
   private start(intent: Intent): void {
     this.current = intent;
     this.run = { stepIndex: -1, timer: 0, arrived: false };
+    this.detoursLeft = MAX_DETOURS_PER_INTENT;
     this.clearPath();
     this.advanceStep();
   }
@@ -1171,7 +1180,20 @@ export class ResidentAgent {
       { x, z },
       { radius: this.radius, snapRings: 2, phasing: this.phasing },
     );
-    return route && route.length >= 2 ? route : null;
+    if (route && route.length >= 2) return route;
+    /*
+     * 自救（16 的 soak 抓到的 BUG-16-01）：他脚下这格按他的体型**站不住**（被挤到桥头的坡上 / 家具边），
+     * 起点一米内又没有能站的格，每条路都排不出 → 每个技能都拿不到 Intent → 永远"没有 Intent，N 秒后再问"。
+     * 只在"脚下站不住"时把起点的吸附半径放宽到四米（终点也跟着放宽，差几米无妨——他先要能挪）。
+     * 平时仍是两格：目标偏一点就不去，那是当初定的。
+     */
+    if (isWalkable(this.x, this.z, this.radius, this.residentId)) return null;
+    const rescue = findRoute(
+      { x: this.x, z: this.z },
+      { x, z },
+      { radius: this.radius, snapRings: RESCUE_SNAP_RINGS, phasing: this.phasing },
+    );
+    return rescue && rescue.length >= 2 ? rescue : null;
   }
 
   /**
@@ -1202,17 +1224,68 @@ export class ResidentAgent {
 
     if (this.blockedFor > 2.5) {
       this.blockedFor = 0;
+      // 16（BUG-16-01）：挡路的那位不肯让（睡着 / 在干活）→ 绕过他，不是放弃。放弃 = 下次同一条路同一个人，永远卡住
+      if (this.detourAroundBlocker()) return;
       this.abandonIntent();
       this.idleTimer = 2 + Math.random() * 3;
     }
   }
 
+  /**
+   * 绕开挡路的活物：以他为圆心把附近的格调贵，重排到**原来的终点**，路和 Intent 都不换。
+   * 一条 Intent 最多绕两次——两次还堵着就是真过不去，交回给"放弃 → 重新决策"。
+   */
+  private detourAroundBlocker(): boolean {
+    if (this.detoursLeft <= 0 || this.pathIndex >= this.path.length) return false;
+    const who = this.blockerAhead();
+    if (!who) return false;
+    const blocker = who === PLAYER_OBSTACLE_ID ? { x: this.lastPlayer.x, z: this.lastPlayer.z, radius: 0.35 } : creatureObstacleOf(who);
+    if (!blocker) return false;
+    const [gx, gz] = this.path[this.path.length - 1];
+    const avoid = blocker.radius + this.radius + 0.4;
+    const [nx, nz] = this.path[this.pathIndex];
+    const route = findRoute(
+      { x: this.x, z: this.z },
+      { x: gx, z: gz },
+      {
+        radius: this.radius,
+        snapRings: RESCUE_SNAP_RINGS,
+        phasing: this.phasing,
+        /*
+         * 他自己脚下那格不算贵：贴着人站的时候起点就在圈里，起点一贵，拉直路径时"最贵的一格"就是 30，
+         * 穿过那位的直线也就过了审——绕出来的路又被拉回直线。
+         */
+        costOf: (x, z) => (Math.hypot(x - blocker.x, z - blocker.z) < avoid && Math.hypot(x - this.x, z - this.z) > 0.3 ? DETOUR_CELL_COST : 1),
+      },
+    );
+    if (!route || route.length < 2) return false;
+    // 排出来还是原来那条（下一步没变）= 没绕开，别白算一次
+    if (Math.hypot(route[1][0] - nx, route[1][1] - nz) < 0.05) return false;
+    this.detoursLeft -= 1;
+    this.path = route;
+    this.pathIndex = 1;
+    return true;
+  }
+
   /** 请挡在下一个路点上的那位让开。不请玩家，也不请正在忙的 */
   private askBlockerToYield(): void {
-    const [tx, tz] = this.path[this.pathIndex];
-    const who = creatureBlockingAt(tx, tz, this.radius * 0.85, this.residentId);
+    const who = this.blockerAhead();
     if (!who || who === PLAYER_OBSTACLE_ID) return;
     peerLookup?.(who)?.yieldAsideFrom(this.x, this.z);
+  }
+
+  /**
+   * 挡在**下一步**上的是谁。16 之前这里查的是路径拐点（往往在几米外），挡在半路的人查不到——
+   * 让路请求发不出去、绕路也找不到该绕谁（BUG-16-01 的另一半）。
+   */
+  private blockerAhead(): string | null {
+    if (this.pathIndex >= this.path.length) return null;
+    const [tx, tz] = this.path[this.pathIndex];
+    const distance = Math.hypot(tx - this.x, tz - this.z) || 1;
+    const ahead = this.radius + 0.35;
+    const px = this.x + ((tx - this.x) / distance) * ahead;
+    const pz = this.z + ((tz - this.z) / distance) * ahead;
+    return creatureBlockingAt(px, pz, this.radius * 0.85, this.residentId);
   }
 
   /**
@@ -1280,9 +1353,18 @@ export class ResidentAgent {
         return;
       }
       const squeeze = this.radius * 0.85;
-      if (!this.phasing && creatureBlockedAt(nextX, nextZ, squeeze, this.residentId)) {
-        this.waitBlocked(deltaSeconds);
-        return;
+      if (!this.phasing) {
+        const who = creatureBlockingAt(nextX, nextZ, squeeze, this.residentId);
+        /*
+         * 挡住 = 这一步会**更靠近**那位。已经贴着的时候往旁边 / 往回挪不算挡（16，BUG-16-01）：
+         * 绕路的第一步几乎总是横着走，按"圈里就挡"判，贴着的人永远迈不出第一步。
+         */
+        const blocker = who ? (who === PLAYER_OBSTACLE_ID ? { x: this.lastPlayer.x, z: this.lastPlayer.z } : creatureObstacleOf(who)) : null;
+        const closingIn = blocker ? Math.hypot(nextX - blocker.x, nextZ - blocker.z) < Math.hypot(this.x - blocker.x, this.z - blocker.z) : false;
+        if (who && (closingIn || !blocker)) {
+          this.waitBlocked(deltaSeconds);
+          return;
+        }
       }
       this.blockedFor = 0;
     }

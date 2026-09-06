@@ -1,4 +1,6 @@
-import { beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test } from "vitest";
+import { hashSeed, seededRandom } from "core";
+import { setJitterSource } from "../src/Game/State/skills/jitter";
 import { CreatureRole, DEFAULT_MAP_ID, Facing } from "core";
 
 import {
@@ -159,7 +161,11 @@ test("test_worker_takes_sites_in_order_placed_not_nearest_first", () => {
   );
 });
 
+afterEach(() => setJitterSource(null));
+
 test("test_worker_wanders_freely_but_never_ends_up_inside_the_house", () => {
+  // BUG-15-06：乱走的掷点换成种子骰子，全量并行时也是同一串
+  setJitterSource(seededRandom(hashSeed("navSize")));
   // Arrange：没有活，让他纯游荡——最容易撞见门的就是这个状态
   const big = golem();
   const startedAt = { x: big.x, z: big.z };

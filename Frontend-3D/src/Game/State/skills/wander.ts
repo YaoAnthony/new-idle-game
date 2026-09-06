@@ -1,4 +1,5 @@
 import { AffectionStage, visitorTuning } from "core";
+import { chance, jitterSeconds } from "./jitter";
 import { priorityOf } from "../residentAgent";
 import type { Skill } from "./types";
 
@@ -14,13 +15,13 @@ export const napSkill: Skill = {
   forVisitors: true,
   decide: ({ agent, current }) => {
     if (current) return null;
-    if (agent.sleepiness <= 0 || Math.random() >= agent.sleepiness) return null;
+    if (agent.sleepiness <= 0 || !chance(agent.sleepiness)) return null;
     return {
       skillId: "nap",
       priority: priorityOf("nap"),
       interruptible: true,
       steps: [{ verb: "sleep" }],
-      idleAfter: 2 + Math.random() * 3,
+      idleAfter: jitterSeconds(2, 5),
     };
   },
 };
@@ -33,14 +34,14 @@ export const approachSkill: Skill = {
     if (current) return null;
     if (agent.affectionStage === AffectionStage.Stranger) return null;
     const nearPlayer = Math.hypot(player.x - agent.x, player.z - agent.z) < 2.2;
-    if (nearPlayer || Math.random() >= 0.45) return null;
+    if (nearPlayer || !chance(0.45)) return null;
     if (!agent.routeTo(player.x, player.z)) return null;
     return {
       skillId: "approach",
       priority: priorityOf("approach"),
       interruptible: true,
       steps: [{ verb: "walk_to", x: player.x, z: player.z, state: "approach" }],
-      idleAfter: 4 + Math.random() * 4,
+      idleAfter: jitterSeconds(4, 8),
     };
   },
 };
@@ -60,7 +61,7 @@ export const wanderSkill: Skill = {
       interruptible: true,
       steps: [{ verb: "walk_to", x: spot[0], z: spot[1], state: "wander" }],
       // 原来是出发时就定 3~8 秒，走路占掉一部分；现在从到达算，所以短一点
-      idleAfter: 1 + Math.random() * 4,
+      idleAfter: jitterSeconds(1, 5),
     };
   },
 };

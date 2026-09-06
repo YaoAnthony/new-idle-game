@@ -20,7 +20,7 @@ import { getClock } from "../../State/clock";
 import { getLocalParticipant } from "../../State/participants";
 import { getResidents } from "../../State/residentsRuntime";
 import { allPlots } from "../../State/territory";
-import { getCurrentMap, getRoom, getWorld, isIndoors, isWalkable } from "../../State/worldRuntime";
+import { getCurrentMap, getRoom, getWorld, groundHeightAt, isIndoors, isWalkable } from "../../State/worldRuntime";
 
 /**
  * 场所解析（居民系统 02）：把 Core 的场所表翻成**当前世界里的坐标**。
@@ -327,7 +327,10 @@ export function shoreCandidates(): Array<{ x: number; z: number; faceX: number; 
     for (let z = field.originZ; z <= maxZ; z += SHORE_STRIDE) {
       for (let x = field.originX; x <= maxX; x += SHORE_STRIDE) {
         // 脚下得是岸顶（高出水面不止一道岸壁），不是岸壁半腰
-        if (sampleHeightfield(field, x, z) < water + 3) continue;
+        const terrain = sampleHeightfield(field, x, z);
+        if (terrain < water + 3) continue;
+        // 15：桥面不算岸——桥面是架在河上的承托面，脚下的地面高度和地形对不上
+        if (Math.abs(groundHeightAt(x, z) - terrain) > 0.25) continue;
         for (const [dx, dz] of [[SHORE_LOOK, 0], [-SHORE_LOOK, 0], [0, SHORE_LOOK], [0, -SHORE_LOOK]]) {
           if (sampleHeightfield(field, x + dx, z + dz) >= water) continue;
           list.push({ x, z, faceX: x + dx, faceZ: z + dz });

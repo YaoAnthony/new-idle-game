@@ -29,6 +29,7 @@ import { routineOverrideFor } from "../../Systems/residents/birthday";
 import { priorityOf, type ResidentAgent } from "../residentAgent";
 import type { ActionStep, Intent } from "../actions";
 import type { Skill } from "./types";
+import { jitterSeconds } from "./jitter";
 
 /**
  * 作息技能（居民系统 02）：性格表说"这一刻该干什么"（Core `planRoutine`），
@@ -154,7 +155,7 @@ function visitIntent(agent: ResidentAgent, spot: Spot, plan: Extract<RoutinePlan
   if (picked) {
     steps.push(...picked.steps);
   } else {
-    steps.push({ verb: "stand", seconds: 30 + Math.random() * 30, facing, flavor: "browsing" });
+    steps.push({ verb: "stand", seconds: jitterSeconds(30, 60), facing, flavor: "browsing" });
   }
   return intentOf(agent, steps, {
     idleAfter: 2,
@@ -238,8 +239,8 @@ export const routineSkill: Skill = {
         if (nest) {
           // 08：有室内 = 在屋里的窝上坐一会儿，起来让 wander 转一圈（圆心是家），再回来坐
           const steps = homeSteps(agent) ?? [];
-          steps.push({ verb: "sit", facing: { x: nest.faceX, z: nest.faceZ }, seconds: 600 + Math.random() * 600 });
-          intent = intentOf(agent, steps, { idleAfter: 20 + Math.random() * 40 });
+          steps.push({ verb: "sit", facing: { x: nest.faceX, z: nest.faceZ }, seconds: jitterSeconds(600, 1200) });
+          intent = intentOf(agent, steps, { idleAfter: jitterSeconds(20, 60) });
           break;
         }
         // 门口转圈是 wander 的事（圆心就是家门口）。藏着的先出来
@@ -267,13 +268,13 @@ export const routineSkill: Skill = {
         if (!spot) return null;
         const steps: ActionStep[] = hidden ? [{ verb: "show" }] : [];
         steps.push({ verb: "walk_to", x: spot[0], z: spot[1], speedScale: plan.speedScale, state: ROAM_WALK_STATE });
-        intent = intentOf(agent, steps, { idleAfter: 1 + Math.random() * 3 });
+        intent = intentOf(agent, steps, { idleAfter: jitterSeconds(1, 4) });
         break;
       }
       case "nap_out": {
         const steps: ActionStep[] = hidden ? [{ verb: "show" }] : [];
         const [min, max] = plan.napSeconds;
-        steps.push({ verb: "stand", seconds: 2 }, { verb: "sleep", seconds: min + Math.random() * (max - min) });
+        steps.push({ verb: "stand", seconds: 2 }, { verb: "sleep", seconds: jitterSeconds(min, max) });
         intent = intentOf(agent, steps, { idleAfter: 2 });
         break;
       }

@@ -1,4 +1,5 @@
 import { isConstructionDone } from "core";
+import { jitterSeconds } from "./jitter";
 import { findBuildingLevel } from "../../../Buildings/index";
 import { claimSite, finishSite, listSites, releaseSite } from "../buildings";
 import { getClock } from "../clock";
@@ -65,7 +66,7 @@ function workIntent(agent: ResidentAgent, instanceId: string, spot: { x: number;
         skillId: "nap",
         priority: priorityOf("nap"),
         interruptible: true,
-        steps: [{ verb: "gesture", gestureId: "stretch" }, { verb: "stand", seconds: 2, flavor: "resting" }, { verb: "sleep", seconds: 60 + Math.random() * 60 }],
+        steps: [{ verb: "gesture", gestureId: "stretch" }, { verb: "stand", seconds: 2, flavor: "resting" }, { verb: "sleep", seconds: jitterSeconds(60, 120) }],
         idleAfter: 3,
       });
     },

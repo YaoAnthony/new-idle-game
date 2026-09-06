@@ -8,6 +8,7 @@ import {
   footprintCells,
   roomCellToWorld,
 } from "core";
+import { jitterSeconds } from "./jitter";
 import { findDroppedItem, listDroppedItems, removeDroppedItem } from "../droppedItems";
 import { getRoom, getWorld } from "../worldRuntime";
 import { priorityOf } from "../residentAgent";
@@ -82,7 +83,7 @@ function seekFood(agent: Agent): Intent | null {
       { verb: "walk_to", x: spot.x, z: spot.z },
       { verb: "stand", seconds: EAT_SECONDS, facing: food, state: "eat", flavor: "eating" },
     ],
-    idleAfter: 2 + Math.random() * 2,
+    idleAfter: jitterSeconds(2, 4),
     onArrive: (body) => {
       // 路上被玩家捡走了 → 白跑一趟，回去发呆（这本身就挺像猫的）
       const entity = findDroppedItem(droppedId);
@@ -142,7 +143,7 @@ function seekWater(agent: Agent): Intent | null {
         { verb: "walk_to", x: spot.x, z: spot.z },
         { verb: "stand", seconds: DRINK_SECONDS, facing: center, state: "drink", flavor: "drinking" },
       ],
-      idleAfter: 2 + Math.random() * 2,
+      idleAfter: jitterSeconds(2, 4),
       onDone: (body) => {
         body.needs.thirst = Math.min(100, body.needs.thirst + 60);
         body.mood = Math.min(100, body.mood + 3);

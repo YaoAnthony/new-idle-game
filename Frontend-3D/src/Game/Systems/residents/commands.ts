@@ -24,7 +24,7 @@ import type { ResidentAgent } from "../../State/residentAgent";
 import { getCurrentMap, getRoom, isWalkable } from "../../State/worldRuntime";
 import { findRoute } from "../navigation";
 import { isRemoteWorld } from "../../Multiplayer/worldLock";
-import { formatMinute } from "core";
+import { formatMinute, residentDefinitions } from "core";
 import { routinePlanOf } from "../../State/skills/routine";
 import { chatOutlook, resetTalkToday } from "../../State/skills/talk";
 import { findExpression } from "core";
@@ -297,7 +297,8 @@ export function registerResidentCommands(): Array<() => void> {
         if (sub === "housecomment") {
           const snapshot = houseSnapshot();
           const ids = evaluateHouseComments(snapshot);
-          const rows = ["slime_neighbor", "fox_neighbor", "spirit_neighbor"].map((who) => `  ${who}：${houseCommentKeysFor(who).join(" → ")}`);
+          // 15：住户名单从定义表来，不写死三位
+          const rows = residentDefinitions.filter((definition) => definition.residence).map((definition) => `  ${definition.id}：${houseCommentKeysFor(definition.id).join(" → ")}`);
           return ok([`室内 ${snapshot.furniture.length} 件 / ${snapshot.floorCells} 格 → ${ids.join(", ")}`, ...rows, `门口：${JSON.stringify(listPorch())}`, `来访：${JSON.stringify(visitInProgress())}`, `你在屋里：${playerIndoors()}`].join("\n"));
         }
         if (sub === "pair") {

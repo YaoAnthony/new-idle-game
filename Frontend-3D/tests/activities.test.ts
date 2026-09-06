@@ -4,7 +4,7 @@ import { runCommand } from "../src/Game/CommandLine/commands";
 import { restoreBuildings } from "../src/Game/State/buildings";
 import { clearAllFurniture } from "../src/Game/State/world/furniture";
 import { getResident, removeResident, restoreResidents, spawnResident } from "../src/Game/State/residentsRuntime";
-import { getCurrentMap, getCurrentMapId } from "../src/Game/State/worldRuntime";
+import { getCurrentMap, getCurrentMapId, groundHeightAt } from "../src/Game/State/worldRuntime";
 import { setRemoteWorldActive } from "../src/Game/Multiplayer/worldLock";
 import { travelTo } from "../src/Game/Systems/mapTravel";
 import { invalidateNavGrid } from "../src/Game/Systems/navigation";
@@ -102,6 +102,8 @@ test("activities_河岸从地形推_脚下是岸_三米外是水", () => {
   expect(candidates.length).toBeGreaterThan(20);
   for (const spot of candidates) {
     expect(sampleHeightfield(field, spot.x, spot.z)).toBeGreaterThanOrEqual(water + 3);
+    // 15：桥面不算岸（BUG-15-01）
+    expect(Math.abs(groundHeightAt(spot.x, spot.z) - sampleHeightfield(field, spot.x, spot.z))).toBeLessThanOrEqual(0.25);
     expect(sampleHeightfield(field, spot.faceX, spot.faceZ)).toBeLessThan(water);
   }
   // 解析出来的都站得住（可走过滤）

@@ -239,6 +239,18 @@ export type RouteOptions = {
    * 都不算障碍，用的是另一张烘好的图。
    */
   phasing?: boolean;
+  /**
+   * **地面代价**（居民系统 01b，2026-09-06）：走进某一格要乘多少。
+   *
+   * 用户定的方向：以后铺了小路，居民要**更愿意走路上**。这一版只打通参数——
+   * 不给 = 全 1，路径和以前逐点一致；给了就按格乘（小路 1、草地 1.6、
+   * 泥 2.2 这类数字以后住 Core 的地表表，铺路那期填）。
+   *
+   * 代价必须 ≥ 1：启发函数按欧氏距离 × 1 估，代价小于 1 会让 A* 高估、
+   * 丢掉最优路。想让路"更便宜"，把别处调贵，不把路调到 1 以下。
+   * 玩家自己走路不吃它（玩家是手操的），只有活物的 `walk_to` 传。
+   */
+  costOf?: (x: number, z: number) => number;
 };
 
 /**
@@ -294,10 +306,39 @@ const NEIGHBOURS: Array<[number, number, number]> = [
 ];
 
 /**
+ * 拉直的一段是否**不比原路贵**：沿直线每半格采样一次代价，任何一点超过
+ * 原路这一段的最高代价就不许拉。原路本身走过泥地（没别的路）时照样能拉直。
+ */
+function costClear(
+  grid: NavGrid,
+  raw: Array<[number, number]>,
+  from: number,
+  to: number,
+  costOf: (x: number, z: number) => number,
+): boolean {
+  let ceiling = 1;
+  for (let i = from; i <= to; i += 1) ceiling = Math.max(ceiling, costOf(raw[i][0], raw[i][1]));
+  const [ax, az] = raw[from];
+  const [bx, bz] = raw[to];
+  const length = Math.hypot(bx - ax, bz - az);
+  const steps = Math.max(1, Math.ceil(length / (grid.cell / 2)));
+  for (let k = 1; k < steps; k += 1) {
+    const t = k / steps;
+    if (costOf(ax + (bx - ax) * t, az + (bz - az) * t) > ceiling + 1e-6) return false;
+  }
+  return true;
+}
+
+/**
  * A*。斜向要求两个正交邻居都通——不然会从两块石头的对角缝里"挤"过去，
  * 走出来的路角色的圆碰撞过不了。
  */
-function search(grid: NavGrid, startIndex: number, goalIndex: number): number[] | null {
+function search(
+  grid: NavGrid,
+  startIndex: number,
+  goalIndex: number,
+  costOf?: (x: number, z: number) => number,
+): number[] | null {
   const total = grid.cols * grid.rows;
   const gScore = new Float32Array(total).fill(Infinity);
   const cameFrom = new Int32Array(total).fill(-1);
@@ -369,7 +410,13 @@ function search(grid: NavGrid, startIndex: number, goalIndex: number): number[] 
       // 爬升记一点额外代价：平路和坡路都能到时优先走平的，
       // 但代价不高——真只有楼梯可走时它照样爬
       const climb = Math.max(0, grid.height[next] - grid.height[index]);
-      const tentative = gScore[index] + cost * grid.cell + climb * 0.8;
+      // 地面代价乘在步长上（不乘爬升）：路好走是"这一格便宜"，不是"坡变缓"
+      let ground = 1;
+      if (costOf) {
+        const [nx, nz] = worldOf(grid, next);
+        ground = Math.max(1, costOf(nx, nz));
+      }
+      const tentative = gScore[index] + cost * grid.cell * ground + climb * 0.8;
       if (tentative >= gScore[next]) continue;
       gScore[next] = tentative;
       cameFrom[next] = index;
@@ -427,6 +474,7 @@ export function findRoute(
     radius = ACTOR_RADIUS,
     snapRings = DEFAULT_SNAP_RINGS,
     phasing = false,
+    costOf,
   } = options;
   const grid = navGrid(radius, phasing);
   const start = nearestWalkable(grid, from.x, from.z, snapRings);
@@ -442,21 +490,25 @@ export function findRoute(
   const end: [number, number] = cellOf(grid, to.x, to.z) === goal ? [to.x, to.z] : worldOf(grid, goal);
   if (start === goal) return [end];
 
-  const cells = search(grid, start, goal);
+  const cells = search(grid, start, goal, costOf);
   if (!cells) return null;
 
   const raw = cells.map((index) => worldOf(grid, index));
   raw[raw.length - 1] = end;
 
+  /*
+   * 拉直。有地面代价时多一条限制：拉直的那一段**不能穿过比原路更贵的格**——
+   * 不然 A* 辛苦绕开的泥地，被拉直一笔又抄回去了（01b 的用例就是这么红的）。
+   */
   const smoothed: Array<[number, number]> = [raw[0]];
   let anchor = 0;
   while (anchor < raw.length - 1) {
     let best = anchor + 1;
     for (let probe = raw.length - 1; probe > anchor + 1; probe -= 1) {
-      if (lineClear(grid, raw[anchor][0], raw[anchor][1], raw[probe][0], raw[probe][1])) {
-        best = probe;
-        break;
-      }
+      if (!lineClear(grid, raw[anchor][0], raw[anchor][1], raw[probe][0], raw[probe][1])) continue;
+      if (costOf && !costClear(grid, raw, anchor, probe, costOf)) continue;
+      best = probe;
+      break;
     }
     smoothed.push(raw[best]);
     anchor = best;

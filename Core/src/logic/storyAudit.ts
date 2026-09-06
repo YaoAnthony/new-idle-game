@@ -585,11 +585,12 @@ export function auditStoryContent(options: AuditOptions = {}): string[] {
           break;
 
         case "porch_place":
+        case "interior_place":
           if (!residentDefinitionOf(effect.residentId)) {
-            problems.push(`${where}：porch_place 指向不存在的居民 "${effect.residentId}"`);
+            problems.push(`${where}：${effect.kind} 指向不存在的居民 "${effect.residentId}"`);
           }
           if (effect.itemId !== undefined && !findItemDefinition(effect.itemId)) {
-            problems.push(`${where}：porch_place 指向不存在的物品 "${effect.itemId}"`);
+            problems.push(`${where}：${effect.kind} 指向不存在的物品 "${effect.itemId}"`);
           }
           break;
 

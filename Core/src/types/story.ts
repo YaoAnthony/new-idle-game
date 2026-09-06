@@ -336,7 +336,13 @@ export type StoryEffect =
   /** 他门上挂一块写你名字的牌（07，家人档那天） */
   | { kind: "porch_nameplate"; residentId: ResidentId }
   /** 从他的 presents 里确定性挑一件经领取面板给你（07 来访临走那一下；不走过来） */
-  | { kind: "grant_present"; residentId: ResidentId };
+  | { kind: "grant_present"; residentId: ResidentId }
+  /**
+   * 把一件东西摆进他屋里（08）。`itemId` 同 porch_place 的规矩（不填 = 最近一次爱吃档的家具）。
+   * 执行时判：房子有室内 → 进屋（满了最早的挪到门口，门口也满了进箱）；没有室内 → 退回 porch_place。
+   * 所以送礼 / 委托的规则只写这一个效果，不用各写两条。
+   */
+  | { kind: "interior_place"; residentId: ResidentId; itemId?: ItemId };
 
 export type StoryRuleId = string;
 

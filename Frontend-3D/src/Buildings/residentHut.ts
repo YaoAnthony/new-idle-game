@@ -35,12 +35,21 @@ export type HutStyle = {
   roofDeep: ColorRepresentation;
   /** 墙色 */
   wall: ColorRepresentation;
+  /** 屋里的地板色（08：每家一种，进屋第一眼的"风格"） */
+  floor: ColorRepresentation;
   /** 门口那件小物：住户的名片 */
   charm: "bubbles" | "lantern" | "sapling";
 };
 
 /** 一格一米，和院子一致 */
 const CELL = 1;
+
+/**
+ * 门洞宽。**1.6 不是 1.1**（08）：导航网格按 0.5 米采样、体型进到 0.5 档，1.1 的洞
+ * 没有一列采样点能带着 0.5 的圆穿过去——居民排不出回屋的路，只能站在门口。
+ * 1.6 留出 0.8 的半宽，采样列 ±0.25 加半径 0.5 刚好够。门板宽度（BuildingsView）读同一个数。
+ */
+export const HUT_DOOR_WIDTH = 1.6;
 
 /**
  * 墙高。**里外同一个数，而且不矮过玩家。**
@@ -107,11 +116,13 @@ export function buildResidentHut(style: HutStyle, cells = 3): Object3D {
   const wallH = WALL_H;
   const eaveY = wallH + 0.14;
   const ridgeY = wallH + 1.7;
-  const doorW = 1.1;
+  const doorW = HUT_DOOR_WIDTH;
 
   return group("resident-hut", [
     // 地基
     box([w + 0.16, 0.1, w + 0.16], { position: [0, 0.05, 0], color: PALETTE.shopStone }),
+    // 屋里的地板：铺在地基上薄薄一层（顶面 0.12，和地基的 0.1 差不到 4 厘米，站立面不会当成上台阶）
+    box([w - 0.2, 0.03, w - 0.2], { position: [0, 0.105, 0], color: style.floor, castShadow: false }),
 
     // 左右墙 + 背墙
     ...[-half, half].map((x) =>

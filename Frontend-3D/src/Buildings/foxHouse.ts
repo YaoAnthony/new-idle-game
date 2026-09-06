@@ -41,6 +41,7 @@ export const foxHouse: BuildingDefinition = {
         roof: PALETTE.foxOrange,
         roofDeep: "#c9691a",
         wall: PALETTE.foxCream,
+        floor: "#d8b98c",
         charm: "lantern",
       }),
     },

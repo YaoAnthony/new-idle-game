@@ -13,9 +13,12 @@ import {
   type DoorSave,
   type GridPosition,
 } from "core";
-import { emit } from "../EventBus";
+import { findResidentOfHouse, residentIdOf } from "core";
+import { buildingDoorAt, findBuildingLevel } from "../../Buildings/index";
+import { emit, on } from "../EventBus";
 import { doorsAssumedOpen } from "./world/walkable";
 import { Door, RoomDoor } from "./doorAgent";
+import { getLocalParticipant } from "./participants";
 import { getResidents } from "./residentsRuntime";
 import {
   getCurrentMap,
@@ -201,6 +204,8 @@ export function initDoors(): void {
       }
     }
   }
+
+  syncResidentDoors();
 
   /**
    * 碰撞圆是不是正对着大门、并且在往外（或往里）穿那条边。
@@ -487,6 +492,55 @@ export function initDoors(): void {
  */
 const lastOpen = new Map<string, boolean>();
 
+/**
+ * 居民房的门（08）：每栋**有住户、建好了、有内景**的房子门上一扇 `resident_door`。
+ * 门心在外壳的门洞上（`buildingDoorAt`），不占格——挡人靠 doorGate（和主屋大门一样）。
+ * 建筑一变整批重建：加一栋、拆一栋、升级换几何，门跟着房子走。
+ */
+function syncResidentDoors(): void {
+  for (const [refId, door] of doors) if (door.owner) doors.delete(refId);
+  const definition = findDoorDefinition("resident_door");
+  if (!definition) return;
+  for (const placement of listBuildings()) {
+    const owner = findResidentOfHouse(placement.buildingId);
+    if (!owner || placement.construction) continue;
+    const level = findBuildingLevel(placement.buildingId, placement.levelId);
+    if (!level?.interior) continue;
+    const door = makeDoor(`${placement.instanceId}:door`, definition, [], buildingDoorAt(placement));
+    door.owner = residentIdOf(owner.id);
+    door.homeRect = rectOf(placement);
+    doors.set(door.refId, door);
+    lastOpen.set(door.refId, door.open);
+  }
+}
+on("world_changed", (payload) => {
+  if ((payload as { reason?: string } | undefined)?.reason === "buildings" && doors.size > 0) syncResidentDoors();
+});
+
+/** 这栋楼的门（有住户的房子才有） */
+export function residentDoorOf(instanceId: string): Door | undefined {
+  return doors.get(`${instanceId}:door`);
+}
+
+const OWNER_NEAR_METERS = 2.5;
+
+/**
+ * 有主人的门锁不锁（08）：主人在屋里或就在门口 → 不锁（他要回家 / 你能进）；
+ * 主人不在 → 锁，除非**你已经在屋里**——他出门了不能把你关在里面。
+ * 木偶也有位置，房客那边算出来一样。
+ */
+function ownerLock(door: Door): boolean {
+  const rect = door.homeRect;
+  const inside = (x: number, z: number): boolean =>
+    rect !== undefined && x >= rect.minX && x <= rect.maxX && z >= rect.minZ && z <= rect.maxZ;
+  const { transform } = getLocalParticipant();
+  if (inside(transform.x, transform.y)) return false;
+  const owner = getResidents().find((resident) => resident.residentId === door.owner);
+  if (!owner || owner.state === "hidden") return true;
+  if (inside(owner.x, owner.z)) return false;
+  return Math.hypot(owner.x - door.center.x, owner.z - door.center.z) - owner.radius > OWNER_NEAR_METERS;
+}
+
 /** 每帧驱动自动开关。生物 = 宠物这类非玩家活物；玩家开门永远走 F */
 export function tickDoors(): void {
   if (doors.size === 0) return;
@@ -497,6 +551,11 @@ export function tickDoors(): void {
     radius: resident.radius,
   }));
   for (const door of doors.values()) {
+    if (door.owner) {
+      door.locked = ownerLock(door);
+      // 锁上的那一拍把开着的门合上：主人走了门不该敞着
+      if (door.locked && door.open) door.open = false;
+    }
     door.tick(creatures);
 
     const previous = lastOpen.get(door.refId);
@@ -537,7 +596,8 @@ export function snapshotDoors(): DoorSave[] {
    */
   if (doors.size === 0 && pendingSaves) return pendingSaves;
 
-  return listDoors().map((door) => ({
+  // 有主人的门不进存档：它的锁每帧按主人位置算，存了也是下一帧就被覆盖
+  return listDoors().filter((door) => !door.owner).map((door) => ({
     refId: door.refId,
     definitionId: door.definition.id,
     locked: door.locked,

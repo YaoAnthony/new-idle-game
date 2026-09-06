@@ -1,4 +1,5 @@
 import { visitorAtDoor } from "../../Game/Systems/residents/visits";
+import { residentNickname } from "../../i18n/residentName";
 import { BodyPosture, CreatureRole, DayPhaseId, Facing, FurnitureCapability, constructionProgress, isConstructionQueued, WeatherKind, anchorOf, anchorRectToWorld, findItemDefinition, findResidentDefinition, roomCellToWorld, type AutoStepKind, type DeckRect, type WeatherDefinition, yardBoundsOf, navBoundsOf } from "core";
 import { isHouseStowed } from "core";
 import type { InteractHint, PlacedFurniture, RoomSave } from "core";
@@ -2149,9 +2150,13 @@ export class RoomScene {
           const now = performance.now();
           if (now - this.lastLockedNoticeAt > 2000) {
             this.lastLockedNoticeAt = now;
+            // 08：居民房的门有自己的话（"咕噜不在家"），主人的名字渲染时填
+            const key = agent.definition.lockedTextKey;
             pushChatMessage({
               kind: ChatMessageKind.Story,
-              text: t("door.locked_feedback"),
+              text: key
+                ? t(key).replace("{owner}", agent.owner ? residentNickname(agent.owner) : "")
+                : t("door.locked_feedback"),
             });
           }
         }

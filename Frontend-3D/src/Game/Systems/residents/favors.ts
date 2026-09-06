@@ -25,7 +25,7 @@ import type { ResidentAgent } from "../../State/residentAgent";
 import { recordHeadlineFact } from "../dayRecord";
 import { evaluateCondition } from "../dialogue";
 import { signal } from "../story";
-import { homeDoorstepOf } from "./spots";
+import { homeDoorstepOf, homeInteriorOf, insideHomeOf } from "./spots";
 
 /**
  * 委托的运行时（居民系统 05）。**只改状态表和收发物品**——好感、奖励、记忆全是
@@ -96,7 +96,10 @@ export function deliveryFor(definitionId: string, itemId: string): FavorDefiniti
   return null;
 }
 
-/** visit_me：此刻在窗口里、玩家站在他家门口 → 这一件 */
+/**
+ * visit_me：此刻在窗口里、玩家**在他屋里**（08 起；房子没有室内的退回"站在门口"）→ 这一件。
+ * 在屋里而不是门口：那是他邀你来做客，站门口按 F 就算完成太敷衍。
+ */
 export function visitFavorFor(definitionId: string, player: { x: number; z: number }): FavorDefinition | null {
   const clock = clockSource();
   for (const definition of definitions) {
@@ -104,8 +107,12 @@ export function visitFavorFor(definitionId: string, player: { x: number; z: numb
     const save = favors[definition.id];
     if (save?.state !== "accepted") continue;
     if (!visitWindowOpen(definition, save, clock)) continue;
-    const door = homeDoorstepOf(definitionId);
-    if (door && Math.hypot(player.x - door.x, player.z - door.z) > 3.5) continue;
+    if (homeInteriorOf(definitionId)) {
+      if (!insideHomeOf(definitionId, player.x, player.z)) continue;
+    } else {
+      const door = homeDoorstepOf(definitionId);
+      if (door && Math.hypot(player.x - door.x, player.z - door.z) > 3.5) continue;
+    }
     return definition;
   }
   return null;

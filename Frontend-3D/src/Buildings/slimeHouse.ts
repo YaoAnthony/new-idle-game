@@ -41,6 +41,7 @@ export const slimeHouse: BuildingDefinition = {
         roof: "#8fd0a0",
         roofDeep: "#6ba87c",
         wall: PALETTE.slimeMist,
+        floor: "#cfe4d3",
         charm: "bubbles",
       }),
     },

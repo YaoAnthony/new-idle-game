@@ -41,6 +41,7 @@ export const spiritHouse: BuildingDefinition = {
         roof: PALETTE.elfCloak,
         roofDeep: PALETTE.elfCloakDeep,
         wall: PALETTE.shopWall,
+        floor: "#bccbb0",
         charm: "sapling",
       }),
     },

@@ -21,6 +21,7 @@ import { gainAffection } from "./residents/affection";
 import { giveResidentPresent } from "./residents/presents";
 import { declineFavor } from "./residents/favors";
 import { placeOnPorch, setNamePlate } from "./residents/porch";
+import { placeInInterior } from "./residents/interiors";
 import { pickPresentFor } from "./residents/presents";
 import { beginHouseVisit, refuseVisit } from "./residents/visits";
 import { presentItems } from "./unpack";
@@ -198,6 +199,10 @@ function runEffect(effect: StoryEffect): void {
       break;
     case "porch_nameplate":
       setNamePlate(effect.residentId, true);
+      break;
+    // 屋里的槽位（08）：有室内进屋，没有退回门口——interiors 自己判
+    case "interior_place":
+      placeInInterior(effect.residentId, effect.itemId);
       break;
 
     // 来访临走的礼物（07）：从他的 presents 里挑，不用再走过来

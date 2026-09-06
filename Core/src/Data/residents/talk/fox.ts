@@ -65,5 +65,9 @@ export const foxTalk: TalkPool = {
     { dialogueId: "fox_chat_any_3" },
     { dialogueId: "fox_chat_any_4" },
     { dialogueId: "fox_chat_any_5" },
+    // ---- 08：你在他屋里时的闲聊——权重 100 = 只抽这几段（屋里不说院子里的话） ----
+    { dialogueId: "fox_chat_home_1", when: [{ kind: "player_in_my_home" }], weight: 100 },
+    { dialogueId: "fox_chat_home_2", when: [{ kind: "player_in_my_home" }], weight: 100 },
+    { dialogueId: "fox_chat_home_3", when: [{ kind: "player_in_my_home" }], weight: 100 },
   ],
 };

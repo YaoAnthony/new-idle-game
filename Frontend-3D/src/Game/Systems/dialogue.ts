@@ -10,6 +10,7 @@ import {
 import { emit } from "../EventBus";
 import { getCount, getSelectedStack, type SlotRef } from "../State/inventory";
 import { getResident, getResidents } from "../State/residentsRuntime";
+import { playerInHomeOf } from "./residents/spots";
 import { getWeather } from "../State/weather";
 import { factsOfToday, factsOfYesterday } from "./dayRecord";
 import { getEventStage, isEventCompleted, isFeatureUnlocked } from "./events";
@@ -130,6 +131,9 @@ export function evaluateCondition(condition: DialogueCondition, residentId: stri
       const subject = residentIdOf(condition.residentId);
       return (factsOfYesterday()?.headlines ?? []).some((fact) => fact.kind === condition.fact && fact.subject === subject);
     }
+    // ---- 居民系统 08：你在他屋里 ----
+    case "player_in_my_home":
+      return resident !== undefined && playerInHomeOf(resident.definitionId);
     default:
       return false;
   }

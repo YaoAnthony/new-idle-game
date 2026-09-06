@@ -20,6 +20,7 @@ import {
   claimSpot,
   doorstepOf,
   homeDoorstepOf,
+  homeSpotOf,
   isAtHome,
   releaseSpot,
   resetSpotOccupancy,
@@ -130,21 +131,27 @@ test("routine_门口坐标从占地推_不再写死2点2", () => {
   expect(east).toEqual({ x: 7, z: 12.5 });
 });
 
-test("routine_22点30_回家睡觉的Intent不可打断_藏起来算在家", () => {
+test("routine_22点30_回家睡觉的Intent不可打断_走进屋里的窝算在家", () => {
   const slime = slimeAtHome();
   at("22:30");
 
+  // 08：房子有室内 → 不再 hide，走进屋到窝那儿睡
   const intent = routineSkill.decide!({ agent: slime, player: PLAYER, current: null });
-
   expect(intent?.skillId).toBe("routine");
   expect(intent?.interruptible).toBe(false);
-  expect(intent?.steps.map((step) => step.verb)).toEqual(["hide", "sleep"]);
+  expect(intent?.steps.map((step) => step.verb)).toEqual(["walk_to", "sleep"]);
+  expect(isAtHome(slime)).toBe(false); // 还在门口
 
-  slime.perform(intent!);
+  // 已经在窝上：只剩睡
+  const nest = homeSpotOf("slime_neighbor")!;
+  slime.debugPlace(nest.x, nest.z);
+  const asleep = routineSkill.decide!({ agent: slime, player: PLAYER, current: null })!;
+  expect(asleep.steps.map((step) => step.verb)).toEqual(["sleep"]);
+  slime.perform(asleep);
   slime.tick(0.1, PLAYER);
-  // 屋里睡：身子仍是藏着的（露在门口睡就穿帮了），窗灯读 isAtHome
-  expect(slime.state).toBe("hidden");
+  expect(slime.state).toBe("sleeping");
   expect(slime.sleepTimer).toBeGreaterThan(60);
+  // 在家 = 位置在自家占地里，窗灯读它
   expect(isAtHome(slime)).toBe(true);
   // 同一件事不重下
   expect(routineSkill.decide!({ agent: slime, player: PLAYER, current: slime.currentIntent })).toBeNull();
@@ -152,6 +159,8 @@ test("routine_22点30_回家睡觉的Intent不可打断_藏起来算在家", () 
 
 test("routine_时钟跳到白天_屋里睡着的被叫醒_夜里不叫", () => {
   const slime = slimeAtHome();
+  const nest = homeSpotOf("slime_neighbor")!;
+  slime.debugPlace(nest.x, nest.z);
   at("22:30");
   slime.perform(routineSkill.decide!({ agent: slime, player: PLAYER, current: null })!);
   slime.tick(0.1, PLAYER);
@@ -164,7 +173,9 @@ test("routine_时钟跳到白天_屋里睡着的被叫醒_夜里不叫", () => {
   at("10:00", "2026-09-07");
   expect(wakeStaleSleepers()).toBe(1);
   expect(slime.asleep).toBe(false);
-  expect(slime.state).toBe("hidden"); // 醒了还在屋里；出门是 hang_home 的事
+  // 08：醒了还在屋里（窝上，不再是 hidden）；出门是 hang_home / 作息的事
+  expect(slime.state).not.toBe("sleeping");
+  expect(isAtHome(slime)).toBe(true);
   expect(slime.currentIntent).toBeNull();
 });
 
@@ -176,10 +187,11 @@ test("routine_12点下雨_懒散的回屋醒着_可打断", () => {
 
   expect(routinePlanOf(slime)?.plan).toEqual({ kind: "stay_home" });
   expect(intent?.interruptible).toBe(true);
-  expect(intent?.steps.map((step) => step.verb)).toEqual(["hide", "stand"]);
+  // 08：房子有室内 → 走进屋坐在窝上醒着，不再 hide
+  expect(intent?.steps.map((step) => step.verb)).toEqual(["walk_to", "sit"]);
 });
 
-test("routine_早上醒来_藏着的先出来伸懒腰_不再藏着时hang_home让给wander", () => {
+test("routine_早上在家段_老档藏着的先出来_有室内就是走进屋坐在窝上", () => {
   const slime = slimeAtHome();
   slime.perform({ skillId: "command", priority: 1000, interruptible: false, steps: [{ verb: "hide" }] });
   slime.tick(0.1, PLAYER); // 瞬时动词也要一帧才算做完；指令做完前谁都抢不走
@@ -187,13 +199,14 @@ test("routine_早上醒来_藏着的先出来伸懒腰_不再藏着时hang_home�
   expect(slime.currentIntent).toBeNull();
   at("09:30");
 
+  // 08：hang_home = 在屋里的窝上坐一会儿（藏着的先 show），起来让 wander 转一圈
   const intent = routineSkill.decide!({ agent: slime, player: PLAYER, current: null });
-  expect(intent?.steps.map((step) => step.verb)).toEqual(["show", "gesture"]);
-
+  expect(intent?.steps.map((step) => step.verb)).toEqual(["show", "walk_to", "sit"]);
   expect(slime.perform(intent!)).toBe(true);
   slime.tick(0.1, PLAYER);
   expect(slime.state).not.toBe("hidden");
-  expect(routineSkill.decide!({ agent: slime, player: PLAYER, current: null })).toBeNull();
+  // 同一件事不重下
+  expect(routineSkill.decide!({ agent: slime, player: PLAYER, current: slime.currentIntent })).toBeNull();
 });
 
 test("routine_没有性格的不作声", () => {

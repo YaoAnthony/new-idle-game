@@ -1,9 +1,11 @@
-import { DayPhaseId } from "core";
+import { DayPhaseId, findResidentInterior } from "core";
 import { Box3, BoxGeometry, CanvasTexture, Color, Material, Mesh, MeshBasicMaterial, MeshStandardMaterial, Object3D, PlaneGeometry, SRGBColorSpace, Vector3, type Scene } from "three";
 
 import { on } from "../../Game/EventBus";
 import { getClock } from "../../Game/State/clock";
 import { porchOf } from "../../Game/Systems/residents/porch";
+import { interiorOf } from "../../Game/Systems/residents/interiors";
+import { residentDoorOf } from "../../Game/State/doorsRuntime";
 import { playerDisplayName } from "../../Game/Systems/residents/affection";
 import { homesWithSomeoneIn } from "../../Game/Systems/residents/spots";
 import { listBuildings } from "../../Game/State/buildings";
@@ -15,13 +17,18 @@ import {
   shopDisplayAnchors,
 } from "../../Buildings/furnitureShopInterior";
 import { findBuildingLevel } from "../../Buildings/index";
+import { HUT_DOOR_WIDTH } from "../../Buildings/residentHut";
 import {
   findShop,
   shelfIdFor,
   shelfSlotsOf,
 } from "../../Game/Systems/shopkeeping";
 import { buildItemVisual } from "../Visual/VisualRegistry";
-import { disposeTree } from "../Visual/primitives";
+import { PALETTE } from "../Visual/palette";
+import { box, disposeTree } from "../Visual/primitives";
+
+/** 居民房门板开到几度：往屋里转 100°（铰链在左框、绕 y 正转把板子甩向 -z 即屋里），比 90° 多一点，站门口不会被板子边挡视线 */
+const OPEN_ANGLE = Math.PI * 0.56;
 
 /**
  * 玩家在领地里建的建筑的**渲染**。
@@ -103,6 +110,9 @@ export class BuildingsView {
     this.offListeners.push(on("day_phase_changed", () => this.refreshWindowLights()));
     this.offListeners.push(on("favors_changed", () => this.refreshWindowLights()));
     this.offListeners.push(on("porch_changed", () => this.refreshPorch()));
+    this.offListeners.push(on("interiors_changed", () => this.refreshInteriors()));
+    // 居民房的门板（08）：逻辑层的 Door 一开合就转板子
+    this.offListeners.push(on("door_toggled", ({ refId, open }) => this.swingDoor(refId, open)));
 
     /*
      * 货架一变就重摆店里的展示位（上架面板关不关都无所谓——storage 的
@@ -166,6 +176,114 @@ export class BuildingsView {
     this.refreshShopGoods();
     this.refreshWindowLights();
     this.refreshPorch();
+    this.refreshInteriors();
+    this.buildDoorLeaves();
+  }
+
+  /**
+   * 居民房的室内（08）：固定陈设 + 你送的东西各在各的槽。数据两份——陈设和槽位是内容
+   * （Core `residentInteriorDefinitions`），槽里摆着什么是 `WorldSave.interiors`。
+   * 和门口展示位同一套做法：挂在楼的节点下，坐标是型号本地系，`noCollide`（模型碰撞
+   * 是从 `buildPlacedBuilding` 另建的，这里加的东西本来就不在里面）。
+   */
+  refreshInteriors(): void {
+    for (const node of this.root.children) {
+      if (!node.name.startsWith("building-")) continue;
+      const instanceId = node.name.slice("building-".length);
+      const old = node.getObjectByName("interior");
+      if (old) {
+        node.remove(old);
+        disposeTree(old);
+      }
+      const placement = listBuildings().find((item) => item.instanceId === instanceId);
+      if (!placement || placement.construction) continue;
+      const definition = findResidentInterior(placement.buildingId);
+      if (!definition) continue;
+
+      const group = new Object3D();
+      group.name = "interior";
+      group.userData.noCollide = true;
+      const bounds = new Box3();
+      const size = new Vector3();
+      const put = (itemId: string, x: number, z: number, rotation: number, y: number | undefined, cap: number): void => {
+        const visual = buildItemVisual(itemId);
+        if (!visual) return;
+        bounds.setFromObject(visual);
+        bounds.getSize(size);
+        // 小屋里放不下一张 2×1 的桌子：按包围盒缩到装下（只缩不放，和橱窗样品同一条）
+        const scale = Math.min(1, cap / Math.max(size.x, size.z, 0.001));
+        visual.scale.setScalar(scale);
+        // 挂墙的按给的高度挂；落地的底压到地板面（地板顶面 0.12）
+        visual.position.set(x, y !== undefined ? y : 0.12 - bounds.min.y * scale, z);
+        visual.rotation.y = rotation;
+        visual.userData.noCollide = true;
+        group.add(visual);
+      };
+      for (const fixture of definition.fixed) put(fixture.itemId, fixture.x, fixture.z, fixture.rotation ?? 0, fixture.y, 1.1);
+      const entry = interiorOf(instanceId);
+      entry?.gifts.forEach((itemId, index) => {
+        const slot = definition.giftSlots[index];
+        if (!itemId || !slot) return;
+        put(itemId, slot.x, slot.z, slot.rotation ?? 0, slot.surface === "wall" ? slot.y : undefined, 0.95);
+      });
+      node.add(group);
+    }
+  }
+
+  /**
+   * 居民房的门板（08）。外壳的门洞是真洞（"走得进去"是这三栋唯一的硬要求），门板
+   * 不能进模型——模型即碰撞，板子进了模型就永远堵着。所以板子在这儿单独挂、`noCollide`，
+   * 挡人靠逻辑层的 Door（doorGate）。铰链在门框左侧，开门往屋里转。
+   */
+  private readonly doorLeaves = new Map<string, { pivot: Object3D; open: boolean }>();
+
+  private buildDoorLeaves(): void {
+    this.doorLeaves.clear();
+    for (const node of this.root.children) {
+      if (!node.name.startsWith("building-")) continue;
+      const instanceId = node.name.slice("building-".length);
+      const door = residentDoorOf(instanceId);
+      const placement = listBuildings().find((item) => item.instanceId === instanceId);
+      const level = placement ? findBuildingLevel(placement.buildingId, placement.levelId) : undefined;
+      if (!door || !level) continue;
+      const half = level.footprint.height / 2;
+      const doorW = HUT_DOOR_WIDTH;
+      const leafH = 2.7 - 0.26 - 0.05;
+      const pivot = new Object3D();
+      pivot.name = "door-leaf";
+      pivot.position.set(-doorW / 2 + 0.02, 0.1, half);
+      const leaf = box([doorW - 0.06, leafH, 0.06], {
+        position: [(doorW - 0.06) / 2, leafH / 2, 0],
+        color: PALETTE.shopWood,
+      });
+      leaf.userData.noCollide = true;
+      // 门板上两道横档，不然是一块光板
+      for (const y of [leafH * 0.3, leafH * 0.72]) {
+        const rail = box([doorW - 0.14, 0.08, 0.03], { position: [(doorW - 0.06) / 2, y, 0.045], color: PALETTE.woodMid, castShadow: false });
+        rail.userData.noCollide = true;
+        pivot.add(rail);
+      }
+      pivot.add(leaf);
+      pivot.rotation.y = door.open ? OPEN_ANGLE : 0;
+      node.add(pivot);
+      this.doorLeaves.set(door.refId, { pivot, open: door.open });
+    }
+  }
+
+  /** 门一开合就转板子：几帧的小补间，别一下跳过去 */
+  private swingDoor(refId: string, open: boolean): void {
+    const leaf = this.doorLeaves.get(refId);
+    if (!leaf || leaf.open === open) return;
+    leaf.open = open;
+    const from = leaf.pivot.rotation.y;
+    const to = open ? OPEN_ANGLE : 0;
+    const started = performance.now();
+    const step = (): void => {
+      const k = Math.min(1, (performance.now() - started) / 220);
+      leaf.pivot.rotation.y = from + (to - from) * (1 - (1 - k) * (1 - k));
+      if (k < 1 && this.doorLeaves.get(refId) === leaf) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
   }
 
   /**

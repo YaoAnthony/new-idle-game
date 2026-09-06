@@ -24,6 +24,7 @@ import {
   isWalkable,
   setActorFootprint,
 } from "../../Game/State/worldRuntime";
+import { doorGateBlocks } from "../../Game/State/world/walkable";
 import { DEFAULT_POSTURE, isSupportedPosture } from "../Visual/poses.js";
 import type { CharacterRig } from "../World/CharacterView";
 import { animateCharacter, applyPose } from "../World/CharacterView";
@@ -331,8 +332,14 @@ export class CharacterController {
        * 走下任意深的坑——平地时代看不出来，挖出河谷之后就是"徒步走
        * 进河里再也上不来"。现在和寻路问的是同一个 canStep。
        */
+      /*
+       * 关着的门也拦玩家（08）：居民房的门不占格（门洞是外壳模型上的真洞，模型即碰撞
+       * 管不了会动的门板），只靠"门心被碰撞圆盖住"这一条挡。主屋大门原本就由
+       * outdoorPass 按开合判，内墙门靠占格，这一条对它们只是多问一遍同样的答案。
+       */
       const canStep = (nx: number, nz: number): boolean =>
         isWalkable(nx, nz, RADIUS, PLAYER_OBSTACLE_ID) &&
+        !doorGateBlocks(nx, nz, RADIUS) &&
         canStepBetween(this.supportY, groundHeightAt(nx, nz));
 
       // 轴分离：撞墙时沿另一轴滑动。

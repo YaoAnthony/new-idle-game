@@ -40,6 +40,13 @@ export class Door {
   open = false;
   locked: boolean;
 
+  /**
+   * 这扇门的主人（居民房的门，08）。有主人的门锁不锁不由存档定，由**主人在不在**定
+   * （doorsRuntime 每帧写）；`homeRect` 是他家的占地，"在屋里"按它判。
+   */
+  owner?: string;
+  homeRect?: { minX: number; maxX: number; minZ: number; maxZ: number };
+
   constructor(
     refId: DoorRefId,
     definition: DoorDefinition,
@@ -74,7 +81,9 @@ export class Door {
   }
 
   /** 每帧驱动。基类无自主行为，子类覆写 */
-  tick(_creatures: readonly CreatureProbe[]): void {}
+  tick(creatures: readonly CreatureProbe[]): void {
+    void creatures;
+  }
 
   /** 关着时挡不挡这个格子 */
   blocksCell(gx: number, gy: number): boolean {

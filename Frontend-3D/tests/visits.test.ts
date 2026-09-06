@@ -249,11 +249,11 @@ test("porch_只有规则写_送对了爱吃的家具摆门口_满了替换最早
   restoreBuildings([HOUSE]);
   const slime = parked(SLIME, "slime_neighbor");
   expect(placeOnPorch(SLIME)).toBeNull(); // 没送过什么
-  expect(placeOnPorch(SLIME, "furniture_cloud_lamp")).toBe("h1");
-  expect(placeOnPorch(SLIME, "furniture_stool")).toBe("h1");
+  expect(placeOnPorch(SLIME, "furniture_cloud_lamp")?.instanceId).toBe("h1");
+  expect(placeOnPorch(SLIME, "furniture_stool")?.instanceId).toBe("h1");
   expect(listPorch().h1.items).toEqual(["furniture_cloud_lamp", "furniture_stool"]);
-  // 两个位，第三件替换最早的
-  expect(placeOnPorch(SLIME, "furniture_cushion")).toBe("h1");
+  // 两个位，第三件替换最早的——被挤掉的那件一起报回来（08 进箱用）
+  expect(placeOnPorch(SLIME, "furniture_cushion")).toEqual({ instanceId: "h1", evicted: "furniture_cloud_lamp" });
   expect(listPorch().h1.items).toEqual(["furniture_stool", "furniture_cushion"]);
   // 同一件不摆两次
   placeOnPorch(SLIME, "furniture_cushion");
@@ -263,7 +263,8 @@ test("porch_只有规则写_送对了爱吃的家具摆门口_满了替换最早
   restorePorch(undefined);
   noteLovedGift(SLIME, "furniture_cloud_lamp");
   emit("story_signal", { kind: "resident_gift_loved", subject: "slime_neighbor" });
-  expect(listPorch().h1?.items).toEqual(["furniture_cloud_lamp"]);
+  // 08 起送对了先进屋（interior_place），门口是屋里挤出来的才摆——规则链见 interiors.test
+  expect(listPorch().h1).toBeUndefined();
   expect(slime.residentId).toBe(SLIME);
 });
 
@@ -285,5 +286,5 @@ test("porch_家人档那天挂门牌_存档往返_做客不写", () => {
   expect(getResident(SLIME)).toBeDefined();
 
   const migrated = migrateSave({ meta: { saveSchemaVersion: 40 }, ownWorld: { pets: {} } } as never);
-  expect(migrated.ok && migrated.save.meta.saveSchemaVersion).toBe(41);
+  expect(migrated.ok && migrated.save.meta.saveSchemaVersion).toBe(42);
 });

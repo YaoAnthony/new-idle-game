@@ -182,6 +182,8 @@ export type GameEvents = {
   residents_chatting: { key: string; a: string; b: string; active: boolean; reason?: string };
   /** 门口展示位 / 门牌变了（07）：BuildingsView 重摆、联机切片 */
   porch_changed: { reason: string };
+  /** 居民房室内槽位变了（08）：摆进去 / 挤到门口 / 进箱 / 读档 */
+  interiors_changed: { reason: string };
   /** 来访进度（07）：敲门 / 进屋 / 走了 */
   visit_changed: { residentId: string; phase: "knocking" | "inside" | "left"; reason?: string };
   /** 他站到门外开始敲了（07，`knock` 动词开始那一拍） */

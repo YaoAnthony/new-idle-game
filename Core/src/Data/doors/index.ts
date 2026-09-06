@@ -61,6 +61,28 @@ export const doorDefinitions: DoorDefinition[] = [
     },
     sounds: { open: "door_wood_open", close: "door_wood_close" },
   },
+  {
+    /*
+     * 居民房的门（居民系统 08）。一扇窄板门。
+     *
+     * 锁不是玩家拿钥匙开的：**主人在不在家**决定它锁不锁（doorsRuntime 每帧按主人位置写 locked，
+     * 存档里不存它的锁）。自动开半径给主人自己回家用——他走到门前门就开；玩家按 F 开。
+     * 自动开半径 1.0 比房门的 1.6 小：小屋前院就两米，太大路过也会碰开。
+     */
+    id: "resident_door",
+    visualId: "door_plank_small",
+    localizationKey: "door.resident_door",
+    leaves: 1,
+    lockable: true,
+    defaultLocked: false,
+    behavior: {
+      autoOpenRadius: 1.0,
+      autoCloseRadius: 1.9,
+      swingSpeed: 6,
+    },
+    lockedTextKey: "door.resident_locked",
+    sounds: { open: "door_wood_open", close: "door_wood_close" },
+  },
 ];
 
 export function findDoorDefinition(

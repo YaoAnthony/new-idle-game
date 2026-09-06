@@ -48,6 +48,11 @@ export function noteLovedGift(residentId: string, itemId: string): void {
   if (findItemDefinition(itemId)?.placement) lastLovedFurniture.set(residentId, itemId);
 }
 
+/** 送礼那一拍记的那件（interior_place 不带 itemId 时也用它，08） */
+export function lastLovedFurnitureOf(residentId: string): string | undefined {
+  return lastLovedFurniture.get(residentId);
+}
+
 function houseInstanceOf(residentId: string): { instanceId: string; buildingId: string; levelId: string } | undefined {
   const agent = getResidents().find((entry) => entry.residentId === residentId);
   const definitionId = agent?.definitionId ?? residentId.replace(/^resident-/, "");
@@ -56,8 +61,11 @@ function houseInstanceOf(residentId: string): { instanceId: string; buildingId: 
   return home ? { instanceId: home.instanceId, buildingId: home.buildingId, levelId: home.levelId } : undefined;
 }
 
-/** 摆一件到他门口。满了替换最早的。返回摆到了哪栋 */
-export function placeOnPorch(residentId: string, itemId?: string): string | null {
+/**
+ * 摆一件到他门口。满了替换最早的——被挤掉的那件一起返回（08 起挤掉的进他屋里的箱子）。
+ * 返回摆到了哪栋；摆不了（没房子 / 没展示位 / 做客中）返回 null。
+ */
+export function placeOnPorch(residentId: string, itemId?: string): { instanceId: string; evicted?: string } | null {
   if (isRemoteWorld()) return null;
   const chosen = itemId ?? lastLovedFurniture.get(residentId);
   if (!chosen || !findItemDefinition(chosen)) return null;
@@ -68,10 +76,12 @@ export function placeOnPorch(residentId: string, itemId?: string): string | null
   const entry = porch[house.instanceId] ?? { items: [] };
   const items = entry.items.filter((item): item is string => item !== null);
   // 同一件不摆两次；满了替换最早的
-  const next = [...items.filter((item) => item !== chosen), chosen].slice(-slots);
+  const queue = [...items.filter((item) => item !== chosen), chosen];
+  const next = queue.slice(-slots);
+  const evicted = queue.length > slots ? queue[0] : undefined;
   porch[house.instanceId] = { ...entry, items: next };
   emit("porch_changed", { reason: "place" });
-  return house.instanceId;
+  return evicted ? { instanceId: house.instanceId, evicted } : { instanceId: house.instanceId };
 }
 
 export function clearPorch(residentId: string): boolean {

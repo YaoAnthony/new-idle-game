@@ -66,6 +66,12 @@ export type DoorDefinition = {
   behavior?: DoorBehavior;
 
   /**
+   * 推锁着的门时说的话（08）。不填用通用的 `door.locked_feedback`。
+   * 居民房的门用它说"X 不在家"——文案里的 `{owner}` 由表现层换成这扇门主人的名字。
+   */
+  lockedTextKey?: string;
+
+  /**
    * 开合的声音。**挂在门种上**——木门吱呀、推拉门滑响、以后的铁门哐当，
    * 那是这一类门的材质决定的，不是某一扇门的属性。
    *

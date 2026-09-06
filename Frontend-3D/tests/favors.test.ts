@@ -230,13 +230,16 @@ test("favor_visit_me_窗口外按F不算_窗口里到门口才算", () => {
   offerFavor("spirit_invites_you");
   acceptFavor("spirit_invites_you");
   const door = { x: 4.5, z: 15 };
+  // 08 起要在他屋里（占地矩形内），站门口不算
+  const inside = { x: 4.5, z: 12.5 };
   // 当天下午不算（约的是明天）
   minute = 15 * 60;
-  expect(visitFavorFor("spirit_neighbor", door)).toBeNull();
+  expect(visitFavorFor("spirit_neighbor", inside)).toBeNull();
   clock = { worldDayId: "2026-09-07", phase: "day" };
-  expect(visitFavorFor("spirit_neighbor", { x: 20, z: 20 })).toBeNull(); // 没到门口
-  expect(visitFavorFor("spirit_neighbor", door)?.id).toBe("spirit_invites_you");
-  const done = favorSkill.interact!(ctx(spirit, door));
+  expect(visitFavorFor("spirit_neighbor", { x: 20, z: 20 })).toBeNull(); // 没到
+  expect(visitFavorFor("spirit_neighbor", door)).toBeNull(); // 站门口不算
+  expect(visitFavorFor("spirit_neighbor", inside)?.id).toBe("spirit_invites_you");
+  const done = favorSkill.interact!(ctx(spirit, inside));
   expect(done).toEqual({ kind: "dialogue", dialogueId: "favor_spirit_invites_you_done" });
   expect(listFavors()["spirit_invites_you"].state).toBe("done");
 });

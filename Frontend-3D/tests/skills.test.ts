@@ -175,6 +175,8 @@ test("skills_npc_do立即生效_哪怕他正在睡", () => {
 
 test("skills_关掉技能就不做_npc_skill_off", () => {
   const slime = parked("resident-a", "slime_neighbor");
+  // 作息按墙钟走（早上会去跑圈），这条验的是三个填充技能的开关
+  slime.setSkillEnabled("routine", false);
   slime.needs.hunger = 80;
   slime.needs.thirst = 80;
 
@@ -226,6 +228,8 @@ test("skills_where打印Intent来源_描述里有技能名和步骤", () => {
 
 test("skills_hide之后填充技能不再把他拉出来_直到show", () => {
   const slime = parked("resident-a", "slime_neighbor");
+  // 作息按墙钟走，早上那一段会把藏着的叫出来（那是它的本分）；这条验的是填充技能
+  slime.setSkillEnabled("routine", false);
   slime.needs.hunger = 80;
   slime.needs.thirst = 80;
 

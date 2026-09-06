@@ -8,11 +8,13 @@ import {
 } from "core";
 import { registerCommand, type CommandResult } from "../../CommandLine/commands";
 import { listBuildings } from "../../State/buildings";
+import { listDoors } from "../../State/doorsRuntime";
 import { getCount } from "../../State/inventory";
 import { getResidents } from "../../State/residentsRuntime";
 import { ACTION_VERBS, type ActionStep } from "../../State/actions";
 import type { ResidentAgent } from "../../State/residentAgent";
-import { getCurrentMap, getRoom } from "../../State/worldRuntime";
+import { getCurrentMap, getRoom, isWalkable } from "../../State/worldRuntime";
+import { findRoute } from "../navigation";
 import { isRemoteWorld } from "../../Multiplayer/worldLock";
 import { formatMinute } from "core";
 import { routinePlanOf } from "../../State/skills/routine";
@@ -26,10 +28,12 @@ import { completeFavor, describeFavors, expireFavor, listFavors, makeSick, offer
 import { describeRelations, forcePairTalk } from "./social";
 import { forceVisit, houseCommentKeysFor, houseSnapshot, playerIndoors, visitInProgress } from "./visits";
 import { clearPorch, listPorch, placeOnPorch, setNamePlate } from "./porch";
+import { clearInterior, listInteriors, placeInInterior } from "./interiors";
+import { homeSteps } from "../../State/skills/routine";
 import { evaluateHouseComments } from "core";
 import { listTalkCandidates, findTalkPool } from "core";
 import { evaluateCondition } from "../dialogue";
-import { describeSpots, homeDoorstepOf } from "./spots";
+import { describeSpots, homeSpotOf } from "./spots";
 import { debugSendToTown, listResidentTrips, tripPlanOf } from "./townTrips";
 import { listResidentSpecies } from "./moveIn";
 import { getPendingUnpack, presentItems } from "../unpack";
@@ -293,6 +297,18 @@ export function registerResidentCommands(): Array<() => void> {
         const agent = findAgent(args[0]);
         const verb = (args[1] ?? "").toLowerCase();
         if (agent && verb === "where") return ok(describeAgent(agent));
+        if (agent && verb === "route") {
+          // 调试：他从现在的位置到某点排不排得出路（08 验收抓室内进不去用）
+          const x = Number(args[2]);
+          const z = Number(args[3]);
+          if (!Number.isFinite(x) || !Number.isFinite(z)) return fail("用法：/npc <谁> route <x> <z>");
+          const route = findRoute({ x: agent.x, z: agent.z }, { x, z }, { radius: agent.radius });
+          const there = isWalkable(x, z, agent.radius, agent.residentId);
+          return ok([
+            `目标 (${x}, ${z}) 站得住：${there}；他的半径 ${agent.radius}`,
+            route ? `路 ${route.length} 点：${route.map(([px, pz]) => `(${px.toFixed(2)}, ${pz.toFixed(2)})`).join(" → ")}` : "排不出路",
+          ].join("\n"));
+        }
         if (agent && verb === "routine") {
           const info = routinePlanOf(agent);
           if (!info) return ok(`${agent.residentId} 没有性格（不是居民 / 访客），routine 不作声`);
@@ -307,16 +323,33 @@ export function registerResidentCommands(): Array<() => void> {
         }
         if (agent && verb === "home") {
           if (isRemoteWorld()) return fail("做客中不能指挥别人的邻居");
-          const door = homeDoorstepOf(agent.definitionId);
-          if (!door) return fail(`${agent.residentId} 没有房子`);
-          const near = Math.hypot(agent.x - door.x, agent.z - door.z) <= 1.2;
+          const steps = homeSteps(agent);
+          if (!steps) return fail(`${agent.residentId} 没有房子`);
+          const nest = homeSpotOf(agent.definitionId);
+          // 有室内（08）：走进去坐在窝上；没有：02 的老路 hide
+          steps.push(nest ? { verb: "sit", facing: { x: nest.faceX, z: nest.faceZ }, seconds: 3600 } : { verb: "hide" });
           agent.perform({
             skillId: COMMAND_SKILL_ID,
             priority: findSkillPriority(COMMAND_SKILL_ID)?.priority ?? 1000,
             interruptible: false,
-            steps: near ? [{ verb: "hide" }] : [{ verb: "walk_to", x: door.x, z: door.z }, { verb: "hide" }],
+            steps,
           });
-          return ok(`${agent.residentId} 回家`);
+          return ok(`${agent.residentId} 回家${nest ? "（进屋）" : ""}`);
+        }
+        if (agent && verb === "interior") {
+          const what = args[2] ?? "list";
+          if (what === "list") {
+            const rows = Object.entries(listInteriors()).map(([id, entry]) => `  ${id}：槽 ${JSON.stringify(entry.gifts)} 箱 ${JSON.stringify(entry.boxed)}`);
+            const nest = homeSpotOf(agent.definitionId);
+            return ok([`室内槽位：`, ...(rows.length ? rows : ["  （空）"]), nest ? `${agent.residentId} 的窝在 ${nest.x.toFixed(1)}, ${nest.z.toFixed(1)}` : `${agent.residentId} 的房子没有室内`].join("\n"));
+          }
+          if (isRemoteWorld()) return fail("做客中不能动别人的屋里");
+          if (what === "clear") return clearInterior(agent.residentId) ? ok("屋里清空了") : fail("屋里本来就是空的 / 没有室内");
+          const itemId = what === "place" ? args[3] ?? "" : what;
+          if (!findItemDefinition(itemId)) return fail(`没有这种物品：${itemId || "(空)"}`);
+          const placed = placeInInterior(agent.residentId, itemId);
+          if (!placed) return fail("摆不了（没有房子 / 不是家具）");
+          return ok(`${itemId} 摆到了 ${placed.instanceId} ${placed.where === "interior" ? "屋里" : "门口"}${placed.movedToPorch ? `，${placed.movedToPorch} 挪到门口` : ""}${placed.boxed ? `，${placed.boxed} 进箱` : ""}`);
         }
         if (agent && verb === "visit") {
           const why = forceVisit(agent.residentId);
@@ -328,7 +361,7 @@ export function registerResidentCommands(): Array<() => void> {
           if (what === "clear") return clearPorch(agent.residentId) ? ok("门口清空了") : fail("门口本来就是空的 / 没有房子");
           if (!findItemDefinition(what)) return fail(`没有这种物品：${what || "(空)"}`);
           const placed = placeOnPorch(agent.residentId, what);
-          return placed ? ok(`${what} 摆到了 ${placed} 门口`) : fail("摆不了（没有房子 / 没有展示位）");
+          return placed ? ok(`${what} 摆到了 ${placed.instanceId} 门口${placed.evicted ? `（挤掉 ${placed.evicted}）` : ""}`) : fail("摆不了（没有房子 / 没有展示位）");
         }
         if (agent && verb === "nameplate") {
           if (isRemoteWorld()) return fail("做客中不能动别人的门口");
@@ -472,6 +505,18 @@ export function registerResidentCommands(): Array<() => void> {
 
         return fail(`不认识的子命令：${sub}\n${USAGE}`);
       },
+    }),
+    registerCommand({
+      name: "doors",
+      usage: "doors",
+      description: "调试：场上每扇门的开合 / 锁 / 主人（08 居民房的门锁跟着主人走）",
+      arguments: [],
+      handler: () =>
+        ok(
+          listDoors()
+            .map((door) => `  ${door.refId}（${door.definition.id}）@ ${door.center.x.toFixed(1)}, ${door.center.z.toFixed(1)}：${door.open ? "开" : "关"}${door.locked ? "·锁" : ""}${door.owner ? ` 主人 ${door.owner}` : ""}`)
+            .join("\n") || "没有门",
+        ),
     }),
   ];
 }

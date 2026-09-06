@@ -16,6 +16,7 @@ import { signal } from "../../Systems/story";
 import {
   claimSpot,
   homeDoorstepOf,
+  homeSpotOf,
   nearestFreeSpot,
   releaseSpot,
   visitorEntryOf,
@@ -95,7 +96,21 @@ export function routinePlanOf(agent: ResidentAgent): { personality: ResolvedPers
 
 const ROAM_WALK_STATE = "wander" as const;
 
-function homeSteps(agent: ResidentAgent): ActionStep[] | null {
+/**
+ * 回家的几步（08 起两条路）：
+ * - 房子有室内 → **真的走进去**，走到窝那儿（A* 直接排到屋里；门是他自己家的，走到跟前自动开）。
+ *   藏着的（老档 / 老路）先 `show`。
+ * - 没有室内（l1 壳子、施工中）→ 02 的老路：走到门口，调用方再 `hide`。
+ * 指令 `/npc <谁> home` 也走它。
+ */
+export function homeSteps(agent: ResidentAgent): ActionStep[] | null {
+  const spot = homeSpotOf(agent.definitionId);
+  if (spot) {
+    const steps: ActionStep[] = [];
+    if (agent.state === "hidden") steps.push({ verb: "show" });
+    if (Math.hypot(agent.x - spot.x, agent.z - spot.z) > 0.35) steps.push({ verb: "walk_to", x: spot.x, z: spot.z });
+    return steps;
+  }
   const door = homeDoorstepOf(agent.definitionId);
   if (!door) return null;
   const steps: ActionStep[] = [];
@@ -176,12 +191,16 @@ export const routineSkill: Skill = {
       case "stay_home": {
         const steps = homeSteps(agent);
         if (!steps) return null;
-        if (!hidden) steps.push({ verb: "hide" });
-        steps.push(
-          plan.kind === "sleep_home"
-            ? { verb: "sleep", seconds: Math.max(60, secondsUntil(minuteOfDay, personality.wakeAt)) }
-            : { verb: "stand", seconds: 3600, state: "idle" },
-        );
+        const nest = homeSpotOf(agent.definitionId);
+        // 没有室内：进门 = hide（02）；有室内：人已经在窝那儿，睡 / 坐着待
+        if (!nest && !hidden) steps.push({ verb: "hide" });
+        if (plan.kind === "sleep_home") {
+          steps.push({ verb: "sleep", seconds: Math.max(60, secondsUntil(minuteOfDay, personality.wakeAt)) });
+        } else if (nest) {
+          steps.push({ verb: "sit", facing: { x: nest.faceX, z: nest.faceZ }, seconds: 3600 });
+        } else {
+          steps.push({ verb: "stand", seconds: 3600, state: "idle" });
+        }
         // 睡着了不该被 approach 叫起来；指令仍能
         intent = intentOf(agent, steps, { interruptible: plan.kind !== "sleep_home", idleAfter: 0.5 });
         break;
@@ -212,6 +231,14 @@ export const routineSkill: Skill = {
         break;
       }
       case "hang_home": {
+        const nest = homeSpotOf(agent.definitionId);
+        if (nest) {
+          // 08：有室内 = 在屋里的窝上坐一会儿，起来让 wander 转一圈（圆心是家），再回来坐
+          const steps = homeSteps(agent) ?? [];
+          steps.push({ verb: "sit", facing: { x: nest.faceX, z: nest.faceZ }, seconds: 600 + Math.random() * 600 });
+          intent = intentOf(agent, steps, { idleAfter: 20 + Math.random() * 40 });
+          break;
+        }
         // 门口转圈是 wander 的事（圆心就是家门口）。藏着的先出来
         if (!hidden) return null;
         intent = intentOf(agent, [{ verb: "show" }, { verb: "gesture", gestureId: "stretch" }], { idleAfter: 0.5 });

@@ -103,6 +103,7 @@ import {
 import { getDayFacts, restoreDayFacts } from "../../Game/Systems/dayRecord";
 import { restoreFavors, snapshotFavors } from "../../Game/Systems/residents/favors";
 import { restorePorch, snapshotPorch } from "../../Game/Systems/residents/porch";
+import { restoreInteriors, snapshotInteriors } from "../../Game/Systems/residents/interiors";
 import { restoreResidentTrips, snapshotResidentTrips } from "../../Game/Systems/residents/townTrips";
 import { SAVE_SCHEMA_VERSION } from "./types";
 
@@ -225,6 +226,7 @@ export function serializeGameSave(previous?: GameSave): GameSave {
       residentTrips: snapshotResidentTrips(),
       favors: snapshotFavors(),
       porch: snapshotPorch(),
+      interiors: snapshotInteriors(),
       travelerStock: snapshotTravelerStock(),
       newspaper: snapshotNewspaper(),
 
@@ -392,6 +394,7 @@ export function hydrateGameSave(save: GameSave): void {
   restoreResidentTrips(save.ownWorld.residentTrips);
   restoreFavors(save.ownWorld.favors);
   restorePorch(save.ownWorld.porch);
+  restoreInteriors(save.ownWorld.interiors);
   restoreTravelerStock(save.ownWorld.travelerStock);
   restoreNewspaper(save.ownWorld.newspaper);
 

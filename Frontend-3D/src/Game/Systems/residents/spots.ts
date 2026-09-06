@@ -3,16 +3,19 @@ import {
   findPlaceableItem,
   findResidentDefinition,
   findResidentOfHouse,
+  findResidentInterior,
   findSpotDefinition,
   footprintCells,
   residentIdOf,
   roomCellToWorld,
   type BuildingPlacement,
+  type ResidentInteriorDefinition,
   type SpotKind,
 } from "core";
 import { findBuilding, findBuildingLevel } from "../../../Buildings/index";
-import { listBuildings } from "../../State/buildings";
+import { listBuildings, rectOf } from "../../State/buildings";
 import { getClock } from "../../State/clock";
+import { getLocalParticipant } from "../../State/participants";
 import { getResidents } from "../../State/residentsRuntime";
 import { allPlots } from "../../State/territory";
 import { getCurrentMap, getRoom, getWorld, isIndoors } from "../../State/worldRuntime";
@@ -82,8 +85,18 @@ export function doorstepOf(placement: Pick<BuildingPlacement, "buildingId" | "x"
   const level = findBuildingLevel(placement.buildingId, placement.levelId ?? definition?.levels[0]?.levelId ?? "l1");
   const depth = level?.footprint.height ?? 3;
   const local = level?.doorstep ?? [definition?.doorOffset ?? 0, depth / 2 + 1];
-  const [lx, lz] = local;
-  // 本地 +z 转到世界：north = 不转（+z 朝北的约定同 moveIn 原来的 OUT 表）
+  return buildingLocalToWorld(placement, local[0], local[1]);
+}
+
+/**
+ * 型号本地 (lx, lz) → 世界。本地 +z 是正面；north = 不转（+z 朝北的约定同 moveIn 原来的 OUT 表）。
+ * 门口、门口展示位、室内槽位、窝的位置都走它——旋转只算这一处。
+ */
+export function buildingLocalToWorld(
+  placement: Pick<BuildingPlacement, "x" | "z" | "facing">,
+  lx: number,
+  lz: number,
+): { x: number; z: number } {
   switch (placement.facing) {
     case Facing.South:
       return { x: placement.x - lx, z: placement.z - lz };
@@ -111,10 +124,52 @@ export function homeDoorstepOf(definitionId: string): { x: number; z: number } |
 }
 
 /**
- * 在家 = 藏着（进了屋）且在自家门口两米内。窗灯、门锁（08）、来访条件（07）
- * 都读这一个判定；木偶也有 hidden 和位置，两端算出来一样。
+ * 他家的室内（居民系统 08）：房子在场、建好了、这一级有内景、表里有这栋的陈设 → 一份。
+ * 三样缺一样就是"没有室内"（l1 小屋壳子、还在施工），回家退回 02 的 hide。
+ */
+export function homeInteriorOf(definitionId: string): { placement: BuildingPlacement; interior: ResidentInteriorDefinition } | undefined {
+  const placement = homeOf(definitionId);
+  if (!placement || placement.construction) return undefined;
+  const level = findBuildingLevel(placement.buildingId, placement.levelId);
+  if (!level?.interior) return undefined;
+  const interior = findResidentInterior(placement.buildingId);
+  return interior ? { placement, interior } : undefined;
+}
+
+/**
+ * 这个点在不在他屋里。按**占地矩形**判而不是查地面归属：无头用例里房子摆在主屋里，
+ * 地面表会答主屋；矩形对两端、对用例都是同一个答案。门口台阶在矩形外，站门口不算在家。
+ */
+export function insideHomeOf(definitionId: string, x: number, z: number): boolean {
+  const home = homeInteriorOf(definitionId);
+  if (!home) return false;
+  const rect = rectOf(home.placement);
+  return x >= rect.minX && x <= rect.maxX && z >= rect.minZ && z <= rect.maxZ;
+}
+
+/** 他在家待的地方（窝）的世界坐标 + 面朝哪。没有室内就没有 */
+export function homeSpotOf(definitionId: string): { x: number; z: number; faceX: number; faceZ: number } | undefined {
+  const home = homeInteriorOf(definitionId);
+  if (!home) return undefined;
+  const { homeSpot } = home.interior;
+  const at = buildingLocalToWorld(home.placement, homeSpot.x, homeSpot.z);
+  const face = buildingLocalToWorld(home.placement, homeSpot.faceX, homeSpot.faceZ);
+  return { x: at.x, z: at.z, faceX: face.x, faceZ: face.z };
+}
+
+/** 玩家此刻站在他屋里（08：屋内闲聊、visit_me 在屋里完成、门不锁） */
+export function playerInHomeOf(definitionId: string): boolean {
+  const { transform } = getLocalParticipant();
+  return insideHomeOf(definitionId, transform.x, transform.y);
+}
+
+/**
+ * 在家 = **真的在屋里**（位置在自家占地里，08 起回家是走进去），或者藏着且在门口两米内
+ * （02 的老路，留给没有室内的房子）。窗灯、门锁（08）、来访条件（07）都读这一个判定；
+ * 木偶也有位置，两端算出来一样。
  */
 export function isAtHome(resident: { definitionId: string; state: string; x: number; z: number }): boolean {
+  if (insideHomeOf(resident.definitionId, resident.x, resident.z)) return true;
   if (resident.state !== "hidden") return false;
   const doorstep = homeDoorstepOf(resident.definitionId);
   if (!doorstep) return false;

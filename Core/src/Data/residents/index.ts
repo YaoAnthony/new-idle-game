@@ -9,6 +9,7 @@ export * from "./favors.js";
 export * from "./relations.js";
 export * from "./visits.js";
 export * from "./talk/pairs.js";
+export * from "./interiors.js";
 
 import {
   CreatureRole,

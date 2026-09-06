@@ -62,7 +62,9 @@ export type DialogueCondition =
    * 另一位昨天发生过某种事实（昨日事实的头条：resident_town_trip / favor_done …）。
    * 房客读不到房主的 dayRecord → 做客时一律 false，那些段落不出现（可接受的降级）。
    */
-  | { kind: "neighbor_fact_yesterday"; residentId: ResidentDefinitionId; fact: string };
+  | { kind: "neighbor_fact_yesterday"; residentId: ResidentDefinitionId; fact: string }
+  /** 玩家此刻站在**这位**的屋里（08）。屋内闲聊段用它；和 `neighbor_present` 一样按对话对象求值 */
+  | { kind: "player_in_my_home" };
 
 export type DialogueChoice = {
   choiceId: DialogueChoiceId;

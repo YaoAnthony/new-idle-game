@@ -2,6 +2,7 @@ import { findTalkPool, pickTalkEntry } from "core";
 import { evaluateCondition } from "../../Systems/dialogue";
 import { talkClock } from "../../Systems/residents/talk";
 import { signal } from "../../Systems/story";
+import { insideHomeOf } from "../../Systems/residents/spots";
 import { resolvedPersonalityOf } from "./routine";
 import type { Skill } from "./types";
 
@@ -25,6 +26,8 @@ export const greetSkill: Skill = {
     if (!personality) return;
     const distance = Math.hypot(player.x - agent.x, player.z - agent.z);
     if (distance > personality.greetDistance) return;
+    // 08：他在屋里你在院子里（或反过来）——隔着墙不打招呼
+    if (insideHomeOf(agent.definitionId, agent.x, agent.z) !== insideHomeOf(agent.definitionId, player.x, player.z)) return;
 
     const { worldDayId, phase } = talkClock();
     if (agent.lastGreetPhase === phase) return;

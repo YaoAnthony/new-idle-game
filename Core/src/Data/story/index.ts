@@ -41,9 +41,9 @@ export const storyRules: StoryRule[] = [
     effects: [
       { kind: "adjust_affection", residentId: residentIdOf(favor.residentId), source: "favor" },
       ...(favor.reward ? [{ kind: "grant_items" as const, localizationKey: "loot.favor_reward", items: favor.reward.items }] : []),
-      // 07：find 要的家具做完摆到他门口（"咕噜门口的地上摆着你送他的云朵灯"）
+      // 07 / 08：find 要的家具做完摆进他屋里（有室内），没有室内就摆门口——同一个效果，执行时判
       ...(favor.kind === "find" && favor.wants?.itemId.startsWith("furniture_")
-        ? [{ kind: "porch_place" as const, residentId: residentIdOf(favor.residentId), itemId: favor.wants.itemId }]
+        ? [{ kind: "interior_place" as const, residentId: residentIdOf(favor.residentId), itemId: favor.wants.itemId }]
         : []),
       ...(favor.onDone ?? []),
     ],
@@ -88,10 +88,11 @@ export const storyRules: StoryRule[] = [
       ],
     },
     {
+      // 08 起：有室内先进屋（满了挪到门口），没有室内退回门口
       id: `porch_gift_${who}`,
       once: false,
       triggers: [{ signal: "resident_gift_loved", subject: who }],
-      effects: [{ kind: "porch_place", residentId: residentIdOf(who) }],
+      effects: [{ kind: "interior_place", residentId: residentIdOf(who) }],
     },
     {
       id: `porch_nameplate_${who}`,

@@ -1,3 +1,4 @@
+import { affectionFromSave } from "core";
 import {
   Facing,
   PlacementSurface,
@@ -1420,6 +1421,25 @@ export const migrations: Migration[] = [
   {
     to: 38,
     migrate: (save) => save,
+  },
+
+  /*
+   * v39 · 居民系统 04：`ResidentSave.affection`（隐藏好感分）。老档没有分，只有档位——
+   * 按当前档位的下限补，和读档兜底用的是同一个函数（affectionFromSave），两边不会走散。
+   * playerNickname / catchphrase / lastGreetDayId 是可选字段，不用补。
+   */
+  {
+    to: 39,
+    migrate: (save) => {
+      const pets = save.ownWorld?.pets;
+      if (!pets) return save;
+      for (const entry of Object.values(pets)) {
+        if (entry && typeof entry === "object" && entry.affection === undefined) {
+          entry.affection = affectionFromSave(undefined, entry.affectionStage);
+        }
+      }
+      return save;
+    },
   },
 ];
 

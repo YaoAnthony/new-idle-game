@@ -85,6 +85,39 @@ function legacyItem(furnitureId: string) {
   return findItemDefinition(LEGACY_FURNITURE_ID[furnitureId] ?? furnitureId);
 }
 
+/**
+ * 按 cottageL1Interior() 重写主屋（living）的室内布置：内墙 / 门洞 / 分区 / 高台，删掉洗手间那扇门的状态，
+ * 落在台阶格上的家具收回背包（不删——丢东西是 P0）。v47、v48 都走它；下一次改户型再加一条 `to`，一行调用。
+ */
+function rewriteCottageInterior(save: GameSave): GameSave {
+  const living = save.ownWorld?.maps?.base?.rooms?.living;
+  if (!living) return save;
+  const interior = cottageL1Interior();
+  living.interiorWalls = interior.interiorWalls;
+  living.interiorDoorways = interior.interiorDoorways;
+  living.zones = interior.zones;
+  living.platforms = interior.platforms;
+  if (save.ownWorld.doors) save.ownWorld.doors = save.ownWorld.doors.filter((door) => door.refId !== "doorway-bath");
+
+  const stairCells = new Set(interior.platforms.flatMap((platform) => (platform.stairs ? [`${platform.stairs.cell.x},${platform.stairs.cell.y}`] : [])));
+  const kept: typeof save.ownWorld.placedFurniture = [];
+  for (const placed of save.ownWorld.placedFurniture ?? []) {
+    const placement = placed.placement;
+    const onStairs =
+      placement.kind === PlacementSurface.Floor &&
+      placement.roomId === "living" &&
+      footprintCells(placement.gridPosition, findPlaceableItem(placed.furnitureId)?.placement.footprint ?? { width: 1, height: 1 }, placement.facing)
+        .some((cell) => stairCells.has(`${cell.x},${cell.y}`));
+    if (!onStairs) {
+      kept.push(placed);
+      continue;
+    }
+    save.player.character.inventory.push({ stackId: `migrated-${placed.instanceId}`, itemId: placed.furnitureId, quantity: 1 });
+  }
+  save.ownWorld.placedFurniture = kept;
+  return save;
+}
+
 export const migrations: Migration[] = [
   // v2（2026-07-29 镜头改为锁定屋内）：墙高 3→4、北墙窗洞 2×1→2×2。
   // 房间几何是实存的（不在加载时重新生成），所以旧存档要在这里补齐。
@@ -1534,36 +1567,18 @@ export const migrations: Migration[] = [
    */
   {
     to: 47,
-    migrate: (save) => {
-      const living = save.ownWorld?.maps?.base?.rooms?.living;
-      if (!living) return save;
-      const interior = cottageL1Interior();
-      living.interiorWalls = interior.interiorWalls;
-      living.interiorDoorways = interior.interiorDoorways;
-      living.zones = interior.zones;
-      living.platforms = interior.platforms;
-      if (save.ownWorld.doors) save.ownWorld.doors = save.ownWorld.doors.filter((door) => door.refId !== "doorway-bath");
-
-      const stairCells = new Set(interior.platforms.flatMap((platform) => (platform.stairs ? [`${platform.stairs.cell.x},${platform.stairs.cell.y}`] : [])));
-      const kept: typeof save.ownWorld.placedFurniture = [];
-      for (const placed of save.ownWorld.placedFurniture ?? []) {
-        const placement = placed.placement;
-        const onStairs =
-          placement.kind === PlacementSurface.Floor &&
-          placement.roomId === "living" &&
-          footprintCells(placement.gridPosition, findPlaceableItem(placed.furnitureId)?.placement.footprint ?? { width: 1, height: 1 }, placement.facing)
-            .some((cell) => stairCells.has(`${cell.x},${cell.y}`));
-        if (!onStairs) {
-          kept.push(placed);
-          continue;
-        }
-        save.player.character.inventory.push({ stackId: `migrated-${placed.instanceId}`, itemId: placed.furnitureId, quantity: 1 });
-      }
-      save.ownWorld.placedFurniture = kept;
-      return save;
-    },
+    migrate: (save) => rewriteCottageInterior(save),
+  },
+  /*
+   * v48 · 石台 3×4 → 4×4（用户看过第一版要更大）。和 v47 同一条路：按 cottageL1Interior() 重写 living 的高台，
+   * 落在新台阶格上的家具收回背包（台阶格没变，实际不会有）。抽成 rewriteCottageInterior 让下一次改户型只加一行。
+   */
+  {
+    to: 48,
+    migrate: (save) => rewriteCottageInterior(save),
   },
 ];
+
 
 /**
  * v36 的实例 id 映射。**写死**：老短名和 definitionId 对不上，而且迁移表

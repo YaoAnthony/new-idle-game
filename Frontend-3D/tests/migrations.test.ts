@@ -418,3 +418,39 @@ describe("v46：个人剧情线——小镇补解锁、已搬来的三位补阶�
     expect(Object.keys(result.save.ownWorld.progression.events)).toEqual([]);
   });
 });
+
+describe("v47/v48：主屋户型重写——洗手间没了、石台 4×4、台阶格上的家具收回背包", () => {
+  test("老档 living 带着洗手间的墙和门 → 墙门清空、石台 4×4、那扇门的状态删掉、台阶格上的椅子进背包", () => {
+    const save = saveAtVersion(46, (draft) => {
+      draft.ownWorld.maps = {
+        base: {
+          mapId: "base",
+          rooms: {
+            living: {
+              roomId: "living", floorGrid: { width: 9, height: 12 }, walls: {}, floor: 0,
+              interiorWalls: [{ from: { x: 3, y: 0 }, axis: "y", length: 3 }],
+              interiorDoorways: [{ doorwayId: "doorway-bath", cell: { x: 1, y: 3 }, axis: "x", span: 1, doorId: "room_door_single" }],
+              zones: [{ zoneId: "bath", kind: "bath", rect: { x: 0, y: 0, width: 3, height: 3 } }],
+            } as never,
+          },
+        },
+      };
+      draft.ownWorld.doors = [{ refId: "doorway-bath", definitionId: "room_door_single", locked: false }, { refId: "south-door", definitionId: "front_door", locked: false }];
+      draft.ownWorld.placedFurniture = [
+        { instanceId: "c1", furnitureId: "furniture_chair", placement: { kind: "floor", roomId: "living", gridPosition: { x: 1, y: 3 }, facing: "north" } } as never,
+        { instanceId: "c2", furnitureId: "furniture_chair", placement: { kind: "floor", roomId: "living", gridPosition: { x: 5, y: 8 }, facing: "north" } } as never,
+      ];
+    });
+    const result = migrateSave(save);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const living = result.save.ownWorld.maps.base.rooms.living;
+    expect(living.interiorWalls).toEqual([]);
+    expect(living.interiorDoorways).toEqual([]);
+    expect(living.zones?.some((zone) => zone.kind === "bath")).toBe(false);
+    expect(living.platforms?.[0].rect).toEqual({ x: 0, y: 0, width: 4, height: 4 });
+    expect(result.save.ownWorld.doors?.map((door) => door.refId)).toEqual(["south-door"]);
+    expect(result.save.ownWorld.placedFurniture.map((placed) => placed.instanceId)).toEqual(["c2"]);
+    expect(result.save.player.character.inventory.some((stack) => stack.itemId === "furniture_chair")).toBe(true);
+  });
+});

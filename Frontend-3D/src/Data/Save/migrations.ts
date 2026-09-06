@@ -23,6 +23,8 @@ import { INVENTORY_SIZE } from "../../Game/State/inventory";
 import { FURNITURE_ID_KIND } from "../../Game/State/worldRuntime";
 import { LOCAL_PLAYER_ID } from "../../Game/State/participants";
 import { SAVE_SCHEMA_VERSION } from "./types";
+import { cottageL1Interior } from "../../Maps/base/layout";
+import { footprintCells } from "core";
 
 /**
  * v19 给老 id 补的发号方前缀。老档里的东西全产自本机，所以是 local。
@@ -1520,6 +1522,44 @@ export const migrations: Migration[] = [
       if (present.has("slime_neighbor")) put("arc_slime", favors.slime_wants_lamp?.state === "done" ? "lamp_lit" : "settled");
       if (present.has("fox_neighbor")) put("arc_fox", "delivered_to_town");
       if (present.has("spirit_neighbor")) put("arc_spirit", "settled");
+      return save;
+    },
+  },
+
+  /*
+   * v47 · 主屋户型：洗手间拆了，左上角 3×4 改成膝盖高的石台，原门洞那格做两节台阶（用户 2026-09-06 定）。
+   * 户型存在 RoomSave 里，所以老档的 `living` 要按新布局重写内墙 / 门洞 / 分区 / 高台——读的是生成器同一份
+   * `cottageL1Interior()`，两边不会各写一套。那扇房门的状态跟着删。台阶格能走不能摆：落在那一格上的家具
+   * **收回背包**（不删——丢东西是 P0），别的家具原地不动（台面上的自然落到台面高度，地面家具的 y 本来就问脚下的承托面）。
+   */
+  {
+    to: 47,
+    migrate: (save) => {
+      const living = save.ownWorld?.maps?.base?.rooms?.living;
+      if (!living) return save;
+      const interior = cottageL1Interior();
+      living.interiorWalls = interior.interiorWalls;
+      living.interiorDoorways = interior.interiorDoorways;
+      living.zones = interior.zones;
+      living.platforms = interior.platforms;
+      if (save.ownWorld.doors) save.ownWorld.doors = save.ownWorld.doors.filter((door) => door.refId !== "doorway-bath");
+
+      const stairCells = new Set(interior.platforms.flatMap((platform) => (platform.stairs ? [`${platform.stairs.cell.x},${platform.stairs.cell.y}`] : [])));
+      const kept: typeof save.ownWorld.placedFurniture = [];
+      for (const placed of save.ownWorld.placedFurniture ?? []) {
+        const placement = placed.placement;
+        const onStairs =
+          placement.kind === PlacementSurface.Floor &&
+          placement.roomId === "living" &&
+          footprintCells(placement.gridPosition, findPlaceableItem(placed.furnitureId)?.placement.footprint ?? { width: 1, height: 1 }, placement.facing)
+            .some((cell) => stairCells.has(`${cell.x},${cell.y}`));
+        if (!onStairs) {
+          kept.push(placed);
+          continue;
+        }
+        save.player.character.inventory.push({ stackId: `migrated-${placed.instanceId}`, itemId: placed.furnitureId, quantity: 1 });
+      }
+      save.ownWorld.placedFurniture = kept;
       return save;
     },
   },

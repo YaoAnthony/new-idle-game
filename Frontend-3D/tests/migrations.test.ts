@@ -389,3 +389,32 @@ describe("v36：活物实例 id pet-* → resident-<definitionId>，四处一起
   });
 });
 
+
+describe("v46：个人剧情线——小镇补解锁、已搬来的三位补阶段", () => {
+  test("老档：小镇通着、咕噜的灯做完了 → town_travel + arc_slime=lamp_lit + arc_fox=delivered_to_town", () => {
+    const save = saveAtVersion(45, (draft) => {
+      draft.ownWorld.pets = {
+        "resident-slime_neighbor": { residentId: "resident-slime_neighbor", definitionId: "slime_neighbor" } as never,
+        "resident-fox_neighbor": { residentId: "resident-fox_neighbor", definitionId: "fox_neighbor" } as never,
+      };
+      draft.ownWorld.favors = { slime_wants_lamp: { residentId: "slime_neighbor", offeredDayId: "2026-08-10", expiresDayId: "2026-08-17", state: "done" } };
+    });
+    const result = migrateSave(save);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const progression = result.save.ownWorld.progression;
+    expect(progression.unlockedFeatureIds).toContain("town_travel");
+    expect(progression.events.arc_slime?.currentStageId).toBe("lamp_lit");
+    expect(progression.events.arc_fox?.currentStageId).toBe("delivered_to_town");
+    expect(progression.events.arc_spirit).toBeUndefined();
+    expect(progression.events.arc_slime?.firstTriggeredWorldDayId).toBe("2026-08-12");
+  });
+
+  test("没人搬来的老档只补小镇，不立任何线", () => {
+    const result = migrateSave(saveAtVersion(45));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.save.ownWorld.progression.unlockedFeatureIds).toEqual(["town_travel"]);
+    expect(Object.keys(result.save.ownWorld.progression.events)).toEqual([]);
+  });
+});

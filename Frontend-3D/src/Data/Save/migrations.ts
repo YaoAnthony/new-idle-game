@@ -1488,6 +1488,41 @@ export const migrations: Migration[] = [
     to: 45,
     migrate: (save) => save,
   },
+
+  /*
+   * v46 · 居民系统 13：个人剧情线。存档**形状不变**（三条线用现有的 progression.events），要补的是**语义**：
+   * - 小镇从此由阿茜第二幕的委托解锁（桥头出入口挂 `requiresFeature: town_travel`）。老档一直是开着的，
+   *   不补这一条的话读档回来桥就走不过去了——已经开的东西不能因为规则改了就收回；
+   * - 三条线的第一幕由 `resident_moved_in` 立阶段，老档里已经搬进来的三位那个信号早发过了，
+   *   不补就永远停在"没开始"。搬进来的补 settled；阿茜在老档里小镇本来就通，直接补到 delivered_to_town
+   *   （第二幕"你第一次因此过桥"对老档没意义）；咕噜的灯委托要是老档里做完了，补到 lamp_lit。
+   * 阶段的起始日期用档里最后观察到的世界日——迁移没有"今天"。
+   */
+  {
+    to: 46,
+    migrate: (save) => {
+      // 用例里有只带一半形状的档；没有 progression 的没什么可补
+      const progression = save.ownWorld?.progression;
+      if (!progression) return save;
+      progression.events ??= {};
+      const features = new Set(progression.unlockedFeatureIds ?? []);
+      features.add("town_travel");
+      progression.unlockedFeatureIds = [...features];
+
+      const dayId = save.ownWorld.clock?.lastObservedWorldDayId ?? "";
+      const nowIso = new Date().toISOString();
+      const present = new Set(Object.values(save.ownWorld.pets ?? {}).map((entry) => entry.definitionId));
+      const favors = save.ownWorld.favors ?? {};
+      const put = (eventId: string, stageId: string) => {
+        if (progression.events[eventId]) return;
+        progression.events[eventId] = { currentStageId: stageId, status: "active", firstTriggeredAtUtc: nowIso, firstTriggeredWorldDayId: dayId };
+      };
+      if (present.has("slime_neighbor")) put("arc_slime", favors.slime_wants_lamp?.state === "done" ? "lamp_lit" : "settled");
+      if (present.has("fox_neighbor")) put("arc_fox", "delivered_to_town");
+      if (present.has("spirit_neighbor")) put("arc_spirit", "settled");
+      return save;
+    },
+  },
 ];
 
 /**

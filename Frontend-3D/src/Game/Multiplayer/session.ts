@@ -637,7 +637,7 @@ function startKeyframePump(): void {
     if (state.kind !== "hosting") return;
     const frames = snapshotResidentKeyframes();
     const changed = frames.filter((frame) => {
-      const key = `${frame.x.toFixed(1)}|${frame.z.toFixed(1)}|${frame.heading.toFixed(2)}|${frame.verb ?? ""}|${frame.flavor ?? ""}|${frame.hidden ? 1 : 0}|${frame.speaking ?? ""}`;
+      const key = `${frame.x.toFixed(1)}|${frame.z.toFixed(1)}|${frame.heading.toFixed(2)}|${frame.verb ?? ""}|${frame.flavor ?? ""}|${frame.hidden ? 1 : 0}|${frame.speaking ?? ""}|${frame.heldProp ?? ""}`;
       const seen = lastKeyframes.get(frame.id);
       if (seen === key) return false;
       lastKeyframes.set(frame.id, key);

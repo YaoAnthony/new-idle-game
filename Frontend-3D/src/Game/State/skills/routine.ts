@@ -23,6 +23,7 @@ import {
   type Spot,
 } from "../../Systems/residents/spots";
 import { leaveForTown } from "../../Systems/residents/townTrips";
+import { activityAt } from "../../Systems/residents/activities";
 import { isSickOn } from "../../Systems/residents/favors";
 import { routineOverrideFor } from "../../Systems/residents/birthday";
 import { priorityOf, type ResidentAgent } from "../residentAgent";
@@ -139,24 +140,25 @@ function intentOf(agent: ResidentAgent, steps: ActionStep[], extra: Partial<Inte
   };
 }
 
-function visitIntent(agent: ResidentAgent, spot: Spot, plan: Extract<RoutinePlan, { kind: "visit" }>): Intent | null {
+/**
+ * 去场所做事。到了做什么**查活动表**（12）：按爱好 / 天气 / 场所空不空抽一个，动词序列和手里的道具都来自表；
+ * 表里没有这种场所能做的事（不该发生，表有用例守着）才退回"站着看看"。
+ * 12 之前这里是一串 if（椅子坐一小时、井边打水、店门口看货）——那就是活动表的第一版，只是写在代码里。
+ */
+function visitIntent(agent: ResidentAgent, spot: Spot, plan: Extract<RoutinePlan, { kind: "visit" }>, hobbies: readonly string[]): Intent | null {
   const stand = agent.findSpotNear(spot.x, spot.z, spot.reach + agent.radius);
   if (!stand) return null;
   const facing = { x: spot.faceX, z: spot.faceZ };
   const steps: ActionStep[] = [{ verb: "walk_to", x: stand.x, z: stand.z, speedScale: plan.speedScale, state: ROAM_WALK_STATE }];
-  if (spot.kind === "seat") {
-    steps.push({ verb: "sit", facing, seconds: 3600 });
-  } else if (spot.kind === "water") {
-    steps.push({ verb: "stand", seconds: 6, facing, flavor: "drawing" });
-    steps.push({ verb: "stand", seconds: 20 + Math.random() * 40, facing });
-  } else if (spot.kind === "shop") {
-    // 货架上有货 → 站得久一倍
-    steps.push({ verb: "stand", seconds: (40 + Math.random() * 40) * (spot.stocked ? 2 : 1), facing, flavor: "browsing" });
+  const picked = activityAt(agent, spot, { hobbies, worldDayId: clockSource().worldDayId, weatherKind: weatherSource() });
+  if (picked) {
+    steps.push(...picked.steps);
   } else {
     steps.push({ verb: "stand", seconds: 30 + Math.random() * 30, facing, flavor: "browsing" });
   }
   return intentOf(agent, steps, {
     idleAfter: 2,
+    prop: picked?.activity.prop ?? undefined,
     onArrive: () => {
       if (!claimSpot(spot.key, agent.residentId)) return false;
       signal("resident_used_spot", spot.kind);
@@ -254,7 +256,7 @@ export const routineSkill: Skill = {
           intent = intentOf(agent, [{ verb: "show" }], { idleAfter: 0.5 });
           break;
         }
-        const visit = visitIntent(agent, spot, plan);
+        const visit = visitIntent(agent, spot, plan, personality.hobbies);
         if (!visit) return null;
         if (hidden) visit.steps.unshift({ verb: "show" });
         intent = visit;

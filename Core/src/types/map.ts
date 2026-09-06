@@ -507,6 +507,9 @@ export type MapDefinition = {
    */
   visitorEntry?: { x: number; y: number; heading: number };
 
+  /** 水面标高（世界 y，居民系统 12）：地形低于它的格子是水，水边的陆地 = 河岸场所（shore） */
+  waterLevelY?: number;
+
   /**
    * 这张图的几何是**内容不是状态**：每次进图都重新生成，存档里那份
    * 直接忽略。

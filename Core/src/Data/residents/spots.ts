@@ -18,7 +18,9 @@ export type SpotSource =
   /** 领地地标（旧井这类地块布景） */
   | { kind: "landmark"; landmarkId: string }
   /** 别的居民的房门口 */
-  | { kind: "resident_home" };
+  | { kind: "resident_home" }
+  /** 河岸：地形里水边一格的陆地（居民系统 12）。运行时从地形和水面标高推 */
+  | { kind: "terrain_shore" };
 
 export type SpotDefinition = {
   kind: SpotKind;
@@ -55,6 +57,18 @@ export const spotDefinitions = [
     kind: "neighbor_door",
     sources: [{ kind: "resident_home" }],
     reach: 1.2,
+  },
+  // 12：河岸（看水）、工作台（在你**院子里**的工作台前敲敲打打——屋里的不算：没被请进门的居民不进你家；
+  // 玩家正在用的那张让开，在运行时判）
+  {
+    kind: "shore",
+    sources: [{ kind: "terrain_shore" }],
+    reach: 1.0,
+  },
+  {
+    kind: "workbench",
+    sources: [{ kind: "furniture_capability", capability: FurnitureCapability.Crafting, outdoor: true }],
+    reach: 1.0,
   },
 ] as const satisfies readonly SpotDefinition[];
 

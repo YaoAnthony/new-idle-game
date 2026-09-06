@@ -74,6 +74,7 @@ export function toWire(intent: Intent): WireIntent {
     interruptible: intent.interruptible,
     lockAfterLastWalk: intent.lockAfterLastWalk,
     idleAfter: intent.idleAfter,
+    prop: intent.prop,
   };
 }
 

@@ -36,6 +36,7 @@ export type ResolvedPersonality = {
   napSeconds: [number, number];
   rainSpeedScale: number;
   greetDistance: number;
+  hobbies: readonly string[];
 };
 
 export function resolvePersonality(definition: PersonalityDefinition): ResolvedPersonality {
@@ -57,6 +58,7 @@ export function resolvePersonality(definition: PersonalityDefinition): ResolvedP
     roamRadius: definition.roamRadius,
     napSeconds: definition.napSeconds,
     rainSpeedScale: definition.rainSpeedScale,
+    hobbies: definition.hobbies ?? [],
   };
 }
 

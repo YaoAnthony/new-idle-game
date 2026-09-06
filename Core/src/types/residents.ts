@@ -415,6 +415,11 @@ export type ResidentWireIntent = {
   interruptible: boolean;
   lockAfterLastWalk?: boolean;
   idleAfter?: number;
+  /**
+   * 做这件事时手里拿的道具（居民系统 12，VisualId）。整条 Intent 期间举着，做完 / 被抢就放下。
+   * 进网线：房客照样拿；不进存档——读档重新决策就有了。
+   */
+  prop?: string;
 };
 
 /**
@@ -441,7 +446,7 @@ export type ResidentKeyframe = {
 export type PersonalityId = string;
 
 /** 场所种类。表在 `Data/residents/spots.ts`——哪种东西算哪种场所 */
-export type SpotKind = "seat" | "water" | "shop" | "consign" | "neighbor_door";
+export type SpotKind = "seat" | "water" | "shop" | "consign" | "neighbor_door" | "shore" | "workbench";
 
 export type RoutineSegment = {
   /** "HH:MM"，世界时区的本地钟点 */
@@ -476,6 +481,8 @@ export type PersonalityDefinition = {
   rainSpeedScale: number;
   /** 走到多近他先开口打招呼（米）。03 的 greet 技能读 */
   greetDistance: number;
+  /** 爱好（居民系统 12）：活动表按它加权（匹配 ×3）。没填 = 什么都随缘 */
+  hobbies?: readonly string[];
   /** 合口味的天气：那天早上心情 +（04 的 moodTuning） */
   likesWeather?: readonly string[];
 };

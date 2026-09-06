@@ -7,6 +7,7 @@ import {
   FLOOR_LEVEL,
   baseHeightfield,
   TERRAIN_BOUNDS,
+  WATER_LEVEL_Y,
 } from "./terrain.js";
 
 /**
@@ -86,6 +87,8 @@ export const baseMapDefinition: MapDefinition = {
    * 是为水写的，拦住人的就是地形本身。
    */
   terrainHeightfield: baseHeightfield,
+  // 水面标高（居民系统 12）：河岸场所 = 地形里水边一格的陆地，从这里和高度场推，不另画一张岸线
+  waterLevelY: WATER_LEVEL_Y,
 
   /*
    * **围墙拆了**（期 1 的 T12），所以这里没有 outdoorBlockers 了。

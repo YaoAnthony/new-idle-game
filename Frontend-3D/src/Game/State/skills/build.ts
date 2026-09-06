@@ -54,6 +54,21 @@ function workIntent(agent: ResidentAgent, instanceId: string, spot: { x: number;
       );
       if (mine) releaseSite(instanceId);
     },
+    /*
+     * 收工没活了就地打个盹（12）。傀儡没挂 nap 技能（nap 靠 sleepiness 掷骰，傀儡是 0），
+     * 之前完工后只是杵着发呆——"干完活歇一会"比"干完活立正"像活物。用 nap 的优先级：
+     * 队里再来一块工地，build（80）照样把他叫醒。
+     */
+    onDone: () => {
+      if (listSites().some((item) => !item.construction?.workerId || item.construction.workerId === agent.residentId)) return;
+      agent.perform({
+        skillId: "nap",
+        priority: priorityOf("nap"),
+        interruptible: true,
+        steps: [{ verb: "gesture", gestureId: "stretch" }, { verb: "stand", seconds: 2, flavor: "resting" }, { verb: "sleep", seconds: 60 + Math.random() * 60 }],
+        idleAfter: 3,
+      });
+    },
   };
 }
 

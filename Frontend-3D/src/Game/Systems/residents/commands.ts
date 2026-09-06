@@ -41,7 +41,8 @@ import { homeSteps } from "../../State/skills/routine";
 import { evaluateHouseComments } from "core";
 import { listTalkCandidates, findTalkPool } from "core";
 import { evaluateCondition } from "../dialogue";
-import { describeSpots, homeSpotOf } from "./spots";
+import { describeSpots, homeSpotOf, nearestFreeSpot, type Spot } from "./spots";
+import { activityDefinitions, activitySteps, findActivityDefinition } from "core";
 import { debugSendToTown, listResidentTrips, returnFromTown, tripPlanOf } from "./townTrips";
 import { currentVisitor, describeVisitor, leaveVisitor, spawnVisitor, visitorCandidatesNow } from "./visitors";
 import { debugTrip, describeTripPlan, tripPlanOf as multiDayPlanOf } from "./trips";
@@ -177,7 +178,7 @@ function describeAgent(agent: ResidentAgent): string {
   return [
     `${agent.residentId}（${agent.definitionId}）`,
     `  位置 ${agent.x.toFixed(1)}, ${agent.z.toFixed(1)} 朝向 ${agent.heading.toFixed(2)} 驻地 ${agent.homeX.toFixed(1)}, ${agent.homeZ.toFixed(1)}`,
-    `  状态 ${agent.state}${agent.moving ? "（走路中）" : ""}`,
+    `  状态 ${agent.state}${agent.moving ? "（走路中）" : ""}  手里 ${agent.heldProp ?? "空"}`,
     intent
       ? `  Intent 来自 ${intent.skillId}（优先级 ${intent.priority}${intent.interruptible ? "，可打断" : "，不可打断"}）第 ${agent.currentStepIndex + 1}/${intent.steps.length} 步：${step ? JSON.stringify(step) : "-"}`
       : `  没有 Intent，${agent.idleTimer.toFixed(1)} 秒后再问技能`,
@@ -328,6 +329,17 @@ export function registerResidentCommands(): Array<() => void> {
           const rows = describeSpots();
           return ok(rows.length ? ["场所：", ...rows].join("\n") : "现在一个场所都没有（没有室外椅子、店、井）");
         }
+        if (sub === "activities") {
+          // 12：活动表 + 每位的爱好
+          const rows = activityDefinitions.map((activity) =>
+            `  ${activity.id.padEnd(12)} ${String(activity.spot).padEnd(14)} ${activity.hobby.padEnd(10)} ${(activity.prop ?? "-").padEnd(14)} ×${activity.weight ?? 1}${activity.weather ? `  天气 ${activity.weather.join("/")}` : ""}${activity.requiresSpotIdle ? "  要空着" : ""}`,
+          );
+          const hobbies = getResidents()
+            .map((resident) => ({ resident, info: routinePlanOf(resident) }))
+            .filter((entry) => entry.info)
+            .map((entry) => `  ${entry.resident.residentId}：${entry.info!.personality.hobbies.join(" / ") || "（没有爱好）"}`);
+          return ok(["活动表：  id / 场所 / 爱好 / 道具 / 权重", ...rows, "爱好：", ...hobbies].join("\n"));
+        }
 
         // ---- /npc <谁> do|skill|skills|where|routine|home|town ----
         const agent = findAgent(args[0]);
@@ -344,6 +356,37 @@ export function registerResidentCommands(): Array<() => void> {
             `目标 (${x}, ${z}) 站得住：${there}；他的半径 ${agent.radius}`,
             route ? `路 ${route.length} 点：${route.map(([px, pz]) => `(${px.toFixed(2)}, ${pz.toFixed(2)})`).join(" → ")}` : "排不出路",
           ].join("\n"));
+        }
+        if (agent && verb === "prop") {
+          // 12：手里换个道具看（走天气道具那条：跨 Intent、进屋自动放下）
+          const id = args[2] ?? "";
+          agent.weatherProp = !id || id.toLowerCase() === "none" ? null : id;
+          return ok(`${agent.residentId} 手里：${agent.heldProp ?? "空"}${agent.weatherProp && !agent.heldProp ? "（在屋里 / 藏着，没举）" : ""}`);
+        }
+        if (agent && verb === "activity") {
+          // 12：立刻去做某个活动（有场所的先走到最近的那个）
+          if (isRemoteWorld()) return fail("做客中不能指挥别人的邻居");
+          const activity = findActivityDefinition(args[2] ?? "");
+          if (!activity) return fail(`没有这种活动：${args[2] ?? "(空)"}。可选：${activityDefinitions.map((entry) => entry.id).join(" / ")}`);
+          const steps: ActionStep[] = [];
+          let spot: Spot | null = null;
+          if (activity.spot !== "any") {
+            spot = nearestFreeSpot(activity.spot, { x: agent.x, z: agent.z, residentId: agent.residentId });
+            if (!spot) return fail(`没有空着的 ${activity.spot} 场所（/npc spots 看）`);
+            const stand = agent.findSpotNear(spot.x, spot.z, spot.reach + agent.radius);
+            if (!stand) return fail(`到 ${spot.key} 排不出路`);
+            steps.push({ verb: "walk_to", x: stand.x, z: stand.z });
+          }
+          const facing = spot ? { x: spot.faceX, z: spot.faceZ } : { x: agent.x + Math.sin(agent.heading), z: agent.z + Math.cos(agent.heading) };
+          steps.push(...activitySteps(activity, `${agent.residentId}|debug|${Date.now()}`, facing));
+          agent.perform({
+            skillId: COMMAND_SKILL_ID,
+            priority: findSkillPriority(COMMAND_SKILL_ID)?.priority ?? 1000,
+            interruptible: false,
+            steps,
+            prop: activity.prop ?? undefined,
+          });
+          return ok(`${agent.residentId} 去做 ${activity.id}${spot ? `（${spot.key}）` : "（就地）"}，手里 ${activity.prop ?? "空"}：${steps.map((step) => step.verb).join(" → ")}`);
         }
         if (agent && verb === "routine") {
           const info = routinePlanOf(agent);

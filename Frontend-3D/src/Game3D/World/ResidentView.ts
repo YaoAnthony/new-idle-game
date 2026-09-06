@@ -1,5 +1,5 @@
 import { findResidentDefinition } from "core";
-import { Box3, Object3D } from "three";
+import { Box3, Object3D, Vector3 } from "three";
 import { on } from "../../Game/EventBus";
 import { getResident, getResidents } from "../../Game/State/residentsRuntime";
 import { groundHeightAt } from "../../Game/State/worldRuntime";
@@ -114,6 +114,37 @@ export class ResidentView {
 
   private lastDelta = 0;
 
+  /**
+   * 手里的道具（居民系统 12）：`heldProp` 是 VisualId，查同一张注册表挂到模型上。
+   * 挂点**按身体尺寸算**（右手边、半身高、略靠前），不去模型里找"手"这个节点——三种居民的骨架
+   * 各不相同，找节点等于让这里记住每种模型的命名。道具随身高缩放：傀儡的锤子该比小团子的杯子大。
+   * 模型的 animate 只动子节点、不动 root，所以挂在 root 上的道具不会被拉伸。
+   */
+  private syncProp(view: Object3D, propId: string | null): void {
+    const current = (view.userData.propId as string | undefined) ?? null;
+    if (current === propId) return;
+    const old = view.userData.propNode as Object3D | undefined;
+    if (old) {
+      view.remove(old);
+      disposeTree(old);
+    }
+    view.userData.propId = propId ?? undefined;
+    view.userData.propNode = undefined;
+    if (!propId) return;
+    const prop = buildVisual(propId);
+    if (!prop) return;
+    let size = view.userData.bodySize as Vector3 | undefined;
+    if (!size) {
+      size = new Box3().setFromObject(view).getSize(new Vector3());
+      view.userData.bodySize = size;
+    }
+    const scale = Math.min(1.6, Math.max(0.6, size.y));
+    prop.scale.setScalar(scale);
+    prop.position.set(size.x * 0.42, size.y * 0.5, size.z * 0.3);
+    view.add(prop);
+    view.userData.propNode = prop;
+  }
+
   update(deltaSeconds: number): void {
     this.lastDelta = deltaSeconds;
     this.elapsed += deltaSeconds;
@@ -147,6 +178,8 @@ export class ResidentView {
        */
       view.visible = resident.state !== "hidden";
       if (!view.visible) continue;
+
+      this.syncProp(view, resident.heldProp);
 
       // 脚下的承托面（缘侧那类室外平台）。溜达到廊子上的猫要站在板上，
       // 不是陷进去半截——和玩家读的是同一个地形高度

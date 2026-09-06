@@ -103,6 +103,7 @@ import {
   buildWoodenTable,
 } from "./recipes/woodenFurniture.js";
 import { buildDumbbell, buildWorkbench } from "./recipes/workbench.js";
+import { buildPropBook, buildPropBucket, buildPropCup, buildPropHammer, buildPropUmbrella } from "./recipes/props.js";
 
 /**
  * visualId → 几何体。
@@ -151,6 +152,12 @@ const REGISTRY: Record<string, VisualEntry> = {
   round_rug: { kind: "procedural", build: buildRoundRug },
   ordinary_workbench: { kind: "procedural", build: buildWorkbench },
   dumbbell: { kind: "procedural", build: buildDumbbell },
+  // 居民手里的道具（居民系统 12）：活动表 / 天气表里的 prop 字段就是这些 id。占位几何，待参考图
+  prop_book: { kind: "procedural", build: buildPropBook },
+  prop_cup: { kind: "procedural", build: buildPropCup },
+  prop_bucket: { kind: "procedural", build: buildPropBucket },
+  prop_hammer: { kind: "procedural", build: buildPropHammer },
+  prop_umbrella: { kind: "procedural", build: buildPropUmbrella },
   bedroll: { kind: "procedural", build: buildBedroll },
 
   // 生活感扩充

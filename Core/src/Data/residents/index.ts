@@ -15,6 +15,7 @@ export * from "./trips.js";
 export * from "./letters.js";
 export * from "./birthday.js";
 export * from "./decorations.js";
+export * from "./activities.js";
 
 import {
   CreatureRole,

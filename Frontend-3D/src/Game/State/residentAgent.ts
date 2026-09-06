@@ -25,6 +25,7 @@ import {
   getCurrentMap,
   getCurrentMapId,
   getWorld,
+  isIndoors,
   isWalkable,
   withPhasing,
   removeCreatureObstacle,
@@ -215,6 +216,12 @@ export class ResidentAgent {
 
   private current: Intent | null = null;
   private run: StepRun | null = null;
+  /**
+   * 天气道具（居民系统 12）：雨天照常出门的那位举伞。**不是 Intent 的一部分**——伞跨越好几条 Intent，
+   * 由 `weatherProps` 系统按天气写；进了屋（isIndoors）不举。木偶不用它：关键帧直接给 heldProp
+   */
+  weatherProp: string | null = null;
+  private puppetProp: string | null = null;
   private clock = 0;
   /** 这只活过了多少秒（tick 累加）。技能做节流用（reactions 十秒一次） */
   get elapsedSeconds(): number {
@@ -329,6 +336,18 @@ export class ResidentAgent {
   }
 
   /** 正在做的事（只读视图）。指令 `/npc where` 和技能的 ctx 读它 */
+  /**
+   * 手里拿着的道具（VisualId，居民系统 12）。做事的道具跟着 Intent 走（做完 / 被抢自动放下），
+   * 伞跟着天气走；藏着的（在屋里）什么都不举。表现层每帧读它挂模型，不进存档。
+   */
+  get heldProp(): string | null {
+    if (this.puppet) return this.puppetProp;
+    if (this.state === "hidden") return null;
+    if (this.current?.prop) return this.current.prop;
+    if (this.weatherProp && !isIndoors(this.x, this.z)) return this.weatherProp;
+    return null;
+  }
+
   get currentIntent(): Intent | null {
     return this.current;
   }
@@ -819,6 +838,7 @@ export class ResidentAgent {
       expression: this.expression?.id,
       // 只带居民之间说的（06）；对玩家说的不同步（03）
       speaking: this.speech?.pair ? this.speech.localizationKey : undefined,
+      heldProp: this.heldProp ?? undefined,
     };
   }
 
@@ -829,6 +849,8 @@ export class ResidentAgent {
    */
   applyKeyframe(frame: ResidentKeyframe): void {
     if (!Number.isFinite(frame.x) || !Number.isFinite(frame.z)) return;
+    // 手里的道具跟着房主（12）：木偶不重算天气和活动，照抄
+    this.puppetProp = frame.heldProp ?? null;
     const distance = Math.hypot(frame.x - this.x, frame.z - this.z);
     if (distance > 3) {
       this.x = frame.x;

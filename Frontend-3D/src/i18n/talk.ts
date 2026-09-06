@@ -453,6 +453,7 @@ export const TALK_ZH: Record<string, string> = {
 
   // ==== 07 · 来访与门口 ====
   "talk.common.knock": "叩叩……",
+  "talk.common.hum": "♪～♪",
   "talk.common.visit_cut": "……你出去了？那我先回去了。",
   "talk.common.boxed": "放不下了……旧的那个我收进箱子里。",
   "talk.common.moved_to_porch": "屋里摆不下了，旧的那个我搬到门口去。",

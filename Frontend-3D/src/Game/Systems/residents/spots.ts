@@ -9,6 +9,8 @@ import {
   residentIdOf,
   roomCellToWorld,
   type BuildingPlacement,
+  sampleHeightfield,
+  SPOT_KINDS,
   type ResidentInteriorDefinition,
   type SpotKind,
 } from "core";
@@ -18,7 +20,7 @@ import { getClock } from "../../State/clock";
 import { getLocalParticipant } from "../../State/participants";
 import { getResidents } from "../../State/residentsRuntime";
 import { allPlots } from "../../State/territory";
-import { getCurrentMap, getRoom, getWorld, isIndoors } from "../../State/worldRuntime";
+import { getCurrentMap, getRoom, getWorld, isIndoors, isWalkable } from "../../State/worldRuntime";
 
 /**
  * 场所解析（居民系统 02）：把 Core 的场所表翻成**当前世界里的坐标**。
@@ -271,6 +273,14 @@ export function resolveSpots(kind: SpotKind, exclude: { residentId?: string; sco
         }
         break;
       }
+      case "terrain_shore": {
+        for (const shore of shoreCandidates()) {
+          // 候选是从地形推的、一张图一次；站不站得住（家具挪过来了、地块没开）每次现判
+          if (!isWalkable(shore.x, shore.z, 0.5)) continue;
+          spots.push({ key: `shore:${shore.x}:${shore.z}`, kind, x: shore.x, z: shore.z, faceX: shore.faceX, faceZ: shore.faceZ, reach: definition.reach });
+        }
+        break;
+      }
       case "resident_home": {
         for (const placement of listBuildings()) {
           const owner = findResidentOfHouse(placement.buildingId);
@@ -294,6 +304,40 @@ export function resolveSpots(kind: SpotKind, exclude: { residentId?: string; sco
     }
   }
   return scoped(spots);
+}
+
+/**
+ * 河岸候选（居民系统 12）：地形高度场里"脚下是岸、三米外是水"的点，每 4 米取一个，朝水。
+ * 一张图算一次缓存起来——高度场是烤死的，不会变；能不能站过去（地块、家具）在解析时另判。
+ * 没有 waterLevelY / 高度场的图（室内）没有河岸。
+ */
+const SHORE_STRIDE = 4;
+const SHORE_LOOK = 3;
+const shoreCache = new Map<string, Array<{ x: number; z: number; faceX: number; faceZ: number }>>();
+export function shoreCandidates(): Array<{ x: number; z: number; faceX: number; faceZ: number }> {
+  const map = getCurrentMap();
+  const cached = shoreCache.get(map.mapId);
+  if (cached) return cached;
+  const list: Array<{ x: number; z: number; faceX: number; faceZ: number }> = [];
+  const field = map.terrainHeightfield;
+  const water = map.waterLevelY;
+  if (field && water !== undefined) {
+    const maxX = field.originX + (field.columns - 1) * field.spacing;
+    const maxZ = field.originZ + (field.rows - 1) * field.spacing;
+    for (let z = field.originZ; z <= maxZ; z += SHORE_STRIDE) {
+      for (let x = field.originX; x <= maxX; x += SHORE_STRIDE) {
+        // 脚下得是岸顶（高出水面不止一道岸壁），不是岸壁半腰
+        if (sampleHeightfield(field, x, z) < water + 3) continue;
+        for (const [dx, dz] of [[SHORE_LOOK, 0], [-SHORE_LOOK, 0], [0, SHORE_LOOK], [0, -SHORE_LOOK]]) {
+          if (sampleHeightfield(field, x + dx, z + dz) >= water) continue;
+          list.push({ x, z, faceX: x + dx, faceZ: z + dz });
+          break;
+        }
+      }
+    }
+  }
+  shoreCache.set(map.mapId, list);
+  return list;
 }
 
 /** 货架上有没有货。店铺的货架就是它的储物库存（期 5 定的），只认前几格 */
@@ -340,9 +384,8 @@ export function visitorEntryOf(mapId: string, maps: ReadonlyArray<{ mapId: strin
 
 /** 调试：全部场所和占用 */
 export function describeSpots(): string[] {
-  const kinds: SpotKind[] = ["seat", "water", "shop", "consign", "neighbor_door"];
   const lines: string[] = [];
-  for (const kind of kinds) {
+  for (const kind of SPOT_KINDS) {
     for (const spot of resolveSpots(kind)) {
       const holder = occupied.get(spot.key);
       lines.push(`  ${kind}  ${spot.key}  (${spot.x.toFixed(1)}, ${spot.z.toFixed(1)})${spot.stocked ? "  有货" : ""}${holder ? `  ← ${holder}` : ""}`);

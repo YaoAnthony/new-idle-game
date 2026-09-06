@@ -125,6 +125,7 @@ export function useDiaryData(): DiaryData {
       on("diary_changed", () => bump((n) => n + 1)),
       on("action_changed", () => bump((n) => n + 1)),
       on("world_day_changed", () => bump((n) => n + 1)),
+      on("favors_changed", () => bump((n) => n + 1)),
     ];
     return () => offs.forEach((off) => off());
   }, []);

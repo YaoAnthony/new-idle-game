@@ -22,6 +22,7 @@ import { talkText } from "./talk";
 import { describeAffection, gainAffection, setAffection } from "./affection";
 import { giveResidentPresent } from "./presents";
 import { setResidentAddress } from "./naming";
+import { completeFavor, describeFavors, expireFavor, listFavors, makeSick, offerFavor, acceptFavor } from "./favors";
 import { describeSpots, homeDoorstepOf } from "./spots";
 import { debugSendToTown, listResidentTrips, tripPlanOf } from "./townTrips";
 import { listResidentSpecies } from "./moveIn";
@@ -79,6 +80,9 @@ const USAGE = [
   "/npc <谁> mood [=N] —— 看 / 调心情",
   "/npc <谁> nickname <文字> / catchphrase <文字> —— 直接改他叫你的昵称 / 他的口头禅（空 = 清掉）",
   "/npc <谁> present —— 立即触发一次「他送你东西」（走过来 → 对话 → 领取面板）",
+  "/npc favor list —— 全部委托定义 + 当前状态 + 今天为什么没提出",
+  "/npc favor offer|accept|done|expire <favorId> —— 立即提出 / 跳到接受 / 完成 / 过期",
+  "/npc <谁> sick [天数] —— 让他病倒（整天在家、窗灯白天也亮）",
   "/npc spots          —— 当前世界解析出的全部场所和占用",
 ].join("\n");
 
@@ -234,6 +238,25 @@ export function registerResidentCommands(): Array<() => void> {
           return ok(`${name} 托人送来了图纸。放到地上、盖好，他就搬来`);
         }
 
+        if (sub === "favor") {
+          const op = (args[1] ?? "list").toLowerCase();
+          if (op === "list") return ok(["委托：", ...describeFavors()].join("\n"));
+          if (isRemoteWorld()) return fail("做客中不能动别人的委托");
+          const favorId = args[2] ?? "";
+          if (op === "offer") {
+            const result = offerFavor(favorId);
+            return result === "offered" ? ok(`${favorId} 提出来了`) : fail(`没提成：${result}`);
+          }
+          if (op === "accept") return acceptFavor(favorId) ? ok(`${favorId} 接下了`) : fail("接不了（不是 offered）");
+          if (op === "done") {
+            if (listFavors()[favorId]?.state === "offered") acceptFavor(favorId);
+            const dialogueId = completeFavor(favorId);
+            return dialogueId ? ok(`${favorId} 做完了，该播 ${dialogueId}`) : fail("完不成（不是 accepted，或者背包里没有他要的）");
+          }
+          if (op === "expire") return expireFavor(favorId) ? ok(`${favorId} 过期了`) : fail("没有挂着的这一条");
+          return fail("用法：favor list | offer|accept|done|expire <favorId>");
+        }
+
         if (sub === "spots") {
           const rows = describeSpots();
           return ok(rows.length ? ["场所：", ...rows].join("\n") : "现在一个场所都没有（没有室外椅子、店、井）");
@@ -267,6 +290,11 @@ export function registerResidentCommands(): Array<() => void> {
             steps: near ? [{ verb: "hide" }] : [{ verb: "walk_to", x: door.x, z: door.z }, { verb: "hide" }],
           });
           return ok(`${agent.residentId} 回家`);
+        }
+        if (agent && verb === "sick") {
+          if (isRemoteWorld()) return fail("做客中不能指挥别人的邻居");
+          makeSick(agent, Math.max(1, Number(args[2] ?? 3) || 3));
+          return ok(`${agent.residentId} 病到 ${agent.sickUntilDayId}`);
         }
         if (agent && verb === "affection") {
           const arg = args[2];

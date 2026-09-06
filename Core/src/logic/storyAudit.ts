@@ -16,6 +16,8 @@ import { findPersonality } from "../Data/residents/personalities.js";
 import type { DialogueCondition } from "../types/dialogue.js";
 import type { ReactionDefinition } from "../types/talk.js";
 import { affectionTuning } from "../Data/economy/index.js";
+import { favorDefinitions, findFavorDefinition } from "../Data/residents/favors.js";
+import type { FavorDefinition } from "../types/favors.js";
 import { findStoryPool, storyRules, tutorialDefinition } from "../Data/story/index.js";
 import { weatherDefinitions } from "../Data/weather/index.js";
 import type { StoryTrigger } from "../types/story.js";
@@ -166,6 +168,38 @@ function auditTalk(checkText: (where: string, key: string) => void): string[] {
       if (entry.weight !== undefined && entry.weight <= 0) problems.push(`${where}：权重不是正数，永远抽不到`);
       walk(where, entry.when);
     }
+  }
+  return problems;
+}
+
+/** 委托表（05）：对话、物品、居民、前提都要真的存在；deliver 要有信物和收件人 */
+function auditFavors(checkText: (where: string, key: string) => void): string[] {
+  const problems: string[] = [];
+  const seen = new Set<string>();
+  for (const favor of favorDefinitions as readonly FavorDefinition[]) {
+    const where = `委托 ${favor.id}`;
+    if (seen.has(favor.id)) problems.push(`${where}：id 重复`);
+    seen.add(favor.id);
+    if (!findResidentDefinition(favor.residentId)) problems.push(`${where}：委托人 "${favor.residentId}" 不存在`);
+    checkText(where, favor.displayKey);
+    for (const dialogueId of [favor.offerDialogueId, favor.doneDialogueId, favor.receiveDialogueId]) {
+      if (dialogueId && !findDialogueDefinition(dialogueId)) problems.push(`${where}：对话 "${dialogueId}" 不存在`);
+    }
+    if (favor.kind === "deliver") {
+      if (!favor.token || !findItemDefinition(favor.token.itemId)) problems.push(`${where}：deliver 没有信物或信物不是真物品`);
+      else if (!findItemDefinition(favor.token.itemId)?.favorToken) problems.push(`${where}：信物 "${favor.token.itemId}" 没标 favorToken，会被丢 / 卖掉`);
+      if (!favor.to || !findResidentDefinition(favor.to)) problems.push(`${where}：deliver 的收件人不存在`);
+      if (!favor.receiveDialogueId) problems.push(`${where}：deliver 没有收件人的对话`);
+    } else if (favor.kind === "visit_me") {
+      if (!favor.window) problems.push(`${where}：visit_me 没有窗口`);
+    } else if (!favor.wants || !findItemDefinition(favor.wants.itemId)) {
+      problems.push(`${where}：${favor.kind} 要的东西不是真物品`);
+    }
+    for (const entry of favor.reward?.items ?? []) {
+      if (!findItemDefinition(entry.itemId)) problems.push(`${where}：奖励 "${entry.itemId}" 不是真物品`);
+    }
+    for (const condition of favor.requires ?? []) problems.push(...auditCondition(where, condition));
+    if (favor.expiresDays <= 0) problems.push(`${where}：expiresDays 得是正数`);
   }
   return problems;
 }
@@ -490,6 +524,19 @@ export function auditStoryContent(options: AuditOptions = {}): string[] {
           }
           break;
 
+        case "favor_decline":
+          if (!findFavorDefinition(effect.favorId)) problems.push(`${where}：favor_decline 指向不存在的委托 "${effect.favorId}"`);
+          break;
+
+        case "grant_items":
+          checkText(where, effect.localizationKey);
+          if (effect.items.length === 0) problems.push(`${where}：grant_items 一件都没给`);
+          for (const entry of effect.items) {
+            if (!findItemDefinition(entry.itemId)) problems.push(`${where}：grant_items 指向不存在的物品 "${entry.itemId}"`);
+            if (entry.quantity <= 0) problems.push(`${where}：grant_items 的数量应该大于 0`);
+          }
+          break;
+
         default:
           break;
       }
@@ -498,6 +545,7 @@ export function auditStoryContent(options: AuditOptions = {}): string[] {
 
   problems.push(...auditEventDefinitions(eventDefinitions, checkText));
   problems.push(...auditTalk(checkText));
+  problems.push(...auditFavors(checkText));
 
   for (const step of tutorialDefinition.steps) {
     const where = `教程步骤 ${step.stepId}`;

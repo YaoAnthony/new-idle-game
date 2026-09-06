@@ -5,6 +5,7 @@ export * from "./expressions.js";
 export * from "./reactions.js";
 export * from "./talk/index.js";
 export * from "./address.js";
+export * from "./favors.js";
 
 import {
   CreatureRole,
@@ -392,4 +393,6 @@ export function findResidentTaste(definitionId: string): ResidentTaste | undefin
 export const RESIDENT_FACT_KINDS = {
   townTrip: "resident_town_trip",
   stayedIn: "resident_stayed_in",
+  /** 做完了一件委托（05）。subject 是委托人的实例 id，报纸用名字说"咕噜终于拿到了灯" */
+  favorDone: "favor_done",
 } as const;

@@ -40,6 +40,7 @@ import {
 } from "../../Data/Save";
 import { SAVE_SCHEMA_VERSION } from "../../Data/Save/types";
 import { emit, on } from "../EventBus";
+import { restoreFavors, snapshotFavors } from "../Systems/residents/favors";
 import { snapshotAvatar } from "../State/avatar";
 import { pushChatMessage, pushSystemMessage } from "../State/chatLog";
 import { restoreClock, snapshotClock } from "../State/clock";
@@ -471,6 +472,8 @@ function applyWorldRefresh(event: WorldRefreshEvent): void {
   if (slices.clock) restoreClock(slices.clock);
   // 活物（协议 v8）：对账不重建——正在走的路、正在做的动词都保住
   if (slices.pets) reconcileResidents(slices.pets);
+  // 委托状态表（协议 v9）：房客只读——画"！"用
+  if (slices.favors !== undefined) restoreFavors(slices.favors);
 }
 
 // ---- 房主端：世界变了就整片刷给全房 ----
@@ -508,6 +511,8 @@ function startHostRefreshWatch(): void {
       unlockedFeatureIds: [...getUnlockedFeatures()],
       // 活物（协议 v8）：谁在场、在哪。房客拿它对账生灭
       pets: snapshotResidents(),
+      // 委托（协议 v9，居民系统 05）：房客要看到谁头顶挂着"！"
+      favors: snapshotFavors() ?? {},
     });
   };
 
@@ -536,6 +541,8 @@ function startHostRefreshWatch(): void {
     // 那些由 op 和关键帧管
     on("resident_changed", ({ reason }) =>
       ["spawn", "removed", "seeded", "restored", "entered"].includes(reason) && schedule()),
+    // 委托状态表变了（05）：房客那边的"！"要跟着挂上 / 摘掉
+    on("favors_changed", () => schedule()),
   ];
   stopRefreshWatch = () => {
     for (const off of offs) off();

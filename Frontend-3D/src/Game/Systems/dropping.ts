@@ -1,3 +1,4 @@
+import { findItemDefinition } from "core";
 import { roomIdAt } from "../State/worldRuntime";
 import { guardWorldMutation } from "../Multiplayer/worldLock";
 import {
@@ -46,6 +47,8 @@ export function throwHeldItem(from: {
   if (guardWorldMutation()) return false;
   const stack = getSelectedStack();
   if (!stack) return false;
+  // 05：委托的信物不能扔——扔了就永远交不出去
+  if (findItemDefinition(stack.itemId)?.favorToken) return false;
 
   // 先把要扔的那一份抄下来再扣——扣完 getSelectedStack 就变了
   const thrown = {

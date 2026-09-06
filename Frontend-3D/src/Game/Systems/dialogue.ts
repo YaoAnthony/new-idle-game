@@ -209,7 +209,9 @@ export function giveItem(ref: SlotRef): GiftResult | null {
   if (!request || !active?.residentId) return null;
 
   const result = offerGift(active.residentId, ref);
-  if (result.ok) enterNode(request.onTierNodeId[result.tier]);
+  // 05：交的是委托要的东西——换成道谢那段，不走口味四档
+  if (result.ok && result.favorDialogueId) startDialogue(result.favorDialogueId, active.residentId);
+  else if (result.ok) enterNode(request.onTierNodeId[result.tier]);
   return result;
 }
 

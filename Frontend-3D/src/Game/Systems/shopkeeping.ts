@@ -93,7 +93,9 @@ export function findShop(): string | null {
  * 一共能花多少"摆出来，玩家自己看得出哪件是摆着好看的。
  */
 export function canShelve(itemId: string): boolean {
-  return Boolean(findItemDefinition(itemId)?.placement);
+  const definition = findItemDefinition(itemId);
+  // 05：委托的信物不上架也不寄售（寄售复用这一条）
+  return Boolean(definition?.placement) && !definition?.favorToken;
 }
 
 /** 今天有哪些客人。**函数不是数组**：以后加小镇散客是往这儿加来源 */

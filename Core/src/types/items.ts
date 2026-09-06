@@ -124,6 +124,12 @@ export type ItemDefinition = {
   golemPart?: "head";
 
   /**
+   * 委托的信物（居民系统 05）："阿茜的小包"这类。**不可丢、不可上架、不可寄售**——
+   * 三个出口都查这一个字段；过期时运行时从背包收回。
+   */
+  favorToken?: true;
+
+  /**
    * **一张图纸**：拿在手上按 F 就进入选址，落下去开工。
    *
    * 和 placement / seed / golemPart 同一个路数：能力块而不是新类型。

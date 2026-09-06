@@ -1,3 +1,7 @@
+import { residentIdOf } from "core";
+import { activeFavorRows } from "../../Game/Systems/residents/favors";
+import { residentNickname } from "../../i18n/residentName";
+import { t } from "../../i18n/t";
 import { motion } from "motion/react";
 import { Star } from "lucide-react";
 import { useDiaryData } from "./useDiaryData";
@@ -32,6 +36,8 @@ const ENTER_DELAY = 1.05;
 
 export function TodayRewards() {
   const diary = useDiaryData();
+  // 05：进行中的委托——"咕噜想要一盏灯"。数据就是 favors 表，不另写 diary 字段
+  const favors = activeFavorRows();
   const maxTasks = diary.rewardedPerDay;
 
   const todayTasks = diary.tasks.filter((task) => task.date === diary.todayId);
@@ -94,6 +100,18 @@ export function TodayRewards() {
           Left: {maxTasks - todayCompletedTasks.length}
         </span>
       </div>
+      {favors.length > 0 && (
+        <div className="relative z-10 mt-3 flex flex-col gap-1 border-t-2 border-dashed border-[#FFE082] pt-2">
+          {favors.map((favor) => (
+            <div key={favor.favorId} className="flex items-center gap-2 text-[14px] text-[#5d4037]">
+              <span className="inline-block h-[10px] w-[10px] shrink-0 rounded-full bg-[#F57F17]/70" />
+              <span className="font-bold">{residentNickname(residentIdOf(favor.residentId))}</span>
+              <span>{t(favor.displayKey)}</span>
+              {favor.state === "offered" && <span className="text-[12px] text-[#a1887f]">{t("ui.favor.offered")}</span>}
+            </div>
+          ))}
+        </div>
+      )}
     </motion.div>
   );
 }

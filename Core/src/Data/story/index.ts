@@ -1,4 +1,5 @@
 import { affectionTuning, theftTuning } from "../economy/index.js";
+import { favorDefinitions } from "../residents/favors.js";
 import { findResidentDefinition, residentIdOf } from "../residents/index.js";
 
 /** 专属家具的 id 从定义上取，规则不抄第二遍 */
@@ -21,6 +22,29 @@ import type { StoryRule, TutorialDefinition } from "../../types/story.js";
 const NEIGHBORS = ["slime_neighbor", "fox_neighbor", "spirit_neighbor"] as const;
 
 export const storyRules: StoryRule[] = [
+  /*
+   * ==== 委托做成了（居民系统 05）====
+   *
+   * favors.ts 只发信号；好感、奖励、记忆全在这里声明——一条委托一条规则，由表生成。
+   * `once: false`：同一条委托过了 cooldown 还会再来。
+   */
+  ...favorDefinitions.map((favor): StoryRule => ({
+    id: `favor_decline_${favor.id}`,
+    once: false,
+    triggers: [{ signal: "dialogue_event", subject: `favor_decline_${favor.id}` }],
+    effects: [{ kind: "favor_decline", favorId: favor.id }],
+  })),
+  ...favorDefinitions.map((favor): StoryRule => ({
+    id: `favor_done_${favor.id}`,
+    once: false,
+    triggers: [{ signal: "favor_completed", subject: favor.id }],
+    effects: [
+      { kind: "adjust_affection", residentId: residentIdOf(favor.residentId), source: "favor" },
+      ...(favor.reward ? [{ kind: "grant_items" as const, localizationKey: "loot.favor_reward", items: favor.reward.items }] : []),
+      ...(favor.onDone ?? []),
+    ],
+  })),
+
   /*
    * ==== 好感（居民系统 04）====
    *

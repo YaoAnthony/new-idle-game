@@ -101,6 +101,7 @@ import {
   restoreSignalCounts,
 } from "../../Game/Systems/story";
 import { getDayFacts, restoreDayFacts } from "../../Game/Systems/dayRecord";
+import { restoreFavors, snapshotFavors } from "../../Game/Systems/residents/favors";
 import { restoreResidentTrips, snapshotResidentTrips } from "../../Game/Systems/residents/townTrips";
 import { SAVE_SCHEMA_VERSION } from "./types";
 
@@ -221,6 +222,7 @@ export function serializeGameSave(previous?: GameSave): GameSave {
       dayFacts: getDayFacts(),
       // 出门在外的居民（居民系统 02）：不记的话关掉游戏他就永远消失了
       residentTrips: snapshotResidentTrips(),
+      favors: snapshotFavors(),
       travelerStock: snapshotTravelerStock(),
       newspaper: snapshotNewspaper(),
 
@@ -386,6 +388,7 @@ export function hydrateGameSave(save: GameSave): void {
   restorePoolMisses(save.ownWorld.progression.poolMisses);
   restoreDayFacts(save.ownWorld.dayFacts);
   restoreResidentTrips(save.ownWorld.residentTrips);
+  restoreFavors(save.ownWorld.favors);
   restoreTravelerStock(save.ownWorld.travelerStock);
   restoreNewspaper(save.ownWorld.newspaper);
 

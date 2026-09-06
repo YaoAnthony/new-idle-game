@@ -240,6 +240,12 @@ export type WorldSave = {
    * 房主端的自治状态，不进刷新切片：房客靠 `pets` 切片看到人消失 / 出现即可。
    */
   residentTrips?: Record<string, { kind: string; backAtLocalTime: string; dayId: string }>;
+  /**
+   * 委托状态表（居民系统 05）：favorId → 谁提的、哪天提的、哪天到期、状态。
+   * 世界侧而不是 pets 里：一位以后可能挂多件，过期历史要能查（cooldown）。
+   * **进刷新切片**：房客要看到"！"。
+   */
+  favors?: Record<string, import("./favors.js").FavorSave>;
 
   /**
    * 旅行商人这一趟的摊子（期 6，save v31）。

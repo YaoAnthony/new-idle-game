@@ -12,6 +12,7 @@ import {
 } from "core";
 import { findBuilding, findBuildingLevel } from "../../../Buildings/index";
 import { listBuildings } from "../../State/buildings";
+import { getClock } from "../../State/clock";
 import { getResidents } from "../../State/residentsRuntime";
 import { allPlots } from "../../State/territory";
 import { getCurrentMap, getRoom, getWorld, isIndoors } from "../../State/worldRuntime";
@@ -120,11 +121,16 @@ export function isAtHome(resident: { definitionId: string; state: string; x: num
   return Math.hypot(resident.x - doorstep.x, resident.z - doorstep.z) <= 2;
 }
 
-/** 此刻在家的居民各住哪栋（建筑实例 id 集合）。BuildingsView 亮窗灯用 */
-export function homesWithSomeoneIn(): Set<string> {
+/**
+ * 此刻在家的居民各住哪栋（建筑实例 id 集合）。BuildingsView 亮窗灯用。
+ * `onlySick`：只算病着的——白天窗灯只为病人亮（05）。
+ */
+export function homesWithSomeoneIn(onlySick = false): Set<string> {
   const result = new Set<string>();
+  const { worldDayId } = getClock();
   for (const resident of getResidents()) {
     if (!isAtHome(resident)) continue;
+    if (onlySick && !(resident.sickUntilDayId !== undefined && worldDayId <= resident.sickUntilDayId)) continue;
     const home = homeOf(resident.definitionId);
     if (home) result.add(home.instanceId);
   }

@@ -199,6 +199,8 @@ export class ResidentAgent {
   catchphrase: string | undefined;
   /** 上次打招呼是哪天（"几天没人理"读它） */
   lastGreetDayId: string | undefined;
+  /** 病到哪天（含）。05 的 sick 委托写；routine 读它整天待在家 */
+  sickUntilDayId: string | undefined;
   /** 上一帧玩家在哪（onEvent 要给技能一个 ctx） */
   private lastPlayer: { x: number; z: number } = { x: 0, z: 0 };
   private observeCountdown = SKILL_DECIDE_INTERVAL_SECONDS;
@@ -1217,6 +1219,7 @@ export class ResidentAgent {
       playerNickname: this.playerNickname,
       catchphrase: this.catchphrase,
       lastGreetDayId: this.lastGreetDayId,
+      sickUntilDayId: this.sickUntilDayId,
       // undefined 而不是 false：醒着是默认态，别往每份存档里写一排 false
       sleeping: this.state === "sleeping" ? true : undefined,
       // 同理：没有零件概念的物种不写这个字段
@@ -1246,6 +1249,7 @@ export class ResidentAgent {
     this.playerNickname = entry.playerNickname;
     this.catchphrase = entry.catchphrase;
     this.lastGreetDayId = entry.lastGreetDayId;
+    this.sickUntilDayId = entry.sickUntilDayId;
     this.needs = {
       hunger: entry.needs?.hunger ?? 80,
       thirst: entry.needs?.thirst ?? 80,

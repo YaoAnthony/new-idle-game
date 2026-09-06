@@ -11,6 +11,7 @@ import { getClock } from "../State/clock";
 import { isRemoteWorld } from "../Multiplayer/worldLock";
 import { getStackAt, removeFromSlot, type SlotRef } from "../State/inventory";
 import { feedResident, getResident, markResidentGifted } from "../State/residentsRuntime";
+import { completeFavor, deliveryFor } from "./residents/favors";
 
 /**
  * 送礼。判定全在 Core 的 `resolveGiftTier`（联机时服务端跑同一份），
@@ -22,7 +23,7 @@ import { feedResident, getResident, markResidentGifted } from "../State/resident
  */
 
 export type GiftResult =
-  | { ok: true; tier: GiftTier; consumed: boolean; itemId: string }
+  | { ok: true; tier: GiftTier; consumed: boolean; itemId: string; favorDialogueId?: string }
   /** 今天已经送过了。不是失败，是节流——文案要写成"它今天吃饱了" */
   | { ok: false; reason: "already_gifted_today" }
   | { ok: false; reason: "no_such_item" | "unknown_pet" }
@@ -42,6 +43,17 @@ export function offerGift(residentId: string, ref: SlotRef): GiftResult {
 
   const stack = getStackAt(ref);
   if (!stack) return { ok: false, reason: "no_such_item" };
+
+  /*
+   * 05：递的正好是他求你的那件（或者送给他的信物）→ 走委托，不走口味判定。
+   * 委托自己扣物品、发 favor_completed；口味那套的四档信号一个都不发——
+   * 这不是"送礼"，是"交差"。不占今天送礼的名额。
+   */
+  const favor = deliveryFor(resident.definitionId, stack.itemId);
+  if (favor) {
+    const favorDialogueId = completeFavor(favor.id);
+    if (favorDialogueId) return { ok: true, tier: GiftTier.Loved, consumed: true, itemId: stack.itemId, favorDialogueId };
+  }
 
   const { worldDayId } = getClock();
   if (!canGiftToday(resident.lastGiftWorldDayId, worldDayId)) {

@@ -14,6 +14,8 @@ export const expressionDefinitions = [
   { id: "sleepy", iconKey: "expr.sleepy", gesture: "nod_off" },
   { id: "surprised", iconKey: "expr.surprised", gesture: "hop" },
   { id: "sad", iconKey: "expr.sad" },
+  /** 有事求你（05 的委托挂着时头顶那个"！"） */
+  { id: "exclaim", iconKey: "expr.exclaim", gesture: "hop" },
 ] as const satisfies readonly ExpressionDefinition[];
 
 export function findExpression(id: string): ExpressionDefinition | undefined {

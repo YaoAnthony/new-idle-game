@@ -25,6 +25,7 @@ export * from "./types/runtime.js";
 export * from "./types/save.js";
 export * from "./types/story.js";
 export * from "./types/talk.js";
+export * from "./types/favors.js";
 export * from "./types/territory.js";
 export * from "./types/time.js";
 export * from "./types/weather.js";

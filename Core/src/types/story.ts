@@ -123,7 +123,16 @@ export type StorySignalKind =
   /** 好感跨档了。subject 是 `<definitionId>:<stage>`。专属家具、门牌（07）接它 */
   | "affection_reached"
   /** 他送了你东西（随机赠礼 / 专属家具），领取面板已弹。subject 是 definitionId */
-  | "resident_present_given";
+  | "resident_present_given"
+  /**
+   * 委托（居民系统 05）。subject 都是 favorId。后果全走这里：
+   * 好感、奖励、记忆由规则接 `favor_completed`；报纸登 favor_done。
+   */
+  | "favor_offered"
+  | "favor_accepted"
+  | "favor_completed"
+  | "favor_expired"
+  | "favor_declined";
 
 export type StorySignal = {
   kind: StorySignalKind;
@@ -303,7 +312,11 @@ export type StoryEffect =
    */
   | { kind: "resident_present"; residentId: ResidentId; itemId?: ItemId; dialogueId: DialogueId }
   /** 打开一个单行输入：改他叫你的昵称 / 改他的口头禅。对话选项报告了，规则接这个 */
-  | { kind: "prompt_text"; residentId: ResidentId; target: "nickname" | "catchphrase" };
+  | { kind: "prompt_text"; residentId: ResidentId; target: "nickname" | "catchphrase" }
+  /** 经领取面板给东西（委托奖励，05）。和 give_item 的分别：这个有仪式感，那个是静默入包 */
+  | { kind: "grant_items"; localizationKey: LocalizationKey; items: ReadonlyArray<{ itemId: ItemId; quantity: number }> }
+  /** 玩家在对话里拒绝了一件委托（05）：直接过期，不进 cooldown 惩罚。对话选项报告，规则接 */
+  | { kind: "favor_decline"; favorId: string };
 
 export type StoryRuleId = string;
 

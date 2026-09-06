@@ -320,6 +320,8 @@ export type ResidentSave = {
   catchphrase?: string;
   /** 上次打招呼是哪天。"连续几天没人理他"的心情读它和 lastTalkDayId 里晚的那个 */
   lastGreetDayId?: string;
+  /** 病到哪天（含）。有效期内 routine 整天待在家、窗灯全天亮（居民系统 05） */
+  sickUntilDayId?: string;
 };
 
 // ---- 动词、Intent、关键帧（居民系统 01，2026-09-06）----

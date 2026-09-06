@@ -40,6 +40,8 @@ export const merchantDefinitions: MerchantDefinition[] = [
       "baby_cabbage",
       "cheese",
       "tomato_seed",
+      // 05：草药——咕噜病了要它。只有水獭卖：生病的委托要有一条确定的解法
+      "herbal_medicine",
       "wood",
       "sugarcane",
       "leather",

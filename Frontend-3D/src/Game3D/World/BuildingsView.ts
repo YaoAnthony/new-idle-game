@@ -70,6 +70,7 @@ export class BuildingsView {
      */
     this.offListeners.push(on("resident_changed", () => this.refreshWindowLights()));
     this.offListeners.push(on("day_phase_changed", () => this.refreshWindowLights()));
+    this.offListeners.push(on("favors_changed", () => this.refreshWindowLights()));
 
     /*
      * 货架一变就重摆店里的展示位（上架面板关不关都无所谓——storage 的
@@ -226,7 +227,8 @@ export class BuildingsView {
   refreshWindowLights(): void {
     const phase = getClock().phase;
     const dark = phase === DayPhaseId.Dusk || phase === DayPhaseId.Night;
-    const lit = dark ? homesWithSomeoneIn() : new Set<string>();
+    // 05：病着的白天也亮——"咕噜没出门，窗灯白天也亮着"就是他病了的信号
+    const lit = dark ? homesWithSomeoneIn() : homesWithSomeoneIn(true);
     for (const node of this.root.children) {
       if (!node.name.startsWith("building-")) continue;
       const instanceId = node.name.slice("building-".length);

@@ -63,6 +63,8 @@ import {
  * 加一张新图纸不用记得回来改这张表。
  */
 export const untradableItemIds: ReadonlySet<string> = new Set([
+  // 05：委托的信物。不可卖、不可丢、不可寄售——三个出口查 favorToken，这里是商人那一个
+  "favor_token_fox_parcel",
   // 石傀儡的头。卖了他就永远醒不过来，而商人不卖回来——这是死锁
   "golem_head",
   // 每日任务机器。卖了每日任务就没了入口，同样买不回来
@@ -1634,6 +1636,28 @@ export const itemDefinitions = [
     rarity: Rarity.Common,
     visual: { id: "blueprint" },
     blueprint: { buildingId: "furniture_shop" },
+  },
+  // ---- 居民系统 05：委托 ----
+  {
+    /** 阿茜托你交给薇尔的小包。信物：不可丢、不可上架、不可寄售，过期收回 */
+    id: "favor_token_fox_parcel",
+    localizationKey: "item.favor_token_fox_parcel",
+    category: ItemCategory.Quest,
+    stackLimit: 1,
+    rarity: Rarity.Common,
+    visual: { id: "blueprint" },
+    favorToken: true,
+  },
+  {
+    /** 草药。水獭卖的；咕噜病了要它。不是吃的（没有 food），也不入菜 */
+    id: "herbal_medicine",
+    localizationKey: "item.herbal_medicine",
+    category: ItemCategory.Material,
+    stackLimit: 20,
+    rarity: Rarity.Common,
+    value: 12,
+    origin: ItemOrigin.Otherworld,
+    visual: { id: "blueprint" },
   },
   {
     id: "blueprint_slime_house",

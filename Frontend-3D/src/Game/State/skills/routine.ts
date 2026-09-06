@@ -22,6 +22,7 @@ import {
   type Spot,
 } from "../../Systems/residents/spots";
 import { leaveForTown } from "../../Systems/residents/townTrips";
+import { isSickOn } from "../../Systems/residents/favors";
 import { priorityOf, type ResidentAgent } from "../residentAgent";
 import type { ActionStep, Intent } from "../actions";
 import type { Skill } from "./types";
@@ -84,9 +85,10 @@ export function routinePlanOf(agent: ResidentAgent): { personality: ResolvedPers
   const personality = personalityOf(agent);
   if (!personality) return null;
   const { minuteOfDay, worldDayId } = clockSource();
+  const planned = planRoutine(personality, { nowMinute: minuteOfDay, weatherKind: weatherSource(), worldDayId });
   return {
     personality,
-    plan: planRoutine(personality, { nowMinute: minuteOfDay, weatherKind: weatherSource(), worldDayId }),
+    plan: isSickOn(agent, worldDayId) && planned.kind !== "sleep_home" ? { kind: "stay_home" } : planned,
     nowMinute: minuteOfDay,
   };
 }
@@ -157,7 +159,9 @@ export const routineSkill: Skill = {
     if (!personality) return null;
 
     const { minuteOfDay, worldDayId } = clockSource();
-    const plan = planRoutine(personality, { nowMinute: minuteOfDay, weatherKind: weatherSource(), worldDayId });
+    // 病着（05 的 sick 委托）：不管性格表说什么，整天待在家醒着；睡觉时段照睡
+    const planned = planRoutine(personality, { nowMinute: minuteOfDay, weatherKind: weatherSource(), worldDayId });
+    const plan: RoutinePlan = isSickOn(agent, worldDayId) && planned.kind !== "sleep_home" ? { kind: "stay_home" } : planned;
 
     // "同一件事"就不重下。键里带场所种类，换段就换键；睡觉的键带日期，第二天重新判
     const baseKey = plan.kind === "visit" ? `visit:${plan.spot}` : plan.kind === "town" ? `town:${worldDayId}` : plan.kind;

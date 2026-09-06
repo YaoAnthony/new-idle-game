@@ -19,6 +19,8 @@ import { getWeather } from "../State/weather";
 import { startDialogue } from "./dialogue";
 import { gainAffection } from "./residents/affection";
 import { giveResidentPresent } from "./residents/presents";
+import { declineFavor } from "./residents/favors";
+import { presentItems } from "./unpack";
 import { getEventStage, isFeatureUnlocked, setEventStage, unlockFeature } from "./events";
 
 /**
@@ -167,6 +169,16 @@ function runEffect(effect: StoryEffect): void {
     // 他走过来送你东西（04）：随机赠礼 / 专属家具同一条路
     case "resident_present":
       giveResidentPresent(effect.residentId, effect.dialogueId, effect.itemId);
+      break;
+
+    // 委托奖励经领取面板（05）。做客时不给：那是房主的委托
+    case "grant_items":
+      if (!isRemoteWorld()) presentItems(effect.localizationKey, effect.items.map((entry) => ({ itemId: entry.itemId, quantity: entry.quantity })));
+      break;
+
+    // 对话里拒绝了委托（05）：直接过期，不进 cooldown
+    case "favor_decline":
+      declineFavor(effect.favorId);
       break;
 
     // 改称呼的输入框（04）。做客时不弹：那是房主的邻居

@@ -219,7 +219,7 @@ function lineOf(item: { kind: string; subject?: string }): string {
     return t("ui.news.line.consign_sold").replace("{what}", t(nameKeyOf(what)));
   }
   // 居民的作息新闻（居民系统 02）：subject 是实例 id，名字查注册表
-  if (item.kind === "resident_town_trip" || item.kind === "resident_stayed_in") {
+  if (item.kind === "resident_town_trip" || item.kind === "resident_stayed_in" || item.kind === "favor_done") {
     return t(`ui.news.line.${item.kind}`).replace("{who}", whoName(what) ?? t("ui.news.someone"));
   }
   if (item.kind === "resident_moved_in") {

@@ -755,3 +755,16 @@ test("好感表：四档下限递增、每种来源都是正数、没有减分�
   }
 });
 
+// ---- 居民系统 05：委托 ----
+
+test("五种委托各至少一条，信物标了 favorToken 且没有价，草药有人卖", async () => {
+  const { favorDefinitions } = await import("../src/Data/residents/favors.js");
+  const { findItemDefinition } = await import("../src/Data/items/index.js");
+  const { merchantDefinitions } = await import("../src/Data/merchants/index.js");
+  const kinds = new Set(favorDefinitions.map((favor) => favor.kind));
+  for (const kind of ["find", "cook", "deliver", "sick", "visit_me"]) assert.ok(kinds.has(kind as never), `没有 ${kind} 类委托`);
+  const token = findItemDefinition("favor_token_fox_parcel");
+  assert.ok(token?.favorToken && token.value === undefined, "信物必须标 favorToken 且不能有价");
+  assert.ok(merchantDefinitions.some((merchant) => merchant.stock.includes("herbal_medicine")), "草药没人卖，生病的委托无解");
+});
+

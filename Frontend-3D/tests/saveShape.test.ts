@@ -64,6 +64,8 @@ const SHAPE: string[] = [
   "ownWorld.interiors",
   // v43：多日出门的计划（居民系统 09）。房主侧，不进切片
   "ownWorld.tripPlans",
+  // v44：信箱（居民系统 10）。进切片（房客只读）。空信箱不写 = 叶子；里面几张表的形状见 Core MailboxSave
+  "ownWorld.mailbox",
   // 期 6：旅行商人这一趟卖掉了什么。联机不跟——摊子是房主世界的事
   "ownWorld.travelerStock.day",
   "ownWorld.travelerStock.sold[]",

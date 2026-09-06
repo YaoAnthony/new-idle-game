@@ -1476,6 +1476,12 @@ export const migrations: Migration[] = [
     to: 43,
     migrate: (save) => save,
   },
+
+  /* v44 · 居民系统 10：`WorldSave.mailbox`（信箱）。可选字段，老档 undefined = 空信箱。空迁移 */
+  {
+    to: 44,
+    migrate: (save) => save,
+  },
 ];
 
 /**

@@ -48,7 +48,7 @@ import type { ResidentKeyframe, ResidentSave, ResidentWireIntent } from "./resid
  * v5（2026-08-19）：加浴缸水位转折（bath_water_set）。
  * v6（2026-08-23）：加灯的开关（lamp_switched）+ lamps 刷新切片。
  */
-export const NET_PROTOCOL_VERSION = 11;
+export const NET_PROTOCOL_VERSION = 12;
 
 /** 服务端强制的上限。放在共享类型里，客户端可以在发送前先自查 */
 export const NET_LIMITS = {
@@ -260,6 +260,9 @@ export type WorldRefreshSlices = {
 
   /** 居民房室内槽位（协议 v11，居民系统 08）。形状同 `WorldSave.interiors` */
   interiors?: WorldSave["interiors"];
+
+  /** 信箱（协议 v12，居民系统 10）。房客只读：能翻信，"收下"和"写信"不给 */
+  mailbox?: WorldSave["mailbox"];
 };
 
 /**
@@ -291,6 +294,7 @@ export const WORLD_REFRESH_KEYS = [
   "favors",
   "porch",
   "interiors",
+  "mailbox",
 ] as const;
 
 /**

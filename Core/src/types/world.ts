@@ -269,6 +269,12 @@ export type WorldSave = {
   tripPlans?: Record<string, { tripId: string; leaveDayId: string; announced: boolean; stage: "planned" | "back" }>;
 
   /**
+   * 信箱（居民系统 10）：收到的信、你写的信、寄过的一次性信、每位上次写信的日子、排定要到的、等他当面回应的。
+   * 信属于**这个家**（房主），寄件人是居民（世界的）——放世界表，进刷新切片：房客能翻信箱，但收不了附件。
+   */
+  mailbox?: import("./letters.js").MailboxSave;
+
+  /**
    * 旅行商人这一趟的摊子（期 6，save v31）。
    *
    * 只记**哪一天的摊**和**还剩什么**。为什么要存：限量是这个角色的命，

@@ -6,6 +6,7 @@ import {
   type HouseZone,
   type InteriorDoorway,
   type InteriorWall,
+  type RoomPlatform,
   type RoomSave,
   type RoomStyleDefinition,
   type WallOpening,
@@ -323,6 +324,35 @@ function wallLineSegments(
 export const COTTAGE_SIZE: GridFootprint = { width: 9, height: 12 };
 export const COTTAGE_WALL_HEIGHT = 3;
 
+/**
+ * 小屋（l1）的室内布置：内墙、门洞、分区、高台。**单独导出**是给存档迁移用的——
+ * 老档把户型存在 RoomSave 里，布局一改就得把这几项重写一遍，迁移和生成器读的必须是同一份。
+ *
+ * 2026-09-06：洗手间拆了（用户定的：不需要厕所）。左上角 3×4 改成膝盖高的石台，
+ * 原门洞那一格 (1,3) 做两节台阶从南边上；石台 11 格能摆东西，以后炼药锅之类就放这儿。
+ * 屋里从此没有内墙、没有房门；瓷砖分区也不要了。
+ */
+export function cottageL1Interior(): Required<Pick<RoomSave, "interiorDoorways" | "interiorWalls" | "zones" | "platforms">> {
+  const interiorDoorways: InteriorDoorway[] = [];
+  const interiorWalls: InteriorWall[] = [];
+  const zones: HouseZone[] = [
+    // 顺序即解析优先级：具体分区在前，LDK 兜底
+    { zoneId: "genkan", kind: HouseZoneKind.Genkan, rect: { x: 1, y: 10, width: 2, height: 2 } },
+    { zoneId: "bedroom", kind: HouseZoneKind.Bedroom, rect: { x: 4, y: 0, width: 5, height: 5 } },
+    { zoneId: "ldk", kind: HouseZoneKind.Ldk, rect: { x: 0, y: 0, width: 9, height: 12 } },
+  ];
+  const platforms: RoomPlatform[] = [
+    {
+      platformId: "hearth-dais",
+      rect: { x: 0, y: 0, width: 3, height: 4 },
+      // 膝盖高：和屋子地板比院子高出的那一截一样（FLOOR_LEVEL）。一步迈得上去，台阶是正经的上法但不是唯一的路
+      elevation: 0.45,
+      stairs: { cell: { x: 1, y: 3 }, from: Facing.South, steps: 2 },
+    },
+  ];
+  return { interiorDoorways, interiorWalls, zones, platforms };
+}
+
 export function generateCottageL1(params: {
   roomId: string;
   style: RoomStyleDefinition;
@@ -414,24 +444,7 @@ export function generateCottageL1(params: {
    * （用户原话）。现实里洗手间门是全屋最窄的一扇，1 格（1 米）正好，
    * 也还留得下角色（半径 0.3）走过去的余量。
    */
-  const interiorDoorways: InteriorDoorway[] = [
-    { doorwayId: "doorway-bath", cell: { x: 1, y: 3 }, axis: "x", span: 1, doorId: "room_door_single" },
-  ];
-
-  const interiorWalls: InteriorWall[] = [
-    // 列 x=3 的 y0..2：洗手间东墙（到 y=3 的南墙为止，不再往南延到 y=5）
-    { from: { x: 3, y: 0 }, axis: "y", length: 3 },
-    // 行 y=3 的 x0..2：洗手间南墙（减门洞）
-    ...wallLineSegments("x", 3, 0, 3, interiorDoorways),
-  ];
-
-  const zones: HouseZone[] = [
-    // 顺序即解析优先级：具体分区在前，LDK 兜底
-    { zoneId: "genkan", kind: HouseZoneKind.Genkan, rect: { x: 1, y: 10, width: 2, height: 2 } },
-    { zoneId: "bath", kind: HouseZoneKind.Bath, rect: { x: 0, y: 0, width: 3, height: 3 } },
-    { zoneId: "bedroom", kind: HouseZoneKind.Bedroom, rect: { x: 4, y: 0, width: 5, height: 5 } },
-    { zoneId: "ldk", kind: HouseZoneKind.Ldk, rect: { x: 0, y: 0, width: 9, height: 12 } },
-  ];
+  const { interiorDoorways, interiorWalls, zones, platforms } = cottageL1Interior();
 
   return {
     roomId,
@@ -440,6 +453,7 @@ export function generateCottageL1(params: {
     interiorWalls,
     interiorDoorways,
     zones,
+    platforms,
     floor: 0,
     // 石墙、木瓦、女巫帽顶——外皮跟着这一栋走，不跟地区风格走
     shell: "witch_cottage",

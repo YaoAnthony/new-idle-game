@@ -41,6 +41,12 @@ export function zoneAt(
 }
 
 /** 内墙覆盖的所有格子（占用图和渲染共用同一份推导） */
+/** 高台的台阶格：能走不能摆（两节踏板占满一格，东西放上去是悬空的） */
+export function platformStairCells(room: RoomSave): GridPosition[] {
+  if (isHouseStowed(room)) return [];
+  return (room.platforms ?? []).flatMap((platform) => (platform.stairs ? [platform.stairs.cell] : []));
+}
+
 export function interiorWallCells(room: RoomSave): GridPosition[] {
   // 收起来的房子不挡路（占用图和内墙放置面都由它推）
   if (isHouseStowed(room)) return [];

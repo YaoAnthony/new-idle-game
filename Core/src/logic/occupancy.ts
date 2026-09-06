@@ -10,7 +10,7 @@ import {
 import type { PlaceableItem } from "../types/items.js";
 import type { RoomSave } from "../types/map.js";
 import { cellKey, footprintCells, type CellKey } from "./grid.js";
-import { interiorWallCells } from "./roomGeometry.js";
+import { interiorWallCells, platformStairCells } from "./roomGeometry.js";
 
 /**
  * `PlacedFurniture.furnitureId` → 那件物品的定义。
@@ -110,6 +110,13 @@ export function buildRoomOccupancy(
   for (const cell of interiorWallCells(room)) {
     const key = cellKey(cell);
     occupancy.blocked.add(key);
+    occupancy.occupied[FloorLayer.Object].add(key);
+    occupancy.occupied[FloorLayer.Covering].add(key);
+  }
+
+  // 高台的台阶格：只占放置层，**不进 blocked**——它正是上台子的路
+  for (const cell of platformStairCells(room)) {
+    const key = cellKey(cell);
     occupancy.occupied[FloorLayer.Object].add(key);
     occupancy.occupied[FloorLayer.Covering].add(key);
   }

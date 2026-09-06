@@ -1,4 +1,5 @@
-import type { MapDefinition, RoomSave } from "../types/map.js";
+import { Facing } from "../types/base.js";
+import type { MapDefinition, RoomPlatform, RoomSave } from "../types/map.js";
 import {
   GroundKind,
   type GroundHeightfield,
@@ -106,6 +107,41 @@ export function buildGroundMap(
      */
     if (isHouseStowed(room)) continue;
 
+    // 屋里的高台（先于地板：同一点先匹配到的面算数）。台阶格切成几块踏板，
+    // 每块比前一块高一级；台阶格排在整块台面之前，台面的矩形可以把它盖进去
+    for (const platform of room.platforms ?? []) {
+      const { rect, elevation, stairs } = platform;
+      if (stairs) {
+        const rise = elevation / (stairs.steps + 1);
+        if (rise > MAX_STEP_UP) throw new Error(`高台 ${platform.platformId} 的台阶每级 ${rise.toFixed(2)} m，迈不上去（上限 ${MAX_STEP_UP}）`);
+        for (let index = 0; index < stairs.steps; index += 1) {
+          surfaces.push({
+            surfaceId: `platform:${room.roomId}:${platform.platformId}:step${index}`,
+            kind: GroundKind.Platform,
+            roomId: room.roomId,
+            floorIndex: room.floor ?? 0,
+            rect: anchorRectToWorld(anchor, stairTreadRect(stairs, index, halfW, halfD)),
+            elevation: anchor.elevation + rise * (index + 1),
+            visual: "none",
+          });
+        }
+      }
+      surfaces.push({
+        surfaceId: `platform:${room.roomId}:${platform.platformId}`,
+        kind: GroundKind.Platform,
+        roomId: room.roomId,
+        floorIndex: room.floor ?? 0,
+        rect: anchorRectToWorld(anchor, {
+          minX: rect.x - halfW,
+          maxX: rect.x + rect.width - halfW,
+          minZ: rect.y - halfD,
+          maxZ: rect.y + rect.height - halfD,
+        }),
+        elevation: anchor.elevation + elevation,
+        visual: "none",
+      });
+    }
+
     // 室内地板。标高 = 锚点的 elevation（缺省 0，正是"世界原点定在
     // 室内地板上"的老公理——见 MapDefinition.floorLevel 的注释）；
     // 矩形从房本地经锚点转到世界，房子挪走地板跟着走
@@ -167,6 +203,32 @@ export function buildGroundMap(
   });
 
   return { surfaces };
+}
+
+/**
+ * 台阶格里第 index 块踏板（从低处数）的房本地矩形：沿上台子的方向把格子等分。
+ * `from` 是低处那一侧——从南边上，最低那块踏板就贴着格子的南沿。
+ */
+export function stairTreadRect(
+  stairs: NonNullable<RoomPlatform["stairs"]>,
+  index: number,
+  halfW: number,
+  halfD: number,
+): GroundRect {
+  const { cell, from, steps } = stairs;
+  const x0 = cell.x - halfW;
+  const z0 = cell.y - halfD;
+  const slice = 1 / steps;
+  switch (from) {
+    case Facing.South:
+      return { minX: x0, maxX: x0 + 1, minZ: z0 + 1 - slice * (index + 1), maxZ: z0 + 1 - slice * index };
+    case Facing.North:
+      return { minX: x0, maxX: x0 + 1, minZ: z0 + slice * index, maxZ: z0 + slice * (index + 1) };
+    case Facing.East:
+      return { minX: x0 + 1 - slice * (index + 1), maxX: x0 + 1 - slice * index, minZ: z0, maxZ: z0 + 1 };
+    case Facing.West:
+      return { minX: x0 + slice * index, maxX: x0 + slice * (index + 1), minZ: z0, maxZ: z0 + 1 };
+  }
 }
 
 function contains(rect: GroundRect, x: number, z: number): boolean {

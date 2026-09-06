@@ -3,7 +3,6 @@ import {
   DEFAULT_MAP_ID,
   FurnitureCapability,
   WallOpeningKind,
-  findDoorDefinition,
   findLootTable,
   findPlaceableItem,
   findDoors,
@@ -12,6 +11,7 @@ import {
   spawnWorldOf,
   territoryStandingAt,
   worldToRoomCell,
+  Facing,
 } from "core";
 
 import { defaultPlacementRoom } from "../src/Game/State/world/placement";
@@ -20,6 +20,10 @@ import { travelTo } from "../src/Game/Systems/mapTravel";
 import { baseMapDefinition } from "../src/Maps/base/index";
 import { COTTAGE_SIZE, generateCottageL1 } from "../src/Maps/base/layout";
 import { roomStyleDefinitions } from "core";
+import { groundHeightAt } from "../src/Game/State/worldRuntime";
+import { findRoute, invalidateNavGrid } from "../src/Game/Systems/navigation";
+import { clearAllFurniture, placeFurniture } from "../src/Game/State/world/furniture";
+import { restoreBuildings } from "../src/Game/State/buildings";
 
 /**
  * 默认的家 = 女巫小屋（LV1，2026-08-22）。钉住的是**户型数据和地图接线**：
@@ -43,7 +47,7 @@ function room_doorWorld(living: ReturnType<typeof getRoom>): { x: number; z: num
   );
 }
 
-test("9×12、墙高 3、一扇大门在南墙、只剩洗手间一扇房门", () => {
+test("9×12、墙高 3、一扇大门在南墙、屋里没有内墙和房门", () => {
   const room = generateCottageL1({ roomId: "living", style: roomStyleDefinitions[0] });
   expect(room.floorGrid).toEqual(COTTAGE_SIZE);
   expect(room.walls.south.grid.height).toBe(3);
@@ -54,15 +58,16 @@ test("9×12、墙高 3、一扇大门在南墙、只剩洗手间一扇房门", (
   expect(room.walls.south.openings.some((o) => o.openingId === "south-door")).toBe(true);
 
   /*
-   * 卧室的墙拆了（2026-08-22）：屋里只剩洗手间一间关得上门的房间。
-   * 剩下的内墙是洗手间的东墙（列 x=3）和南墙（行 y=3，减掉门洞）。
+   * 卧室的墙拆了（2026-08-22），洗手间也拆了（2026-09-06）：屋里一段内墙、一扇房门都没有。
+   * 左上角是一块膝盖高的石台，原门洞那格是两节台阶。
    */
-  expect(room.interiorDoorways?.map((d) => d.doorwayId)).toEqual(["doorway-bath"]);
-  expect(room.interiorWalls?.length).toBeGreaterThanOrEqual(2);
-  // 卧室那两道墙一段都不许留下
-  for (const wall of room.interiorWalls ?? []) {
-    expect(wall.from.y, `内墙 ${JSON.stringify(wall)} 探到了洗手间以南`).toBeLessThanOrEqual(3);
-  }
+  expect(room.interiorDoorways).toEqual([]);
+  expect(room.interiorWalls).toEqual([]);
+  expect(room.platforms).toHaveLength(1);
+  const dais = room.platforms![0];
+  expect(dais.rect).toEqual({ x: 0, y: 0, width: 3, height: 4 });
+  expect(dais.elevation).toBe(0.45);
+  expect(dais.stairs).toEqual({ cell: { x: 1, y: 3 }, from: Facing.South, steps: 2 });
 });
 
 test("开局房子就立着，不再收起（期 1 的 T9 作废）", () => {
@@ -110,10 +115,10 @@ test("主屋脚印 108 格盖进院子的占用图", () => {
   expect(getWorld().occupancyOf(yardId).blocked.size).toBe(108);
 });
 
-test("洗手间有瓷砖分区、卧室有分区、玄关贴着门", () => {
+test("没有瓷砖分区了、卧室有分区、玄关贴着门", () => {
   const room = generateCottageL1({ roomId: "living", style: roomStyleDefinitions[0] });
   const kinds = room.zones!.map((z) => z.kind);
-  expect(kinds).toContain("bath");
+  expect(kinds).not.toContain("bath");
   expect(kinds).toContain("bedroom");
   const genkan = room.zones!.find((z) => z.kind === "genkan")!;
   const door = room.walls.south.openings.find((o) => o.kind === WallOpeningKind.Door)!;
@@ -159,13 +164,29 @@ test("目标本身站得住：终点用真实坐标，不吸到格心", async ()
 
 // ---- 开局给什么（2026-08-22：橱柜换灶台、院子里加井）----
 
-test("洗手间是 1 格宽的单开门，不是 2 格的对开门", () => {
-  const room = generateCottageL1({ roomId: "living", style: roomStyleDefinitions[0] });
-  const bath = room.interiorDoorways!.find((d) => d.doorwayId === "doorway-bath")!;
-  expect(bath.span).toBe(1);
-  // 单开由注册表的 leaves 决定，门洞宽度和门板扇数必须是一套
-  expect(bath.doorId).toBe("room_door_single");
-  expect(findDoorDefinition(bath.doorId)!.leaves).toBe(1);
+test("石台：台面 0.45、台阶两级、台阶格能走不能摆、屋里其他地方还是地板", () => {
+  restoreBuildings([]);
+  const room = getWorld().room;
+  expect(room.platforms).toHaveLength(1);
+  // 格 → 世界一律走 Core 的锚点换算（无头环境的主屋不在原点、朝南）
+  const at = (x: number, y: number) => { const w = roomCellToWorld(room, x, y); return groundHeightAt(w.x, w.z); };
+  expect(at(0, 0)).toBe(0.45);
+  expect(at(2, 3)).toBe(0.45);
+  expect(at(3, 0)).toBe(0);
+  expect(at(1, 4)).toBe(0);
+  // 台阶格的中心落在两块踏板之一上：比地板高、比台面低
+  expect(at(1, 3)).toBeGreaterThan(0);
+  expect(at(1, 3)).toBeLessThan(0.45);
+  // 走得上去：从客厅到台面有路（0.45 一步够，台阶是正经的上法）
+  invalidateNavGrid();
+  const from = roomCellToWorld(room, 1, 6);
+  const to = roomCellToWorld(room, 1, 1);
+  expect(findRoute({ x: from.x, z: from.z }, { x: to.x, z: to.z }, { radius: 0.3, snapRings: 2 })).not.toBeNull();
+  // 台阶格不能摆，台面格能摆
+  const roomId = room.roomId;
+  expect(placeFurniture("furniture_chair", { x: 1, y: 3 }, Facing.North, roomId)).toMatchObject({ ok: false, reason: "cell_occupied" });
+  expect(placeFurniture("furniture_chair", { x: 0, y: 0 }, Facing.North, roomId)).toMatchObject({ ok: true });
+  clearAllFurniture();
 });
 
 test("开局工具箱给 2×1 的独立灶台，不给 6×4 的 L 形橱柜", () => {

@@ -18,6 +18,7 @@ import {
   type RoomSave,
   type WallOpening,
   type WallSave,
+  stairTreadRect,
 } from "core";
 import { Mesh, MeshBasicMaterial, Object3D, PlaneGeometry } from "three";
 import { PALETTE, jitterShade } from "../../Visual/palette.js";
@@ -263,6 +264,78 @@ function buildGenkanStep(room: RoomSave): Object3D | null {
  * 天花板：逐格生成朝下的面，木板色比墙深一档——它几乎照不到直射光，
  * 全靠环境光，太浅会发灰。每隔 4 格一条深色横梁压出小木屋的节奏。
  */
+/**
+ * 屋里的高台（RoomSave.platforms）：石台面 + 露出来的侧壁 + 台阶格里的几级踏板。
+ * 几何全部从同一份数据推——承托面编译器（Core groundMap）也读它，所以脚下的高度和眼睛看到的
+ * 是同一块石头；这里不写任何高度分支。石台用院子铺地那三色（哈希打散成石板），侧壁用深一号的石色。
+ */
+function buildPlatforms(room: RoomSave): Object3D | null {
+  const platforms = room.platforms ?? [];
+  if (platforms.length === 0) return null;
+  const halfW = room.floorGrid.width / 2;
+  const halfD = room.floorGrid.height / 2;
+  const root = new Object3D();
+  root.name = "platforms";
+  const SKIRT = 0.02;
+
+  for (const platform of platforms) {
+    const { rect, elevation, stairs } = platform;
+    const inside = (x: number, y: number) => x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height;
+    const isStair = (x: number, y: number) => stairs !== undefined && stairs.cell.x === x && stairs.cell.y === y;
+    const quads: Quad[] = [];
+
+    for (let y = rect.y; y < rect.y + rect.height; y += 1) {
+      for (let x = rect.x; x < rect.x + rect.width; x += 1) {
+        if (isStair(x, y)) continue;
+        const tone = Math.floor(hash01(x * 5.3 + y * 9.7) * 3);
+        const base = tone === 0 ? PALETTE.pavingLight : tone === 1 ? PALETTE.pavingMid : PALETTE.pavingJoint;
+        quads.push({
+          corners: [
+            [x - halfW, elevation, y - halfD],
+            [x - halfW, elevation, y - halfD + 1],
+            [x - halfW + 1, elevation, y - halfD + 1],
+            [x - halfW + 1, elevation, y - halfD],
+          ],
+          normal: [0, 1, 0],
+          color: jitterShade(base, x, y, 0.02),
+        });
+        // 露出来的侧壁：邻格不在台上（也不是台阶格）才画，贴墙那几面省掉
+        const sides: Array<[dx: number, dy: number]> = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+        for (const [dx, dy] of sides) {
+          const nx = x + dx;
+          const ny = y + dy;
+          const neighborOnDais = inside(nx, ny) && !isStair(nx, ny);
+          const outsideRoom = nx < 0 || ny < 0 || nx >= room.floorGrid.width || ny >= room.floorGrid.height;
+          if (neighborOnDais || outsideRoom) continue;
+          root.add(
+            box([dx === 0 ? 1 : SKIRT, elevation, dy === 0 ? 1 : SKIRT], {
+              color: PALETTE.stoneWarmDark,
+              position: [x - halfW + 0.5 + dx * (0.5 - SKIRT / 2), elevation / 2, y - halfD + 0.5 + dy * (0.5 - SKIRT / 2)],
+            }),
+          );
+        }
+      }
+    }
+    root.add(createQuadMesh(quads, `platform-${platform.platformId}`));
+
+    // 台阶：每一级一块实心石板，高度和承托面编译器算的完全一致（同一个公式）
+    if (stairs) {
+      const rise = elevation / (stairs.steps + 1);
+      for (let index = 0; index < stairs.steps; index += 1) {
+        const tread = stairTreadRect(stairs, index, halfW, halfD);
+        const height = rise * (index + 1);
+        root.add(
+          box([tread.maxX - tread.minX, height, tread.maxZ - tread.minZ], {
+            color: index % 2 === 0 ? PALETTE.stoneWarm : PALETTE.pavingMid,
+            position: [(tread.minX + tread.maxX) / 2, height / 2, (tread.minZ + tread.maxZ) / 2],
+          }),
+        );
+      }
+    }
+  }
+  return root;
+}
+
 function buildCeiling(width: number, depth: number, height: number): Object3D {
   const halfW = width / 2;
   const halfD = depth / 2;
@@ -851,6 +924,8 @@ export function buildHouse(
   if (hasWalls && !witch) root.add(buildTimberFrame(room, wallHeight));
   const genkanStep = buildGenkanStep(room);
   if (genkanStep) root.add(genkanStep);
+  const platforms = buildPlatforms(room);
+  if (platforms) root.add(platforms);
 
   const interiorWalls = buildInteriorWalls(room, wallHeight);
   root.add(interiorWalls);

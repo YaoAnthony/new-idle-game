@@ -107,6 +107,18 @@ export type WallSave = {
  * A* 与占用图一行都不用改。门洞就是"这一排里没有墙段的格子"，
  * 不需要独立的门洞数据。
  */
+/**
+ * 屋里的一块高台。`rect` 是地板格（含台阶那一格），`elevation` 是比地板高多少米，
+ * `stairs` 是哪一格做成台阶、从哪边（低处那一侧）上、几节踏板——踏板等分那一格、
+ * 每一级的升高 = elevation / (steps + 1)，得 ≤ 一步能迈的高度（编译器校验）。
+ */
+export type RoomPlatform = {
+  platformId: string;
+  rect: { x: number; y: number; width: number; height: number };
+  elevation: number;
+  stairs?: { cell: GridPosition; from: Facing; steps: number };
+};
+
 export type InteriorWall = {
   /** 起点格 */
   from: GridPosition;
@@ -215,6 +227,13 @@ export type RoomSave = {
   /** 内墙门洞（save v17 起显式入档）。老存档没有 → 由迁移按户型补 */
   interiorDoorways?: InteriorDoorway[];
   zones?: HouseZone[];
+
+  /**
+   * 屋里抬高的一块地（2026-09-06 主屋左上角的石台）。**是数据不是造型**：承托面编译器照它铺
+   * 一块比地板高 `elevation` 的平台面（走路、寻路、家具落点都从那儿问），建模照它画石台和台阶，
+   * 占用图把台阶格占掉——三处读同一份，抬高的地方不会出现"看着是台子、脚下是地板"。
+   */
+  platforms?: RoomPlatform[];
 
   /** 楼层序号。初期只构建和渲染一层，但维度先留出来 */
   floor: number;

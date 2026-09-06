@@ -123,3 +123,15 @@ op 是尽力而为（服务端不逐条校验游戏规则），乱序、丢失�
 - [ ] 每日任务两种 op（`daily_board_ticked` / `daily_board_claimed`）在白名单内
 - [ ] 换唱片 op（`gramophone_record_set`）在白名单内；`gramophones` 刷新切片被接受
 - [ ] 浴缸水位 op（`bath_water_set`）在白名单内
+
+## 活物同步（协议 v8，居民系统 01c）
+
+房主权威，房客是木偶。三条通道：
+
+| 通道 | 方向 | 内容 |
+|---|---|---|
+| `world:op` 里的 `resident_intent` | 房主 → 全房 | 某只活物换上了新 Intent（动词序列 + 解析好的目标）。房客用同一套动词自己走 |
+| `sync:residents` | 房主 → 全房（volatile，2 Hz，只发有变化的） | 关键帧：位置 / 朝向 / 正在做的动词 / 隐身。房客偏差 < 0.6 m 忽略、0.6~3 m 插值、> 3 m 直接放 |
+| `world:refresh` 的 `pets` 切片 | 房主 → 全房 | 生灭与对账：多的造木偶、少的移除、位置差太多放回去 |
+
+房客发 `sync:residents` 或 `resident_intent` 是坏客户端，服务端丢弃。形状的真相在 `Core/src/types/net.ts` 与 `types/residents.ts`。

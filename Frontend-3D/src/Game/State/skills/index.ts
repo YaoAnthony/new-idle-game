@@ -7,6 +7,7 @@ import { routineSkill } from "./routine";
 import { socialSkill } from "./social";
 import { visitPlayerSkill } from "./visitPlayer";
 import { talkSkill } from "./talk";
+import { tripSkill } from "./trip";
 import { tradeSkill } from "./trade";
 import { approachSkill, napSkill, wanderSkill } from "./wander";
 import type { Skill } from "./types";
@@ -19,7 +20,7 @@ export type { InteractOffer, ResidentEvent, Skill, SkillContext } from "./types"
  * `skillPriorityDefinitions` 里（数字不住代码）。
  */
 export const skillRegistry: ReadonlyMap<string, Skill> = new Map<string, Skill>(
-  [needsSkill, napSkill, approachSkill, wanderSkill, buildSkill, tradeSkill, routineSkill, greetSkill, talkSkill, reactionsSkill, favorSkill, socialSkill, visitPlayerSkill].map(
+  [needsSkill, napSkill, approachSkill, wanderSkill, buildSkill, tradeSkill, routineSkill, greetSkill, talkSkill, reactionsSkill, favorSkill, socialSkill, visitPlayerSkill, tripSkill].map(
     (skill) => [skill.id, skill],
   ),
 );

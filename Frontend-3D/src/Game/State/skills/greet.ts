@@ -20,6 +20,7 @@ import type { Skill } from "./types";
  */
 export const greetSkill: Skill = {
   id: "greet",
+  forVisitors: true,
   observe: ({ agent, player }) => {
     if (agent.state === "hidden" || agent.state === "entering" || agent.asleep) return;
     const personality = resolvedPersonalityOf(agent);

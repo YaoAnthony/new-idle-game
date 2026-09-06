@@ -10,6 +10,8 @@ export * from "./relations.js";
 export * from "./visits.js";
 export * from "./talk/pairs.js";
 export * from "./interiors.js";
+export * from "./visitors.js";
+export * from "./trips.js";
 
 import {
   CreatureRole,
@@ -401,4 +403,6 @@ export const RESIDENT_FACT_KINDS = {
   favorDone: "favor_done",
   /** 两位居民聊了（06）。subject 是这一对的键（a|b） */
   chatted: "residents_chatted",
+  /** 多日出门（09）。subject 是实例 id，报纸说"咕噜回老家了" */
+  tripAway: "resident_trip_away",
 } as const;

@@ -233,6 +233,8 @@ import { DiaryPanel } from "../Components/Diary/DiaryPanel";
 import { registerChainCommands } from "../Game/Systems/chainCommands";
 import { registerResidentCommands } from "../Game/Systems/residents/commands";
 import { startTownTrips } from "../Game/Systems/residents/townTrips";
+import { startVisitorSystem } from "../Game/Systems/residents/visitors";
+import { startTripSystem } from "../Game/Systems/residents/trips";
 import { startRoutineWatch } from "../Game/Systems/residents/routineWatch";
 import { startTalkSystem } from "../Game/Systems/residents/talk";
 import { startAffectionSystem } from "../Game/Systems/residents/affection";
@@ -424,6 +426,9 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
     // 出门在外的居民该回来了没（居民系统 02）。做客时是房主的事
     const stopTownTrips = isRemoteWorldActive() ? () => {} : startTownTrips();
     const stopRoutineWatch = isRemoteWorldActive() ? () => {} : startRoutineWatch();
+    // 桥头访客到点走人、多日出门的当面说 / 推迟 / 出发（09）。做客时是房主的事
+    const stopVisitors = isRemoteWorldActive() ? () => {} : startVisitorSystem();
+    const stopTrips = isRemoteWorldActive() ? () => {} : startTripSystem();
     // 对话接线（03）：转身面向玩家、天气 / 落地翻成反应。做客时也挂：房客按 F 也要他转身——不，木偶不转（系统里判）
     const stopTalk = startTalkSystem();
     // 好感 / 心情的日结 + 他送你东西的领取（04）。做客时里面各自不动
@@ -1942,6 +1947,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       stopTrading();
       stopResidents();
       stopTownTrips();
+      stopVisitors();
+      stopTrips();
       stopRoutineWatch();
       stopTalk();
       stopAffection();

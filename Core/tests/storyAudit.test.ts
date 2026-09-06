@@ -32,8 +32,8 @@ test("poolId 必须在 storyPools 里登记过", () => {
   const bad = auditTrigger("测试规则", at({ poolId: "no_such_pool" }));
   assert.ok(bad.some((p) => p.includes("没有在 storyPools 里登记")), bad.join("\n"));
 
-  // resident_arrival 是登记过的，单独写不报
-  const good = auditTrigger("测试规则", at({ poolId: "resident_arrival" }));
+  // visitor_arrival 是登记过的（09 起访客池替下了 resident_arrival），单独写不报
+  const good = auditTrigger("测试规则", at({ poolId: "visitor_arrival" }));
   assert.deepEqual(good, []);
 });
 

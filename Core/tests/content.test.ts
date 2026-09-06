@@ -657,19 +657,20 @@ test("剧情注册表整体过审（现在有真数据了，不再是空数组�
 
 // ---- 居民（期 4 · 小动物经济圈）----
 
-test("三条到来规则共享同一个抽签池——同一天最多来一位靠它", () => {
-  const arrivals = storyRules.filter((rule) => rule.id.startsWith("resident_"));
-  assert.equal(arrivals.length, 3);
-  for (const rule of arrivals) {
-    for (const trigger of rule.triggers) {
-      assert.equal(
-        trigger.poolId,
-        "resident_arrival",
-        `${rule.id} 没走 resident_arrival 池——三位会在同一天挤进门`,
-      );
-      // 现在纯随机（用户定），不该有门槛。以后加 requiresFeature 时删掉这两行
-      assert.equal(trigger.requiresFeature, undefined, `${rule.id} 提前加了门槛`);
-    }
+test("到来走一条访客规则_三位各有邀请拒绝出门规则_出门共享一个池", () => {
+  // 09：三条"抽签到来"规则退役，桥头访客一条路（谁来在效果里按候选定，规则不点名）
+  assert.equal(storyRules.filter((rule) => rule.id.startsWith("resident_") && rule.id.endsWith("_arrives")).length, 0);
+  const arrives = storyRules.find((rule) => rule.id === "visitor_arrives");
+  assert.ok(arrives);
+  assert.equal(arrives.triggers[0].poolId, "visitor_arrival");
+  assert.deepEqual(arrives.effects, [{ kind: "spawn_visitor" }]);
+  for (const who of ["slime_neighbor", "fox_neighbor", "spirit_neighbor"]) {
+    assert.ok(storyRules.find((rule) => rule.id === `visitor_invite_${who}`), `缺 visitor_invite_${who}`);
+    assert.ok(storyRules.find((rule) => rule.id === `visitor_decline_${who}`), `缺 visitor_decline_${who}`);
+    const trip = storyRules.find((rule) => rule.id === `trip_hometown_${who}`);
+    assert.ok(trip, `缺 trip_hometown_${who}`);
+    assert.equal(trip.triggers[0].poolId, "trip_hometown", "三位共享出门池——同一天最多一位走");
+    assert.equal(trip.triggers[0].requiresAffection?.stage, "familiar_resident");
   }
 });
 

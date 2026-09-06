@@ -30,6 +30,10 @@ export const headlinePriority: Record<string, number> = {
   building_completed: 70,
   /** 稀客来了 */
   traveler_visit: 60,
+  /** 桥头来了个陌生人（09） */
+  visitor_arrived: 60,
+  /** 邻居回老家去了（09）。比去小镇重：几天不在 */
+  resident_trip_away: 30,
   /** 卖出了东西 */
   shop_sold: 40,
   /** 寄售箱隔夜出了货。和小店同一档：都是"家里做成了生意" */
@@ -63,6 +67,8 @@ export const neighborKinds = new Set([
   "favor_done",
   // 邻居之间聊了（06）
   "residents_chatted",
+  // 回老家去了（09）
+  "resident_trip_away",
 ]);
 
 /**
@@ -77,6 +83,8 @@ export const neighborKinds = new Set([
  */
 export const newsworthySignals: Record<string, string> = {
   resident_moved_in: "resident_moved_in",
+  // 09：桥头来了个陌生人
+  visitor_arrived: "visitor_arrived",
   building_completed: "building_completed",
 };
 

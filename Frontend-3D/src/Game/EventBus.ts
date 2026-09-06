@@ -184,6 +184,8 @@ export type GameEvents = {
   porch_changed: { reason: string };
   /** 居民房室内槽位变了（08）：摆进去 / 挤到门口 / 进箱 / 读档 */
   interiors_changed: { reason: string };
+  /** 多日出门的计划变了（09）：定下 / 说过了 / 走了 / 礼物给了 */
+  trip_plans_changed: { residentId: string };
   /** 来访进度（07）：敲门 / 进屋 / 走了 */
   visit_changed: { residentId: string; phase: "knocking" | "inside" | "left"; reason?: string };
   /** 他站到门外开始敲了（07，`knock` 动词开始那一拍） */

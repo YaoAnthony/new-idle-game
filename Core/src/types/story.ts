@@ -109,6 +109,14 @@ export type StorySignalKind =
   /** 居民出门（去小镇）/ 回来了。subject 是 definitionId */
   | "resident_away"
   | "resident_returned"
+  /** 09：桥头来了访客 / 走了 / 你邀他住下 / 你说下次吧。subject 是 definitionId */
+  | "visitor_arrived"
+  | "visitor_left"
+  | "visitor_invited"
+  | "visitor_declined"
+  /** 09：定下 / 当面说了一趟多日出门（subject 是 definitionId）。走、回是 resident_away / resident_returned */
+  | "trip_planned"
+  | "trip_announced"
   /**
    * 居民主动打了招呼 / 玩家按 F 和他聊了（居民系统 03）。subject 是 definitionId。
    * 04 的"每天第一次 +1 好感"接它；这期只发。
@@ -342,7 +350,20 @@ export type StoryEffect =
    * 执行时判：房子有室内 → 进屋（满了最早的挪到门口，门口也满了进箱）；没有室内 → 退回 porch_place。
    * 所以送礼 / 委托的规则只写这一个效果，不用各写两条。
    */
-  | { kind: "interior_place"; residentId: ResidentId; itemId?: ItemId };
+  | { kind: "interior_place"; residentId: ResidentId; itemId?: ItemId }
+  /**
+   * 桥头来一位访客（09）：从"有房子、还没住下、图纸不在你手上、领地放得下一栋"的候选里
+   * 确定性抽一位，以 `visiting` 状态在访客入口登场。没有候选就什么都不发生（池的 miss 照攒）。
+   */
+  | { kind: "spawn_visitor" }
+  /** 把某个抽签池的连续错过次数归零（09：你拒了访客，保底重新累） */
+  | { kind: "reset_pool"; poolId: string }
+  /** 你邀了访客（09）：发 visitor_invited；图纸另由 grant_items 给。访客傍晚照样走，房子建好那天回来 */
+  | { kind: "visitor_invited"; residentId: ResidentId }
+  /** 定一趟多日出门（09）：明天走，走之前必须当面说 */
+  | { kind: "plan_trip"; residentId: ResidentId; tripId: string }
+  /** 出门回来那段对话说完，把带回来的礼物经领取面板给你（09） */
+  | { kind: "grant_trip_gift"; residentId: ResidentId };
 
 export type StoryRuleId = string;
 

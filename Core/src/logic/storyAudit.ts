@@ -17,6 +17,7 @@ import type { DialogueCondition } from "../types/dialogue.js";
 import type { ReactionDefinition } from "../types/talk.js";
 import { affectionTuning } from "../Data/economy/index.js";
 import { favorDefinitions, findFavorDefinition } from "../Data/residents/favors.js";
+import { findTripDefinition, tripDefinitions } from "../Data/residents/trips.js";
 import { pairChats, relationDefinitions } from "../Data/residents/index.js";
 import type { RelationDefinition } from "../types/talk.js";
 import type { FavorDefinition } from "../types/favors.js";
@@ -220,6 +221,30 @@ function auditRelations(checkText: (where: string, key: string) => void): string
 }
 
 /** 委托表（05）：对话、物品、居民、前提都要真的存在；deliver 要有信物和收件人 */
+/** 09：每趟出门每位都有当面说 / 回来两段，礼物池里的东西都存在 */
+function auditTrips(checkText: (where: string, key: string) => void): string[] {
+  const problems: string[] = [];
+  for (const trip of tripDefinitions) {
+    const where = `出门 "${trip.id}"`;
+    for (const itemId of trip.giftPool) {
+      if (!findItemDefinition(itemId)) problems.push(`${where}：礼物池里 "${itemId}" 不存在`);
+    }
+    for (const condition of trip.requires ?? []) problems.push(...auditCondition(where, condition));
+    for (const who of ["slime", "fox", "spirit"]) {
+      for (const prefix of [trip.announceDialogueId, trip.backDialogueId]) {
+        const id = `${prefix}_${who}`;
+        const dialogue = findDialogueDefinition(id);
+        if (!dialogue) {
+          problems.push(`${where}：缺对话 "${id}"`);
+          continue;
+        }
+        for (const node of Object.values(dialogue.nodes)) checkText(`${where} 对话 ${id}`, node.localizationKey);
+      }
+    }
+  }
+  return problems;
+}
+
 function auditFavors(checkText: (where: string, key: string) => void): string[] {
   const problems: string[] = [];
   const seen = new Set<string>();
@@ -579,9 +604,22 @@ export function auditStoryContent(options: AuditOptions = {}): string[] {
         case "visit_refuse":
         case "porch_nameplate":
         case "grant_present":
+        case "visitor_invited":
+        case "grant_trip_gift":
           if (!residentDefinitionOf(effect.residentId)) {
             problems.push(`${where}：${effect.kind} 指向不存在的居民 "${effect.residentId}"`);
           }
+          break;
+
+        // 09
+        case "spawn_visitor":
+          break;
+        case "reset_pool":
+          if (!findStoryPool(effect.poolId)) problems.push(`${where}：reset_pool 指向不存在的池 "${effect.poolId}"`);
+          break;
+        case "plan_trip":
+          if (!residentDefinitionOf(effect.residentId)) problems.push(`${where}：plan_trip 指向不存在的居民 "${effect.residentId}"`);
+          if (!findTripDefinition(effect.tripId)) problems.push(`${where}：plan_trip 指向不存在的出门 "${effect.tripId}"`);
           break;
 
         case "porch_place":
@@ -611,6 +649,7 @@ export function auditStoryContent(options: AuditOptions = {}): string[] {
 
   problems.push(...auditEventDefinitions(eventDefinitions, checkText));
   problems.push(...auditTalk(checkText));
+  problems.push(...auditTrips(checkText));
   problems.push(...auditFavors(checkText));
   problems.push(...auditRelations(checkText));
 

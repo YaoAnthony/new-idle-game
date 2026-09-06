@@ -61,14 +61,15 @@ export function isAway(residentId: string): boolean {
  * 出发：移除、记账、报纸。`backAtMinute` 是本地钟点（分钟数）。
  * 已经在外的不重复出发。
  */
-export function leaveForTown(residentId: string, backAtMinute: number, kind = "town"): boolean {
+export function leaveForTown(residentId: string, backAtMinute: number, kind = "town", backDayId?: string): boolean {
   const resident = getResident(residentId);
   if (!resident) return false;
   const { worldDayId } = clockSource();
   releaseSpotsOf(residentId);
   removeResident(residentId);
-  trips[residentId] = { kind, backAtLocalTime: formatMinute(backAtMinute), dayId: worldDayId };
-  recordHeadlineFact(RESIDENT_FACT_KINDS.townTrip, residentId);
+  // 09：多日出门把回来那天记在 dayId 上；报纸按种类说"去了趟小镇" / "回老家了"
+  trips[residentId] = { kind, backAtLocalTime: formatMinute(backAtMinute), dayId: backDayId ?? worldDayId };
+  recordHeadlineFact(kind === "town" ? RESIDENT_FACT_KINDS.townTrip : RESIDENT_FACT_KINDS.tripAway, residentId);
   signal("resident_away", resident.definitionId);
   emit("resident_changed", { residentId, reason: "away" });
   return true;
@@ -103,6 +104,8 @@ export function syncTrips(): number {
   let returned = 0;
   for (const [residentId, trip] of Object.entries(trips)) {
     const backAt = parseLocalClockTime(trip.backAtLocalTime);
+    // 09：回来那天还没到（多日出门）→ 等；ISO 日期字符串直接比大小
+    if (trip.dayId > worldDayId) continue;
     const sameDay = trip.dayId === worldDayId;
     if (sameDay && nowMinute < backAt) continue;
     if (returnFromTown(residentId)) returned += 1;

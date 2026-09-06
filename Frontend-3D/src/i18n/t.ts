@@ -261,6 +261,8 @@ const ZH: Record<string, string> = {
   "ui.news.line.restaurant_served": "有人在你的餐厅吃了一顿",
   "ui.news.line.resident_town_trip": "{who} 昨天去了趟小镇",
   "ui.news.line.resident_stayed_in": "下雨，{who} 一整天没出门",
+  "ui.news.line.visitor_arrived": "桥头来了个陌生人——{who}",
+  "ui.news.line.resident_trip_away": "{who} 回老家去了，说过几天回来",
   "ui.news.headline.quiet": "昨天很安静，什么也没发生",
   "ui.news.headline.quiet_span": "这 {n} 天里，家里静悄悄的",
   "ui.news.headline.theft": "金库失窃！有东西溜进了院子",
@@ -321,6 +323,9 @@ const ZH: Record<string, string> = {
   "dlg.slime_asks_to_stay.s1": "唔……你好。这里，软软的，草是软的，风也是软的。",
   "dlg.slime_asks_to_stay.s2": "你把这里拾掇得真好看。咕噜……可以住下来吗？",
   "dlg.slime_asks_to_stay.s3": "这个给你——咕噜的家的图纸！盖好了咕噜就搬过来，嘿嘿。",
+  "dlg.slime_asks_to_stay.s4": "……哦。那咕噜再走走。傍晚咕噜就回去了，嘿嘿……",
+  "dlg.slime_asks_to_stay.invite": "来吧，住下来",
+  "dlg.slime_asks_to_stay.decline": "下次吧",
   "dlg.slime_casual.c1": "唔……今天也是软软的一天。",
   "dlg.slime_casual": "咕噜的寒暄",
 
@@ -328,6 +333,9 @@ const ZH: Record<string, string> = {
   "dlg.fox_asks_to_stay.f1": "哟！我打河对岸就瞧见这块地了——收拾得漂亮啊，比镇上的院子还利索！",
   "dlg.fox_asks_to_stay.f2": "直说了吧：我想搬过来。邻居嘛，热闹点总比冷清好，你说是不是？",
   "dlg.fox_asks_to_stay.f3": "图纸我都画好了，喏！等房子一起来，我立马拎包入住！",
+  "dlg.fox_asks_to_stay.f4": "啧，行吧。我再在桥头看看风景，傍晚就走。你可别后悔！",
+  "dlg.fox_asks_to_stay.invite": "来吧，住下来",
+  "dlg.fox_asks_to_stay.decline": "下次吧",
   "dlg.fox_casual.c1": "今天有什么新鲜事？没有？那我讲一个——",
   "dlg.fox_casual": "阿茜的寒暄",
 
@@ -335,6 +343,9 @@ const ZH: Record<string, string> = {
   "dlg.spirit_asks_to_stay.p1": "打扰了。我从林子里来——沿路的草都被照料过，是你做的吧？",
   "dlg.spirit_asks_to_stay.p2": "被照料的土地会发光，你大概看不见，但我们看得见。我想在这样的光旁边住下来。",
   "dlg.spirit_asks_to_stay.p3": "这是我家的图样，请收下。等它落成，我会带着我的风铃来。",
+  "dlg.spirit_asks_to_stay.p4": "明白。光不催人。我天黑前回林子去，改日再来。",
+  "dlg.spirit_asks_to_stay.invite": "来吧，住下来",
+  "dlg.spirit_asks_to_stay.decline": "下次吧",
   "dlg.spirit_casual.c1": "今天的光也很好。谢谢你照料这里。",
   "dlg.spirit_casual": "薇尔的寒暄",
 

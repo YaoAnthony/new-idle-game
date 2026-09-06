@@ -1,6 +1,7 @@
 import { findTalkPool, listTalkCandidates, pickTalkEntry, type ChatEntry } from "core";
 import { evaluateCondition } from "../../Systems/dialogue";
 import { talkClock } from "../../Systems/residents/talk";
+import { visitorDialogueFor } from "../../Systems/residents/visitors";
 import { signal } from "../../Systems/story";
 import type { ResidentAgent } from "../residentAgent";
 import type { Skill } from "./types";
@@ -53,8 +54,12 @@ export function resetTalkToday(agent: ResidentAgent): void {
 
 export const talkSkill: Skill = {
   id: "talk",
+  forVisitors: true,
   interact: ({ agent }) => {
     if (agent.dormant) return null;
+    // 09：桥头的访客按 F 是"想住下来吗"那段（邀过了就是普通寒暄），不进闲聊池
+    const visitorDialogue = visitorDialogueFor(agent);
+    if (visitorDialogue) return { kind: "dialogue", dialogueId: visitorDialogue };
     const outlook = chatOutlook(agent);
     if (!outlook?.pick) return null;
     const { worldDayId } = talkClock();

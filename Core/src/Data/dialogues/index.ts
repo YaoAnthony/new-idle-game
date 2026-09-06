@@ -3,6 +3,7 @@ import { residentAffectionDialogues } from "./residentAffection.js";
 import { residentChatDialogues } from "./residentChats.js";
 import { residentFavorDialogues } from "./residentFavors.js";
 import { residentVisitDialogues } from "./residentVisits.js";
+import { residentTripDialogues } from "./residentTrips.js";
 
 /**
  * 对话注册表。
@@ -190,8 +191,18 @@ export const dialogueDefinitions: DialogueDefinition[] = [
     entryNodeId: "s1",
     nodes: {
       s1: { nodeId: "s1", speaker: "npc", localizationKey: "dlg.slime_asks_to_stay.s1", nextNodeId: "s2" },
-      s2: { nodeId: "s2", speaker: "npc", localizationKey: "dlg.slime_asks_to_stay.s2", nextNodeId: "s3" },
-      s3: { nodeId: "s3", speaker: "npc", localizationKey: "dlg.slime_asks_to_stay.s3" },
+      // 09：想不想让他住下来是你的选择——邀请 = 图纸（规则接 invite_slime）；下次吧 = 傍晚他走人
+      s2: {
+        nodeId: "s2",
+        speaker: "npc",
+        localizationKey: "dlg.slime_asks_to_stay.s2",
+        choices: [
+          { choiceId: "invite", localizationKey: "dlg.slime_asks_to_stay.invite", conditions: [{ kind: "is_host" }], emitEventId: "invite_slime", nextNodeId: "s3" },
+          { choiceId: "decline", localizationKey: "dlg.slime_asks_to_stay.decline", emitEventId: "decline_slime", nextNodeId: "s4" },
+        ],
+      },
+      s3: { nodeId: "s3", speaker: "npc", localizationKey: "dlg.slime_asks_to_stay.s3", expression: "happy" },
+      s4: { nodeId: "s4", speaker: "npc", localizationKey: "dlg.slime_asks_to_stay.s4", expression: "sad" },
     },
   },
   {
@@ -210,8 +221,18 @@ export const dialogueDefinitions: DialogueDefinition[] = [
     entryNodeId: "f1",
     nodes: {
       f1: { nodeId: "f1", speaker: "npc", localizationKey: "dlg.fox_asks_to_stay.f1", nextNodeId: "f2" },
-      f2: { nodeId: "f2", speaker: "npc", localizationKey: "dlg.fox_asks_to_stay.f2", nextNodeId: "f3" },
-      f3: { nodeId: "f3", speaker: "npc", localizationKey: "dlg.fox_asks_to_stay.f3" },
+      // 09：想不想让他住下来是你的选择——邀请 = 图纸（规则接 invite_fox）；下次吧 = 傍晚他走人
+      f2: {
+        nodeId: "f2",
+        speaker: "npc",
+        localizationKey: "dlg.fox_asks_to_stay.f2",
+        choices: [
+          { choiceId: "invite", localizationKey: "dlg.fox_asks_to_stay.invite", conditions: [{ kind: "is_host" }], emitEventId: "invite_fox", nextNodeId: "f3" },
+          { choiceId: "decline", localizationKey: "dlg.fox_asks_to_stay.decline", emitEventId: "decline_fox", nextNodeId: "f4" },
+        ],
+      },
+      f3: { nodeId: "f3", speaker: "npc", localizationKey: "dlg.fox_asks_to_stay.f3", expression: "happy" },
+      f4: { nodeId: "f4", speaker: "npc", localizationKey: "dlg.fox_asks_to_stay.f4", expression: "sad" },
     },
   },
   {
@@ -230,8 +251,18 @@ export const dialogueDefinitions: DialogueDefinition[] = [
     entryNodeId: "p1",
     nodes: {
       p1: { nodeId: "p1", speaker: "npc", localizationKey: "dlg.spirit_asks_to_stay.p1", nextNodeId: "p2" },
-      p2: { nodeId: "p2", speaker: "npc", localizationKey: "dlg.spirit_asks_to_stay.p2", nextNodeId: "p3" },
-      p3: { nodeId: "p3", speaker: "npc", localizationKey: "dlg.spirit_asks_to_stay.p3" },
+      // 09：想不想让他住下来是你的选择——邀请 = 图纸（规则接 invite_spirit）；下次吧 = 傍晚他走人
+      p2: {
+        nodeId: "p2",
+        speaker: "npc",
+        localizationKey: "dlg.spirit_asks_to_stay.p2",
+        choices: [
+          { choiceId: "invite", localizationKey: "dlg.spirit_asks_to_stay.invite", conditions: [{ kind: "is_host" }], emitEventId: "invite_spirit", nextNodeId: "p3" },
+          { choiceId: "decline", localizationKey: "dlg.spirit_asks_to_stay.decline", emitEventId: "decline_spirit", nextNodeId: "p4" },
+        ],
+      },
+      p3: { nodeId: "p3", speaker: "npc", localizationKey: "dlg.spirit_asks_to_stay.p3", expression: "happy" },
+      p4: { nodeId: "p4", speaker: "npc", localizationKey: "dlg.spirit_asks_to_stay.p4", expression: "sad" },
     },
   },
   {
@@ -267,7 +298,7 @@ export const dialogueDefinitions: DialogueDefinition[] = [
  * 三位居民的闲聊段（居民系统 03）由表生成，并进同一张注册表：
  * 对话引擎、审计、`/npc <谁> talk` 都只认这一张。
  */
-dialogueDefinitions.push(...residentChatDialogues, ...residentAffectionDialogues, ...residentFavorDialogues, ...residentVisitDialogues);
+dialogueDefinitions.push(...residentChatDialogues, ...residentAffectionDialogues, ...residentFavorDialogues, ...residentVisitDialogues, ...residentTripDialogues);
 
 export function findDialogueDefinition(
   id: string,

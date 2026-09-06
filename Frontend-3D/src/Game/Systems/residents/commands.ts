@@ -2,6 +2,7 @@ import {
   COMMAND_SKILL_ID,
   findBlueprintForBuilding,
   findItemDefinition,
+  findResidentDefinition,
   findSkillPriority,
   residentIdOf,
   roomCellToWorld,
@@ -34,7 +35,9 @@ import { evaluateHouseComments } from "core";
 import { listTalkCandidates, findTalkPool } from "core";
 import { evaluateCondition } from "../dialogue";
 import { describeSpots, homeSpotOf } from "./spots";
-import { debugSendToTown, listResidentTrips, tripPlanOf } from "./townTrips";
+import { debugSendToTown, listResidentTrips, returnFromTown, tripPlanOf } from "./townTrips";
+import { currentVisitor, describeVisitor, leaveVisitor, spawnVisitor, visitorCandidatesNow } from "./visitors";
+import { debugTrip, describeTripPlan, tripPlanOf as multiDayPlanOf } from "./trips";
 import { listResidentSpecies } from "./moveIn";
 import { getPendingUnpack, presentItems } from "../unpack";
 import { t } from "../../../i18n/t";
@@ -97,6 +100,8 @@ const USAGE = [
   "/npc relations —— 关系表 + 今天各对聊过几次",
   "/npc <谁> gossip —— 他此刻能讲的八卦段（引用别人记忆 / 昨天事实的闲聊）",
   "/npc <谁> visit —— 立即来访（无视时段与抽签，但仍要求你在屋里）",
+  "/npc visitor [spawn [物种]|leave] —— 桥头访客：看候选 / 立即来一位 / 立即走（09）",
+  "/npc <谁> trip [tripId] —— 立即多日出门（默认 hometown，当面说过算说过）；/npc <谁> back 立即回来（09）",
   "/npc <谁> porch <itemId> | porch clear —— 摆 / 清门口展示位",
   "/npc <谁> nameplate on|off —— 门牌",
   "/npc housecomment —— 此刻室内快照求值出的评论 id 和各位会说的文案键",
@@ -208,15 +213,19 @@ export function registerResidentCommands(): Array<() => void> {
             const blueprint = findBlueprintForBuilding(buildingId);
             const present = pets.find((item) => item.definitionId === resident.id);
             let status: string;
-            if (present) {
+            const plan = describeTripPlan(residentIdOf(resident.id));
+            if (present?.visiting) {
+              status = describeVisitor(present);
+            } else if (present) {
               // 驻地和现在站的位置一起打：'搬没搬进去'唯一看得见的证据是驻地，
               // '到没到'看的是现在在哪（还在从桥头往家走的路上 = 两个数不一样）
               status =
                 `在场（驻地 ${present.homeX.toFixed(1)}, ${present.homeZ.toFixed(1)}；` +
-                `现在在 ${present.x.toFixed(1)}, ${present.z.toFixed(1)}）`;
+                `现在在 ${present.x.toFixed(1)}, ${present.z.toFixed(1)}）` +
+                (plan ? `，${plan}` : "");
             } else if (listResidentTrips()[residentIdOf(resident.id)]) {
               const trip = listResidentTrips()[residentIdOf(resident.id)];
-              status = `出门了（${trip.kind}，${trip.backAtLocalTime} 回）`;
+              status = trip.kind === "town" ? `出门了（小镇，${trip.backAtLocalTime} 回）` : `出门了（${trip.kind}，${trip.dayId} ${trip.backAtLocalTime} 回）`;
             } else if (houseOnGround(buildingId)) {
               status = "房子在场上，人还没到";
             } else if (blueprint && getCount(blueprint.id) > 0) {
@@ -229,6 +238,25 @@ export function registerResidentCommands(): Array<() => void> {
           return ok(["居民：", ...rows].join("\n"));
         }
 
+        if (sub === "visitor") {
+          if (isRemoteWorld()) return fail("做客中桥头不归你管");
+          const op = (args[1] ?? "").toLowerCase();
+          if (op === "spawn") {
+            const species = findSpecies(args[2]);
+            if (args[2] && !species) return fail(`没有这位：${args[2]}`);
+            const agent = spawnVisitor(species?.id);
+            if (agent) return ok(`${t(findResidentDefinition(agent.definitionId)!.localizationKey)} 来到桥头了`);
+            const why = currentVisitor() ? "桥头已经有人了" : `没有候选（${visitorCandidatesNow().length === 0 ? "都住下了 / 图纸在你手上 / 领地放不下" : "他不在候选里"}）`;
+            return fail(`来不了：${why}`);
+          }
+          if (op === "leave") {
+            const visitor = currentVisitor();
+            return visitor && leaveVisitor(visitor.residentId) ? ok(`${visitor.residentId} 走了`) : fail("桥头没人");
+          }
+          const rows = visitorCandidatesNow().map((definition) => `  ${shortName(definition.id)}`);
+          const visitor = currentVisitor();
+          return ok([visitor ? `桥头：${visitor.residentId} ${describeVisitor(visitor)}` : "桥头没人", "今天能来的：", ...(rows.length ? rows : ["  （没有）"])].join("\n"));
+        }
         if (sub === "join") {
           const species = findSpecies(args[1]);
           if (!species) {
@@ -350,6 +378,11 @@ export function registerResidentCommands(): Array<() => void> {
           const placed = placeInInterior(agent.residentId, itemId);
           if (!placed) return fail("摆不了（没有房子 / 不是家具）");
           return ok(`${itemId} 摆到了 ${placed.instanceId} ${placed.where === "interior" ? "屋里" : "门口"}${placed.movedToPorch ? `，${placed.movedToPorch} 挪到门口` : ""}${placed.boxed ? `，${placed.boxed} 进箱` : ""}`);
+        }
+        if (agent && verb === "trip") {
+          if (isRemoteWorld()) return fail("做客中不能指挥别人的邻居");
+          const why = debugTrip(agent.residentId, args[2] ?? "hometown");
+          return why ? fail(`走不了：${why}`) : ok(`${agent.residentId} 出门了（${args[2] ?? "hometown"}），/npc list 看哪天回`);
         }
         if (agent && verb === "visit") {
           const why = forceVisit(agent.residentId);
@@ -497,6 +530,14 @@ export function registerResidentCommands(): Array<() => void> {
 
         // 认识这位、但人不在场：出门了就说出门了，别答"不认识的子命令"
         const species = findSpecies(args[0]);
+        if (species && (args[1] ?? "").toLowerCase() === "back") {
+          // 09：立即回来（多日出门 / 小镇都行）
+          if (isRemoteWorld()) return fail("做客中不能指挥别人的邻居");
+          if (!listResidentTrips()[residentIdOf(species.id)]) return fail(`${shortName(species.id)} 没出门`);
+          returnFromTown(residentIdOf(species.id));
+          const plan = multiDayPlanOf(residentIdOf(species.id));
+          return ok(`${shortName(species.id)} 回来了${plan ? "，见面第一句在等你" : ""}`);
+        }
         if (species) {
           const trip = listResidentTrips()[residentIdOf(species.id)];
           if (trip) return fail(`${shortName(species.id)} 出门了（${trip.kind}），${trip.backAtLocalTime} 回来`);

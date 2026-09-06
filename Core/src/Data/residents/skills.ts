@@ -47,6 +47,8 @@ export const skillPriorityDefinitions = [
   { id: "social", priority: 45, interruptible: true },
   /** 有事求你（05）：委托挂着、你在附近，他走过来站到你跟前。不追人 */
   { id: "favor", priority: 35, interruptible: true },
+  /** 09：出门前当面说、回来第一句——和委托一样是"他找你"，排在委托后一位 */
+  { id: "trip", priority: 34, interruptible: true },
   { id: "greet", priority: 30, interruptible: true },
   /** 闲着打盹（舒舒十次有八次）。只在无事可做时掷 */
   { id: "nap", priority: 25, interruptible: true },

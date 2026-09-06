@@ -1,4 +1,4 @@
-import { AffectionStage } from "core";
+import { AffectionStage, visitorTuning } from "core";
 import { priorityOf } from "../residentAgent";
 import type { Skill } from "./types";
 
@@ -11,6 +11,7 @@ import type { Skill } from "./types";
 /** 闲下来时按睡意掷一次：舒舒十次有八次接着睡 */
 export const napSkill: Skill = {
   id: "nap",
+  forVisitors: true,
   decide: ({ agent, current }) => {
     if (current) return null;
     if (agent.sleepiness <= 0 || Math.random() >= agent.sleepiness) return null;
@@ -27,6 +28,7 @@ export const napSkill: Skill = {
 /** 熟悉后偶尔主动走向玩家（好感度的空间表现） */
 export const approachSkill: Skill = {
   id: "approach",
+  forVisitors: true,
   decide: ({ agent, player, current }) => {
     if (current) return null;
     if (agent.affectionStage === AffectionStage.Stranger) return null;
@@ -46,9 +48,11 @@ export const approachSkill: Skill = {
 /** 兜底：驻地附近随便挑一个站得进去的点走过去 */
 export const wanderSkill: Skill = {
   id: "wander",
+  forVisitors: true,
   decide: ({ agent, current }) => {
     if (current) return null;
-    const spot = agent.randomFreeSpot();
+    // 访客（09）只在桥头附近转：他不是居民，院子不是他的
+    const spot = agent.randomFreeSpot(agent.visiting ? visitorTuning.wanderRadius : undefined);
     if (!spot) return null;
     return {
       skillId: "wander",

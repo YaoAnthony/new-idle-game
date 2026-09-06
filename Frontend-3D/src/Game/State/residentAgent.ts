@@ -227,6 +227,12 @@ export class ResidentAgent {
    * Intent（`performWire`）和按关键帧纠偏（`applyKeyframe`）。
    */
   puppet = false;
+
+  /**
+   * 访客状态（09）：桥头站着的陌生人。有它 = 只问标了 `forVisitors` 的技能
+   * （没作息、不接委托、不串门、不来访）；到点走人由 visitors 系统管。进存档（ResidentSave.visiting）。
+   */
+  visiting?: { leaveAtLocalTime: string };
   /** 关键帧纠偏中：0.3 秒内插到这个点 */
   private correction: { x: number; z: number; remaining: number } | null = null;
 
@@ -720,6 +726,7 @@ export class ResidentAgent {
     const ctx = this.contextFor(player);
     for (const skill of this.skills) {
       if (!skill.interact || !this.isSkillEnabled(skill.id)) continue;
+      if (this.visiting && !skill.forVisitors) continue;
       const offer = skill.interact(ctx);
       if (offer) return offer;
     }
@@ -896,6 +903,7 @@ export class ResidentAgent {
       if (!skill.decide || !this.isSkillEnabled(skill.id)) continue;
       // 藏着的时候只问声明过"藏着也管"的技能，别让 wander 把人拉出去
       if (hidden && !skill.worksWhileHidden) continue;
+      if (this.visiting && !skill.forVisitors) continue;
       if (this.current && priorityOf(skill.id) <= this.current.priority) break;
       const intent = skill.decide(ctx);
       if (intent && this.perform(intent)) return true;
@@ -910,6 +918,7 @@ export class ResidentAgent {
     for (const skill of this.skills) {
       if (!skill.observe || !this.isSkillEnabled(skill.id)) continue;
       if (hidden && !skill.worksWhileHidden) continue;
+      if (this.visiting && !skill.forVisitors) continue;
       skill.observe(ctx);
     }
   }
@@ -920,6 +929,7 @@ export class ResidentAgent {
     const ctx = this.contextFor(this.lastPlayer);
     for (const skill of this.skills) {
       if (!skill.onEvent || !this.isSkillEnabled(skill.id)) continue;
+      if (this.visiting && !skill.forVisitors) continue;
       skill.onEvent(ctx, event);
     }
   }
@@ -1285,6 +1295,8 @@ export class ResidentAgent {
       catchphrase: this.catchphrase,
       lastGreetDayId: this.lastGreetDayId,
       sickUntilDayId: this.sickUntilDayId,
+      // 09：访客状态。没有就不写
+      visiting: this.visiting,
       // undefined 而不是 false：醒着是默认态，别往每份存档里写一排 false
       sleeping: this.state === "sleeping" ? true : undefined,
       // 同理：没有零件概念的物种不写这个字段
@@ -1315,6 +1327,7 @@ export class ResidentAgent {
     this.catchphrase = entry.catchphrase;
     this.lastGreetDayId = entry.lastGreetDayId;
     this.sickUntilDayId = entry.sickUntilDayId;
+    this.visiting = entry.visiting;
     this.needs = {
       hunger: entry.needs?.hunger ?? 80,
       thirst: entry.needs?.thirst ?? 80,

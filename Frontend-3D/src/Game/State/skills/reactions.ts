@@ -14,6 +14,7 @@ const lastReactionAt = new WeakMap<ResidentAgent, Map<string, number>>();
 
 export const reactionsSkill: Skill = {
   id: "reactions",
+  forVisitors: true,
   worksWhileHidden: false,
   onEvent: ({ agent }, event) => {
     if (agent.state === "hidden" || agent.asleep) return;

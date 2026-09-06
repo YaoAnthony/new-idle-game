@@ -22,6 +22,8 @@ import { giveResidentPresent } from "./residents/presents";
 import { declineFavor } from "./residents/favors";
 import { placeOnPorch, setNamePlate } from "./residents/porch";
 import { placeInInterior } from "./residents/interiors";
+import { spawnVisitor } from "./residents/visitors";
+import { grantTripGift, planTrip } from "./residents/trips";
 import { pickPresentFor } from "./residents/presents";
 import { beginHouseVisit, refuseVisit } from "./residents/visits";
 import { presentItems } from "./unpack";
@@ -203,6 +205,26 @@ function runEffect(effect: StoryEffect): void {
     // 屋里的槽位（08）：有室内进屋，没有退回门口——interiors 自己判
     case "interior_place":
       placeInInterior(effect.residentId, effect.itemId);
+      break;
+
+    // ---- 访客与出门（09）----
+    case "spawn_visitor":
+      // 等面板关掉再来：和 spawn_resident 一样，"桥头站着个人"要发生在玩家看得见的时候
+      whenPanelsClear(() => spawnVisitor());
+      break;
+    case "reset_pool":
+      poolMisses[effect.poolId] = 0;
+      break;
+    case "visitor_invited": {
+      const definitionId = getResident(effect.residentId)?.definitionId;
+      if (definitionId) signal("visitor_invited", definitionId);
+      break;
+    }
+    case "plan_trip":
+      planTrip(effect.residentId, effect.tripId);
+      break;
+    case "grant_trip_gift":
+      grantTripGift(effect.residentId);
       break;
 
     // 来访临走的礼物（07）：从他的 presents 里挑，不用再走过来

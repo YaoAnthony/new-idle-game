@@ -29,6 +29,11 @@ export type InteractOffer =
 export type Skill = {
   id: string;
   /**
+   * 访客（`agent.visiting`，09）也问它。缺省不问——桥头站着的陌生人没作息、不接委托、
+   * 不串门、不来访；只有 wander / greet / talk / approach / nap / reactions 标了它。
+   */
+  forVisitors?: boolean;
+  /**
    * 藏起来（在屋里）的时候还要不要问它。缺省不问——`hide` 之后只有明确说
    * `show` 的技能（02 的 routine 早上叫他出门）才有资格把他弄出来；
    * 不然 wander 一轮就把刚藏好的人拉出去溜达了（2026-09-06 双端验收抓到的）。

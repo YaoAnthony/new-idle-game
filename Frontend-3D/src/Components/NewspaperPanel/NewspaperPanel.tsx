@@ -227,8 +227,12 @@ function lineOf(item: { kind: string; subject?: string }): string {
     const [a, b] = what.split("|").map((id) => t(findResidentDefinition(id)?.localizationKey ?? `pet.${id}`));
     return t("ui.news.line.residents_chatted").replace("{a}", a ?? "").replace("{b}", b ?? "");
   }
-  if (item.kind === "resident_moved_in") {
-    return t("ui.news.line.moved_in").replace("{who}", t(findResidentDefinition(what)?.localizationKey ?? `pet.${what}`));
+  if (item.kind === "resident_moved_in" || item.kind === "visitor_arrived") {
+    // subject 是 definitionId（09 的访客也是）
+    return t(`ui.news.line.${item.kind === "resident_moved_in" ? "moved_in" : "visitor_arrived"}`).replace("{who}", t(findResidentDefinition(what)?.localizationKey ?? `pet.${what}`));
+  }
+  if (item.kind === "resident_trip_away") {
+    return t("ui.news.line.resident_trip_away").replace("{who}", whoName(what) ?? t("ui.news.someone"));
   }
   return t(`ui.news.line.${item.kind}`);
 }

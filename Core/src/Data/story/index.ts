@@ -1,6 +1,9 @@
 import { affectionTuning, theftTuning } from "../economy/index.js";
+import { findBlueprintForBuilding } from "../items/index.js";
 import { favorDefinitions } from "../residents/favors.js";
 import { findResidentDefinition, residentIdOf } from "../residents/index.js";
+import { tripPool } from "../residents/trips.js";
+import { visitorTuning } from "../residents/visitors.js";
 
 /** 专属家具的 id 从定义上取，规则不抄第二遍 */
 function signatureItemOf(definitionId: string): string {
@@ -264,45 +267,54 @@ export const storyRules: StoryRule[] = [
     ],
   },
   /*
-   * ==== 三位居民的到来（期 4）====
+   * ==== 访客与出门（居民系统 09）====
    *
-   * **一位居民 = 一条规则**，共享 poolId "resident_arrival"：
-   * 每个 day_started 同池只掷一次点（同一天最多来一位），错过攒保底，
-   * 来过一位三条一起归零重新等。**现在没有任何门槛**（用户定：纯随机）
-   * ——以后要"开了林子那块地精灵才会来"，往那条 trigger 上加一个
-   * `requiresFeature: "plot.north_grove"`，代码零改动。
-   *
-   * 图纸在效果里直接给：他说想住下的同时把图纸递到你手上。
-   * 搬入（home 重定向 + resident_moved_in 信号）由 Systems/residents
-   * 在房子完工时接手。
+   * 三位居民原来各一条"抽签到来"规则（人先到、当面给图纸），09 起退役：桥头访客一条路。
+   * 每个 day_started 同池掷一次，抽中就 spawn_visitor——**谁来**在效果里按候选定（有房子、
+   * 没住下、图纸不在你手上、领地放得下），规则不点名。邀请 / 拒绝是对话选项报告，规则接：
+   * 邀请 = 图纸经领取面板 + 信号；拒绝 = 池归零重新累。
+   * 多日出门：每位一条规则共享 trip_hometown 池，伙伴档起才进池；plan_trip 定下明天走。
    */
   {
-    id: "resident_slime_arrives",
-    triggers: [{ signal: "day_started", poolId: "resident_arrival" }],
-    effects: [
-      { kind: "spawn_resident", residentId: residentIdOf("slime_neighbor"), definitionId: "slime_neighbor", delayMs: 2500, jitterMs: 1500 },
-      { kind: "start_dialogue", dialogueId: "slime_asks_to_stay", residentId: residentIdOf("slime_neighbor"), delayMs: 5500 },
-      { kind: "give_item", itemId: "blueprint_slime_house", quantity: 1 },
-    ],
+    id: "visitor_arrives",
+    once: false,
+    triggers: [{ signal: "day_started", poolId: visitorTuning.pool.poolId }],
+    effects: [{ kind: "spawn_visitor" }],
   },
-  {
-    id: "resident_fox_arrives",
-    triggers: [{ signal: "day_started", poolId: "resident_arrival" }],
-    effects: [
-      { kind: "spawn_resident", residentId: residentIdOf("fox_neighbor"), definitionId: "fox_neighbor", delayMs: 2500, jitterMs: 1500 },
-      { kind: "start_dialogue", dialogueId: "fox_asks_to_stay", residentId: residentIdOf("fox_neighbor"), delayMs: 5500 },
-      { kind: "give_item", itemId: "blueprint_fox_house", quantity: 1 },
-    ],
-  },
-  {
-    id: "resident_spirit_arrives",
-    triggers: [{ signal: "day_started", poolId: "resident_arrival" }],
-    effects: [
-      { kind: "spawn_resident", residentId: residentIdOf("spirit_neighbor"), definitionId: "spirit_neighbor", delayMs: 2500, jitterMs: 1500 },
-      { kind: "start_dialogue", dialogueId: "spirit_asks_to_stay", residentId: residentIdOf("spirit_neighbor"), delayMs: 5500 },
-      { kind: "give_item", itemId: "blueprint_spirit_house", quantity: 1 },
-    ],
-  },
+  ...NEIGHBORS.flatMap((who): StoryRule[] => {
+    const short = who.replace(/_neighbor$/, "");
+    const buildingId = findResidentDefinition(who)?.residence?.buildingId ?? "";
+    const blueprint = findBlueprintForBuilding(buildingId);
+    return [
+      {
+        id: `visitor_invite_${who}`,
+        once: false,
+        triggers: [{ signal: "dialogue_event", subject: `invite_${short}` }],
+        effects: [
+          ...(blueprint ? [{ kind: "grant_items" as const, localizationKey: "loot.residence_blueprint", items: [{ itemId: blueprint.id, quantity: 1 }] }] : []),
+          { kind: "visitor_invited", residentId: residentIdOf(who) },
+        ],
+      },
+      {
+        id: `visitor_decline_${who}`,
+        once: false,
+        triggers: [{ signal: "dialogue_event", subject: `decline_${short}` }],
+        effects: [{ kind: "reset_pool", poolId: visitorTuning.pool.poolId }],
+      },
+      {
+        id: `trip_hometown_${who}`,
+        once: false,
+        triggers: [{ signal: "day_started", poolId: tripPool.poolId, requiresAffection: { residentId: residentIdOf(who), stage: "familiar_resident" } }],
+        effects: [{ kind: "plan_trip", residentId: residentIdOf(who), tripId: "hometown" }],
+      },
+      {
+        id: `trip_hometown_gift_${who}`,
+        once: false,
+        triggers: [{ signal: "dialogue_ended", subject: `trip_hometown_back_${short}` }],
+        effects: [{ kind: "grant_trip_gift", residentId: residentIdOf(who) }],
+      },
+    ];
+  }),
 
   /*
    * 报纸（期 7）。**用送礼当解锁开关，这是全蓝图第一次。**
@@ -388,7 +400,9 @@ export type StoryPoolDefinition = {
 };
 
 export const storyPools: StoryPoolDefinition[] = [
-  { poolId: "resident_arrival", base: 0.12, step: 0.08, max: 1 },
+  // 09：桥头访客 / 多日出门。数字住各自的表，这里只是挂进池子
+  visitorTuning.pool,
+  tripPool,
   // 04：伙伴档起"他送你东西"。数字住经济表，这里只是把它挂进池子
   { poolId: "resident_present", ...affectionTuning.presentPool },
 ];

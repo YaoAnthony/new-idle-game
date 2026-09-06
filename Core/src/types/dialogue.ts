@@ -64,7 +64,9 @@ export type DialogueCondition =
    */
   | { kind: "neighbor_fact_yesterday"; residentId: ResidentDefinitionId; fact: string }
   /** 玩家此刻站在**这位**的屋里（08）。屋内闲聊段用它；和 `neighbor_present` 一样按对话对象求值 */
-  | { kind: "player_in_my_home" };
+  | { kind: "player_in_my_home" }
+  /** 你是房主（不在做客）（09）。邀访客住下这种改世界的选项只给房主 */
+  | { kind: "is_host" };
 
 export type DialogueChoice = {
   choiceId: DialogueChoiceId;

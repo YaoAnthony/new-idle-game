@@ -1449,6 +1449,14 @@ export const migrations: Migration[] = [
     to: 40,
     migrate: (save) => save,
   },
+
+  /*
+   * v41 · 居民系统 07：`WorldSave.porch`（门口展示位与门牌）。可选字段，老档 undefined = 门口空着。空迁移。
+   */
+  {
+    to: 41,
+    migrate: (save) => save,
+  },
 ];
 
 /**

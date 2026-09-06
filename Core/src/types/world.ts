@@ -246,6 +246,12 @@ export type WorldSave = {
    * **进刷新切片**：房客要看到"！"。
    */
   favors?: Record<string, import("./favors.js").FavorSave>;
+  /**
+   * 门口展示位（居民系统 07）：建筑实例 id → 摆着的几件（队列，满了替换最早的）+ 门牌。
+   * **只有剧情效果 porch_place / porch_nameplate 会写**；不占格、不参与碰撞、玩家搬不走。
+   * 门牌上的名字不存：渲染时读玩家名（联机时房客看到的是房主名，因为世界是房主的）。
+   */
+  porch?: Record<string, { items: Array<string | null>; namePlate?: boolean }>;
 
   /**
    * 旅行商人这一趟的摊子（期 6，save v31）。

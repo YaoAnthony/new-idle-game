@@ -1457,6 +1457,15 @@ export const migrations: Migration[] = [
     to: 41,
     migrate: (save) => save,
   },
+
+  /*
+   * v42 · 居民系统 08：`WorldSave.interiors`（居民房的室内槽位）。可选字段，老档 undefined = 屋里没摆过东西。
+   * 门口（porch）的东西不搬进屋：那是玩家已经看见的布置，读档之后突然挪进屋里像丢了。空迁移。
+   */
+  {
+    to: 42,
+    migrate: (save) => save,
+  },
 ];
 
 /**

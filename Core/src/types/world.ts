@@ -254,6 +254,14 @@ export type WorldSave = {
   porch?: Record<string, { items: Array<string | null>; namePlate?: boolean }>;
 
   /**
+   * 居民房的室内槽位（居民系统 08）：建筑实例 id → 你送的东西各摆在哪个槽（按槽下标，空槽 null）
+   * + 放不下收进箱子里的。**只有剧情效果 interior_place 会写**（送对了爱吃的家具、find 委托做完）；
+   * 满了最早的那件挪到门口（porch），门口也满了才进箱。室内的几何和固定陈设是内容
+   * （`residentInteriorDefinitions`），不在这里。
+   */
+  interiors?: Record<string, { gifts: Array<string | null>; boxed: string[] }>;
+
+  /**
    * 旅行商人这一趟的摊子（期 6，save v31）。
    *
    * 只记**哪一天的摊**和**还剩什么**。为什么要存：限量是这个角色的命，

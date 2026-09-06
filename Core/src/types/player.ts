@@ -53,6 +53,8 @@ export type PlayerSave = {
    * 老档没有 → 0。不是"欠玩家一笔"，是"没在外面赚过钱"。
    */
   pendingGold?: number;
+  /** 你的生日 "MM-DD"（居民系统 11，可空）。当天居民寄信、招呼换段；不办派对 */
+  birthday?: string;
 
   character: {
     inventory: InventoryStack[];

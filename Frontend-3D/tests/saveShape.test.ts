@@ -66,6 +66,8 @@ const SHAPE: string[] = [
   "ownWorld.tripPlans",
   // v44：信箱（居民系统 10）。进切片（房客只读）。空信箱不写 = 叶子；里面几张表的形状见 Core MailboxSave
   "ownWorld.mailbox",
+  // v45：通用旗子（居民系统 11）。进切片
+  "ownWorld.flags",
   // 期 6：旅行商人这一趟卖掉了什么。联机不跟——摊子是房主世界的事
   "ownWorld.travelerStock.day",
   "ownWorld.travelerStock.sold[]",
@@ -141,6 +143,8 @@ const SHAPE: string[] = [
   "player.discoveredRecipeIds[]",
   "player.name",
   "player.pendingGold",
+  // v45：你的生日（居民系统 11，可空）
+  "player.birthday",
 ];
 
 /** 序列化出来的键集合。空对象记成 `{}`，数组记成 `[]` —— 它们同样是形状 */

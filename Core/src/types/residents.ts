@@ -137,6 +137,9 @@ export type ResidentDefinition = {
    */
   visitorEligible?: boolean;
 
+  /** 生日 "MM-DD"（居民系统 11）。按世界日的月日比，不看设备时间 */
+  birthday?: string;
+
   /**
    * **性格**（居民系统 02）：决定几点起几点睡、一天去哪、下雨怎么办。
    * 查 `personalityDefinitions`。没填的（访客、宠物）`routine` 技能直接不作声，退回 wander。

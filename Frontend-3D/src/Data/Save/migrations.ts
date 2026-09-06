@@ -1482,6 +1482,12 @@ export const migrations: Migration[] = [
     to: 44,
     migrate: (save) => save,
   },
+
+  /* v45 · 居民系统 11：`WorldSave.flags`（通用旗子）、`PlayerSave.birthday`（你的生日）。都可选，空迁移 */
+  {
+    to: 45,
+    migrate: (save) => save,
+  },
 ];
 
 /**

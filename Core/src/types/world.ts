@@ -251,7 +251,7 @@ export type WorldSave = {
    * **只有剧情效果 porch_place / porch_nameplate 会写**；不占格、不参与碰撞、玩家搬不走。
    * 门牌上的名字不存：渲染时读玩家名（联机时房客看到的是房主名，因为世界是房主的）。
    */
-  porch?: Record<string, { items: Array<string | null>; namePlate?: boolean }>;
+  porch?: Record<string, { items: Array<string | null>; namePlate?: boolean; decoration?: string }>;
 
   /**
    * 居民房的室内槽位（居民系统 08）：建筑实例 id → 你送的东西各摆在哪个槽（按槽下标，空槽 null）
@@ -273,6 +273,13 @@ export type WorldSave = {
    * 信属于**这个家**（房主），寄件人是居民（世界的）——放世界表，进刷新切片：房客能翻信箱，但收不了附件。
    */
   mailbox?: import("./letters.js").MailboxSave;
+
+  /**
+   * 通用旗子（居民系统 11）：`set_flag` 效果写、条件 `flag_is` 读。今天谁过生日（birthday_today）、
+   * 哪个节日在进行（festival_active）都是它；以后剧情要记"某件事发生过"也用它，别再各开一张表。
+   * 进刷新切片：房客按 F 要知道今天是谁的生日。
+   */
+  flags?: Record<string, string>;
 
   /**
    * 旅行商人这一趟的摊子（期 6，save v31）。

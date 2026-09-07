@@ -7,7 +7,7 @@ import { getDbPath } from './config.js'
 
 /**
  * SQLite 连接与迁移。**Persistent Storage 变更必须使用 Migration**
- * （Backend AGENTS.md）——哪怕现在只有一条建表迁移，纪律从第一天立起：
+ * （Backend AGENTS.md）——纪律从第一天立起：
  * 改表就追加一条，永不改已发布的旧条目。风格对齐客户端
  * Data/Save/migrations.ts 的"版本链"思路，但服务端简单得多：纯 SQL 顺跑。
  *
@@ -37,6 +37,20 @@ const MIGRATIONS: ReadonlyArray<{ version: number; up: string }> = [
         updated_at_utc TEXT NOT NULL,
         prev_payload TEXT,
         prev_revision INTEGER
+      );
+    `,
+  },
+  {
+    version: 2,
+    up: `
+      CREATE TABLE deleted_cloud_saves (
+        user_id TEXT PRIMARY KEY REFERENCES users(id),
+        revision INTEGER NOT NULL,
+        save_schema_version INTEGER NOT NULL,
+        payload TEXT NOT NULL,
+        byte_size INTEGER NOT NULL,
+        device_id TEXT NOT NULL,
+        deleted_at_utc TEXT NOT NULL
       );
     `,
   },

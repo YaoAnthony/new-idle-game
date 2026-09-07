@@ -1,10 +1,10 @@
 import { Router, type Request } from 'express'
-import type { SaveGetOk, SaveHeadOk, SavePutRequest } from 'core'
+import type { SaveDeleteOk, SaveGetOk, SaveHeadOk, SavePutRequest } from 'core'
 
 import { authedUserId, requireAuth } from '../auth/middleware.js'
 import { accountError } from '../auth/validate.js'
 import { createRateLimiter } from '../shared/rateLimit.js'
-import { getFull, getHead, put } from './service.js'
+import { getFull, getHead, put, remove } from './service.js'
 
 const STATUS_BY_CODE: Record<string, number> = {
   bad_request: 400,
@@ -32,6 +32,13 @@ export function createSavesRouter(): Router {
 
   /** 整档下载最大 4MB，别让一个坏客户端拿它当带宽水龙头 */
   const getLimiter = createRateLimiter({ windowMs: 60_000, max: 20, keyOf: byUser })
+
+  /**
+   * 删档是玩家手点的、还要过一道二次确认，正常一分钟不会超过一次。
+   * 给到 6 是留给"点了没反应又点一次"和网络重试；再高没有意义——
+   * 这条路每一次调用都在动玩家的存档。
+   */
+  const deleteLimiter = createRateLimiter({ windowMs: 60_000, max: 6, keyOf: byUser })
 
   router.get('/me/head', (_req, res) => {
     const body: SaveHeadOk = { ok: true, head: getHead(authedUserId(res)) }
@@ -76,6 +83,11 @@ export function createSavesRouter(): Router {
 
     if (outcome.ok) return void res.json(outcome)
     res.status(STATUS_BY_CODE[outcome.code] ?? 400).json(outcome)
+  })
+
+  router.delete('/me', deleteLimiter, (_req, res) => {
+    const body: SaveDeleteOk = { ok: true, ...remove(authedUserId(res)) }
+    res.json(body)
   })
 
   return router

@@ -8,6 +8,11 @@ import {
   importIntoSlot,
   type ImportFailure,
 } from "../../Data/Save/transfer";
+import {
+  forgetCloudSave,
+  pushCloudSoon,
+  whenCloudReady,
+} from "../../Features/CloudSave/syncController";
 import type { TitleScreenCopy } from "../TitleScreen/content";
 import "./SaveSlots.css";
 
@@ -113,12 +118,36 @@ export function SaveSlotsPanel({
   const importTarget = useRef<SaveSlotId | null>(null);
 
   const refresh = useCallback(() => {
-    void listSaveSlots().then(setSummaries);
+    /*
+     * 先等启动对账落定再列。换台设备登录时云槽的镜像还在下载路上，
+     * 抢在前面列出来的是一张"空档位"——玩家点一下新建，就在云端那份
+     * 还好好的情况下开了个新档。
+     */
+    void whenCloudReady()
+      .then(listSaveSlots)
+      .then(setSummaries);
   }, []);
 
   useEffect(refresh, [refresh]);
 
   const remove = async (slot: SaveSlotId) => {
+    if (slot === "cloud") {
+      /*
+       * **先云端后本地**：云端删不掉就整件事不做。反过来的话本地清了、
+       * 云端还在，玩家看到"云槽空了"，下次登录它又回来了——比删不掉
+       * 更难解释。
+       */
+      const outcome = await forgetCloudSave();
+      if (!outcome.ok) {
+        const reason = "reason" in outcome ? outcome.reason : "offline";
+        setNotice(
+          reason === "unauthorized" ? copy.slotCloudSignedOut : copy.slotCloudOffline,
+        );
+        setConfirmingDelete(null);
+        return;
+      }
+    }
+
     await getSaveRepository(slot).clear();
     setConfirmingDelete(null);
     setNotice(null);
@@ -161,6 +190,18 @@ export function SaveSlotsPanel({
       setNotice(copy[IMPORT_FAILURE_COPY[reason]]);
       return;
     }
+
+    if (slot === "cloud") {
+      /*
+       * 导入是直接写 IndexedDB 的（transfer 那层不认识仓库），云槽还得
+       * 让同步引擎知道有新东西：经仓库再写一次触发 markDirty，然后把
+       * 推送提前到 15 秒内——玩家刚做完一件明确的操作，等两分钟才上云，
+       * 这中间关掉页面就白做了。
+       */
+      await getSaveRepository("cloud").save(outcome.save);
+      pushCloudSoon();
+    }
+
     setNotice(null);
     refresh();
   };
@@ -210,7 +251,11 @@ export function SaveSlotsPanel({
               <p className="save-slot-ask">
                 {copy.slotDeleteAsk.replace("%s", name)}
               </p>
-              <p className="save-slot-ask-warn">{copy.slotDeleteWarn}</p>
+              <p className="save-slot-ask-warn">
+                {summary.slot === "cloud"
+                  ? copy.slotDeleteCloudWarn
+                  : copy.slotDeleteWarn}
+              </p>
               <div className="save-slot-actions">
                 <button
                   type="button"

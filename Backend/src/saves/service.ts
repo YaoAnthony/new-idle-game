@@ -134,6 +134,12 @@ export function put(userId: string, input: PutInput): SavePutOk | SavePutConflic
             device_id, last_write_id, updated_at_utc, prev_payload, prev_revision)
          VALUES (?, 1, ?, ?, ?, ?, ?, ?, NULL, NULL)`,
       ).run(userId, input.saveSchemaVersion, payload, byteSize, input.deviceId, input.writeId, now)
+      /*
+       * 首传的同时清掉删除留下的那份副本：他已经有新的云档了，
+       * "刚才点错了卡"这件事就此过期。副本的保留期因此是有界的，
+       * 不会有一份玩家以为删掉的存档在服务端无限期躺着。
+       */
+      db.prepare('DELETE FROM deleted_cloud_saves WHERE user_id = ?').run(userId)
       return { ok: true, revision: 1, updatedAtUtc: now }
     }
 
@@ -162,6 +168,48 @@ export function put(userId: string, input: PutInput): SavePutOk | SavePutConflic
       userId,
     )
     return { ok: true, revision: nextRevision, updatedAtUtc: now }
+  })
+
+  return run()
+}
+
+/**
+ * 删掉某个账号的云存档（`DELETE /api/saves/me`）。
+ *
+ * **删之前把整行挪进 `deleted_cloud_saves`**，和 PUT 覆盖前挪 `prev_*`
+ * 是同一招：玩家在存档页上点的是一张卡，点错一张的代价不该是"这个家
+ * 永远没了"。那份副本没有对外的恢复接口（人工捞），而且下一次上传就会
+ * 被清掉——保留期有界。
+ *
+ * 删的是**行本身**，不是把 payload 置空：留着一行空记录意味着 head、
+ * revision、幂等三处都要多认一种"存在但没有内容"的状态，而这三处正是
+ * 云同步最难改对的地方。行没了就是没了，PUT 会走首传分支（baseRevision 0），
+ * 这条路本来就跑通了。
+ *
+ * 云端本来就没档时返回 `deleted: false` 而不是报错：玩家要的结果
+ * （云端没有我的档）已经成立了。
+ */
+export function remove(userId: string): { deleted: boolean } {
+  const db = getDb()
+  const run = db.transaction((): { deleted: boolean } => {
+    const row = findRow(userId)
+    if (!row) return { deleted: false }
+
+    db.prepare(
+      `INSERT OR REPLACE INTO deleted_cloud_saves
+         (user_id, revision, save_schema_version, payload, byte_size, device_id, deleted_at_utc)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      userId,
+      row.revision,
+      row.save_schema_version,
+      row.payload,
+      row.byte_size,
+      row.device_id,
+      new Date().toISOString(),
+    )
+    db.prepare('DELETE FROM cloud_saves WHERE user_id = ?').run(userId)
+    return { deleted: true }
   })
 
   return run()

@@ -1,6 +1,7 @@
 import {
   ACCOUNT_LIMITS,
   type GameSave,
+  type SaveDeleteOk,
   type SaveGetOk,
   type SaveHead,
   type SaveHeadOk,
@@ -26,7 +27,7 @@ function failureOf(result: HttpResult<unknown>): {
 
 /**
  * /api/saves 的类型化客户端（协议见 contracts/account_protocol.md）。
- * 同步引擎（Features/CloudSave）只认识这四个函数，
+ * 同步引擎（Features/CloudSave）只认识这几个函数，
  * revision/writeId 这些并发语义的**决策**在引擎里，这里只是搬运。
  */
 
@@ -56,6 +57,31 @@ export async function fetchFull(): Promise<FetchFullOutcome> {
   const failure = failureOf(result);
   if (failure.kind === "unauthorized") return { kind: "unauthorized" };
   if (failure.kind === "server" && failure.status === 404) return { kind: "no_save" };
+  return { kind: "offline" };
+}
+
+export type RemoveOutcome =
+  | { kind: "ok"; deleted: boolean }
+  | { kind: "offline" }
+  | { kind: "unauthorized" };
+
+/**
+ * 删掉云端那一份（存档页上删云槽）。
+ *
+ * `deleted: false` 是**成功**——云端本来就没档，玩家要的结果已经成立。
+ * 只有网络没通和没登录才算失败：这两种情况下云端那份还在，界面必须
+ * 说实话，不能因为本地清干净了就显示"删好了"。
+ */
+export async function remove(timeoutMs = 15_000): Promise<RemoveOutcome> {
+  const result = await request<SaveDeleteOk>("/api/saves/me", {
+    method: "DELETE",
+    timeoutMs,
+  });
+
+  if (result.ok && "body" in result) {
+    return { kind: "ok", deleted: result.body.deleted };
+  }
+  if (failureOf(result).kind === "unauthorized") return { kind: "unauthorized" };
   return { kind: "offline" };
 }
 

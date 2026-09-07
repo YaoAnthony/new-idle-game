@@ -10,7 +10,8 @@
 - 响应统一 `XxxOk | AccountError`（判别式 `ok` 字段），错误码见
   `AccountErrorCode`，HTTP 状态码与错误码一一对应（400/401/409/413/422/429/503）。
 - 限流：register/login/google 按 IP 10 次/分钟；PUT saves 按用户 12 次/分钟，
-  GET saves 按用户 20 次/分钟。PUT 的额度对着客户端的节流定：正常游玩
+  GET saves 按用户 20 次/分钟，DELETE saves 按用户 6 次/分钟（手点 + 二次确认，
+  正常一分钟不会超过一次；余量留给"点了没反应又点一次"）。PUT 的额度对着客户端的节流定：正常游玩
   120 秒一次，剧情节点那条捷径也压着 15 秒下限（`EXPEDITED_PUSH_MS`），
   一分钟顶多 4 次，剩下的留给重试和多标签页——闸门挡的是失控客户端，不是玩家。
   按 IP 分桶的那两条在反向代理后面需要设 `TRUST_PROXY`，否则全服共用一个桶。
@@ -41,6 +42,7 @@
 | `GET /api/saves/me/head` | Bearer | 200 `SaveHeadOk`（无档 `head:null`） | 401 |
 | `GET /api/saves/me` | Bearer | 200 `SaveGetOk` | 401；404 `no_save` |
 | `PUT /api/saves/me` | Bearer + `SavePutRequest` | 200 `SavePutOk` | 401；409 `SavePutConflict`；413；422；429 |
+| `DELETE /api/saves/me` | Bearer | 200 `SaveDeleteOk` | 401；429 |
 
 ## 账号语义
 
@@ -59,6 +61,23 @@
 
 **已知风险（v1 接受）**：不做邮箱验证 / 忘记密码——密码丢了只能靠
 同邮箱 Google 登录找回；两边都丢就是丢了。
+
+## 删除云存档（存档页的"删除"）
+
+玩家在存档页上删掉云槽 → `DELETE /api/saves/me`。
+
+- 服务端**删的是 `cloud_saves` 那一行**，不是把 payload 置空。留一行空记录
+  意味着 head、revision、幂等三处都要多认一种"存在但没有内容"的状态，
+  而这三处正是云同步最难改对的地方。行删掉之后 `GET head` 回 `head: null`、
+  `GET me` 回 404、下一次 PUT 走首传分支（`baseRevision: 0`）——都是既有的路。
+- 删之前整行挪进 `deleted_cloud_saves`（**一份人工可捞的副本**，没有对外的
+  恢复接口），和 PUT 覆盖前挪 `prev_*` 是同一招：玩家点的是一张卡，点错一张
+  的代价不该是"这个家永远没了"。**下一次成功上传会清掉这份副本**——保留期
+  因此是有界的，不会有一份玩家以为删掉的存档在服务端无限期躺着。
+- 云端本来就没档 → `deleted: false`，**不是错误**：玩家要的结果已经成立，
+  报错只会让他以为没删掉、再点一次。
+- 客户端删完必须把同步基准归零（`lastSyncedRevision = 0`、`dirtySinceSync = false`、
+  丢掉内存里的 lastSave），否则下一次节流推送会拿着旧基准把刚删掉的档又推上去。
 
 ## 云存档并发（revision 乐观锁 + writeId 幂等）
 

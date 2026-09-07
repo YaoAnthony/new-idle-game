@@ -152,6 +152,19 @@ export type SavePutOk = {
   updatedAtUtc: UtcTimestamp;
 };
 
+/**
+ * DELETE /api/saves/me 的应答。
+ *
+ * `deleted: false` = 云端本来就没有档。**这不是错误**：玩家点删除想要的
+ * 结果是"云端没有我的档"，而那已经成立了；报错只会让他以为没删掉、
+ * 再点一次。
+ *
+ * 服务端删之前会把这一份挪进 `deleted_cloud_saves`（一份人工可捞的
+ * 副本，见 Backend/src/saves/service.ts）——玩家侧看到的仍然是"删掉了"，
+ * 那份副本只在"点错了卡"的时候由人工捞，且下一次上传就会被清掉。
+ */
+export type SaveDeleteOk = { ok: true; deleted: boolean };
+
 /** 409 的载荷：带上云端现状，客户端直接进冲突流程，不用再 GET head */
 export type SavePutConflict = AccountError & {
   code: "revision_conflict";

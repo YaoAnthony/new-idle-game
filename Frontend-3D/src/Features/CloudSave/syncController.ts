@@ -4,7 +4,14 @@ import {
   type SaveHead,
 } from "core";
 
-import { fetchFull, fetchHead, push, pushKeepalive, type PushInput } from "../../Api/saves";
+import {
+  fetchFull,
+  fetchHead,
+  push,
+  pushKeepalive,
+  remove,
+  type PushInput,
+} from "../../Api/saves";
 import {
   createCloudBoundRepository,
   getSaveRepository,
@@ -229,7 +236,28 @@ export type StartupOutcome =
  * 除 conflict 外全部就地处理完；conflict 返回给 UI 弹框。
  * 网络失败一律降级为"本地照玩"——硬约束。
  */
-export async function startupReconcile(userId: string): Promise<StartupOutcome> {
+/**
+ * 正在跑的那次启动对账。存档页要等它——**云槽的卡片在对账落定之前
+ * 是不可信的**：换台设备登录时，本地那份镜像还没下载下来，卡片会显示
+ * "空档位"，玩家点一下"新建"就在云端那份还在的情况下开了个新档。
+ */
+let reconciling: Promise<StartupOutcome> | null = null;
+
+/** 等启动对账落定。没在跑就是没有要等的 */
+export function whenCloudReady(): Promise<void> {
+  return reconciling ? reconciling.then(() => undefined) : Promise.resolve();
+}
+
+export function startupReconcile(userId: string): Promise<StartupOutcome> {
+  const running = runStartupReconcile(userId);
+  reconciling = running;
+  void running.finally(() => {
+    if (reconciling === running) reconciling = null;
+  });
+  return running;
+}
+
+async function runStartupReconcile(userId: string): Promise<StartupOutcome> {
   state.userId = userId;
 
   /*
@@ -433,6 +461,51 @@ export async function resolveConflict(
 }
 
 /** 运行中 409 之后玩家从横幅点进来时用（数据同 startup 的 conflict 分支） */
+/**
+ * 让下一次推送提前到 15 秒内（`EXPEDITED_PUSH_MS`）。
+ *
+ * 给"玩家刚手动往云槽导了一份档"用：他刚做完一件明确的操作，等两分钟
+ * 才上云的话，这中间关掉页面就白做了。不给 0 的理由见 EXPEDITED_PUSH_MS
+ * 那段注释。
+ */
+export function pushCloudSoon(): void {
+  schedulePush(EXPEDITED_PUSH_MS);
+}
+
+export type ForgetOutcome = { ok: true } | { ok: false; reason: "offline" | "unauthorized" };
+
+/**
+ * 删掉云端那一份（存档页上删云槽）。
+ *
+ * **顺序是先云后本地**，而且云端失败就整件事不做：反过来的话，本地清了
+ * 云端还在，玩家看到"云槽空了"，下次登录它又回来了——那比删不掉更难
+ * 解释。这里只负责云端和引擎状态，本地那份镜像由调用方（存档页）
+ * 用它自己的 `getSaveRepository("cloud").clear()` 清。
+ *
+ * 引擎状态必须一起归零，否则下一次节流推送会拿着内存里那份 lastSave 和
+ * 旧基准，把刚删掉的档原样推回去——玩家会以为删除功能坏了，而实际上是
+ * 删掉之后自己又传了一遍。
+ */
+export async function forgetCloudSave(): Promise<ForgetOutcome> {
+  const userId = state.userId;
+  if (!userId) return { ok: false, reason: "unauthorized" };
+
+  const outcome = await remove();
+  if (outcome.kind === "unauthorized") return { ok: false, reason: "unauthorized" };
+  if (outcome.kind !== "ok") return { ok: false, reason: "offline" };
+
+  clearTimer();
+  state.lastSave = null;
+  state.writeId = null;
+  state.backoffLevel = 0;
+  state.sync = await freshSyncState(userId);
+  // 云端现在是空的，下一次上传走首传分支（baseRevision 0），推送照常开着
+  state.pushEnabled = true;
+  status("synced");
+
+  return { ok: true };
+}
+
 export function currentUserIdOfSync(): string | null {
   return state.userId;
 }

@@ -2,7 +2,14 @@ import assert from 'node:assert/strict'
 import http from 'node:http'
 import { after, before, beforeEach, test } from 'node:test'
 
-import type { AuthOk, SaveGetOk, SaveHeadOk, SavePutConflict, SavePutOk } from 'core'
+import type {
+  AuthOk,
+  SaveDeleteOk,
+  SaveGetOk,
+  SaveHeadOk,
+  SavePutConflict,
+  SavePutOk,
+} from 'core'
 
 import { createApp } from '../src/app.js'
 import { getDb, resetDbForTests } from '../src/shared/db.js'
@@ -81,6 +88,7 @@ test('saves_requires_auth_on_every_route', async () => {
     ['GET', '/api/saves/me/head'],
     ['GET', '/api/saves/me'],
     ['PUT', '/api/saves/me'],
+    ['DELETE', '/api/saves/me'],
   ] as const) {
     const response = await fetch(`${base}${path}`, { method })
     assert.equal(response.status, 401, `${method} ${path}`)
@@ -251,4 +259,70 @@ test('saves_get_without_cloud_save_returns_404', async () => {
   assert.equal(response.status, 404)
   const body = (await response.json()) as { code: string }
   assert.equal(body.code, 'no_save')
+})
+
+test('saves_delete_removes_cloud_save_and_head_goes_null', async () => {
+  // Arrange
+  const token = await registerAndToken()
+  await putSave(token, { baseRevision: 0, writeId: 'w1', marker: 'to-delete' })
+
+  // Act
+  const response = await fetch(`${base}/api/saves/me`, {
+    method: 'DELETE',
+    headers: authed(token),
+  })
+  const body = (await response.json()) as SaveDeleteOk
+
+  // Assert
+  assert.equal(response.status, 200)
+  assert.equal(body.deleted, true)
+
+  const head = (await (
+    await fetch(`${base}/api/saves/me/head`, { headers: authed(token) })
+  ).json()) as SaveHeadOk
+  assert.equal(head.head, null)
+
+  const full = await fetch(`${base}/api/saves/me`, { headers: authed(token) })
+  assert.equal(full.status, 404)
+})
+
+test('saves_delete_without_cloud_save_is_not_an_error', async () => {
+  // Arrange：玩家要的结果（云端没有我的档）本来就成立了
+  const token = await registerAndToken()
+
+  // Act
+  const response = await fetch(`${base}/api/saves/me`, {
+    method: 'DELETE',
+    headers: authed(token),
+  })
+  const body = (await response.json()) as SaveDeleteOk
+
+  // Assert
+  assert.equal(response.status, 200)
+  assert.equal(body.deleted, false)
+})
+
+test('saves_delete_keeps_a_recoverable_copy_until_next_upload', async () => {
+  // Arrange
+  const token = await registerAndToken()
+  await putSave(token, { baseRevision: 0, writeId: 'w1', marker: 'precious' })
+
+  // Act：删掉
+  await fetch(`${base}/api/saves/me`, { method: 'DELETE', headers: authed(token) })
+
+  // Assert：人工还捞得到（点错卡的后悔药）
+  const kept = getDb()
+    .prepare('SELECT payload FROM deleted_cloud_saves')
+    .get() as { payload: string } | undefined
+  assert.ok(kept)
+  assert.match(kept.payload, /precious/)
+
+  // Act：删完之后重新传一份（走首传分支）
+  const again = await putSave(token, { baseRevision: 0, writeId: 'w2', marker: 'fresh-start' })
+  const body = (await again.json()) as SavePutOk
+  assert.equal(body.revision, 1)
+
+  // Assert：有了新档之后那份副本被清掉，保留期是有界的
+  const after = getDb().prepare('SELECT payload FROM deleted_cloud_saves').get()
+  assert.equal(after, undefined)
 })

@@ -45,6 +45,11 @@ export type TitleScreenCopy = {
   slotImportTooNew: string;
   slotImportFailed: string;
   slotExportEmpty: string;
+  /** 云槽删除时网络没通 / 登录态没了 */
+  slotCloudOffline: string;
+  slotCloudSignedOut: string;
+  /** 云槽的删除确认要额外说一句：删的是云端那一份 */
+  slotDeleteCloudWarn: string;
   settingsTitle: string;
   soundTitle: string;
   controlsTitle: string;
@@ -100,6 +105,9 @@ export const TITLE_SCREEN_COPY: Record<TitleLocale, TitleScreenCopy> = {
     slotImportTooNew: "这份存档来自更新版本的游戏，先更新游戏再导入",
     slotImportFailed: "导入失败了，存档没有被改动",
     slotExportEmpty: "这个槽里没有可以下载的存档",
+    slotCloudOffline: "连不上服务器，云端那份还在，没有删掉",
+    slotCloudSignedOut: "登录状态过期了，请重新登录再试",
+    slotDeleteCloudWarn: "云端那一份也会删掉",
     settingsTitle: "设置",
     soundTitle: "声音",
     controlsTitle: "键位",
@@ -153,6 +161,9 @@ export const TITLE_SCREEN_COPY: Record<TitleLocale, TitleScreenCopy> = {
     slotImportTooNew: "新しいバージョンのセーブです。ゲームを更新してください",
     slotImportFailed: "読み込みに失敗しました（セーブは変更されていません）",
     slotExportEmpty: "このスロットは空です",
+    slotCloudOffline: "サーバーに接続できません。クラウドのデータは残っています",
+    slotCloudSignedOut: "ログインの有効期限が切れました。ログインし直してください",
+    slotDeleteCloudWarn: "クラウド側のデータも削除されます",
     settingsTitle: "設定",
     soundTitle: "サウンド",
     controlsTitle: "キー設定",

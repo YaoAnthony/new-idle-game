@@ -31,6 +31,18 @@ import {
  * 决策全在这里，Api/saves 只是搬运，Data/Save 连"云"字都不认识。
  */
 
+/**
+ * 这个引擎只认**云槽**（`Data/Save/slots.ts`）。
+ *
+ * 多槽之后不能再拿"当前活动槽"：玩家可能正在玩本地槽 B 的时候登录，
+ * 那一刻启动对账会把云端存档往本地写——写进 B 就是**当场用云档顶掉
+ * 玩家眼前的世界**。对账、冲突后悔药、强制覆盖读的那一份，全部锁死
+ * 在云槽上。
+ */
+function cloudRepository() {
+  return getSaveRepository("cloud");
+}
+
 const PUSH_THROTTLE_MS = 120_000;
 const BACKOFF_MS = [30_000, 60_000, 120_000];
 
@@ -229,7 +241,7 @@ export async function startupReconcile(userId: string): Promise<StartupOutcome> 
   }
 
   const syncState = await loadSyncState();
-  const hasLocalSave = await getSaveRepository().hasSave();
+  const hasLocalSave = await cloudRepository().hasSave();
 
   const decision = decideEntry({
     head: headOutcome.head,
@@ -258,7 +270,7 @@ async function applyDecision(
     case "upload_then_local": {
       state.sync = await freshSyncState(userId);
       state.pushEnabled = true;
-      const loaded = await getSaveRepository().load();
+      const loaded = await cloudRepository().load();
       if (loaded.kind === "loaded") {
         state.lastSave = loaded.save;
         state.writeId = crypto.randomUUID();
@@ -288,7 +300,7 @@ async function applyDecision(
       }
 
       if (decision.pushNow) {
-        const loaded = await getSaveRepository().load();
+        const loaded = await cloudRepository().load();
         if (loaded.kind === "loaded") {
           state.lastSave = loaded.save;
           state.writeId = crypto.randomUUID();
@@ -312,7 +324,7 @@ async function applyDecision(
       // 写进本地主档（local.save 自带"先备份再写"的双写盘）
       state.applyingRemote = true;
       try {
-        await getSaveRepository().save(full.save);
+        await cloudRepository().save(full.save);
       } finally {
         state.applyingRemote = false;
       }
@@ -334,7 +346,7 @@ async function applyDecision(
     case "conflict": {
       state.pushEnabled = false;
       status("conflict");
-      const loaded = await getSaveRepository().load();
+      const loaded = await cloudRepository().load();
       return {
         kind: "conflict",
         reason: decision.reason,
@@ -360,10 +372,10 @@ export async function resolveConflict(
     const full = await fetchFull();
     if (full.kind !== "ok") return { ok: false };
 
-    await stashMainToConflict(); // 后悔药：覆盖前的本地主档 → world.conflict
+    await stashMainToConflict("cloud"); // 后悔药：覆盖前的云槽主档 → world.conflict
     state.applyingRemote = true;
     try {
-      await getSaveRepository().save(full.save);
+      await cloudRepository().save(full.save);
     } finally {
       state.applyingRemote = false;
     }
@@ -383,7 +395,7 @@ export async function resolveConflict(
   }
 
   // use_local：以本机为准，强制覆盖云端
-  const loaded = await getSaveRepository().load();
+  const loaded = await cloudRepository().load();
   if (loaded.kind !== "loaded") return { ok: false };
 
   state.sync = (await loadSyncState()) ?? (await freshSyncState(userId));

@@ -22,6 +22,21 @@ export {
 } from "./autosave";
 export { migrateSave, migrations } from "./migrations";
 export {
+  getActiveSlot,
+  setActiveSlot,
+  isSaveSlotId,
+  keysForSlot,
+  LOCAL_SAVE_SLOT_IDS,
+  SAVE_SLOT_IDS,
+  type LocalSaveSlotId,
+  type SaveSlotId,
+} from "./slots";
+export {
+  describeSaveSlot,
+  listSaveSlots,
+  type SaveSlotSummary,
+} from "./slotSummary";
+export {
   SAVE_KEYS,
   SAVE_SCHEMA_VERSION,
   type LoadOutcome,

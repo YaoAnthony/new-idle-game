@@ -1,5 +1,7 @@
 import type { GameSave } from "core";
 
+import type { SaveSlotId } from "./slots";
+
 /**
  * 存档模式。local_only 是纯本地；cloud_sync 是登录态下的云挂点包装
  * （Features/CloudSave，协议见 contracts/account_protocol.md）——
@@ -18,8 +20,15 @@ export type SaveMode = "local_only" | "cloud_sync" | "multiplayer_session";
 export const SAVE_SCHEMA_VERSION = 48;
 
 /**
- * 键名结构对齐 V0.8，以后接云同步不用重构。
- * 只有一个世界，不做多存档槽位——符合"租到房子安顿下来"的叙事。
+ * **云槽的键**，也是多槽之前唯一的那一套键。
+ *
+ * 原来这里写的是"只有一个世界，不做多存档槽位"。2026-09-07 推翻了——
+ * 现在有 A/B/C 三个本地槽和这一个云槽，键由 `slots.ts` 的 `keysForSlot`
+ * 按槽推导，本地槽在这几个名字后面挂 `.a` / `.b` / `.c`。
+ *
+ * 云槽**原地不动**用这三个名字，理由见 `keysForSlot` 的注释（改键会让
+ * 已登录玩家吃一个假冲突框）。所以这个常量今天的语义是"云槽的键"，
+ * 不再是"唯一的键"——直接用它的地方只剩 keysForSlot 一处。
  */
 export const SAVE_KEYS = {
   main: "world",
@@ -44,6 +53,8 @@ export type SaveOutcome =
 
 export type SaveRepository = {
   readonly mode: SaveMode;
+  /** 这个仓库读写哪个槽。构造时定死，不跟着"当前活动槽"漂 */
+  readonly slot: SaveSlotId;
   load(): Promise<LoadOutcome>;
   save(save: GameSave): Promise<SaveOutcome>;
   hasSave(): Promise<boolean>;

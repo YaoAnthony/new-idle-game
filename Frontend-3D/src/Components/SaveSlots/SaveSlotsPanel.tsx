@@ -1,8 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getSaveRepository } from "../../Data/Save";
 import { listSaveSlots, type SaveSlotSummary } from "../../Data/Save/slotSummary";
 import { LOCAL_SAVE_SLOT_IDS, type SaveSlotId } from "../../Data/Save/slots";
+import {
+  exportSlot,
+  importIntoSlot,
+  type ImportFailure,
+} from "../../Data/Save/transfer";
 import type { TitleScreenCopy } from "../TitleScreen/content";
 import "./SaveSlots.css";
 
@@ -52,6 +57,35 @@ function formatSavedAt(iso: string | null): string {
   return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+const IMPORT_FAILURE_COPY: Record<ImportFailure, keyof TitleScreenCopy> = {
+  empty: "slotImportEmpty",
+  too_big: "slotImportTooBig",
+  occupied: "slotImportOccupied",
+  not_a_save: "slotImportNotSave",
+  too_new: "slotImportTooNew",
+  migration_failed: "slotImportFailed",
+  write_failed: "slotImportFailed",
+};
+
+/**
+ * 把导出的文本变成一次下载。
+ *
+ * 用 Blob + a[download] 而不是 data: URL：存档几百 KB，data: URL 在
+ * Safari 上有长度上限，超了就是**静默什么也不发生**——玩家点了"下载"、
+ * 什么都没出现，会以为存档坏了。用完立刻 revoke，不然这一页开着就一直
+ * 占着那几百 KB。
+ */
+function downloadText(filename: string, text: string): void {
+  const url = URL.createObjectURL(
+    new Blob([text], { type: "application/json" }),
+  );
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 function formatSize(bytes: number | null): string {
   if (bytes === null) return "—";
   if (bytes < 1024) return `${bytes} B`;
@@ -69,6 +103,14 @@ export function SaveSlotsPanel({
   const [summaries, setSummaries] = useState<SaveSlotSummary[] | null>(null);
   /** 正在问"真的删吗"的那个槽。同一时刻只可能有一个 */
   const [confirmingDelete, setConfirmingDelete] = useState<SaveSlotId | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  /**
+   * 选文件用一个藏起来的 input，点"上传"时记下这一下是给哪个槽的。
+   * 每个槽各挂一个 input 也行，但四个 file input 挂在一页上，
+   * 浏览器的记忆（上次目录）会各走各的，玩家连着导两个槽要翻两次目录。
+   */
+  const fileInput = useRef<HTMLInputElement>(null);
+  const importTarget = useRef<SaveSlotId | null>(null);
 
   const refresh = useCallback(() => {
     void listSaveSlots().then(setSummaries);
@@ -79,6 +121,47 @@ export function SaveSlotsPanel({
   const remove = async (slot: SaveSlotId) => {
     await getSaveRepository(slot).clear();
     setConfirmingDelete(null);
+    setNotice(null);
+    refresh();
+  };
+
+  const download = async (slot: SaveSlotId) => {
+    const outcome = await exportSlot(slot);
+    if (!outcome.ok) {
+      setNotice(copy.slotExportEmpty);
+      return;
+    }
+    setNotice(null);
+    downloadText(outcome.filename, outcome.text);
+  };
+
+  const pickFile = (slot: SaveSlotId) => {
+    importTarget.current = slot;
+    setNotice(null);
+    /*
+     * 每次都清空 value：不清的话连着选**同一个文件**不会触发 change，
+     * 玩家会以为点了没反应（导入失败后重试同一份文件正是最常见的一次）。
+     */
+    if (fileInput.current) fileInput.current.value = "";
+    fileInput.current?.click();
+  };
+
+  const receiveFile = async (file: File) => {
+    const slot = importTarget.current;
+    importTarget.current = null;
+    if (!slot) return;
+
+    const outcome = await importIntoSlot(slot, await file.text());
+    if (!outcome.ok) {
+      /*
+       * 本项目 tsconfig 没开 strict，判别式联合不会把分支专属字段窄化
+       * 出来（同 SaveRepository 里那段注释），所以用 `in` 取值。
+       */
+      const reason = "reason" in outcome ? outcome.reason : "migration_failed";
+      setNotice(copy[IMPORT_FAILURE_COPY[reason]]);
+      return;
+    }
+    setNotice(null);
     refresh();
   };
 
@@ -102,7 +185,19 @@ export function SaveSlotsPanel({
   const loading = summaries === null;
 
   return (
-    <div className="save-slots grid w-full grid-cols-2 gap-[clamp(8px,1.6vw,14px)] pt-6">
+    <div className="save-slots-root w-full">
+      <input
+        ref={fileInput}
+        type="file"
+        accept="application/json,.json"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) void receiveFile(file);
+        }}
+      />
+
+      <div className="save-slots grid w-full grid-cols-2 gap-[clamp(8px,1.6vw,14px)] pt-6">
       {cards.map((summary) => {
         const name = slotName(summary.slot, copy);
         const cloudLocked = summary.slot === "cloud" && !loggedIn;
@@ -201,8 +296,19 @@ export function SaveSlotsPanel({
               读不出来的档同样是玩家的东西，得给他一条清掉重来的路，
               但不能让他"进去"（进去只会灌一个残档进运行时）。
             */}
-            {summary.state !== "empty" && !cloudLocked ? (
+            {cloudLocked ? null : summary.state !== "empty" ? (
               <div className="save-slot-actions">
+                {/*
+                  读不出来的档也给下载：那份字节可能还救得回来（存档结构
+                  变过、少了一个字段），给玩家一份文件比让他只能删掉强。
+                */}
+                <button
+                  type="button"
+                  className="save-slot-button"
+                  onClick={() => void download(summary.slot)}
+                >
+                  {copy.slotDownload}
+                </button>
                 <button
                   type="button"
                   className="save-slot-button"
@@ -211,10 +317,27 @@ export function SaveSlotsPanel({
                   {copy.slotDelete}
                 </button>
               </div>
-            ) : null}
+            ) : (
+              <div className="save-slot-actions">
+                <button
+                  type="button"
+                  className="save-slot-button"
+                  onClick={() => pickFile(summary.slot)}
+                >
+                  {copy.slotUpload}
+                </button>
+              </div>
+            )}
           </div>
         );
       })}
+      </div>
+
+      {notice ? (
+        <p className="save-slots-notice" role="status">
+          {notice}
+        </p>
+      ) : null}
     </div>
   );
 }

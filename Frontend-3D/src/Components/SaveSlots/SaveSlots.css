@@ -205,3 +205,27 @@
     font-size: 9px;
   }
 }
+
+/*
+ * 出错时的一行话。放在四张卡下面而不是卡里：卡的高度是四张一致的，
+ * 往里塞一行会把那一张撑高、整排跟着错位，而错位发生的时机正是玩家
+ * 刚点错东西、最需要版面稳住的时候。
+ */
+.save-slots-notice {
+  margin: 8px 0 0;
+  border: 2px solid #7a5235;
+  background: #e3c98e;
+  padding: 4px 10px;
+  font-size: clamp(11px, 1.4vw, 12px);
+  font-weight: 800;
+  line-height: 1.35;
+  color: #4b3324;
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .save-slots-notice {
+    margin-top: 5px;
+    padding: 3px 8px;
+    font-size: 10px;
+  }
+}

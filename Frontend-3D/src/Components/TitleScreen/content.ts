@@ -35,6 +35,16 @@ export type TitleScreenCopy = {
   slotDeleteWarn: string;
   slotDeleteYes: string;
   slotDeleteNo: string;
+  slotDownload: string;
+  slotUpload: string;
+  /** 导入失败的六种理由（Data/Save/transfer 的 ImportFailure） */
+  slotImportEmpty: string;
+  slotImportTooBig: string;
+  slotImportOccupied: string;
+  slotImportNotSave: string;
+  slotImportTooNew: string;
+  slotImportFailed: string;
+  slotExportEmpty: string;
   settingsTitle: string;
   soundTitle: string;
   controlsTitle: string;
@@ -81,6 +91,15 @@ export const TITLE_SCREEN_COPY: Record<TitleLocale, TitleScreenCopy> = {
     slotDeleteWarn: "删了找不回来",
     slotDeleteYes: "确定删除",
     slotDeleteNo: "算了",
+    slotDownload: "下载",
+    slotUpload: "上传存档",
+    slotImportEmpty: "文件是空的",
+    slotImportTooBig: "文件太大，不像是这个游戏的存档",
+    slotImportOccupied: "这个槽里已经有档了，先删掉再导入",
+    slotImportNotSave: "这不是一份存档文件",
+    slotImportTooNew: "这份存档来自更新版本的游戏，先更新游戏再导入",
+    slotImportFailed: "导入失败了，存档没有被改动",
+    slotExportEmpty: "这个槽里没有可以下载的存档",
     settingsTitle: "设置",
     soundTitle: "声音",
     controlsTitle: "键位",
@@ -125,6 +144,15 @@ export const TITLE_SCREEN_COPY: Record<TitleLocale, TitleScreenCopy> = {
     slotDeleteWarn: "元に戻せません",
     slotDeleteYes: "削除する",
     slotDeleteNo: "やめる",
+    slotDownload: "ダウンロード",
+    slotUpload: "読み込む",
+    slotImportEmpty: "ファイルが空です",
+    slotImportTooBig: "ファイルが大きすぎます",
+    slotImportOccupied: "このスロットは使用中です。先に削除してください",
+    slotImportNotSave: "セーブファイルではありません",
+    slotImportTooNew: "新しいバージョンのセーブです。ゲームを更新してください",
+    slotImportFailed: "読み込みに失敗しました（セーブは変更されていません）",
+    slotExportEmpty: "このスロットは空です",
     settingsTitle: "設定",
     soundTitle: "サウンド",
     controlsTitle: "キー設定",

@@ -9,11 +9,12 @@ import { unlockAudio } from "../../Game3D/Engine/AudioEngine";
 import { applyAudioSettings } from "../../Game3D/Engine/audioSettings";
 import type { RootState } from "../../Redux/store";
 import { GameBtn } from "../GameBtn";
+import { SaveSlotsPanel } from "../SaveSlots";
+import type { SaveSlotId } from "../../Data/Save/slots";
 import {
   type AudioChannel,
   type AudioSettings,
   type TitleScreenConfig,
-  type TitleSessionSelection,
 } from "./config";
 import { TITLE_SCREEN_COPY, type TitleLocale } from "./content";
 import "./TitleScreen.css";
@@ -22,14 +23,11 @@ type ActiveDialog = "start" | "settings" | null;
 
 type TitleScreenProps = {
   config: TitleScreenConfig;
-  /** 游客格子：开新档（有档时组件内先过一道覆盖确认） */
-  onSessionSelected?: (selection: TitleSessionSelection) => void;
-  /**
-   * 已登录时点账户格子：**以账户身份进入小家**。有档继续、没档新开，
-   * 判断在 App 那头（要等云对账落定才知道"有没有档"）——这里只负责转告。
-   */
-  onAccountEnter?: () => void;
-  /** 本地存在可继续的存档时才显示"继续游戏"（V0.1 的可选小号入口） */
+  /** 存档页：进这个槽里已经有的那个家 */
+  onEnterSlot?: (slot: SaveSlotId) => void;
+  /** 存档页：在这个空槽开新档（走捏脸） */
+  onCreateInSlot?: (slot: SaveSlotId) => void;
+  /** 上次玩的那个槽里有档时才显示"继续游戏"（不用进存档页的快捷入口） */
   canContinue?: boolean;
   onContinue?: () => void;
 };
@@ -61,8 +59,8 @@ function readStoredLocale(config: TitleScreenConfig): TitleLocale {
 
 export function TitleScreen({
   config,
-  onSessionSelected,
-  onAccountEnter,
+  onEnterSlot,
+  onCreateInSlot,
   canContinue = false,
   onContinue,
 }: TitleScreenProps) {
@@ -71,15 +69,12 @@ export function TitleScreen({
     readStoredLocale(config),
   );
   const [activeDialog, setActiveDialog] = useState<ActiveDialog>(null);
-  /** 开始弹窗里的两个页面：选择格子 / 登录表单 */
-  const [startView, setStartView] = useState<"choices" | "login">("choices");
+  /** 开始弹窗里的两个页面：存档页 / 登录表单 */
+  const [startView, setStartView] = useState<"slots" | "login">("slots");
   const account = useSelector((state: RootState) => state.user);
   const [audioSettings, setAudioSettings] = useState<AudioSettings>(() =>
     readStoredSettings(config),
   );
-  const [notice, setNotice] = useState<string | null>(null);
-  /** "开新档会覆盖进度"的二次确认：第一次点是警告，第二次才真开 */
-  const [confirmingNewGame, setConfirmingNewGame] = useState(false);
   const copy = TITLE_SCREEN_COPY[locale];
 
   const activeLocale = useMemo(
@@ -122,68 +117,17 @@ export function TitleScreen({
 
   const closeDialog = () => {
     setActiveDialog(null);
-    setNotice(null);
-    setStartView("choices");
-    // 确认态不跨弹窗保留：关了再开，第一次点依然要先看到警告
-    setConfirmingNewGame(false);
+    setStartView("slots");
   };
 
   const selectLocale = (nextLocale: TitleLocale) => {
     setLocale(nextLocale);
-    setNotice(null);
   };
 
   const updateVolume = (key: AudioChannel, value: number) => {
     // 拖滑块是真实手势，正好用来解锁音频上下文（浏览器要求）
     unlockAudio();
     setAudioSettings((current) => ({ ...current, [key]: value }));
-  };
-
-  const startSession = () => {
-    localStorage.setItem(
-      config.persistence.sessionModeKey,
-      config.session.mode,
-    );
-    onSessionSelected?.(config.session);
-    closeDialog();
-  };
-
-  const selectStartChoice = (
-    choice: TitleScreenConfig["startChoices"][number],
-  ) => {
-    if (choice.action === "start_session") {
-      /*
-       * 这条路的终点是捏脸 + 新档。本地已有进度时**必须拦一手**：
-       * 一次误点就是"世界被空档顶掉"，登录态下 120 秒内还会同步出去
-       * 把云端也顶掉——实测真的有人这么丢过一分钟的家具。
-       * 二次确认沿用 notice 条，不新开弹窗。
-       */
-      if (canContinue && !confirmingNewGame) {
-        setConfirmingNewGame(true);
-        setNotice(copy.newGameOverwrite);
-        return;
-      }
-      startSession();
-      return;
-    }
-
-    if (choice.action === "open_login") {
-      /*
-       * 已登录时这个格子的职责是**"以账户身份进入小家"**，不是开新档——
-       * 接错到 startSession 的后果见上面那段注释（实测踩过：进了捏脸页，
-       * 存档被顶）。有没有档、该继续还是该新开，由 App 那头对账后判断。
-       */
-      if (account.status === "authed") {
-        onAccountEnter?.();
-        closeDialog();
-        return;
-      }
-      setNotice(null);
-      setStartView("login");
-      return;
-    }
-
-    setNotice(copy[choice.noticeCopyKey]);
   };
 
   if (!activeLocale) return null;
@@ -315,8 +259,8 @@ export function TitleScreen({
                 <DialogPanel className="title-screen-dialog-panel pixel-panel max-h-[calc(100dvh-40px)] w-full overflow-y-auto bg-[#f0dfad] text-[#3a281d] outline-none shadow-[0_16px_34px_rgb(11_14_11_/_0.44)]">
                   {activeDialog === "start" ? (
                     <div className="title-screen-start-content relative flex flex-col items-center p-[clamp(18px,4vw,32px)]">
-                      <DialogTitle className="sr-only">
-                        {copy.startDialogTitle}
+                      <DialogTitle className="m-0 pr-10 text-center text-[clamp(17px,3vw,22px)] font-black leading-tight text-[#352219]">
+                        {startView === "login" ? copy.loginDialogTitle : copy.slotsTitle}
                       </DialogTitle>
 
                       <button
@@ -329,52 +273,33 @@ export function TitleScreen({
                       </button>
 
                       {startView === "login" ? (
-                        <div className="flex w-full max-w-[380px] flex-col items-center gap-3 pt-7">
-                          <h2 className="m-0 text-[clamp(18px,3vw,24px)] font-black text-[#352219]">
-                            {copy.loginDialogTitle}
-                          </h2>
-                          <LoginDialog onDone={() => setStartView("choices")} />
+                        <div className="flex w-full max-w-[380px] flex-col items-center gap-3 pt-4">
+                          <LoginDialog onDone={() => setStartView("slots")} />
                           <button
                             type="button"
                             className="cursor-pointer border-0 bg-transparent text-xs font-bold text-[#6b4c33] underline"
-                            onClick={() => setStartView("choices")}
+                            onClick={() => setStartView("slots")}
                           >
                             {copy.back}
                           </button>
                         </div>
                       ) : (
-                      <div className="title-screen-start-options grid w-full grid-cols-2 gap-[clamp(10px,2.4vw,22px)] pt-7">
-                        {config.startChoices.map((choice) => (
-                          <motion.button
-                            type="button"
-                            className="session-choice group relative flex aspect-square min-w-0 cursor-pointer flex-col items-center justify-center gap-2 px-[clamp(8px,2vw,18px)] pb-[clamp(12px,2vw,20px)] pt-[clamp(14px,2vw,22px)] text-[#3b2519] outline-none"
-                            key={choice.id}
-                            onClick={() => selectStartChoice(choice)}
-                            whileHover={
-                              reduceMotion ? undefined : { y: -3, scale: 1.01 }
-                            }
-                            whileTap={
-                              reduceMotion ? undefined : { y: 1, scale: 0.99 }
-                            }
-                            transition={{ duration: 0.12 }}
-                          >
-                            <img
-                              className="session-choice-icon min-h-0 w-[min(78%,190px)] flex-1 object-contain [image-rendering:pixelated] [filter:drop-shadow(0_3px_0_rgb(69_42_24_/_0.18))]"
-                              src={choice.icon}
-                              alt=""
-                              draggable={false}
-                            />
-                            <span className="relative z-[1] text-[clamp(15px,2.2vw,20px)] font-black leading-none">
-                              {choice.action === "open_login" && account.status === "authed"
-                                ? account.user?.email
-                                : copy[choice.copyKey]}
-                            </span>
-                          </motion.button>
-                        ))}
-                      </div>
+                        <SaveSlotsPanel
+                          copy={copy}
+                          loggedIn={account.status === "authed"}
+                          onEnter={(slot) => {
+                            onEnterSlot?.(slot);
+                            closeDialog();
+                          }}
+                          onCreate={(slot) => {
+                            onCreateInSlot?.(slot);
+                            closeDialog();
+                          }}
+                          onLogin={() => setStartView("login")}
+                        />
                       )}
 
-                      {startView === "choices" && account.status === "authed" ? (
+                      {startView === "slots" && account.status === "authed" ? (
                         <p className="m-0 mt-3 text-xs font-bold text-[#6b4c33]">
                           {copy.loggedInAs}：{account.user?.email}
                           <button
@@ -386,23 +311,6 @@ export function TitleScreen({
                           </button>
                         </p>
                       ) : null}
-
-                      <AnimatePresence initial={false}>
-                        {notice ? (
-                          <motion.p
-                            className="mb-0 mt-3 border-2 border-[#7a5235] bg-[#e3c98e] px-3 py-1 text-xs font-extrabold leading-normal text-[#4b3324]"
-                            role="status"
-                            initial={
-                              reduceMotion ? false : { opacity: 0, y: -4 }
-                            }
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: reduceMotion ? 0 : 0.15 }}
-                          >
-                            {notice}
-                          </motion.p>
-                        ) : null}
-                      </AnimatePresence>
                     </div>
                   ) : (
                     <div className="title-screen-settings-content flex flex-col items-center p-[clamp(18px,4vw,32px)]">

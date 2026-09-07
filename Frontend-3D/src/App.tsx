@@ -9,7 +9,9 @@ import {
   getSaveRepository,
   hydrateGameSave,
   resetToPristineSave,
+  setActiveSlot,
   setBaseline,
+  type SaveSlotId,
 } from "./Data/Save";
 import { saveNow } from "./Data/Save/autosave";
 import { whenSlotsReady } from "./Data/Save/slotMigration";
@@ -288,21 +290,28 @@ function App() {
   }, []);
 
   /**
-   * 已登录时点账户格子：**进入自己的小家**，不是开新档。
-   * 有没有档要等云对账落定才知道——快进分支可能正把云端存档写进本地主档，
-   * 抢跑就会误判"没档"→ 捏脸 → 一个空档顶掉刚同步下来的世界（实测踩过：
-   * 玩家登录、摆了家具、回标题再点自己账户，直接被送进捏脸页重开）。
+   * 存档页点了一张有档的卡。
+   *
+   * **先把活动槽切过去再读**——`continueGame` 和后面所有的写盘走的都是
+   * 活动槽，顺序反了就是"读 A 的档、写进上一个槽"。切槽是同步的
+   * （内存那份立刻生效），所以这里不需要等。
    */
-  const enterAsAccount = useCallback(async () => {
-    await whenSlotsReady();
-    if (reconciling.current) await reconciling.current;
-
-    if (await getSaveRepository().hasSave()) {
+  const enterSlot = useCallback(
+    async (slot: SaveSlotId) => {
+      setActiveSlot(slot);
       await continueGame();
-      return;
-    }
-    startNewGame();
-  }, [continueGame, startNewGame]);
+    },
+    [continueGame],
+  );
+
+  /** 存档页点了一张空卡：在这个槽开新档 */
+  const createInSlot = useCallback(
+    (slot: SaveSlotId) => {
+      setActiveSlot(slot);
+      startNewGame();
+    },
+    [startNewGame],
+  );
 
   return (
     <main className="relative h-[100dvh] min-h-0 overflow-hidden bg-[#232b3d]">
@@ -311,8 +320,8 @@ function App() {
           config={TITLE_SCREEN_CONFIG}
           canContinue={canContinue}
           onContinue={() => void continueGame()}
-          onSessionSelected={startNewGame}
-          onAccountEnter={() => void enterAsAccount()}
+          onEnterSlot={(slot) => void enterSlot(slot)}
+          onCreateInSlot={createInSlot}
         />
       ) : stage === "creator" ? (
         <CharacterCreator

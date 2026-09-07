@@ -8,16 +8,33 @@ export type TitleScreenCopy = {
   continueHint: string;
   settings: string;
   localeLabel: string;
-  startDialogTitle: string;
-  login: string;
-  guest: string;
   back: string;
-  loginUnavailable: string;
   loggedInAs: string;
   logout: string;
   loginDialogTitle: string;
-  /** 有档时点"游客游玩"的覆盖警告（二次确认，见 TitleScreen） */
-  newGameOverwrite: string;
+
+  /* ---- 存档页（四个槽：本地 A/B/C + 云端）---- */
+  slotsTitle: string;
+  slotLocal: string;
+  slotCloud: string;
+  slotEmpty: string;
+  slotEmptyHint: string;
+  /** "第 %s 天"。%s 是天数 */
+  slotDay: string;
+  slotGoldUnit: string;
+  slotSaved: string;
+  slotFromBackup: string;
+  slotUnreadable: string;
+  slotTooNew: string;
+  slotCloudLocked: string;
+  slotCloudLockedHint: string;
+  slotEnter: string;
+  slotDelete: string;
+  /** "删掉「%s」的这个家？" %s 是槽名 */
+  slotDeleteAsk: string;
+  slotDeleteWarn: string;
+  slotDeleteYes: string;
+  slotDeleteNo: string;
   settingsTitle: string;
   soundTitle: string;
   controlsTitle: string;
@@ -40,15 +57,30 @@ export const TITLE_SCREEN_COPY: Record<TitleLocale, TitleScreenCopy> = {
     continueHint: "回到你的小家",
     settings: "设置",
     localeLabel: "语言",
-    startDialogTitle: "要怎样进入小家？",
-    login: "用户登录",
-    guest: "游客游玩",
     back: "关闭",
-    loginUnavailable: "即将开放",
     loggedInAs: "已登录",
     logout: "退出登录",
     loginDialogTitle: "登录账户",
-    newGameOverwrite: "开新档会覆盖你现在的小家（登录时云端也会一起换）。确定要重新开始就再点一次。",
+
+    slotsTitle: "选择存档",
+    slotLocal: "本地",
+    slotCloud: "云端",
+    slotEmpty: "空档位",
+    slotEmptyHint: "点这里开始新生活",
+    slotDay: "第 %s 天",
+    slotGoldUnit: "金币",
+    slotSaved: "上次保存",
+    slotFromBackup: "已从备份恢复",
+    slotUnreadable: "存档读不出来",
+    slotTooNew: "存档比这台设备的游戏新",
+    slotCloudLocked: "登录后使用",
+    slotCloudLockedHint: "点这里登录账户",
+    slotEnter: "进入",
+    slotDelete: "删除",
+    slotDeleteAsk: "删掉「%s」的这个家？",
+    slotDeleteWarn: "删了找不回来",
+    slotDeleteYes: "确定删除",
+    slotDeleteNo: "算了",
     settingsTitle: "设置",
     soundTitle: "声音",
     controlsTitle: "键位",
@@ -69,15 +101,30 @@ export const TITLE_SCREEN_COPY: Record<TitleLocale, TitleScreenCopy> = {
     continueHint: "お家に戻る",
     settings: "設定",
     localeLabel: "言語",
-    startDialogTitle: "どの方法で始めますか？",
-    login: "ログイン",
-    guest: "ゲストで始める",
     back: "閉じる",
-    loginUnavailable: "準備中",
     loggedInAs: "ログイン中",
     logout: "ログアウト",
     loginDialogTitle: "ログイン",
-    newGameOverwrite: "はじめからにすると、いまのお家が上書きされます（ログイン中はクラウドも）。よろしければもう一度押してください。",
+
+    slotsTitle: "セーブデータを選ぶ",
+    slotLocal: "本体",
+    slotCloud: "クラウド",
+    slotEmpty: "空きスロット",
+    slotEmptyHint: "ここから新しい暮らしを",
+    slotDay: "%s 日目",
+    slotGoldUnit: "コイン",
+    slotSaved: "最終セーブ",
+    slotFromBackup: "バックアップから復元",
+    slotUnreadable: "読み込めません",
+    slotTooNew: "新しいバージョンのセーブです",
+    slotCloudLocked: "ログインすると使えます",
+    slotCloudLockedHint: "ここからログイン",
+    slotEnter: "はじめる",
+    slotDelete: "削除",
+    slotDeleteAsk: "「%s」のお家を削除しますか？",
+    slotDeleteWarn: "元に戻せません",
+    slotDeleteYes: "削除する",
+    slotDeleteNo: "やめる",
     settingsTitle: "設定",
     soundTitle: "サウンド",
     controlsTitle: "キー設定",

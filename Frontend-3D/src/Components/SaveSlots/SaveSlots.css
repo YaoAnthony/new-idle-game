@@ -1,0 +1,207 @@
+/*
+ * 存档页的四张卡。视觉语言跟标题页走（木框 + 米黄卡面 + 硬投影），
+ * 不用 HUD 那套奶油马卡龙——标题页是深色木质的，把亮色 HUD 卡搬过来
+ * 会像两个游戏拼在一起。共用 .session-choice 的配色，但它是正方形大图卡，
+ * 这里是信息卡，尺寸和内部排版都不一样，所以自己一套。
+ */
+
+.save-slot {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  border: 3px solid #5a3825;
+  background: linear-gradient(180deg, #efd99b, #dfbd78);
+  box-shadow:
+    inset 0 0 0 2px #faeab9,
+    3px 4px 0 rgb(66 39 25 / 0.22);
+  image-rendering: pixelated;
+}
+
+/* 卡面本身就是"进入 / 新建"的按钮：整张可点，别让玩家去找小按钮 */
+.save-slot-face {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  cursor: pointer;
+  flex-direction: column;
+  gap: 2px;
+  border: 0;
+  background: transparent;
+  padding: clamp(8px, 1.4vw, 12px);
+  text-align: left;
+  color: #3b2519;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.save-slot-face:hover {
+  background: rgb(255 246 214 / 0.45);
+}
+
+.save-slot-face:active {
+  background: rgb(216 175 104 / 0.5);
+}
+
+.save-slot-face:disabled {
+  cursor: default;
+  /* 版本太新的档：能看能删，进不去。灰掉的是"进"，不是整张卡 */
+  opacity: 0.72;
+}
+
+.save-slot-face:focus-visible {
+  outline: 3px solid #8d5d34;
+  outline-offset: -3px;
+}
+
+.save-slot-name {
+  font-size: clamp(13px, 1.8vw, 16px);
+  font-weight: 900;
+  line-height: 1.1;
+  color: #5b3a22;
+}
+
+.save-slot-line {
+  overflow: hidden;
+  font-size: clamp(11px, 1.4vw, 13px);
+  font-weight: 700;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 第一眼要看到的那一行：第几天 + 金币 */
+.save-slot-headline {
+  font-size: clamp(13px, 1.7vw, 15px);
+  font-weight: 900;
+}
+
+.save-slot-sub {
+  color: rgb(59 37 25 / 0.72);
+}
+
+.save-slot-flag {
+  overflow: hidden;
+  font-size: clamp(10px, 1.3vw, 12px);
+  font-weight: 800;
+  color: #8a3b22;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.save-slot-actions {
+  display: flex;
+  gap: 6px;
+  border-top: 2px solid rgb(90 56 37 / 0.35);
+  padding: 5px clamp(8px, 1.4vw, 12px);
+}
+
+.save-slot-button {
+  cursor: pointer;
+  border: 2px solid #5a3825;
+  background: #e8caa0;
+  padding: 3px 10px;
+  font-size: clamp(11px, 1.4vw, 12px);
+  font-weight: 800;
+  color: #4a3021;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.save-slot-button:hover {
+  background: #f3ddb6;
+}
+
+.save-slot-button:focus-visible {
+  outline: 3px solid #8d5d34;
+  outline-offset: 2px;
+}
+
+/*
+ * 危险按钮画成红的，而且**只出现在二次确认里**。
+ * 第一下点"删除"只是把卡片翻成问句，真正掉血的那一下才是红的——
+ * 一次误点删不掉档。
+ */
+.save-slot-button-danger {
+  border-color: #7a2f1c;
+  background: #d9694a;
+  color: #fff3e2;
+}
+
+.save-slot-button-danger:hover {
+  background: #e57e5f;
+}
+
+.save-slot-asking {
+  justify-content: center;
+  gap: 4px;
+  padding: clamp(8px, 1.4vw, 12px);
+  background: linear-gradient(180deg, #f0cfb0, #e0b189);
+}
+
+.save-slot-ask {
+  margin: 0;
+  font-size: clamp(12px, 1.6vw, 14px);
+  font-weight: 900;
+  line-height: 1.2;
+  color: #4a2418;
+}
+
+.save-slot-ask-warn {
+  margin: 0;
+  font-size: clamp(10px, 1.3vw, 12px);
+  font-weight: 800;
+  color: #8a3b22;
+}
+
+.save-slot-asking .save-slot-actions {
+  border-top: 0;
+  padding: 4px 0 0;
+}
+
+/*
+ * 横屏矮屏（基准机 iPhone SE 667×375）。四张卡 2×2 要塞进
+ * calc(100dvh - 16px) 的弹窗里，行距和字号全部再压一档。
+ * 判据跟着 TitleScreen.css 里那条走——同一块屏幕不该有两套断点。
+ */
+@media (orientation: landscape) and (max-height: 500px) {
+  .save-slots {
+    gap: 6px;
+    padding-top: 2px;
+  }
+
+  .save-slot-face {
+    gap: 0;
+    padding: 6px 8px;
+  }
+
+  .save-slot-name {
+    font-size: 12px;
+  }
+
+  .save-slot-headline {
+    font-size: 12px;
+  }
+
+  .save-slot-line {
+    font-size: 10px;
+  }
+
+  .save-slot-flag {
+    font-size: 9px;
+  }
+
+  .save-slot-actions {
+    padding: 3px 8px;
+  }
+
+  .save-slot-button {
+    padding: 2px 8px;
+    font-size: 10px;
+  }
+
+  .save-slot-ask {
+    font-size: 11px;
+  }
+
+  .save-slot-ask-warn {
+    font-size: 9px;
+  }
+}

@@ -1,17 +1,11 @@
 import titleJa from "../../Assets/title/title-ja.png";
 import titleZh from "../../Assets/title/title-zh.png";
-import guestSessionIcon from "../../Assets/ui/session/guest.png";
-import loginSessionIcon from "../../Assets/ui/session/login.png";
 import type { TitleLocale, TitleScreenCopy } from "./content";
 
 export type AudioChannel = "master" | "music" | "ambience" | "effects";
 
 export type AudioSettings = Record<AudioChannel, number> & {
   muted: boolean;
-};
-
-export type TitleSessionSelection = {
-  mode: string;
 };
 
 type VolumeCopyKey = keyof Pick<
@@ -23,30 +17,6 @@ type ControlCopyKey = keyof Pick<
   TitleScreenCopy,
   "move" | "interact" | "openSettings"
 >;
-
-type StartChoiceCopyKey = keyof Pick<TitleScreenCopy, "guest" | "login">;
-
-type StartChoice =
-  | {
-      id: string;
-      copyKey: StartChoiceCopyKey;
-      icon: string;
-      action: "start_session";
-    }
-  | {
-      id: string;
-      copyKey: StartChoiceCopyKey;
-      icon: string;
-      action: "show_notice";
-      noticeCopyKey: keyof Pick<TitleScreenCopy, "loginUnavailable">;
-    }
-  | {
-      id: string;
-      copyKey: StartChoiceCopyKey;
-      icon: string;
-      /** 打开登录/注册表单（Features/Auth/LoginDialog） */
-      action: "open_login";
-    };
 
 export type TitleScreenConfig = {
   presentation: {
@@ -62,10 +32,7 @@ export type TitleScreenConfig = {
   persistence: {
     localeKey: string;
     settingsKey: string;
-    sessionModeKey: string;
   };
-  session: TitleSessionSelection;
-  startChoices: ReadonlyArray<StartChoice>;
   audio: {
     defaults: AudioSettings;
     channels: ReadonlyArray<{
@@ -108,25 +75,7 @@ export const TITLE_SCREEN_CONFIG = {
   persistence: {
     localeKey: "idle-home:locale",
     settingsKey: "idle-home:title-settings",
-    sessionModeKey: "idle-home:session-mode",
   },
-  session: {
-    mode: "local_only",
-  },
-  startChoices: [
-    {
-      id: "guest",
-      copyKey: "guest",
-      icon: guestSessionIcon,
-      action: "start_session",
-    },
-    {
-      id: "login",
-      copyKey: "login",
-      icon: loginSessionIcon,
-      action: "open_login",
-    },
-  ],
   audio: {
     defaults: {
       master: 80,

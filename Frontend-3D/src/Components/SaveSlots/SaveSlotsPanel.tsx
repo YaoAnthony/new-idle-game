@@ -1,0 +1,220 @@
+import { useCallback, useEffect, useState } from "react";
+
+import { getSaveRepository } from "../../Data/Save";
+import { listSaveSlots, type SaveSlotSummary } from "../../Data/Save/slotSummary";
+import { LOCAL_SAVE_SLOT_IDS, type SaveSlotId } from "../../Data/Save/slots";
+import type { TitleScreenCopy } from "../TitleScreen/content";
+import "./SaveSlots.css";
+
+/**
+ * 存档页：四个槽（本地 A / B / C ＋ 云端 ×1）。
+ *
+ * 它替掉了原来"游客游玩 / 用户登录"那两格。换掉的理由不是那两格不好看，
+ * 而是**它们回答的是错的问题**——玩家在标题页要选的是"进哪个家"，
+ * 不是"用什么身份进"。身份现在是云槽自己的属性：没登录的云槽就是一把锁，
+ * 点它去登录。
+ *
+ * 这一层直接读写 `Data/Save`（列摘要、删档）。存档管理本来就是它的全部
+ * 职责，把删档再绕一层回调传给 App 只会让"谁删的"更难查；而"进哪个档"
+ * 和"开新档"要换 stage，那是 App 的事，走回调。
+ */
+
+type SaveSlotsPanelProps = {
+  copy: TitleScreenCopy;
+  loggedIn: boolean;
+  /** 有档：进入这个槽 */
+  onEnter: (slot: SaveSlotId) => void;
+  /** 空槽：从这个槽开新档 */
+  onCreate: (slot: SaveSlotId) => void;
+  /** 云槽未登录时点它 */
+  onLogin: () => void;
+};
+
+function slotName(slot: SaveSlotId, copy: TitleScreenCopy): string {
+  return slot === "cloud"
+    ? copy.slotCloud
+    : `${copy.slotLocal} ${slot.toUpperCase()}`;
+}
+
+/**
+ * "上次保存"用 MM-DD HH:mm。
+ *
+ * 不用 toLocaleString：那串在中日两种语言下长度差一截，卡片宽度是固定的，
+ * 长的那种会把"第 12 天 · 340 金币"挤到第二行。日期这种东西数字本身就
+ * 认得出来，不值得为它做两套排版。
+ */
+function formatSavedAt(iso: string | null): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function formatSize(bytes: number | null): string {
+  if (bytes === null) return "—";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function SaveSlotsPanel({
+  copy,
+  loggedIn,
+  onEnter,
+  onCreate,
+  onLogin,
+}: SaveSlotsPanelProps) {
+  const [summaries, setSummaries] = useState<SaveSlotSummary[] | null>(null);
+  /** 正在问"真的删吗"的那个槽。同一时刻只可能有一个 */
+  const [confirmingDelete, setConfirmingDelete] = useState<SaveSlotId | null>(null);
+
+  const refresh = useCallback(() => {
+    void listSaveSlots().then(setSummaries);
+  }, []);
+
+  useEffect(refresh, [refresh]);
+
+  const remove = async (slot: SaveSlotId) => {
+    await getSaveRepository(slot).clear();
+    setConfirmingDelete(null);
+    refresh();
+  };
+
+  /*
+   * 摘要没到之前铺四张骨架卡，而不是转一个圈或者留白。
+   * 版面不跳的价值在这一页尤其高——玩家的手已经伸向"我那一格"了，
+   * 卡片位置在最后一刻才定下来就会点错，而这一页的误点是删档。
+   */
+  const cards = summaries ?? LOCAL_SAVE_SLOT_IDS.concat("cloud" as never).map(
+    (slot): SaveSlotSummary => ({
+      slot,
+      state: "empty",
+      tooNew: false,
+      dayCount: null,
+      gold: null,
+      savedAtUtc: null,
+      bytes: null,
+      fromBackup: false,
+    }),
+  );
+  const loading = summaries === null;
+
+  return (
+    <div className="save-slots grid w-full grid-cols-2 gap-[clamp(8px,1.6vw,14px)] pt-6">
+      {cards.map((summary) => {
+        const name = slotName(summary.slot, copy);
+        const cloudLocked = summary.slot === "cloud" && !loggedIn;
+        const occupied = summary.state === "occupied";
+        const asking = confirmingDelete === summary.slot;
+
+        if (asking) {
+          return (
+            <div className="save-slot save-slot-asking" key={summary.slot}>
+              <p className="save-slot-ask">
+                {copy.slotDeleteAsk.replace("%s", name)}
+              </p>
+              <p className="save-slot-ask-warn">{copy.slotDeleteWarn}</p>
+              <div className="save-slot-actions">
+                <button
+                  type="button"
+                  className="save-slot-button save-slot-button-danger"
+                  onClick={() => void remove(summary.slot)}
+                >
+                  {copy.slotDeleteYes}
+                </button>
+                <button
+                  type="button"
+                  className="save-slot-button"
+                  onClick={() => setConfirmingDelete(null)}
+                >
+                  {copy.slotDeleteNo}
+                </button>
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div className="save-slot" key={summary.slot} data-slot={summary.slot}>
+            <button
+              type="button"
+              className="save-slot-face"
+              disabled={loading || (occupied && summary.tooNew)}
+              onClick={() => {
+                if (cloudLocked) return onLogin();
+                if (occupied) return onEnter(summary.slot);
+                if (summary.state === "empty") return onCreate(summary.slot);
+                // unreadable：只剩删除这一条路，点卡面不做事
+              }}
+            >
+              <span className="save-slot-name">{name}</span>
+
+              {cloudLocked ? (
+                <>
+                  <span className="save-slot-line save-slot-headline">
+                    {copy.slotCloudLocked}
+                  </span>
+                  <span className="save-slot-line save-slot-sub">
+                    {copy.slotCloudLockedHint}
+                  </span>
+                </>
+              ) : occupied ? (
+                <>
+                  <span className="save-slot-line save-slot-headline">
+                    {summary.dayCount === null
+                      ? "—"
+                      : copy.slotDay.replace("%s", String(summary.dayCount))}
+                    {summary.gold === null
+                      ? ""
+                      : ` · ${summary.gold} ${copy.slotGoldUnit}`}
+                  </span>
+                  <span className="save-slot-line save-slot-sub">
+                    {copy.slotSaved} {formatSavedAt(summary.savedAtUtc)} ·{" "}
+                    {formatSize(summary.bytes)}
+                  </span>
+                  {summary.tooNew ? (
+                    <span className="save-slot-flag">{copy.slotTooNew}</span>
+                  ) : summary.fromBackup ? (
+                    <span className="save-slot-flag">{copy.slotFromBackup}</span>
+                  ) : null}
+                </>
+              ) : summary.state === "unreadable" ? (
+                <span className="save-slot-line save-slot-flag">
+                  {copy.slotUnreadable}
+                </span>
+              ) : (
+                <>
+                  <span className="save-slot-line save-slot-headline">
+                    {copy.slotEmpty}
+                  </span>
+                  <span className="save-slot-line save-slot-sub">
+                    {copy.slotEmptyHint}
+                  </span>
+                </>
+              )}
+            </button>
+
+            {/*
+              删除只在"这个槽里真有东西"时出现——包括读不出来的那种。
+              读不出来的档同样是玩家的东西，得给他一条清掉重来的路，
+              但不能让他"进去"（进去只会灌一个残档进运行时）。
+            */}
+            {summary.state !== "empty" && !cloudLocked ? (
+              <div className="save-slot-actions">
+                <button
+                  type="button"
+                  className="save-slot-button"
+                  onClick={() => setConfirmingDelete(summary.slot)}
+                >
+                  {copy.slotDelete}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}

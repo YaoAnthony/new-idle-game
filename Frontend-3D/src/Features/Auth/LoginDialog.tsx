@@ -14,7 +14,7 @@ import { GameBtn } from "../../Components/GameBtn";
 
 /**
  * 登录/注册表单。挂在标题页"开始游戏"弹窗里（TitleScreen 负责开关和
- * 外面的 pixel-panel 壳），这里只有表单本身。
+ * 外面那层 soft-panel 壳），这里只有表单本身。
  *
  * 成功路径：mutation 成功（authApi 已顺手写了 tokenStore）→ dispatch
  * setUser → authBridge 察觉翻转 → auth_changed + 仓库重建 → onDone。

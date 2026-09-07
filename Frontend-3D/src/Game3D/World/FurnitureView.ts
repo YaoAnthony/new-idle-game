@@ -1,7 +1,6 @@
 import {
   FurnitureCapability,
   PlacementSurface,
-  anchorOf,
   faceCellToWorld,
   faceYaw,
   wallFaceOf,
@@ -124,10 +123,14 @@ export function furnitureWorldCenter(
     );
   }
 
-  // 地面家具：占地中心经房屋锚点入世界（宽高互换在 furnitureCenterWorld
-  // 里做，这里原来那份重复实现删了）。y 是地板的世界高度
+  /*
+   * 地面家具：占地中心经房屋锚点入世界（宽高互换在 furnitureCenterWorld
+   * 里做，这里原来那份重复实现删了）。y 问脚下的承托面，**不是房间地板
+   * 标高**——石台上的家具按地板标高报会矮 0.45，气泡就浮在它腰上。
+   * 和 spawn 同一个函数：这份账全屋只有 groundHeightAt 一个出口。
+   */
   const center = furnitureCenterWorld(placed.placement, footprint, room);
-  return { x: center.x, y: anchorOf(room).elevation, z: center.z };
+  return { x: center.x, y: groundHeightAt(center.x, center.z), z: center.z };
 }
 
 // 纯数学下沉到 furnitureMath（台面换算也要用，放这儿会成环）。

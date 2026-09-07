@@ -1,4 +1,4 @@
-import { Facing, PlacementSurface, anchorOf, worldToRoomLocal } from "core";
+import { Facing, PlacementSurface, worldToRoomLocal } from "core";
 import {
   hostGeometryOf,
   surfaceChildPose,
@@ -20,6 +20,7 @@ import {
   checkPlacementTarget,
   getDefinition,
   getWorld,
+  groundHeightAt,
   type PlacementTarget,
 } from "../../Game/State/worldRuntime";
 import { placeFromItem } from "../../Game/Systems/placement";
@@ -54,6 +55,12 @@ const GHOST_BAD = "#c05248";
 export class PlacementController {
   private readonly raycaster = new Raycaster();
   private readonly pointer = new Vector2();
+  /**
+   * 瞄地面用的水平面。**高度不是常数**——石台、台明这类抬高的地面上，
+   * 固定 y=0 的平面会让命中点顺着视线往远处漂 `elevation / tan(俯角)`
+   * （0.45m 的石台在 32° 俯角下漂 0.7 格），指着台面虚影落到台外。
+   * 每帧由 aimAtGround 重设，见那儿的两次求解。
+   */
   private readonly floorPlane = new Plane(new Vector3(0, 1, 0), 0);
   private readonly hit = new Vector3();
 
@@ -273,7 +280,7 @@ export class PlacementController {
       return;
     }
 
-    if (!this.raycaster.ray.intersectPlane(this.floorPlane, this.hit)) return;
+    if (!this.aimAtGround()) return;
 
     const { room } = getWorld();
     const rotated = this.facing === Facing.East || this.facing === Facing.West;
@@ -286,6 +293,28 @@ export class PlacementController {
     this.gridX = Math.round(local.x + room.floorGrid.width / 2 - w / 2);
     this.gridY = Math.round(local.z + room.floorGrid.height / 2 - h / 2);
     this.refresh();
+  }
+
+  /**
+   * 射到脚下的承托面上，命中点写进 `this.hit`。返回 false 表示射线和地面
+   * 平行（贴地视角），保持上一帧的落点。
+   *
+   * 两次求解：先按 y=0 拿个初值，问一下那个位置的承托面有多高，再照那个
+   * 高度重射一次。抬高的地面（石台 +0.45）上这一步把 0.7 格的视线漂移
+   * 收回来——指哪儿虚影落哪儿。台沿上两次答案会来回跳一格，第二次求解
+   * 就停手：多迭代几轮也不会收敛（边界本来就没有唯一解），而每多一轮
+   * 就多一次抖动。
+   */
+  private aimAtGround(): boolean {
+    this.floorPlane.constant = 0;
+    if (!this.raycaster.ray.intersectPlane(this.floorPlane, this.hit)) {
+      return false;
+    }
+
+    // 虚影落地高度问的是同一个 groundHeightAt（FurnitureView.spawn 也问它），
+    // 瞄准面和落点各算一份的话，站在石台上就会差半身
+    this.floorPlane.constant = -groundHeightAt(this.hit.x, this.hit.z);
+    return this.raycaster.ray.intersectPlane(this.floorPlane, this.hit) !== null;
   }
 
   /** 射到墙面上：命中哪面墙 → 换算成该墙的墙格坐标 */
@@ -481,7 +510,14 @@ export class PlacementController {
         definition.placement.footprint,
         room,
       );
-      this.ghost.position.set(center.x, anchorOf(room).elevation, center.z);
+      // 落在脚下的承托面上，和 FurnitureView.spawn 同一个函数——
+      // 这里写 anchorOf(room).elevation 的时候，摆到石台（+0.45）上的
+      // 虚影会整整沉进石头里半个膝盖，落地却是好的，纯误导
+      this.ghost.position.set(
+        center.x,
+        groundHeightAt(center.x, center.z),
+        center.z,
+      );
       this.ghost.rotation.y = furnitureWorldYaw(room, this.facing);
     }
 

@@ -2,7 +2,15 @@ import { beforeEach, expect, test } from "vitest";
 import type { GameSave } from "core";
 
 import { createLocalSaveRepository } from "../src/Data/Save/SaveRepository";
-import { SAVE_KEYS, SAVE_SCHEMA_VERSION } from "../src/Data/Save/types";
+import { keysForSlot } from "../src/Data/Save/slots";
+import { SAVE_SCHEMA_VERSION } from "../src/Data/Save/types";
+
+/*
+ * 这份用例测的是**仓库机制**（双份轮写、回退、结构校验），和哪个槽无关。
+ * 多槽之后必须钉住一个具体的槽：不钉的话它跟着"当前活动槽"漂，
+ * 而活动槽是玩家状态，用例不该依赖它。
+ */
+const KEYS = keysForSlot("a");
 import { createIndexDbRepository } from "../src/Data/IndexDB";
 
 /**
@@ -46,12 +54,12 @@ function makeSave(marker: string): GameSave {
 }
 
 beforeEach(async () => {
-  await store.remove(SAVE_KEYS.main);
-  await store.remove(SAVE_KEYS.backup);
+  await store.remove(KEYS.main);
+  await store.remove(KEYS.backup);
 });
 
 test("没有存档时是新玩家，不是失败", () => {
-  const repository = createLocalSaveRepository();
+  const repository = createLocalSaveRepository("a");
 
   return Promise.all([
     repository.load().then((outcome) => expect(outcome.kind).toBe("empty")),
@@ -60,7 +68,7 @@ test("没有存档时是新玩家，不是失败", () => {
 });
 
 test("存进去读得出来", async () => {
-  const repository = createLocalSaveRepository();
+  const repository = createLocalSaveRepository("a");
 
   expect(await repository.save(makeSave("阿主"))).toEqual({ ok: true });
   expect(await repository.hasSave()).toBe(true);
@@ -72,32 +80,32 @@ test("存进去读得出来", async () => {
 });
 
 test("第二次存档之前，上一份主档被复制进备份", async () => {
-  const repository = createLocalSaveRepository();
+  const repository = createLocalSaveRepository("a");
 
   await repository.save(makeSave("第一次"));
   await repository.save(makeSave("第二次"));
 
-  const backup = await store.get(SAVE_KEYS.backup);
+  const backup = await store.get(KEYS.backup);
   expect(backup.ok).toBe(true);
   const value = backup.ok && "data" in backup ? (backup.data.value as GameSave) : null;
   expect(value?.player.name).toBe("第一次");
 });
 
 test("第一次存档时还没有主档，不该因为没东西可备份而失败", async () => {
-  const repository = createLocalSaveRepository();
+  const repository = createLocalSaveRepository("a");
 
   expect(await repository.save(makeSave("开局"))).toEqual({ ok: true });
-  const backup = await store.get(SAVE_KEYS.backup);
+  const backup = await store.get(KEYS.backup);
   expect(backup.ok && "data" in backup).toBe(false);
 });
 
 test("主档被改坏时自动回退到备份，并把来源告诉调用方", async () => {
-  const repository = createLocalSaveRepository();
+  const repository = createLocalSaveRepository("a");
   await repository.save(makeSave("好的那份"));
   await repository.save(makeSave("新的那份")); // 这一步把"好的那份"推进备份
 
   // 模拟写了一半 / 被手改坏的主档
-  await store.upsert(SAVE_KEYS.main, { meta: { saveSchemaVersion: 1 }, 半个存档: true });
+  await store.upsert(KEYS.main, { meta: { saveSchemaVersion: 1 }, 半个存档: true });
 
   const outcome = await repository.load();
   expect(outcome.kind).toBe("loaded");
@@ -107,10 +115,10 @@ test("主档被改坏时自动回退到备份，并把来源告诉调用方", as
 });
 
 test("两边都坏了才算失败，而且要带上原因", async () => {
-  const repository = createLocalSaveRepository();
+  const repository = createLocalSaveRepository("a");
 
-  await store.upsert(SAVE_KEYS.main, { 坏的: true });
-  await store.upsert(SAVE_KEYS.backup, { 也是坏的: true });
+  await store.upsert(KEYS.main, { 坏的: true });
+  await store.upsert(KEYS.backup, { 也是坏的: true });
 
   const outcome = await repository.load();
   expect(outcome.kind).toBe("failed");
@@ -118,7 +126,7 @@ test("两边都坏了才算失败，而且要带上原因", async () => {
 });
 
 test("结构校验挡得住缺胳膊少腿的记录", async () => {
-  const repository = createLocalSaveRepository();
+  const repository = createLocalSaveRepository("a");
 
   const broken: unknown[] = [
     null,
@@ -130,26 +138,26 @@ test("结构校验挡得住缺胳膊少腿的记录", async () => {
   ];
 
   for (const value of broken) {
-    await store.upsert(SAVE_KEYS.main, value);
+    await store.upsert(KEYS.main, value);
     expect(await repository.hasSave(), `${JSON.stringify(value)} 不该被当成存档`).toBe(false);
   }
 });
 
 test("比客户端更新的存档不会被静默降级——降级会把新字段悄悄抹掉", async () => {
-  const repository = createLocalSaveRepository();
+  const repository = createLocalSaveRepository("a");
   const future = makeSave("未来");
   future.meta.saveSchemaVersion = SAVE_SCHEMA_VERSION + 5;
-  await store.upsert(SAVE_KEYS.main, future);
+  await store.upsert(KEYS.main, future);
 
   const outcome = await repository.load();
   expect(outcome.kind).toBe("failed");
 });
 
 test("老版本的存档在读出来时自动迁到最新", async () => {
-  const repository = createLocalSaveRepository();
+  const repository = createLocalSaveRepository("a");
   const old = makeSave("老档");
   old.meta.saveSchemaVersion = 1;
-  await store.upsert(SAVE_KEYS.main, old);
+  await store.upsert(KEYS.main, old);
 
   const outcome = await repository.load();
   expect(outcome.kind).toBe("loaded");
@@ -157,7 +165,7 @@ test("老版本的存档在读出来时自动迁到最新", async () => {
 });
 
 test("clear 之后回到新玩家状态", async () => {
-  const repository = createLocalSaveRepository();
+  const repository = createLocalSaveRepository("a");
   await repository.save(makeSave("一"));
   await repository.save(makeSave("二"));
 
@@ -168,8 +176,8 @@ test("clear 之后回到新玩家状态", async () => {
 });
 
 test("只有备份还在时也算有存档，继续游戏该出现", async () => {
-  const repository = createLocalSaveRepository();
-  await store.upsert(SAVE_KEYS.backup, makeSave("只剩备份"));
+  const repository = createLocalSaveRepository("a");
+  await store.upsert(KEYS.backup, makeSave("只剩备份"));
 
   expect(await repository.hasSave()).toBe(true);
   const outcome = await repository.load();

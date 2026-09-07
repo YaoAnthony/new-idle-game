@@ -4,6 +4,8 @@ import { Provider } from 'react-redux'
 import { PersistGate } from 'redux-persist/integration/react'
 import './index.css'
 import App from './App.tsx'
+import { getAuthToken } from './Api/auth/tokenStore.ts'
+import { startSlotMigration } from './Data/Save/slotMigration.ts'
 import { initAuth } from './Features/Auth/authBridge.ts'
 import { initCloudSync } from './Features/CloudSave/syncController.ts'
 import { persistor, store } from './Redux/store.ts'
@@ -117,6 +119,16 @@ if (import.meta.env.DEV) {
     )
   }
 }
+
+/*
+ * 单档 → 多槽的搬家，**必须排在所有读存档的人前面**（见 slotMigration）。
+ * 这里不 await：搬家是异步的，而标题页不该为它白屏；要读存档的那几处
+ * （App 的启动检查、继续游戏、云对账）各自 await whenSlotsReady()。
+ *
+ * 老档去哪要看这台机器上有没有账号——token 只经 Api/auth/tokenStore
+ * 存取，所以判断在这里做，Data 层只收一个布尔。
+ */
+void startSlotMigration(getAuthToken() !== null)
 
 // 顺序有讲究：云同步先装好存档仓库的工厂，authBridge 校验 token 触发的
 // auth_changed 才能拿到已经会"云挂点"的仓库

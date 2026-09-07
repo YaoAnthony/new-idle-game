@@ -11,6 +11,7 @@ import {
   setCloudRepositoryFactory,
   stashMainToConflict,
 } from "../../Data/Save";
+import { whenSlotsReady } from "../../Data/Save/slotMigration";
 import { SAVE_SCHEMA_VERSION } from "../../Data/Save/types";
 import { emit, on } from "../../Game/EventBus";
 import { decideEntry, type EntryDecision } from "./reconcile";
@@ -230,6 +231,13 @@ export type StartupOutcome =
  */
 export async function startupReconcile(userId: string): Promise<StartupOutcome> {
   state.userId = userId;
+
+  /*
+   * 等单档→多槽的搬家落定再对账。这条路会读"本地有没有档"并据此决定
+   * 上传 / 下载 / 冲突——搬家半路上读到的答案是错的，而这里的每个分支
+   * 都会真的动存档。
+   */
+  await whenSlotsReady();
 
   const headOutcome = await fetchHead();
   if (headOutcome.kind !== "ok") {

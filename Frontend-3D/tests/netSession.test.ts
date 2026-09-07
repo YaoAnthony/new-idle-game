@@ -86,7 +86,8 @@ import {
   leaveSession,
 } from "../src/Game/Multiplayer/session";
 import { getSaveRepository } from "../src/Data/Save/SaveRepository";
-import { SAVE_KEYS, SAVE_SCHEMA_VERSION } from "../src/Data/Save/types";
+import { getActiveSlot, keysForSlot } from "../src/Data/Save/slots";
+import { SAVE_SCHEMA_VERSION } from "../src/Data/Save/types";
 import { saveNow, setBaseline } from "../src/Data/Save/autosave";
 import { serializeGameSave } from "../src/Data/Save/serialize";
 import { getIdIssuer } from "../src/Game/State/ids";
@@ -226,8 +227,9 @@ beforeEach(async () => {
   });
   
 
-  await store.remove(SAVE_KEYS.main);
-  await store.remove(SAVE_KEYS.backup);
+  const keys = keysForSlot(getActiveSlot());
+  await store.remove(keys.main);
+  await store.remove(keys.backup);
   restoreInventory([]);
   restoreStorages({});
   clearAllFurniture();
@@ -241,7 +243,8 @@ afterEach(async () => {
 /** 从磁盘上把存档读回来（绕开运行时，看的就是"真的写下去了什么"） */
 async function readSaveFromDisk(): Promise<GameSave> {
   await settle();
-  const record = await store.get(SAVE_KEYS.main);
+  // 落盘落在**当前活动槽**上（多槽之后 saveNow 认的是它）
+  const record = await store.get(keysForSlot(getActiveSlot()).main);
   expect(record.ok, "磁盘上没有主存档").toBe(true);
   return (record as { data: { value: GameSave } }).data.value;
 }

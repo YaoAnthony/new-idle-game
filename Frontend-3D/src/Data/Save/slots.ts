@@ -59,16 +59,14 @@ export function keysForSlot(slot: SaveSlotId): SaveSlotKeys {
 const ACTIVE_SLOT_KEY = "idle-home:active-slot";
 
 /**
- * 迁移落地之前的兜底值。
+ * 兜底值：没得选时进 A 槽。
  *
- * 现在指向 `cloud` 是因为**老档就躺在云槽的键上**（`world`）——这个常量
- * 唯一的作用是让"还没做过槽位选择"的老玩家照常读到自己的档，行为和多槽
- * 之前一模一样。
- *
- * 第 ② 期的迁移会给每个存在的存档**显式写下**它的槽位，那之后这个兜底
- * 值改成 `a`（新玩家的默认槽），并且这条注释要跟着删。
+ * 正常情况下轮不到它——启动时 `slotMigration` 会给每台机器**显式写下**
+ * 活动槽（游客的老档搬进 A 就写 a，有账号的留在云槽就写 cloud），之后
+ * 存档页每次进档也会写。它只在 localStorage 整个不可用（无痕模式）时
+ * 起作用，那种情况下选一个本地槽比选云槽合理：云槽要登录才有意义。
  */
-const FALLBACK_SLOT: SaveSlotId = "cloud";
+const FALLBACK_SLOT: SaveSlotId = "a";
 
 /**
  * 本次会话的活动槽。内存这份是权威——`localStorage` 写不进去时（无痕

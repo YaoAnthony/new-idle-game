@@ -12,6 +12,7 @@ import {
   setBaseline,
 } from "./Data/Save";
 import { saveNow } from "./Data/Save/autosave";
+import { whenSlotsReady } from "./Data/Save/slotMigration";
 import { ConflictDialog } from "./Features/CloudSave/ConflictDialog";
 import {
   resolveConflict,
@@ -130,8 +131,13 @@ function App() {
 
   useEffect(() => {
     let cancelled = false;
-    void getSaveRepository()
-      .hasSave()
+    /*
+     * 先等搬家落定再问"有档吗"。抢跑会读到空——老档正从 world 挪去
+     * world.a 的半路上，两个键都可能是空的，玩家会看到"没有可继续的
+     * 存档"，然后开一个新档把它盖掉。
+     */
+    void whenSlotsReady()
+      .then(() => getSaveRepository().hasSave())
       .then((has) => {
         if (!cancelled) setCanContinue(has);
       });
@@ -253,7 +259,8 @@ function App() {
   }, []);
 
   const continueGame = useCallback(async () => {
-    // 对账可能正在把云端存档写进主档：等它落定再读，别读到半路的旧档
+    // 搬家和对账都可能正在动主档：等它们落定再读，别读到半路的旧档
+    await whenSlotsReady();
     if (reconciling.current) await reconciling.current;
 
     const outcome = await getSaveRepository().load();
@@ -287,6 +294,7 @@ function App() {
    * 玩家登录、摆了家具、回标题再点自己账户，直接被送进捏脸页重开）。
    */
   const enterAsAccount = useCallback(async () => {
+    await whenSlotsReady();
     if (reconciling.current) await reconciling.current;
 
     if (await getSaveRepository().hasSave()) {

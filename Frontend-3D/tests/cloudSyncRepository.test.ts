@@ -63,7 +63,7 @@ describe("createCloudBoundRepository", () => {
   test("cloud_repo_save_success_notifies_with_the_saved_snapshot", async () => {
     // Arrange
     const seen: GameSave[] = [];
-    const repo = createCloudBoundRepository(createLocalSaveRepository(), (save) =>
+    const repo = createCloudBoundRepository(createLocalSaveRepository("cloud"), (save) =>
       seen.push(save),
     );
     const save = makeSave("hello");
@@ -80,7 +80,7 @@ describe("createCloudBoundRepository", () => {
 
   test("cloud_repo_load_delegates_to_local_untouched", async () => {
     // Arrange：本地写好一份，再用云挂点仓库读
-    const local = createLocalSaveRepository();
+    const local = createLocalSaveRepository("cloud");
     await local.save(makeSave("local-truth"));
     const repo = createCloudBoundRepository(local, () => {
       throw new Error("load 不该触发云通知");
@@ -98,25 +98,28 @@ describe("createCloudBoundRepository", () => {
 
   test("cloud_repo_factory_swaps_on_reset", async () => {
     // Arrange：默认纯本地
-    expect(getSaveRepository().mode).toBe("local_only");
+    // 本地槽永远拿纯本地仓库；云挂点只套在云槽上
+    expect(getSaveRepository("a").mode).toBe("local_only");
+    expect(getSaveRepository("cloud").mode).toBe("local_only");
 
     // Act：装工厂 + 重建（authBridge 在登录翻转时做的事）
     setCloudRepositoryFactory((local) => createCloudBoundRepository(local, () => {}));
     resetSaveRepository();
 
     // Assert
-    expect(getSaveRepository().mode).toBe("cloud_sync");
+    expect(getSaveRepository("a").mode).toBe("local_only");
+    expect(getSaveRepository("cloud").mode).toBe("cloud_sync");
   });
 });
 
 describe("stashMainToConflict", () => {
   test("stash_copies_current_main_to_conflict_key", async () => {
     // Arrange
-    const local = createLocalSaveRepository();
+    const local = createLocalSaveRepository("cloud");
     await local.save(makeSave("precious"));
 
     // Act
-    await stashMainToConflict();
+    await stashMainToConflict("cloud");
 
     // Assert：conflict 键有整份主档
     const record = await store.get(SAVE_KEYS.conflict);
@@ -128,7 +131,7 @@ describe("stashMainToConflict", () => {
 
   test("stash_without_main_save_is_a_noop", async () => {
     // Act
-    await stashMainToConflict();
+    await stashMainToConflict("cloud");
 
     // Assert
     const record = await store.get(SAVE_KEYS.conflict);

@@ -168,10 +168,9 @@ describe("活动槽", () => {
     vi.resetModules();
 
     const fresh = await import("../src/Data/Save/slots");
-    // 兜底值现在是云槽（老档就躺在云槽的键上）。第 ② 期迁移落地后
-    // 它会改成 "a"，这一行跟着改——改的时候请顺手确认迁移真的给
-    // 每个存在的档写下了显式槽位，否则老玩家会读到一个空槽。
-    expect(fresh.getActiveSlot()).toBe("cloud");
+    // 兜底是 A 槽。正常情况下轮不到它——slotMigration 每次启动都会写下
+    // 显式的活动槽，见 saveSlotMigration.test.ts
+    expect(fresh.getActiveSlot()).toBe("a");
   });
 });
 

@@ -1,6 +1,10 @@
 import { beforeEach, expect, test, vi } from "vitest";
 
 import { createIndexDbRepository } from "../src/Data/IndexDB";
+import {
+  forgetCloudSave,
+  startupReconcile,
+} from "../src/Features/CloudSave/syncController";
 import type { CloudSyncState } from "../src/Features/CloudSave/syncState";
 
 /**
@@ -36,9 +40,16 @@ const seeded: CloudSyncState = {
   pendingWriteId: "write-9",
 };
 
+/*
+ * 控制器是**静态 import** 的，不是每条用例 resetModules 之后再动态 import。
+ * 动态那版单跑 4.3 秒、全量跑 5.0 秒——正好压在 vitest 默认 5 秒超时上，
+ * 于是它在慢一点的机器上就红。**按机器快慢红的用例比没有更糟**：真出问题
+ * 时没人信它。代价是模块级状态跨用例保留，所以每条用例自己先跑一次
+ * startupReconcile 把 userId 摆正；唯一需要"从没登录过"的那条自己
+ * resetModules（那时候模块图已经转译过，重新 import 只要几百毫秒）。
+ */
 beforeEach(async () => {
   vi.clearAllMocks();
-  vi.resetModules();
   await settings.upsert("cloud-sync-state", { ...seeded });
   // 对账走"连不上"这条最短的路：它只把 userId 记下来，不碰存档
   fetchHead.mockResolvedValue({ kind: "offline" });
@@ -50,11 +61,10 @@ async function loadState(): Promise<CloudSyncState | null> {
 }
 
 test("删成功之后同步基准归零，下一次上传走首传", async () => {
-  const controller = await import("../src/Features/CloudSave/syncController");
-  await controller.startupReconcile("user-1");
+  await startupReconcile("user-1");
   remove.mockResolvedValue({ kind: "ok", deleted: true });
 
-  const outcome = await controller.forgetCloudSave();
+  const outcome = await forgetCloudSave();
 
   expect(outcome.ok).toBe(true);
   expect(remove).toHaveBeenCalledTimes(1);
@@ -68,21 +78,19 @@ test("删成功之后同步基准归零，下一次上传走首传", async () =>
 });
 
 test("云端本来就没档也算删成功——玩家要的结果已经成立", async () => {
-  const controller = await import("../src/Features/CloudSave/syncController");
-  await controller.startupReconcile("user-1");
+  await startupReconcile("user-1");
   remove.mockResolvedValue({ kind: "ok", deleted: false });
 
-  const outcome = await controller.forgetCloudSave();
+  const outcome = await forgetCloudSave();
 
   expect(outcome.ok).toBe(true);
 });
 
 test("连不上服务器时不动任何基准，并且说清楚没删掉", async () => {
-  const controller = await import("../src/Features/CloudSave/syncController");
-  await controller.startupReconcile("user-1");
+  await startupReconcile("user-1");
   remove.mockResolvedValue({ kind: "offline" });
 
-  const outcome = await controller.forgetCloudSave();
+  const outcome = await forgetCloudSave();
 
   expect(outcome.ok).toBe(false);
   expect(outcome.ok === false ? outcome.reason : null).toBe("offline");
@@ -93,20 +101,21 @@ test("连不上服务器时不动任何基准，并且说清楚没删掉", async
 });
 
 test("登录过期时也不动基准", async () => {
-  const controller = await import("../src/Features/CloudSave/syncController");
-  await controller.startupReconcile("user-1");
+  await startupReconcile("user-1");
   remove.mockResolvedValue({ kind: "unauthorized" });
 
-  const outcome = await controller.forgetCloudSave();
+  const outcome = await forgetCloudSave();
 
   expect(outcome.ok === false ? outcome.reason : null).toBe("unauthorized");
   expect((await loadState())?.lastSyncedRevision).toBe(5);
 });
 
 test("没登录时根本不发请求", async () => {
-  const controller = await import("../src/Features/CloudSave/syncController");
+  // 这条要的是一份从没跑过对账的控制器，只能重新 import 一次
+  vi.resetModules();
+  const fresh = await import("../src/Features/CloudSave/syncController");
 
-  const outcome = await controller.forgetCloudSave();
+  const outcome = await fresh.forgetCloudSave();
 
   expect(outcome.ok).toBe(false);
   expect(remove).not.toHaveBeenCalled();

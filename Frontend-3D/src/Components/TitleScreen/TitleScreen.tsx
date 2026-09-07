@@ -9,6 +9,7 @@ import { unlockAudio } from "../../Game3D/Engine/AudioEngine";
 import { applyAudioSettings } from "../../Game3D/Engine/audioSettings";
 import type { RootState } from "../../Redux/store";
 import { GameBtn } from "../GameBtn";
+import { HouseMark } from "./HouseMark";
 import { SaveSlotsPanel } from "../SaveSlots";
 import type { SaveSlotId } from "../../Data/Save/slots";
 import {
@@ -134,11 +135,11 @@ export function TitleScreen({
 
   return (
     <section
-      className="relative z-[1] grid h-[100dvh] min-h-0 place-items-center overflow-hidden text-[#f8edc8] max-sm:place-items-start"
+      className="title-stage relative z-[1] grid h-[100dvh] min-h-0 place-items-center overflow-hidden max-sm:place-items-start"
       aria-label={copy.titleAlt}
     >
       <div
-        className="title-screen-locale absolute right-[clamp(14px,2.5vw,30px)] top-[clamp(14px,2.5vw,28px)] z-[2] inline-grid grid-flow-col gap-0.5 border-2 border-[#342218] bg-[rgb(39_29_21_/_0.88)] p-[3px] shadow-[0_4px_0_rgb(15_18_14_/_0.3)] max-sm:right-3 max-sm:top-3"
+        className="title-locale absolute right-[clamp(14px,2.5vw,30px)] top-[clamp(14px,2.5vw,28px)] z-[2] max-sm:right-3 max-sm:top-3"
         role="group"
         aria-label={copy.localeLabel}
       >
@@ -149,12 +150,7 @@ export function TitleScreen({
             <button
               type="button"
               key={localeOption.id}
-              className={[
-                "title-screen-locale-option min-h-8 min-w-[68px] cursor-pointer border-0 px-3 text-[13px] font-bold tracking-normal transition-colors hover:bg-[#59402b] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#fff0ad] max-sm:min-h-[30px] max-sm:min-w-[58px] max-sm:px-2 max-sm:text-xs",
-                isActive
-                  ? "bg-[#d9ad68] text-[#2c2119]"
-                  : "bg-transparent text-[#eadbb5]",
-              ].join(" ")}
+              className="title-locale-option"
               aria-pressed={isActive}
               onClick={() => selectLocale(localeOption.id)}
             >
@@ -175,17 +171,26 @@ export function TitleScreen({
         }
       >
         <AnimatePresence mode="wait" initial={false}>
-          <motion.img
+          {/*
+            原来这里是两张像素风 PNG（title-zh / title-ja）。整块界面换成
+            日记本那套柔和语言之后，那张招牌是全屏唯一的硬像素边缘，
+            比任何一处都先跳出来——用户 2026-09-07 拍板"扔掉，自己搞一个"。
+            现在是**排版 + 一枚自绘小房子**：字随语言换（copy.titleAlt），
+            不用再为每种语言备一张图。
+          */}
+          <motion.div
             key={locale}
-            className="title-screen-title block max-h-[33dvh] w-[min(720px,82vw)] select-none object-contain [filter:drop-shadow(0_6px_0_rgb(36_21_13_/_0.55))] [image-rendering:pixelated] max-sm:max-h-[29dvh] max-sm:w-[92vw] [@media(max-height:620px)]:max-h-[27dvh]"
-            src={activeLocale.titleImage}
-            alt={copy.titleAlt}
-            draggable={false}
+            className="title-mark w-[min(720px,86vw)] select-none"
             initial={reduceMotion ? false : { opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
             exit={reduceMotion ? undefined : { opacity: 0, y: -5 }}
             transition={{ duration: reduceMotion ? 0 : 0.18 }}
-          />
+          >
+            <span className="title-mark__badge" aria-hidden="true">
+              <HouseMark />
+            </span>
+            <h1 className="title-wordmark">{copy.titleAlt}</h1>
+          </motion.div>
         </AnimatePresence>
 
         <div className="title-screen-actions mt-[clamp(10px,1.8dvh,20px)] grid w-[min(290px,76vw)] gap-2.5 max-sm:w-[min(260px,80vw)] [@media(max-height:620px)]:mt-1 [@media(max-height:620px)]:gap-1.5">
@@ -193,6 +198,7 @@ export function TitleScreen({
             <GameBtn
               className="title-screen-continue-button"
               size="lg"
+              tone="mint"
               fullWidth
               onClick={() => onContinue?.()}
             >
@@ -202,6 +208,9 @@ export function TitleScreen({
           <GameBtn
             className="title-screen-primary-button"
             size={canContinue ? "md" : "lg"}
+            /* 有档可继续时主动作是"继续"，"开始游戏"退成次要——
+               一屏只该有一个 mint */
+            tone={canContinue ? "cream" : "mint"}
             fullWidth
             onClick={() => setActiveDialog("start")}
           >
@@ -227,7 +236,7 @@ export function TitleScreen({
             className="relative z-10"
           >
             <motion.div
-              className="fixed inset-0 z-10 bg-[rgb(9_14_12_/_0.72)] backdrop-blur-[2px]"
+              className="fixed inset-0 z-10 bg-[rgb(93_64_55_/_0.42)] backdrop-blur-[2px]"
               initial={reduceMotion ? false : { opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -256,20 +265,27 @@ export function TitleScreen({
                   ease: STANDARD_EASE,
                 }}
               >
-                <DialogPanel className="title-screen-dialog-panel pixel-panel max-h-[calc(100dvh-40px)] w-full overflow-y-auto bg-[#f0dfad] text-[#3a281d] outline-none shadow-[0_16px_34px_rgb(11_14_11_/_0.44)]">
+                <DialogPanel
+                  className={[
+                    "title-screen-dialog-panel soft-panel ui-scroll max-h-[calc(100dvh-40px)] w-full overflow-y-auto outline-none",
+                    /* 存档页绿封面、设置桃色：两个弹窗一眼分得开，不用读标题 */
+                    activeDialog === "settings" ? "soft-panel--peach" : "",
+                  ].join(" ")}
+                >
+                  <div className="soft-panel__paper">
                   {activeDialog === "start" ? (
-                    <div className="title-screen-start-content relative flex flex-col items-center p-[clamp(18px,4vw,32px)]">
-                      <DialogTitle className="m-0 pr-10 text-center text-[clamp(17px,3vw,22px)] font-black leading-tight text-[#352219]">
+                    <div className="title-screen-start-content relative flex flex-col items-center p-[clamp(16px,3.2vw,28px)]">
+                      <DialogTitle className="soft-title m-0 pr-10 text-center text-[clamp(17px,3vw,22px)] leading-tight">
                         {startView === "login" ? copy.loginDialogTitle : copy.slotsTitle}
                       </DialogTitle>
 
                       <button
                         type="button"
-                        className="title-screen-close absolute right-3 top-3 z-[2] grid size-9 place-items-center border-2 border-[#5b3c29] bg-[#dfc485] text-[#513321] transition-colors hover:bg-[#eed79d] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#8d5d34]"
+                        className="soft-close absolute right-3 top-3 z-[2]"
                         aria-label={copy.back}
                         onClick={closeDialog}
                       >
-                        <XMarkIcon className="size-6" aria-hidden="true" />
+                        <XMarkIcon className="size-5" aria-hidden="true" />
                       </button>
 
                       {startView === "login" ? (
@@ -277,7 +293,7 @@ export function TitleScreen({
                           <LoginDialog onDone={() => setStartView("slots")} />
                           <button
                             type="button"
-                            className="cursor-pointer border-0 bg-transparent text-xs font-bold text-[#6b4c33] underline"
+                            className="cursor-pointer border-0 bg-transparent text-xs font-bold text-[#8d6e63] underline"
                             onClick={() => setStartView("slots")}
                           >
                             {copy.back}
@@ -300,11 +316,11 @@ export function TitleScreen({
                       )}
 
                       {startView === "slots" && account.status === "authed" ? (
-                        <p className="m-0 mt-3 text-xs font-bold text-[#6b4c33]">
+                        <p className="m-0 mt-3 text-xs font-bold text-[#8d6e63]">
                           {copy.loggedInAs}：{account.user?.email}
                           <button
                             type="button"
-                            className="ml-2 cursor-pointer border-0 bg-transparent text-xs font-bold text-[#8d5d34] underline"
+                            className="ml-2 cursor-pointer border-0 bg-transparent text-xs font-bold text-[#4db6ac] underline"
                             onClick={() => logout()}
                           >
                             {copy.logout}
@@ -313,17 +329,17 @@ export function TitleScreen({
                       ) : null}
                     </div>
                   ) : (
-                    <div className="title-screen-settings-content flex flex-col items-center p-[clamp(18px,4vw,32px)]">
-                      <DialogTitle className="title-screen-settings-title m-0 text-center text-[clamp(24px,5vw,32px)] font-black leading-tight text-[#352219]">
+                    <div className="title-screen-settings-content flex flex-col items-center p-[clamp(16px,3.2vw,28px)]">
+                      <DialogTitle className="title-screen-settings-title soft-title m-0 text-center text-[clamp(22px,4.4vw,30px)] leading-tight">
                         {copy.settingsTitle}
                       </DialogTitle>
 
                       <div className="title-screen-settings-sound mt-[18px] w-full">
-                        <h2 className="mb-2.5 mt-0 text-[17px] font-black text-[#4d3324]">
+                        <h2 className="mb-2.5 mt-0 text-[17px] font-black text-[#795548]">
                           {copy.soundTitle}
                         </h2>
 
-                        <label className="mb-2 flex min-h-[38px] cursor-pointer items-center justify-between gap-3.5 text-sm font-extrabold text-[#513927]">
+                        <label className="mb-2 flex min-h-[38px] cursor-pointer items-center justify-between gap-3.5 text-sm font-extrabold text-[#5d4037]">
                           <span>{copy.muteAll}</span>
                           <input
                             className="peer sr-only"
@@ -340,7 +356,7 @@ export function TitleScreen({
                             }}
                           />
                           <span
-                            className="pixel-switch peer-checked:bg-[#608052] peer-focus-visible:outline peer-focus-visible:outline-[3px] peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[#8d5d34]"
+                            className="soft-switch peer-focus-visible:outline peer-focus-visible:outline-[3px] peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[#4db6ac]"
                             aria-hidden="true"
                           />
                         </label>
@@ -351,12 +367,12 @@ export function TitleScreen({
 
                             return (
                               <label
-                                className="title-screen-volume-row grid min-h-[34px] grid-cols-[minmax(88px,1fr)_minmax(130px,2fr)_44px] items-center gap-2.5 text-[13px] font-bold text-[#563c2a] max-sm:grid-cols-[84px_minmax(96px,1fr)_38px] max-sm:gap-[7px]"
+                                className="title-screen-volume-row grid min-h-[34px] grid-cols-[minmax(88px,1fr)_minmax(130px,2fr)_44px] items-center gap-2.5 text-[13px] font-bold text-[#5d4037] max-sm:grid-cols-[84px_minmax(96px,1fr)_38px] max-sm:gap-[7px]"
                                 key={id}
                               >
                                 <span>{label}</span>
                                 <input
-                                  className="pixel-range"
+                                  className="soft-range"
                                   type="range"
                                   min={config.audio.range.min}
                                   max={config.audio.range.max}
@@ -367,7 +383,7 @@ export function TitleScreen({
                                     updateVolume(id, Number(event.target.value))
                                   }
                                 />
-                                <output className="text-right">
+                                <output className="text-right text-[#8d6e63]">
                                   {audioSettings[id]}
                                   {config.audio.range.unit}
                                 </output>
@@ -378,19 +394,19 @@ export function TitleScreen({
                       </div>
 
                       <div className="title-screen-settings-controls mt-[18px] w-full">
-                        <h2 className="mb-2.5 mt-0 text-[17px] font-black text-[#4d3324]">
+                        <h2 className="mb-2.5 mt-0 text-[17px] font-black text-[#795548]">
                           {copy.controlsTitle}
                         </h2>
                         <dl className="title-screen-controls-list mb-[22px] grid gap-1.5">
                           {config.controls.map((control) => (
                             <div
-                              className="title-screen-control-row grid min-h-[34px] grid-cols-[1fr_auto] items-center gap-4 border-b border-[rgb(85_58_39_/_0.24)] pb-1.5"
+                              className="title-screen-control-row grid min-h-[34px] grid-cols-[1fr_auto] items-center gap-4 border-b-2 border-dashed border-[rgb(255_224_130_/_0.75)] pb-1.5"
                               key={control.id}
                             >
-                              <dt className="text-[13px] font-extrabold">
+                              <dt className="text-[13px] font-extrabold text-[#5d4037]">
                                 {copy[control.copyKey]}
                               </dt>
-                              <dd className="m-0 border-2 border-[#65452f] bg-[#e5cc93] px-2 py-1 font-mono text-xs font-extrabold text-[#3e2b20]">
+                              <dd className="soft-key m-0 font-mono text-xs">
                                 {control.binding}
                               </dd>
                             </div>
@@ -401,12 +417,14 @@ export function TitleScreen({
                       <GameBtn
                         className="title-screen-settings-done"
                         size="sm"
+                        tone="mint"
                         onClick={closeDialog}
                       >
                         {copy.done}
                       </GameBtn>
                     </div>
                   )}
+                  </div>
                 </DialogPanel>
               </motion.div>
             </div>

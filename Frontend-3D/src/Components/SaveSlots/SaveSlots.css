@@ -1,20 +1,31 @@
 /*
- * 存档页的四张卡。视觉语言跟标题页走（木框 + 米黄卡面 + 硬投影），
- * 不用 HUD 那套奶油马卡龙——标题页是深色木质的，把亮色 HUD 卡搬过来
- * 会像两个游戏拼在一起。共用 .session-choice 的配色，但它是正方形大图卡，
- * 这里是信息卡，尺寸和内部排版都不一样，所以自己一套。
+ * 存档页的四张卡（2026-09-07 换皮，跟标题页一起从像素木框搬到日记本语言）。
+ *
+ * 数值取自 BookPlanner.tsx 那本本子：白卡 `border-2 #EEEEEE rounded-[20px]`、
+ * 柔和投影、灰底胶囊装元信息、按钮是圆胶囊 + 实色硬底影。这一页原来是
+ * 米黄木牌 + 直角小按钮，和进游戏之后看到的东西不是一套。
+ *
+ * 一条自己加的规矩：**每个槽有一枚固定颜色的圆点**（A 奶黄 / B 桃 / C 薄荷 /
+ * 云端 天蓝）。四张卡的文字排版是一样的，颜色是唯一能被余光认出来的东西——
+ * 玩家记住的是"我那个是绿点的"，不是"我那个在左下"。
  */
 
 .save-slot {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  border: 3px solid #5a3825;
-  background: linear-gradient(180deg, #efd99b, #dfbd78);
+  border: 2px solid #eeeeee;
+  border-radius: 20px;
+  background: #ffffff;
   box-shadow:
-    inset 0 0 0 2px #faeab9,
-    3px 4px 0 rgb(66 39 25 / 0.22);
-  image-rendering: pixelated;
+    0 4px 0 #f0ece7,
+    0 10px 20px rgb(93 64 55 / 0.07);
+  transition: border-color 120ms ease-out, transform 120ms ease-out;
+}
+
+.save-slot:hover {
+  border-color: #d9ecd9;
+  transform: translateY(-1px);
 }
 
 /* 卡面本身就是"进入 / 新建"的按钮：整张可点，别让玩家去找小按钮 */
@@ -24,65 +35,87 @@
   flex: 1;
   cursor: pointer;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   border: 0;
+  border-radius: 18px 18px 0 0;
   background: transparent;
-  padding: clamp(8px, 1.4vw, 12px);
+  padding: clamp(9px, 1.5vw, 13px) clamp(11px, 1.7vw, 15px);
   text-align: left;
-  color: #3b2519;
+  font-family: "Nunito", "LXGW WenKai GB", "Kaiti SC", sans-serif;
+  color: #5d4037;
   -webkit-tap-highlight-color: transparent;
 }
 
 .save-slot-face:hover {
-  background: rgb(255 246 214 / 0.45);
+  background: #fcfaf5;
 }
 
 .save-slot-face:active {
-  background: rgb(216 175 104 / 0.5);
+  background: #f7f3ea;
 }
 
 .save-slot-face:disabled {
   cursor: default;
   /* 版本太新的档：能看能删，进不去。灰掉的是"进"，不是整张卡 */
-  opacity: 0.72;
+  opacity: 0.6;
 }
 
 .save-slot-face:focus-visible {
-  outline: 3px solid #8d5d34;
+  outline: 3px solid #4db6ac;
   outline-offset: -3px;
 }
 
+/* 槽名那一行：一枚色点 + 名字 */
 .save-slot-name {
-  font-size: clamp(13px, 1.8vw, 16px);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: clamp(12px, 1.6vw, 14px);
   font-weight: 900;
   line-height: 1.1;
-  color: #5b3a22;
+  letter-spacing: 0.04em;
+  color: #8d6e63;
 }
+
+.save-slot-dot {
+  width: 11px;
+  height: 11px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--slot-dot, #ffca28);
+  box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.1);
+}
+
+.save-slot[data-slot="a"] { --slot-dot: #ffca28; }
+.save-slot[data-slot="b"] { --slot-dot: #ff8a65; }
+.save-slot[data-slot="c"] { --slot-dot: #81c784; }
+.save-slot[data-slot="cloud"] { --slot-dot: #4fc3f7; }
 
 .save-slot-line {
   overflow: hidden;
   font-size: clamp(11px, 1.4vw, 13px);
   font-weight: 700;
-  line-height: 1.25;
+  line-height: 1.3;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 /* 第一眼要看到的那一行：第几天 + 金币 */
 .save-slot-headline {
-  font-size: clamp(13px, 1.7vw, 15px);
+  font-size: clamp(14px, 1.9vw, 17px);
   font-weight: 900;
+  color: #5d4037;
 }
 
 .save-slot-sub {
-  color: rgb(59 37 25 / 0.72);
+  color: #bcaaa4;
 }
 
 .save-slot-flag {
   overflow: hidden;
   font-size: clamp(10px, 1.3vw, 12px);
   font-weight: 800;
-  color: #8a3b22;
+  color: #ef6c00;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -90,94 +123,149 @@
 .save-slot-actions {
   display: flex;
   gap: 6px;
-  border-top: 2px solid rgb(90 56 37 / 0.35);
-  padding: 5px clamp(8px, 1.4vw, 12px);
+  /* 奶黄虚线，和书页上那道分隔同色——灰虚线在白卡上等于没有 */
+  border-top: 2px dashed rgb(255 224 130 / 0.85);
+  padding: 7px clamp(11px, 1.7vw, 15px);
 }
 
+/*
+ * 卡底的小按钮。胶囊 + 实色硬底影，按下去真的沉下去——和标题页的
+ * GameBtn 同一套物理，只是小一号。
+ */
 .save-slot-button {
   cursor: pointer;
-  border: 2px solid #5a3825;
-  background: #e8caa0;
-  padding: 3px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: #f5f5f5;
+  padding: 5px 14px;
+  font-family: "Nunito", "LXGW WenKai GB", "Kaiti SC", sans-serif;
   font-size: clamp(11px, 1.4vw, 12px);
-  font-weight: 800;
-  color: #4a3021;
+  font-weight: 900;
+  color: #8d6e63;
+  box-shadow: 0 3px 0 #e0e0e0;
+  transition: transform 90ms ease-out, box-shadow 90ms ease-out, filter 90ms ease-out;
   -webkit-tap-highlight-color: transparent;
 }
 
 .save-slot-button:hover {
-  background: #f3ddb6;
+  filter: brightness(0.98);
+}
+
+.save-slot-button:active {
+  transform: translateY(3px);
+  box-shadow: none;
 }
 
 .save-slot-button:focus-visible {
-  outline: 3px solid #8d5d34;
+  outline: 3px solid #4db6ac;
   outline-offset: 2px;
 }
 
+/* 空槽的"上传存档"是这张卡上唯一的动作，给它薄荷色 */
+.save-slot-button--mint {
+  background: #4db6ac;
+  color: #ffffff;
+  box-shadow: 0 3px 0 #00897b;
+}
+
+.save-slot-button--mint:active {
+  box-shadow: none;
+}
+
 /*
- * 危险按钮画成红的，而且**只出现在二次确认里**。
- * 第一下点"删除"只是把卡片翻成问句，真正掉血的那一下才是红的——
- * 一次误点删不掉档。
+ * 危险按钮画成红的，而且**只出现在二次确认里**。第一下点"删除"只是把
+ * 卡片翻成问句，真正掉血的那一下才是红的——一次误点删不掉档。
  */
 .save-slot-button-danger {
-  border-color: #7a2f1c;
-  background: #d9694a;
-  color: #fff3e2;
+  background: #ef5350;
+  color: #ffffff;
+  box-shadow: 0 3px 0 #c62828;
 }
 
-.save-slot-button-danger:hover {
-  background: #e57e5f;
+.save-slot-button-danger:active {
+  box-shadow: none;
 }
 
+/* 翻面之后的问句：粉底，和白卡拉开，一眼知道这张卡状态变了 */
 .save-slot-asking {
   justify-content: center;
-  gap: 4px;
-  padding: clamp(8px, 1.4vw, 12px);
-  background: linear-gradient(180deg, #f0cfb0, #e0b189);
+  gap: 5px;
+  border-color: #ef9a9a;
+  background: #ffebee;
+  padding: clamp(9px, 1.5vw, 13px) clamp(11px, 1.7vw, 15px);
+  font-family: "Nunito", "LXGW WenKai GB", "Kaiti SC", sans-serif;
 }
 
 .save-slot-ask {
   margin: 0;
   font-size: clamp(12px, 1.6vw, 14px);
   font-weight: 900;
-  line-height: 1.2;
-  color: #4a2418;
+  line-height: 1.25;
+  color: #c62828;
 }
 
 .save-slot-ask-warn {
   margin: 0;
   font-size: clamp(10px, 1.3vw, 12px);
   font-weight: 800;
-  color: #8a3b22;
+  color: #e57373;
 }
 
 .save-slot-asking .save-slot-actions {
   border-top: 0;
-  padding: 4px 0 0;
+  padding: 3px 0 0;
+}
+
+/*
+ * 出错时的一行话。放在四张卡下面而不是卡里：卡的高度是四张一致的，
+ * 往里塞一行会把那一张撑高、整排跟着错位，而错位发生的时机正是玩家
+ * 刚点错东西、最需要版面稳住的时候。
+ */
+.save-slots-notice {
+  margin: 10px 0 0;
+  border: 2px solid #ef9a9a;
+  border-radius: 16px;
+  background: #ffebee;
+  padding: 6px 12px;
+  font-family: "Nunito", "LXGW WenKai GB", "Kaiti SC", sans-serif;
+  font-size: clamp(11px, 1.4vw, 13px);
+  font-weight: 800;
+  line-height: 1.35;
+  color: #c62828;
 }
 
 /*
  * 横屏矮屏（基准机 iPhone SE 667×375）。四张卡 2×2 要塞进
  * calc(100dvh - 16px) 的弹窗里，行距和字号全部再压一档。
- * 判据跟着 TitleScreen.css 里那条走——同一块屏幕不该有两套断点。
  */
 @media (orientation: landscape) and (max-height: 500px) {
   .save-slots {
-    gap: 6px;
-    padding-top: 2px;
+    gap: 7px;
+    padding-top: 4px;
+  }
+
+  .save-slot {
+    border-radius: 16px;
   }
 
   .save-slot-face {
-    gap: 0;
-    padding: 6px 8px;
+    gap: 1px;
+    border-radius: 14px 14px 0 0;
+    padding: 7px 10px;
   }
 
   .save-slot-name {
-    font-size: 12px;
+    gap: 5px;
+    font-size: 11px;
+  }
+
+  .save-slot-dot {
+    width: 9px;
+    height: 9px;
   }
 
   .save-slot-headline {
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .save-slot-line {
@@ -189,11 +277,11 @@
   }
 
   .save-slot-actions {
-    padding: 3px 8px;
+    padding: 5px 10px;
   }
 
   .save-slot-button {
-    padding: 2px 8px;
+    padding: 3px 10px;
     font-size: 10px;
   }
 
@@ -204,28 +292,19 @@
   .save-slot-ask-warn {
     font-size: 9px;
   }
+
+  .save-slots-notice {
+    margin-top: 6px;
+    padding: 4px 10px;
+    font-size: 10px;
+  }
 }
 
 /*
- * 出错时的一行话。放在四张卡下面而不是卡里：卡的高度是四张一致的，
- * 往里塞一行会把那一张撑高、整排跟着错位，而错位发生的时机正是玩家
- * 刚点错东西、最需要版面稳住的时候。
+ * 空槽和未登录云槽那行"点这里…"。它是这张卡上唯一的动作提示，
+ * 用薄荷色而不是灰色——灰色会让它读成一行说明文字，而说明文字没人点。
  */
-.save-slots-notice {
-  margin: 8px 0 0;
-  border: 2px solid #7a5235;
-  background: #e3c98e;
-  padding: 4px 10px;
-  font-size: clamp(11px, 1.4vw, 12px);
+.save-slot-action-hint {
   font-weight: 800;
-  line-height: 1.35;
-  color: #4b3324;
-}
-
-@media (orientation: landscape) and (max-height: 500px) {
-  .save-slots-notice {
-    margin-top: 5px;
-    padding: 3px 8px;
-    font-size: 10px;
-  }
+  color: #4db6ac;
 }

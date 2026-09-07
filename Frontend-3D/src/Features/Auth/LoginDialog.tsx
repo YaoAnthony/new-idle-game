@@ -79,21 +79,26 @@ export function LoginDialog({ onDone }: { onDone: () => void }) {
     }
   };
 
+  /*
+   * 输入框跟着标题层一起换成日记本那套（2026-09-07）：白底、圆角 16、
+   * 细灰边，聚焦时描一圈薄荷。原来是米黄底 + 深棕直角边，在奶油纸面板
+   * 里像一块补丁。
+   */
   const inputClass =
-    "w-full border-2 border-[#65452f] bg-[#faf1d8] px-3 py-2 text-[14px] text-[#3a281d] outline-none focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-1 focus-visible:outline-[#8d5d34]";
+    "w-full rounded-2xl border-2 border-[#eeeeee] bg-white px-4 py-2.5 text-[14px] font-bold text-[#5d4037] outline-none placeholder:text-[#bcaaa4] focus:border-[#4db6ac]";
 
   return (
     <div className="flex w-full flex-col items-center gap-3">
-      <div className="grid w-full grid-cols-2 gap-1 border-2 border-[#5b3c29] bg-[#dfc485] p-1">
+      <div className="grid w-full grid-cols-2 gap-1 rounded-full bg-[#f5f5f5] p-1 shadow-[inset_0_-2px_0_#e0e0e0]">
         {(["login", "register"] as const).map((candidate) => (
           <button
             key={candidate}
             type="button"
             className={[
-              "min-h-8 cursor-pointer border-0 text-[13px] font-black",
+              "min-h-9 cursor-pointer rounded-full border-0 text-[13px] font-black transition-colors",
               mode === candidate
-                ? "bg-[#d9ad68] text-[#2c2119]"
-                : "bg-transparent text-[#6b4c33]",
+                ? "bg-white text-[#5d4037] shadow-[0_2px_4px_rgb(0_0_0_/_0.1)]"
+                : "bg-transparent text-[#8d6e63]",
             ].join(" ")}
             onClick={() => {
               setMode(candidate);
@@ -140,7 +145,7 @@ export function LoginDialog({ onDone }: { onDone: () => void }) {
           />
         ) : null}
 
-        <GameBtn size="md" fullWidth type="submit" disabled={busy}>
+        <GameBtn size="md" tone="mint" fullWidth type="submit" disabled={busy}>
           {busy ? "……" : mode === "login" ? "登录" : "注册并登录"}
         </GameBtn>
       </form>
@@ -165,7 +170,7 @@ export function LoginDialog({ onDone }: { onDone: () => void }) {
 
       {notice ? (
         <p
-          className="m-0 w-full border-2 border-[#7a5235] bg-[#e3c98e] px-3 py-1 text-xs font-extrabold leading-normal text-[#4b3324]"
+          className="m-0 w-full rounded-2xl border-2 border-[#ef9a9a] bg-[#ffebee] px-3 py-1.5 text-xs font-extrabold leading-normal text-[#c62828]"
           role="status"
         >
           {notice}

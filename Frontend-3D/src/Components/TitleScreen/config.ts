@@ -1,5 +1,3 @@
-import titleJa from "../../Assets/title/title-ja.png";
-import titleZh from "../../Assets/title/title-zh.png";
 import type { TitleLocale, TitleScreenCopy } from "./content";
 
 export type AudioChannel = "master" | "music" | "ambience" | "effects";
@@ -23,11 +21,15 @@ export type TitleScreenConfig = {
     backgroundColor: string;
   };
   defaultLocale: TitleLocale;
+  /**
+   * 语言表。**不再带 titleImage**——招牌换成了排版 + 自绘小房子
+   * （见 HouseMark.tsx），每加一种语言不用再备一张图，字从
+   * `TITLE_SCREEN_COPY[locale].titleAlt` 来。
+   */
   locales: ReadonlyArray<{
     id: TitleLocale;
     buttonLabel: string;
     htmlLanguage: string;
-    titleImage: string;
   }>;
   persistence: {
     localeKey: string;
@@ -63,13 +65,11 @@ export const TITLE_SCREEN_CONFIG = {
       id: "zh",
       buttonLabel: "中文",
       htmlLanguage: "zh-CN",
-      titleImage: titleZh,
     },
     {
       id: "ja",
       buttonLabel: "日本語",
       htmlLanguage: "ja",
-      titleImage: titleJa,
     },
   ],
   persistence: {

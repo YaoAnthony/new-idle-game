@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getSaveRepository } from "../../Data/Save";
-import { listSaveSlots, type SaveSlotSummary } from "../../Data/Save/slotSummary";
+import {
+  listSaveSlots,
+  type SaveSlotSummary,
+} from "../../Data/Save/slotSummary";
 import { LOCAL_SAVE_SLOT_IDS, type SaveSlotId } from "../../Data/Save/slots";
 import {
   exportSlot,
@@ -107,7 +110,9 @@ export function SaveSlotsPanel({
 }: SaveSlotsPanelProps) {
   const [summaries, setSummaries] = useState<SaveSlotSummary[] | null>(null);
   /** 正在问"真的删吗"的那个槽。同一时刻只可能有一个 */
-  const [confirmingDelete, setConfirmingDelete] = useState<SaveSlotId | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState<SaveSlotId | null>(
+    null,
+  );
   const [notice, setNotice] = useState<string | null>(null);
   /**
    * 选文件用一个藏起来的 input，点"上传"时记下这一下是给哪个槽的。
@@ -123,9 +128,7 @@ export function SaveSlotsPanel({
      * 抢在前面列出来的是一张"空档位"——玩家点一下新建，就在云端那份
      * 还好好的情况下开了个新档。
      */
-    void whenCloudReady()
-      .then(listSaveSlots)
-      .then(setSummaries);
+    void whenCloudReady().then(listSaveSlots).then(setSummaries);
   }, []);
 
   useEffect(refresh, [refresh]);
@@ -141,7 +144,9 @@ export function SaveSlotsPanel({
       if (!outcome.ok) {
         const reason = "reason" in outcome ? outcome.reason : "offline";
         setNotice(
-          reason === "unauthorized" ? copy.slotCloudSignedOut : copy.slotCloudOffline,
+          reason === "unauthorized"
+            ? copy.slotCloudSignedOut
+            : copy.slotCloudOffline,
         );
         setConfirmingDelete(null);
         return;
@@ -211,18 +216,20 @@ export function SaveSlotsPanel({
    * 版面不跳的价值在这一页尤其高——玩家的手已经伸向"我那一格"了，
    * 卡片位置在最后一刻才定下来就会点错，而这一页的误点是删档。
    */
-  const cards = summaries ?? LOCAL_SAVE_SLOT_IDS.concat("cloud" as never).map(
-    (slot): SaveSlotSummary => ({
-      slot,
-      state: "empty",
-      tooNew: false,
-      dayCount: null,
-      gold: null,
-      savedAtUtc: null,
-      bytes: null,
-      fromBackup: false,
-    }),
-  );
+  const cards =
+    summaries ??
+    LOCAL_SAVE_SLOT_IDS.concat("cloud" as never).map(
+      (slot): SaveSlotSummary => ({
+        slot,
+        state: "empty",
+        tooNew: false,
+        dayCount: null,
+        gold: null,
+        savedAtUtc: null,
+        bytes: null,
+        fromBackup: false,
+      }),
+    );
   const loading = summaries === null;
 
   return (
@@ -238,144 +245,157 @@ export function SaveSlotsPanel({
         }}
       />
 
-      <div className="save-slots grid w-full grid-cols-2 gap-[clamp(8px,1.6vw,14px)] pt-6">
-      {cards.map((summary) => {
-        const name = slotName(summary.slot, copy);
-        const cloudLocked = summary.slot === "cloud" && !loggedIn;
-        const occupied = summary.state === "occupied";
-        const asking = confirmingDelete === summary.slot;
+      <div className="save-slots grid w-full grid-cols-2 gap-[clamp(9px,1.7vw,14px)] pt-5">
+        {cards.map((summary) => {
+          const name = slotName(summary.slot, copy);
+          const cloudLocked = summary.slot === "cloud" && !loggedIn;
+          const occupied = summary.state === "occupied";
+          const asking = confirmingDelete === summary.slot;
 
-        if (asking) {
-          return (
-            <div className="save-slot save-slot-asking" key={summary.slot}>
-              <p className="save-slot-ask">
-                {copy.slotDeleteAsk.replace("%s", name)}
-              </p>
-              <p className="save-slot-ask-warn">
-                {summary.slot === "cloud"
-                  ? copy.slotDeleteCloudWarn
-                  : copy.slotDeleteWarn}
-              </p>
-              <div className="save-slot-actions">
-                <button
-                  type="button"
-                  className="save-slot-button save-slot-button-danger"
-                  onClick={() => void remove(summary.slot)}
-                >
-                  {copy.slotDeleteYes}
-                </button>
-                <button
-                  type="button"
-                  className="save-slot-button"
-                  onClick={() => setConfirmingDelete(null)}
-                >
-                  {copy.slotDeleteNo}
-                </button>
+          if (asking) {
+            return (
+              <div className="save-slot save-slot-asking" key={summary.slot}>
+                <p className="save-slot-ask">
+                  {copy.slotDeleteAsk.replace("%s", name)}
+                </p>
+                <p className="save-slot-ask-warn">
+                  {summary.slot === "cloud"
+                    ? copy.slotDeleteCloudWarn
+                    : copy.slotDeleteWarn}
+                </p>
+                <div className="save-slot-actions">
+                  <button
+                    type="button"
+                    className="save-slot-button save-slot-button-danger"
+                    onClick={() => void remove(summary.slot)}
+                  >
+                    {copy.slotDeleteYes}
+                  </button>
+                  <button
+                    type="button"
+                    className="save-slot-button"
+                    onClick={() => setConfirmingDelete(null)}
+                  >
+                    {copy.slotDeleteNo}
+                  </button>
+                </div>
               </div>
-            </div>
-          );
-        }
+            );
+          }
 
-        return (
-          <div className="save-slot" key={summary.slot} data-slot={summary.slot}>
-            <button
-              type="button"
-              className="save-slot-face"
-              disabled={loading || (occupied && summary.tooNew)}
-              onClick={() => {
-                if (cloudLocked) return onLogin();
-                if (occupied) return onEnter(summary.slot);
-                if (summary.state === "empty") return onCreate(summary.slot);
-                // unreadable：只剩删除这一条路，点卡面不做事
-              }}
+          return (
+            <div
+              className="save-slot"
+              key={summary.slot}
+              data-slot={summary.slot}
             >
-              <span className="save-slot-name">{name}</span>
-
-              {cloudLocked ? (
-                <>
-                  <span className="save-slot-line save-slot-headline">
-                    {copy.slotCloudLocked}
-                  </span>
-                  <span className="save-slot-line save-slot-sub">
-                    {copy.slotCloudLockedHint}
-                  </span>
-                </>
-              ) : occupied ? (
-                <>
-                  <span className="save-slot-line save-slot-headline">
-                    {summary.dayCount === null
-                      ? "—"
-                      : copy.slotDay.replace("%s", String(summary.dayCount))}
-                    {summary.gold === null
-                      ? ""
-                      : ` · ${summary.gold} ${copy.slotGoldUnit}`}
-                  </span>
-                  <span className="save-slot-line save-slot-sub">
-                    {copy.slotSaved} {formatSavedAt(summary.savedAtUtc)} ·{" "}
-                    {formatSize(summary.bytes)}
-                  </span>
-                  {summary.tooNew ? (
-                    <span className="save-slot-flag">{copy.slotTooNew}</span>
-                  ) : summary.fromBackup ? (
-                    <span className="save-slot-flag">{copy.slotFromBackup}</span>
-                  ) : null}
-                </>
-              ) : summary.state === "unreadable" ? (
-                <span className="save-slot-line save-slot-flag">
-                  {copy.slotUnreadable}
+              <button
+                type="button"
+                className="save-slot-face"
+                disabled={loading || (occupied && summary.tooNew)}
+                onClick={() => {
+                  if (cloudLocked) return onLogin();
+                  if (occupied) return onEnter(summary.slot);
+                  if (summary.state === "empty") return onCreate(summary.slot);
+                  // unreadable：只剩删除这一条路，点卡面不做事
+                }}
+              >
+                <span className="save-slot-name">
+                  {/* 每个槽一枚固定颜色的点：四张卡排版一样，颜色是唯一
+                    能被余光认出来的东西——玩家记的是"我那个是绿点的" */}
+                  <span className="save-slot-dot" aria-hidden="true" />
+                  {name}
                 </span>
-              ) : (
-                <>
-                  <span className="save-slot-line save-slot-headline">
-                    {copy.slotEmpty}
-                  </span>
-                  <span className="save-slot-line save-slot-sub">
-                    {copy.slotEmptyHint}
-                  </span>
-                </>
-              )}
-            </button>
 
-            {/*
+                {cloudLocked ? (
+                  <>
+                    <span className="save-slot-line save-slot-headline">
+                      {copy.slotCloudLocked}
+                    </span>
+                    {/* 这行是"点我"，不是说明——给它薄荷色，别和灰色的
+                        元信息长一样 */}
+                    <span className="save-slot-line save-slot-action-hint">
+                      {copy.slotCloudLockedHint}
+                    </span>
+                  </>
+                ) : occupied ? (
+                  <>
+                    <span className="save-slot-line save-slot-headline">
+                      {summary.dayCount === null
+                        ? "—"
+                        : copy.slotDay.replace("%s", String(summary.dayCount))}
+                      {summary.gold === null
+                        ? ""
+                        : ` · ${summary.gold} ${copy.slotGoldUnit}`}
+                    </span>
+                    <span className="save-slot-line save-slot-sub">
+                      {copy.slotSaved} {formatSavedAt(summary.savedAtUtc)} ·{" "}
+                      {formatSize(summary.bytes)}
+                    </span>
+                    {summary.tooNew ? (
+                      <span className="save-slot-flag">{copy.slotTooNew}</span>
+                    ) : summary.fromBackup ? (
+                      <span className="save-slot-flag">
+                        {copy.slotFromBackup}
+                      </span>
+                    ) : null}
+                  </>
+                ) : summary.state === "unreadable" ? (
+                  <span className="save-slot-line save-slot-flag">
+                    {copy.slotUnreadable}
+                  </span>
+                ) : (
+                  <>
+                    <span className="save-slot-line save-slot-headline">
+                      {copy.slotEmpty}
+                    </span>
+                    <span className="save-slot-line save-slot-action-hint">
+                      {copy.slotEmptyHint}
+                    </span>
+                  </>
+                )}
+              </button>
+
+              {/*
               删除只在"这个槽里真有东西"时出现——包括读不出来的那种。
               读不出来的档同样是玩家的东西，得给他一条清掉重来的路，
               但不能让他"进去"（进去只会灌一个残档进运行时）。
             */}
-            {cloudLocked ? null : summary.state !== "empty" ? (
-              <div className="save-slot-actions">
-                {/*
+              {cloudLocked ? null : summary.state !== "empty" ? (
+                <div className="save-slot-actions">
+                  {/*
                   读不出来的档也给下载：那份字节可能还救得回来（存档结构
                   变过、少了一个字段），给玩家一份文件比让他只能删掉强。
                 */}
-                <button
-                  type="button"
-                  className="save-slot-button"
-                  onClick={() => void download(summary.slot)}
-                >
-                  {copy.slotDownload}
-                </button>
-                <button
-                  type="button"
-                  className="save-slot-button"
-                  onClick={() => setConfirmingDelete(summary.slot)}
-                >
-                  {copy.slotDelete}
-                </button>
-              </div>
-            ) : (
-              <div className="save-slot-actions">
-                <button
-                  type="button"
-                  className="save-slot-button"
-                  onClick={() => pickFile(summary.slot)}
-                >
-                  {copy.slotUpload}
-                </button>
-              </div>
-            )}
-          </div>
-        );
-      })}
+                  <button
+                    type="button"
+                    className="save-slot-button"
+                    onClick={() => void download(summary.slot)}
+                  >
+                    {copy.slotDownload}
+                  </button>
+                  <button
+                    type="button"
+                    className="save-slot-button"
+                    onClick={() => setConfirmingDelete(summary.slot)}
+                  >
+                    {copy.slotDelete}
+                  </button>
+                </div>
+              ) : (
+                <div className="save-slot-actions">
+                  <button
+                    type="button"
+                    className="save-slot-button save-slot-button--mint"
+                    onClick={() => pickFile(summary.slot)}
+                  >
+                    {copy.slotUpload}
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {notice ? (

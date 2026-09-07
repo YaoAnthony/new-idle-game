@@ -1,11 +1,31 @@
+/*
+ * 标题层的按钮（2026-09-07 换皮）。
+ *
+ * 原来是三张九宫格 PNG 的像素木框（button-frame-normal/hover/pressed）。
+ * 换掉不是因为它难看，是因为**游戏里已经有一套语言了**——日记本那套
+ * （白纸卡 + 圆角 + 胶囊按钮 + 实色硬底影），HUD 也在往那儿换
+ * （见 index.css 的 .paper-card 那一段）。标题页和存档页还穿着木框，
+ * 一进游戏就换了个游戏。
+ *
+ * 签名动作是**硬底影 + 按下去真的下沉**：`0 4px 0 实色`，:active 时
+ * translateY(4px) 同时把影子收掉。这比 hover 变色更能传达"这是个能按的
+ * 实体"，而且在触摸端也成立（触摸没有 hover）。数值逐字取自
+ * BookPlanner.tsx 里那几个「添加 / 补录」按钮。
+ *
+ * 三个色调对应三种分量：mint = 这一屏的主动作，cream = 次要，
+ * peach = 危险或需要停一下的动作。**不做 outline/ghost 变体**——
+ * 这套语言里"次要"是靠颜色轻，不是靠去掉底色。
+ */
+
 .game-btn {
-  --game-btn-frame: url("../../Assets/ui/button-frame-normal.png");
-  --game-btn-text: #3b2519;
-  --game-btn-text-shadow: rgb(255 244 200 / 0.82);
+  --game-btn-face: #fffdf8;
+  --game-btn-edge: #e6ddd0;
+  --game-btn-text: #5d4037;
   --game-btn-font-size: 18px;
   --game-btn-min-width: 168px;
   --game-btn-height: 48px;
-  --game-btn-padding-x: 24px;
+  --game-btn-padding-x: 26px;
+  --game-btn-drop: 4px;
 
   position: relative;
   display: inline-grid;
@@ -13,99 +33,106 @@
   min-width: var(--game-btn-min-width);
   height: var(--game-btn-height);
   padding: 0 var(--game-btn-padding-x);
-  border: 5px solid transparent;
-  border-width: 5px 6px;
-  border-image-source: var(--game-btn-frame);
-  border-image-slice: 7 8 7 8 fill;
-  border-image-repeat: stretch;
-  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  background: var(--game-btn-face);
   color: var(--game-btn-text);
+  /*
+   * 第三层 inset 是给奶油色按钮的：它和标题页的奶油底几乎同色，
+   * 只靠底影的话边界含糊，一道极淡的内描边就把轮廓交代清楚了。
+   * mint / peach 自己有足够的色差，这一道在它们身上看不见。
+   */
+  box-shadow:
+    0 var(--game-btn-drop) 0 var(--game-btn-edge),
+    0 8px 18px rgb(93 64 55 / 0.12),
+    inset 0 0 0 2px rgb(93 64 55 / 0.05);
   cursor: pointer;
-  image-rendering: pixelated;
   user-select: none;
   outline: none;
+  transition:
+    transform 90ms ease-out,
+    box-shadow 90ms ease-out,
+    filter 90ms ease-out;
   -webkit-tap-highlight-color: transparent;
 }
 
-.game-btn::after {
-  content: "";
-  position: absolute;
-  inset: 5px 6px;
-  pointer-events: none;
-  background: linear-gradient(
-    180deg,
-    rgb(255 255 255 / 0.12),
-    rgb(255 255 255 / 0) 45%,
-    rgb(83 45 24 / 0.12)
-  );
-  mix-blend-mode: soft-light;
-}
-
 .game-btn__label {
-  position: relative;
-  z-index: 1;
   display: block;
   max-width: 100%;
   overflow: hidden;
-  font-family:
-    "Noto Sans SC", "PingFang SC", "Yu Gothic", "Meiryo", sans-serif;
+  font-family: "Nunito", "LXGW WenKai GB", "Kaiti SC", sans-serif;
   font-size: var(--game-btn-font-size);
-  font-weight: 800;
+  font-weight: 900;
   line-height: 1;
-  letter-spacing: 0;
+  letter-spacing: 0.04em;
   text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
-  text-shadow:
-    0 1px 0 var(--game-btn-text-shadow);
 }
 
 .game-btn:hover:not(:disabled) {
-  --game-btn-frame: url("../../Assets/ui/button-frame-hover.png");
-  --game-btn-text: #302016;
+  filter: brightness(1.04);
   transform: translateY(-1px);
 }
 
+/* 按下去真的沉下去：位移正好等于影子的厚度，边缘和底影对齐 */
 .game-btn:active:not(:disabled),
 .game-btn--selected {
-  --game-btn-frame: url("../../Assets/ui/button-frame-pressed.png");
-  --game-btn-text: #2b1b13;
-  transform: translateY(1px);
+  transform: translateY(var(--game-btn-drop));
+  box-shadow: 0 0 0 var(--game-btn-edge);
 }
 
 .game-btn:focus-visible {
-  outline: 3px solid #fff0ad;
+  outline: 3px solid #4db6ac;
   outline-offset: 3px;
 }
 
 .game-btn:disabled {
   cursor: not-allowed;
-  filter: saturate(0.45) brightness(0.72);
+  filter: none;
+  --game-btn-face: #f0ece7;
+  --game-btn-edge: #ddd5cd;
+  --game-btn-text: #b3a89e;
+  box-shadow: 0 var(--game-btn-drop) 0 var(--game-btn-edge);
 }
 
-.game-btn:disabled .game-btn__label {
-  color: #75624e;
+/* ---- 色调 ---- */
+
+.game-btn--mint {
+  --game-btn-face: #4db6ac;
+  --game-btn-edge: #00897b;
+  --game-btn-text: #ffffff;
 }
+
+.game-btn--peach {
+  --game-btn-face: #ff8a65;
+  --game-btn-edge: #f4511e;
+  --game-btn-text: #ffffff;
+}
+
+/* ---- 尺寸 ---- */
 
 .game-btn--sm {
   --game-btn-font-size: 14px;
-  --game-btn-min-width: 124px;
-  --game-btn-height: 36px;
+  --game-btn-min-width: 112px;
+  --game-btn-height: 38px;
   --game-btn-padding-x: 18px;
+  --game-btn-drop: 3px;
 }
 
 .game-btn--md {
-  --game-btn-font-size: 18px;
+  --game-btn-font-size: 17px;
   --game-btn-min-width: 168px;
   --game-btn-height: 48px;
-  --game-btn-padding-x: 24px;
+  --game-btn-padding-x: 26px;
 }
 
 .game-btn--lg {
-  --game-btn-font-size: 24px;
+  --game-btn-font-size: 21px;
   --game-btn-min-width: 224px;
-  --game-btn-height: 64px;
+  --game-btn-height: 58px;
   --game-btn-padding-x: 32px;
+  --game-btn-drop: 5px;
 }
 
 .game-btn--full {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Archive,
   Armchair,
@@ -16,10 +16,13 @@ import { findItemDefinition } from "core";
 
 import { emit, on } from "../../Game/EventBus";
 import {
+  HOTBAR_SIZE,
   getInventory,
   isLoadedWare,
   placeInFirstFreeSlot,
   setStackAt,
+  type SlotRef,
+  type SlotStack,
 } from "../../Game/State/inventory";
 import {
   addToStorage,
@@ -42,7 +45,14 @@ import { Modal } from "../Modal/Modal";
 import { ChestSeal } from "../Modal/seals";
 import { GoldChip } from "../BuildShopPanel/GoldChip";
 import { useMirroredPanel } from "../PanelStack/useMirroredPanel";
-import { ItemIcon, ItemTooltip, useTooltip } from "../Inventory/slots";
+import {
+  ItemIcon,
+  ItemTooltip,
+  beginDrag,
+  registerDropZone,
+  useDragState,
+  useTooltip,
+} from "../Inventory/slots";
 
 /**
  * 寄售台面板。左背包、右**箱子剖面**，点一下就在两边搬。
@@ -81,6 +91,8 @@ export function ConsignPanel() {
   const [drawerTick, setDrawerTick] = useState(0);
   const { tooltip, show, hide } = useTooltip();
   const reduceMotion = useReducedMotion();
+  // 有没有东西正被拖着：箱子靠它亮边（"这里能放"），源格子靠它隐身
+  const drag = useDragState();
 
   const [phone, setPhone] = useState(
     () => window.matchMedia("(max-height: 500px)").matches,
@@ -153,6 +165,23 @@ export function ConsignPanel() {
     setStackAt(index, leftover > 0 ? { ...stack, count: leftover } : null);
   };
 
+  /*
+   * 拖到箱子上松手 = 寄售。**落点登记在箱子那一整块木头上**，不是每个隔间
+   * 一个：放进哪一格由 addToStorage 自己挑（同物先合堆），玩家瞄的是"箱子"
+   * 不是"第三格"——按格登记等于逼玩家做一个系统根本不看的选择，
+   * 还会让"没瞄准隔间"变成一次失败的投放。
+   *
+   * 中间隔一个 ref 而不是把 putIn 直接注册进去：落点只在开面板时登记一次，
+   * 而 putIn 的闭包里有 backpack / inventoryId 这些随时会换的值——
+   * 直接注册的话，第一帧那份闭包会一直留到关面板，背包变了它还按老的搬。
+   */
+  const putInRef = useRef(putIn);
+  putInRef.current = putIn;
+  useEffect(() => {
+    if (!instanceId) return;
+    return registerDropZone("consign", (from: SlotRef) => putInRef.current(from));
+  }, [instanceId]);
+
   /** 领货款：先入账再演出，飞的金币只是那笔账的可视化 */
   const claim = (from: HTMLElement): void => {
     if (!instanceId) return;
@@ -216,46 +245,64 @@ export function ConsignPanel() {
               格子尺寸不变（高度定的），空地收窄。
             */}
             <div className="relative z-10 flex min-h-0 flex-1 items-stretch gap-2 sm:gap-3">
-              {/* 左：背包（配角） */}
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-[20px] border-2 border-[#EEEEEE] bg-white/70 p-2 sm:p-3">
-                <div className="mb-2 flex h-9 w-9 items-center justify-center self-center rounded-full bg-[#4DB6AC] shadow-[0_3px_0_#00897B]">
-                  <BackpackIcon className="h-5 w-5 text-white" strokeWidth={2.5} />
+              {/*
+                左：背包。**8 列固定 + 底下钉一条快捷栏**（2026-09-07 用户定的）。
+
+                原来是 `auto-fill minmax(40px)`：左栏只有半张纸宽，却排出了
+                14 列——一格 40px 见方、图标 30px，土豆和萝卜缩到分不出来；
+                58 格挤成顶上四行半，下面空掉一大片纸。"自适应"自适应成了
+                "越挤越多"。
+
+                8 列不是随手定的：快捷栏正好 8 格，两块共用同一条 8 列轨道、
+                同一个 max-w，格子因此严格等大、左右边缘对齐——"快捷栏就是
+                背包的前 8 格"这件事（数据上本来如此，见 inventory.ts）终于
+                长在版式上。主背包面板是同一套做法，只是它有整屏宽，排 10 列。
+
+                代价说清楚：背包段 50 格除以 8 除不尽，最后一行只剩 2 格。
+                换 10 列能整除，但会把格子压回 45px 上下——宁可留半行缺口，
+                也不要再把格子做小，这一整轮改的就是"格子太小"。
+              */}
+              <div className="flex min-h-0 min-w-0 flex-[3] flex-col rounded-[20px] border-2 border-[#EEEEEE] bg-white/70 p-2 sm:p-3">
+                <div className="mb-1.5 flex h-8 w-8 shrink-0 items-center justify-center self-center rounded-full bg-[#4DB6AC] shadow-[0_3px_0_#00897B] sm:h-9 sm:w-9">
+                  <BackpackIcon className="h-4 w-4 text-white sm:h-5 sm:w-5" strokeWidth={2.5} />
                 </div>
+
+                {/* 背包段（槽位 8~57）。滚动只发生在这一块里 */}
                 <div className="min-h-0 flex-1 overflow-y-auto">
-                  <div className="grid grid-cols-[repeat(auto-fill,minmax(40px,1fr))] gap-1.5">
-                    {backpack.map((stack, index) => {
-                      const blocked =
-                        Boolean(stack) &&
-                        (isLoadedWare(stack) || !canConsign(stack!.itemId));
-                      return (
-                        <button
-                          key={index}
-                          type="button"
-                          disabled={blocked}
-                          className={`relative grid aspect-square place-items-center rounded-[12px] border-2 bg-white shadow-[0_2px_0_#E0E0E0] transition-colors ${
-                            blocked
-                              ? "cursor-not-allowed border-[#F5F5F5] opacity-40"
-                              : "cursor-pointer border-[#EEEEEE] hover:border-[#FFB74D]"
-                          }`}
-                          onClick={() => putIn(index)}
-                          onPointerEnter={(event) => {
-                            if (stack) show(stack.itemId, event.currentTarget);
-                          }}
-                          onPointerLeave={hide}
-                        >
-                          {stack && (
-                            <>
-                              <ItemIcon itemId={stack.itemId} size={30} />
-                              {stack.count > 1 && (
-                                <span className="absolute bottom-0 right-1 text-[10px] font-black text-[#5D4037]">
-                                  {stack.count}
-                                </span>
-                              )}
-                            </>
-                          )}
-                        </button>
-                      );
-                    })}
+                  <div className="mx-auto grid w-full max-w-[576px] grid-cols-8 gap-1 sm:gap-1.5">
+                    {backpack.slice(HOTBAR_SIZE).map((stack, index) => (
+                      <PackCell
+                        key={HOTBAR_SIZE + index}
+                        slot={HOTBAR_SIZE + index}
+                        stack={stack}
+                        dragging={drag?.from === HOTBAR_SIZE + index}
+                        onPut={putIn}
+                        onHover={show}
+                        onLeave={hide}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/*
+                  快捷栏：就是前 8 格那份数据，不是复制品。钉在列底**永远可见**
+                  ——它是"手上有什么"，被滚出视野的话就得先滚回去才能寄售。
+                  虚线分隔而不是换底色：换底色会读成"另一个容器"。
+                */}
+                <div className="mt-1.5 shrink-0 border-t-2 border-dashed border-[#EEEEEE] pt-1.5">
+                  <div className="mx-auto grid w-full max-w-[576px] grid-cols-8 gap-1 sm:gap-1.5">
+                    {backpack.slice(0, HOTBAR_SIZE).map((stack, index) => (
+                      <PackCell
+                        key={index}
+                        slot={index}
+                        stack={stack}
+                        label={String(index + 1)}
+                        dragging={drag?.from === index}
+                        onPut={putIn}
+                        onHover={show}
+                        onLeave={hide}
+                      />
+                    ))}
                   </div>
                 </div>
               </div>
@@ -290,7 +337,7 @@ export function ConsignPanel() {
               </div>
 
               {/* 右：箱子（箱盖色带 / 箱内 2×2 隔间 / 抽屉条） */}
-              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[20px] border-2 border-[#FFCC80] bg-[#FFF3E0]/80 p-2 sm:p-3">
+              <div className="flex min-h-0 min-w-0 flex-[2] flex-col overflow-hidden rounded-[20px] border-2 border-[#FFCC80] bg-[#FFF3E0]/80 p-2 sm:p-3">
                 {/*
                   箱盖：通栏色带，比箱身深一档——"有盖子的箱子"这个读法靠这条。
                   盖子上挂着钱袋徽章、旋转的「8折」价签、几格。桌面断点整体放大一档。
@@ -316,7 +363,12 @@ export function ConsignPanel() {
                   正方形——宽屏封顶、窄屏贴边，多出来的空间读作"箱子够深"。
                 */}
                 <div
-                  className="flex min-h-0 flex-1 items-center justify-center rounded-[14px] border-2 border-[#F0C48A] bg-[#FFEBD1] p-1.5 shadow-[inset_0_6px_16px_rgba(93,64,55,0.15)] sm:p-2"
+                  data-dropzone="consign"
+                  className={`flex min-h-0 flex-1 items-center justify-center rounded-[14px] border-2 p-1.5 transition-colors sm:p-2 ${
+                    drag
+                      ? "border-[#FF9800] bg-[#FFE0B2] shadow-[inset_0_6px_16px_rgba(93,64,55,0.15),0_0_0_3px_rgba(255,152,0,0.35)]"
+                      : "border-[#F0C48A] bg-[#FFEBD1] shadow-[inset_0_6px_16px_rgba(93,64,55,0.15)]"
+                  }`}
                   style={{ containerType: "size" }}
                 >
                   <div
@@ -447,7 +499,99 @@ export function ConsignPanel() {
         )}
       </Modal>
 
+      {/*
+        **这里不挂 DragGhost。** 幽灵是模块级单例的可视化，`Backpack` 作为
+        兄弟节点常驻挂着一份（Game3D/index.tsx），再挂一份就是同一张图叠两次
+        ——85% 透明叠成 98%，拖起来的东西比背包里拖的实。
+      */}
       <ItemTooltip tooltip={tooltip} />
     </>
+  );
+}
+
+/**
+ * 背包格子。和主背包的 `SlotCell` **同一套拖拽引擎、两套皮**。
+ *
+ * 没有直接复用 SlotCell：它长在 `.ui-slot` 上（奶油底 + 桃色描边，羊皮纸
+ * 那一套），而这块面板是白纸 + 橙色的新语言，混进来会像贴错了一张皮。
+ * 但拖拽必须是同一份——`beginDrag` 认的是全局槽位号，所以从这儿拖起来的
+ * 东西，落到快捷栏、落到别的落点，行为和主背包里拖的完全一样。
+ *
+ * 点击不走 DOM 的 click：`beginDrag` 在 pointerdown 上 `preventDefault()`
+ * （否则浏览器把按住不放当原生拖拽接管，幽灵会卡住），而这会连带取消 click。
+ * 所以**点击的出口是 `beginDrag` 的第三个参数 onTap**，剩下的 onClick 只
+ * 给空格子兜底（空格子不进拖拽，click 照常发，但那时也没东西可搬）。
+ * 键盘另走 onKeyDown——没有 pointerdown 就没有 preventDefault，
+ * 但 onClick 那条被 `!stack` 挡着，不会和 onTap 重复投一次货。
+ */
+function PackCell({
+  slot,
+  stack,
+  label,
+  dragging,
+  onPut,
+  onHover,
+  onLeave,
+}: {
+  slot: SlotRef;
+  stack: SlotStack;
+  label?: string;
+  dragging: boolean;
+  onPut: (slot: SlotRef) => void;
+  onHover: (itemId: string, element: HTMLElement) => void;
+  onLeave: () => void;
+}) {
+  // 装着东西的容器、以及压根不收的品类：压暗且不给拖，"这个不行"一眼看完
+  const blocked = Boolean(stack) && (isLoadedWare(stack) || !canConsign(stack!.itemId));
+
+  return (
+    <button
+      type="button"
+      disabled={blocked}
+      className={`relative grid aspect-square w-full place-items-center rounded-[12px] border-2 bg-white shadow-[0_2px_0_#E0E0E0] transition-colors ${
+        blocked
+          ? "cursor-not-allowed border-[#F5F5F5] opacity-40"
+          : stack
+            ? "cursor-grab border-[#EEEEEE] hover:border-[#FFB74D] active:cursor-grabbing"
+            : "cursor-default border-[#EEEEEE]"
+      }`}
+      onPointerDown={(event) => {
+        if (event.button === 0 && stack && !blocked) {
+          beginDrag(event, slot, () => onPut(slot));
+        }
+      }}
+      onClick={() => {
+        // 有东西的格子走 onTap（见上）；这里只剩空格子，什么也不做
+      }}
+      onKeyDown={(event) => {
+        if (!stack || blocked) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onPut(slot);
+        }
+      }}
+      onPointerEnter={(event) => {
+        if (stack) onHover(stack.itemId, event.currentTarget);
+      }}
+      onPointerLeave={onLeave}
+    >
+      {/* 快捷栏的键位号。压在左上角，不跟数量抢右下角 */}
+      {label && (
+        <span className="absolute left-1 top-0 text-[clamp(8px,1vw,11px)] font-black text-[#BCAAA4]">
+          {label}
+        </span>
+      )}
+      {/* 正在被拖的那一格空出来——东西这会儿在手上，不该同时躺在格子里 */}
+      {stack && !dragging && (
+        <>
+          <ItemIcon itemId={stack.itemId} fluid />
+          {stack.count > 1 && (
+            <span className="absolute bottom-0 right-1 text-[clamp(9px,1.2vw,12px)] font-black text-[#5D4037]">
+              {stack.count}
+            </span>
+          )}
+        </>
+      )}
+    </button>
   );
 }

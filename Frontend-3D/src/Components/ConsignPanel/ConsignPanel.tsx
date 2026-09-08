@@ -392,13 +392,14 @@ export function ConsignPanel() {
                   style={{ containerType: "size" }}
                 >
                   {/*
-                    矮屏（short）改成一横行 4 格，不再是正方形：正方形隔间靠高度
-                    定尺寸（min(100%, 100cqh)），375px 高的屏上箱身只剩几十像素，
-                    2×2 被压成一条缝，四个格子谁也看不见。横排之后每格边长由
-                    宽度决定，高度只要一格。
+                    矮屏也是 2×2。曾经在矮屏改成一横行四格——那是小票还占着
+                    通栏、箱身被挤成一条缝时打的补丁；小票并进右栏之后箱身高度
+                    够了，横排只剩难看（四个小格漂在一大片空木色里，价签压在
+                    格子顶上）。正方形靠 min(100%, 100cqh) 自己按可用空间缩放，
+                    375px 高的屏上一样填满。
                   */}
                   <div
-                    className="grid aspect-square grid-cols-2 grid-rows-2 gap-1.5 sm:gap-2 lg:gap-3 short:aspect-auto short:!w-full short:grid-cols-4 short:grid-rows-1 short:gap-1.5"
+                    className="grid aspect-square grid-cols-2 grid-rows-2 gap-1.5 sm:gap-2 lg:gap-3"
                     style={{ width: "min(100%, 100cqh)" }}
                   >
                     {visible.map((slot, index) => (
@@ -406,7 +407,7 @@ export function ConsignPanel() {
                         key={index}
                         type="button"
                         disabled={!slot}
-                        className={`relative grid min-h-0 place-items-center rounded-[10px] border-2 transition-colors short:aspect-square ${
+                        className={`relative grid min-h-0 place-items-center rounded-[10px] border-2 transition-colors ${
                           slot
                             ? "cursor-pointer border-[#FFCC80] bg-white shadow-[0_2px_0_#FFCC80] hover:border-[#FF9800]"
                             : "cursor-default border-dashed border-[#E3AE90]/70 bg-white/40"

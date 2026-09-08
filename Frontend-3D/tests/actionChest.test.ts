@@ -15,7 +15,7 @@ import {
   getLastActionEnd,
   startAction,
 } from "../src/Game/Systems/actions";
-import { buildCandidatePool } from "../src/Game/Systems/actionChains";
+import { buildCandidatePool } from "../src/Game/Systems/chest";
 import { factsOfToday, restoreDayFacts } from "../src/Game/Systems/dayRecord";
 import { getCounts, replaceCounts } from "../src/Game/State/inventory";
 import {

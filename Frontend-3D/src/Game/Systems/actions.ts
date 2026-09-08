@@ -26,7 +26,8 @@ import { getNeeds, restoreFatigue, spendFatigue } from "../State/needs";
 import { getResidents } from "../State/residentsRuntime";
 // 循环引用是刻意的：actionChains 要 startAction（发起），这里要
 // completeChainNode（回勾）。两边都只在运行时调用，模块求值期互不取值
-import { completeChainNode, grantChest } from "./actionChains";
+import { completeChainNode } from "./actionChains";
+import { grantChest } from "./chest";
 import { recordActionFact } from "./dayRecord";
 import {
   diaryDoneOn,

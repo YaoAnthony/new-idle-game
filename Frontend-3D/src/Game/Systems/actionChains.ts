@@ -1,21 +1,12 @@
 import {
   Rarity,
   chainChestScore,
-  chestExcludedItemIds,
   findActionByCategory,
-  findItemDefinition,
-  itemDefinitions,
   nodeChestScore,
-  pickChestFurniture,
-  rollChestRarity,
   type ActionChainRef,
   type ActionChainSave,
-  type RewardDefinition,
 } from "core";
 import { emit } from "../EventBus";
-import { addItem, getInventory } from "../State/inventory";
-import { getAllStorageCounts } from "../State/storage";
-import { getWorld } from "../State/worldRuntime";
 import {
   getChain,
   getChainNode,
@@ -23,13 +14,13 @@ import {
   markNodeCompleted,
 } from "../State/actionChains";
 import { canAfford, getActiveAction, startAction } from "./actions";
+import { grantChest } from "./chest";
 
 /**
  * 系列任务和行动系统的缝合层：从链节点发起行动、行动完成时回链打勾发奖。
  *
- * State/actionChains 只动数据，这里负责所有副作用：抽奖、入包、开箱事件。
- * 抽取算法本身住 Core（纯函数、随机数注入），这里只是把"世界"喂给它——
- * 候选池来自物品注册表，拥有数来自背包 + 摆放 + 仓库。
+ * State/actionChains 只动数据，这里负责所有副作用：发起、回勾、开箱事件。
+ * 开箱本身（抽、入包、候选池）在 `Systems/chest.ts`——它不属于链。
  */
 
 // ---- 发起 ----
@@ -97,49 +88,6 @@ export function completeChainNode(ref: ActionChainRef): void {
   }
 }
 
-/**
- * 给一个奖励槽（节点或整条链）抽奖并入包。
- *
- * rewards 数组为空 → 抽一件写进去；预先填了 → 用填的不抽（测试和
- * 将来的特殊链）。**入包只发生在这一刻**——completeChainNode 只放行
- * 一次，所以不用另存"已领取"标记。
- */
-/**
- * 开一个箱：没写死奖励就按投入分抽一件，然后统一入包、算出最高档位。
- *
- * **导出给行动系统用**（期 2）：行动完成也走这一条路——同一套投入分、
- * 同一张权重表、同一个候选池。两处各写一份抽取的话，"两小时的活该开出
- * 什么档"会在两个地方各调一次，迟早走散。
- */
-export function grantChest(
-  target: { rewards: RewardDefinition[] },
-  score: number,
-): { items: Array<{ itemId: string; quantity: number }>; rarity: Rarity } {
-  if (target.rewards.length === 0) {
-    const rarity = rollChestRarity(score, Math.random);
-    const picked = pickChestFurniture(
-      rarity,
-      buildCandidatePool(),
-      ownedCountFn(),
-      Math.random,
-    );
-    if (picked) {
-      target.rewards = [{ type: "item", itemId: picked.itemId, quantity: 1 }];
-    }
-  }
-
-  const items: Array<{ itemId: string; quantity: number }> = [];
-  let best = Rarity.Common;
-  for (const reward of target.rewards) {
-    if (reward.type !== "item") continue;
-    addItem(reward.itemId, reward.quantity);
-    items.push({ itemId: reward.itemId, quantity: reward.quantity });
-    const rarity = findItemDefinition(reward.itemId)?.rarity;
-    if (rarity && rarityIndex(rarity) > rarityIndex(best)) best = rarity;
-  }
-  return { items, rarity: best };
-}
-
 function emitChest(
   size: "node" | "chain",
   chain: ActionChainSave,
@@ -157,48 +105,4 @@ function emitChest(
     rarity: chest.rarity,
     items: chest.items,
   });
-}
-
-// ---- 候选池 ----
-
-const RARITY_INDEX: Rarity[] = [
-  Rarity.Common,
-  Rarity.Uncommon,
-  Rarity.Rare,
-  Rarity.Epic,
-  Rarity.Legendary,
-  Rarity.Mythic,
-];
-function rarityIndex(rarity: Rarity): number {
-  return RARITY_INDEX.indexOf(rarity);
-}
-
-/**
- * 奖池 = 注册表里所有"能摆进屋"的家具，按稀有度分组。
- * 排除：场景道具（点名表在 Core）和唱片（record 块判定）。
- */
-export function buildCandidatePool(): Map<Rarity, string[]> {
-  const pool = new Map<Rarity, string[]>();
-  for (const item of itemDefinitions) {
-    if (!item.placement) continue;
-    if (item.record) continue;
-    if (chestExcludedItemIds.has(item.id)) continue;
-    pool.set(item.rarity, [...(pool.get(item.rarity) ?? []), item.id]);
-  }
-  return pool;
-}
-
-/** 拥有数 = 背包 + 屋里摆着的 + 储物家具里存着的，三处都算"已经有了" */
-export function ownedCountFn(): (itemId: string) => number {
-  const counts = new Map<string, number>();
-  for (const stack of getInventory()) {
-    if (stack) counts.set(stack.itemId, (counts.get(stack.itemId) ?? 0) + stack.count);
-  }
-  for (const placed of getWorld().placedFurniture) {
-    counts.set(placed.furnitureId, (counts.get(placed.furnitureId) ?? 0) + 1);
-  }
-  for (const [itemId, count] of Object.entries(getAllStorageCounts())) {
-    counts.set(itemId, (counts.get(itemId) ?? 0) + count);
-  }
-  return (itemId) => counts.get(itemId) ?? 0;
 }

@@ -6,8 +6,9 @@ import {
   findActionDefinition,
   type PlayerActionEntry,
 } from "core";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { motion } from "motion/react";
+import { ListChecks } from "lucide-react";
 import { on } from "../../Game/EventBus";
 import {
   addActionEntry,
@@ -121,19 +122,30 @@ export function ActionHub() {
   return (
     <>
       {/*
-        用户提供的图标（work.png，自带木框描边）换掉原来的文字药丸；
-        文案挪进 aria-label。几何仍交给 .hud-corner-btn--inner（见
-        index.css）：按 --hud-btn 算高度、按齿轮的宽度算让位距离。
+        右上角第二个钮。2026-09-08 从 work.png（自带木框描边的位图）换成和
+        日记本同一套的圆角色块——三个角落钮里两个是木框像素图、一个是柔和
+        色块，那是把"换皮换了一半"直接摆在最显眼的位置上。
+
+        几何仍交给 .hud-corner-btn--inner（按 --hud-btn 算高度、按外侧钮的
+        宽度算让位距离），皮交给 .hud-corner-tile，这里只给颜色。
+        琥珀色对应"要做的事"，和日记本里那些分钟药丸同色系。
       */}
       <motion.button
         type="button"
         aria-label={t("ui.action.title")}
-        className="hud-icon-btn hud-corner-btn hud-corner-btn--inner z-10"
+        className="hud-corner-btn hud-corner-tile hud-corner-btn--inner z-10"
+        style={
+          {
+            "--tile-face": "#FFA726",
+            "--tile-rim": "#FFE0B2",
+            "--tile-edge": "#F57C00",
+          } as CSSProperties
+        }
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
         onClick={() => setOpen((value) => !value)}
       >
-        <img src="/icons/button/work.png" alt="" />
+        <ListChecks className="h-1/2 w-1/2" strokeWidth={2.5} />
       </motion.button>
 
       {/*

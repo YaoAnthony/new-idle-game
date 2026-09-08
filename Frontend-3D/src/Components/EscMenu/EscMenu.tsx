@@ -1,7 +1,8 @@
 import { findActionDefinition } from "core";
 import { AnimatePresence, motion, type Variants } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
+  FaBars,
   FaBoxOpen,
   FaCog,
   FaCommentDots,
@@ -189,7 +190,41 @@ export function EscMenu() {
     : null;
 
   return (
-    <AnimatePresence>
+    <>
+      {/*
+        右上角最外侧那个钮：**这个抽屉的开关**（2026-09-08 接上）。
+        
+        在这之前它不存在——抽屉只有 ESC 键能开，于是触摸端根本进不来
+        （没有 ESC 键），而"回到标题""聊天记录"这些只有这里有。
+        原来占着这个位置的是设置钮（开一个居中 Modal），现在设置从抽屉里
+        那格进，位置让给抽屉本身。
+
+        位置选它不是随手排的：抽屉的展开动画是一个 clip-path 圆，圆心就
+        写死在右上角 40px 处（见 backgroundVariants）——那个圆本来就是
+        从这个钮底下铺开的，只是一直没人站在那儿。
+
+        `motion.button` 的 hover/tap 缩放和另外两个钮同一套；颜色用蓝灰，
+        因为它是系统功能，不该和日记本（绿）、行动（琥珀）抢眼。
+      */}
+      <motion.button
+        type="button"
+        aria-label={t("ui.esc.title")}
+        className={`hud-corner-btn hud-corner-tile hud-corner-btn--outer grid place-items-center ${open ? "z-50" : "z-10"}`}
+        style={
+          {
+            "--tile-face": "#78909C",
+            "--tile-rim": "#CFD8DC",
+            "--tile-edge": "#546E7A",
+          } as CSSProperties
+        }
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+        onClick={() => setOpen(!open)}
+      >
+        <FaBars className="h-1/2 w-1/2" />
+      </motion.button>
+
+      <AnimatePresence>
       {open && (
         <motion.div
           className="esc-layer"
@@ -296,6 +331,7 @@ export function EscMenu() {
           </motion.aside>
         </motion.div>
       )}
-    </AnimatePresence>
+      </AnimatePresence>
+    </>
   );
 }

@@ -1,6 +1,6 @@
 import { motion } from "motion/react";
 import { BookOpen, ChevronLeft, ChevronRight } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, type CSSProperties } from "react";
 import BookPlanner, { type BookNavApi } from "../../BookPlanner";
 import { TodayRewards } from "./TodayRewards";
 import { Modal } from "../Modal/Modal";
@@ -23,6 +23,8 @@ import { usePanel } from "../PanelStack/usePanel";
 /** 书的配色，逐字来自设计稿的 Book Cover Container */
 const COVER_EDGE = "#A5D6A7"; // border-[8px] border-[#A5D6A7]
 const COVER = "#81C784"; //      bg-[#81C784]
+/** 角落钮的面色。比封面深一档——小方块上用封面绿会和亮底 HUD 糊在一起 */
+const COVER_DEEP = "#66BB6A";
 
 /**
  * 封面**里面**那块地方的设计尺寸。
@@ -237,14 +239,16 @@ export function DiaryPanel() {
       <motion.button
         type="button"
         aria-label="日记本"
-        className="hud-corner-btn hud-corner-btn--inner-2 z-10 grid place-items-center"
-        style={{
-          borderRadius: 16,
-          background: "#66BB6A",
-          border: `3px solid ${COVER_EDGE}`,
-          boxShadow: "0 4px 0 #4CAF50",
-          color: "#fff",
-        }}
+        className="hud-corner-btn hud-corner-tile hud-corner-btn--inner-2 z-10 grid place-items-center"
+        /* 皮抽进了 .hud-corner-tile（index.css），这里只给颜色——三个角落钮
+           同一套形状，靠颜色区分 */
+        style={
+          {
+            "--tile-face": COVER_DEEP,
+            "--tile-rim": COVER_EDGE,
+            "--tile-edge": "#4CAF50",
+          } as CSSProperties
+        }
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
         onClick={() => setOpen((value) => !value)}

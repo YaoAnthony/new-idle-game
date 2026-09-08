@@ -1,4 +1,3 @@
-import { motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { unlockAudio } from "../../Game3D/Engine/AudioEngine";
 import {
@@ -165,20 +164,20 @@ export function GameSettingsModal() {
 
   return (
     <>
-      {/* 用户提供的图标（自带木框描边），hover 放大、按下缩小 */}
-      <motion.button
-        type="button"
-        aria-label={t("ui.settings.title")}
-        className={`hud-icon-btn hud-corner-btn hud-corner-btn--outer ${open ? "z-50" : "z-30"}`}
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
-        onClick={() => {
-          unlockAudio();
-          setOpen((value) => !value);
-        }}
-      >
-        <img src="/icons/button/setting.png" alt="" />
-      </motion.button>
+      {/*
+        **这块面板不再有自己的角落按钮**（2026-09-08）。右上角最外侧那个
+        位置让给了 ESC 抽屉的开关（见 EscMenu），设置从抽屉里的「设置」
+        那一格进来——走的是 `ui_panel_requested`，下面那条监听接着。
+
+        换过来的理由：抽屉里装着回到标题、聊天记录这些只有它有的东西，
+        而它之前只有 ESC 键能开，触摸端根本进不去；设置反过来在抽屉里
+        有一格，少一个入口不会丢。
+
+        `unlockAudio()` 原来挂在这个按钮上（用户的第一个手势顺便解锁音频）。
+        没有跟着按钮搬走，因为**不需要**：Game3D 进世界时已经挂了一次性的
+        全局首次手势监听（pointerdown / keydown，见 Game3D/index.tsx），
+        玩家在屏幕上点任何一下都会解锁。这个按钮上那次调用一直是重复的。
+      */}
 
       {/*
         外壳交给 `Modal`，和行动 / 每日任务 / 背包同一套。原来这块是**第三套

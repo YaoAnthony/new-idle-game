@@ -4,6 +4,13 @@ import { on } from "../../Game/EventBus";
 import { remainingLogCount } from "../../Game/State/actionLog";
 import { getClock } from "../../Game/State/clock";
 import {
+  createActionGroup,
+  deleteActionGroup,
+  layoutEntries,
+  moveEntryToGroup,
+  reorderInGroup,
+} from "../../Game/State/actionGroups";
+import {
   diaryDoneOn,
   diaryStartedOn,
 } from "../../Game/State/diary";
@@ -43,6 +50,16 @@ export type DiaryTask = {
   date: string;
 };
 
+/**
+ * 左页上的一个文件夹（任务组）。`taskIds` 按顺序，第一条是"接下来该做的"。
+ * 成员本身仍在 `tasks` 里（同一个 DiaryTask），这里只给顺序和归属。
+ */
+export type DiaryGroup = {
+  id: string;
+  name: string;
+  taskIds: string[];
+};
+
 export type DiaryData = {
   /**
    * 今天的 worldDayId。分界时刻已经是 00:00（见 `Core/Data/time`），
@@ -56,6 +73,11 @@ export type DiaryData = {
    */
   startedOn: string;
   tasks: DiaryTask[];
+  /**
+   * 左页的文件夹（任务组，2026-09-08）。顺序 = 显示顺序；不在任何组里的
+   * 计划是散条目。规则只有 `layoutEntries` 一份，行动面板也读它。
+   */
+  groups: DiaryGroup[];
   /**
    * 一天有几个**有奖励**的名额。超出照常完成，只是不开箱。
    * 顶上那条进度条数的就是它。
@@ -80,6 +102,14 @@ export type DiaryData = {
    */
   claim: (id: string) => string | null;
   remove: (id: string) => void;
+  /** 建一个空文件夹，只要名字 */
+  addGroup: (name: string) => void;
+  /** 删文件夹；里面的计划回到散条目，不删 */
+  removeGroup: (groupId: string) => void;
+  /** 把一条计划放进某个文件夹的某个位置（搬家不是复制）；groupId 为 null = 拿出来 */
+  moveToGroup: (taskId: string, groupId: string | null, index?: number) => void;
+  /** 文件夹内挪顺序 */
+  reorderInGroup: (groupId: string, taskId: string, toIndex: number) => void;
 };
 
 /** 失败原因 → 人话。和 `/action log`、行动面板同一份口径 */
@@ -121,6 +151,7 @@ export function useDiaryData(): DiaryData {
   useEffect(() => {
     const offs = [
       on("action_entries_changed", () => bump((n) => n + 1)),
+      on("action_groups_changed", () => bump((n) => n + 1)),
       on("action_log_changed", () => bump((n) => n + 1)),
       on("diary_changed", () => bump((n) => n + 1)),
       on("action_changed", () => bump((n) => n + 1)),
@@ -237,6 +268,30 @@ export function useDiaryData(): DiaryData {
   );
   const remove = useCallback((id: string) => removeActionEntry(id), []);
 
+  // 文件夹：成员就是左页那些计划的 entryId（DiaryTask.id 用的就是它），
+  // 所以这里不用做 id 换算，直接透传
+  const groups: DiaryGroup[] = layoutEntries(getActionEntries()).groups.map(
+    ({ group, members }) => ({
+      id: group.groupId,
+      name: group.name,
+      taskIds: members.map((entry) => entry.entryId),
+    }),
+  );
+  const addGroup = useCallback((name: string) => {
+    createActionGroup(name);
+  }, []);
+  const removeGroup = useCallback((groupId: string) => deleteActionGroup(groupId), []);
+  const moveToGroup = useCallback(
+    (taskId: string, groupId: string | null, index?: number) =>
+      moveEntryToGroup(taskId, groupId, index),
+    [],
+  );
+  const reorder = useCallback(
+    (groupId: string, taskId: string, toIndex: number) =>
+      reorderInGroup(groupId, taskId, toIndex),
+    [],
+  );
+
   // version 只用来触发重读，不参与计算
   void version;
 
@@ -244,6 +299,7 @@ export function useDiaryData(): DiaryData {
     todayId,
     startedOn,
     tasks: [...plans, ...done],
+    groups,
     rewardedPerDay: actionLogTuning.rewardedPerDay,
     logQuotaLeft: remainingLogCount(),
     addPlan,
@@ -251,5 +307,9 @@ export function useDiaryData(): DiaryData {
     startTimer,
     claim,
     remove,
+    addGroup,
+    removeGroup,
+    moveToGroup,
+    reorderInGroup: reorder,
   };
 }

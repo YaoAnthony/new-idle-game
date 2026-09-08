@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Check, Trash2, Plus, Play, CalendarDays, Star, Leaf } from 'lucide-react';
 import HTMLFlipBook from 'react-pageflip';
 import { useDiaryData } from './Components/Diary/useDiaryData';
+import { PlanFolders, beginPlanDrag, PLAN_DRAG_MIME } from './Components/Diary/PlanFolders';
 
 /**
  * 原稿从 `../types` 引 Task，这个项目里没有那个文件。
@@ -96,7 +97,16 @@ const LeftPageContent = ({ date, dateStr, isToday, tasks, diary, onEnterFocus, j
   const isPast = dateStr < todayStr;
   
   const currentDayTasks = tasks.filter(t => t.date === dateStr);
-  const activeTasks = currentDayTasks.filter((t) => !t.completed).sort((a, b) => b.createdAt - a.createdAt);
+  /*
+   * 左页的两层（2026-09-08）：文件夹（任务组）在上，散条目在下。
+   * 在某个文件夹里的计划从散条目里摘出去——同一件事出现两次比少出现更糟。
+   * 文件夹自己的渲染在 PlanFolders；这里只管"哪些是散的"。
+   */
+  const pending = currentDayTasks.filter((t) => !t.completed);
+  const grouped = new Set(diary.groups.flatMap((g) => g.taskIds));
+  const activeTasks = pending
+    .filter((t) => !grouped.has(t.id))
+    .sort((a, b) => b.createdAt - a.createdAt);
   
   const month = date.getMonth() + 1;
   const day = date.getDate();
@@ -266,6 +276,26 @@ const LeftPageContent = ({ date, dateStr, isToday, tasks, diary, onEnterFocus, j
           </div>
         )}
 
+        <PlanFolders diary={diary} tasks={pending} onStart={startFocus} readonly={isPast} />
+
+        {/*
+          散条目区同时是"拖出来"的落点：把文件夹里的一条拖到这块空白上，它就变回
+          普通计划。落点要够大——拖着东西找一个小按钮是最累人的交互。
+        */}
+        <div
+          className="min-h-[72px] rounded-[20px]"
+          onDragOver={(e) => {
+            if (isPast || !e.dataTransfer.types.includes(PLAN_DRAG_MIME)) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+          }}
+          onDrop={(e) => {
+            const id = e.dataTransfer.getData(PLAN_DRAG_MIME);
+            if (!id || isPast) return;
+            e.preventDefault();
+            diary.moveToGroup(id, null);
+          }}
+        >
         <AnimatePresence mode="popLayout">
           {activeTasks.map((task) => (
             <motion.div
@@ -275,7 +305,9 @@ const LeftPageContent = ({ date, dateStr, isToday, tasks, diary, onEnterFocus, j
               exit={{ opacity: 0, scale: 0.8 }}
               transition={{ type: "spring", bounce: 0.4, duration: 0.4 }}
               key={task.id}
-              className="flex items-center h-[64px] bg-white rounded-[20px] mb-2 border-2 border-[#EEEEEE] group px-3 shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:border-[#81C784] transition-colors"
+              draggable={!isPast}
+              onDragStart={(e) => beginPlanDrag(e as unknown as React.DragEvent, task.id)}
+              className={`flex items-center h-[64px] bg-white rounded-[20px] mb-2 border-2 border-[#EEEEEE] group px-3 shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:border-[#81C784] transition-colors ${isPast ? '' : 'cursor-grab active:cursor-grabbing'}`}
             >
               {/*
                 左边那个打钩圈**去掉了**。
@@ -290,6 +322,20 @@ const LeftPageContent = ({ date, dateStr, isToday, tasks, diary, onEnterFocus, j
               <span className="text-[#8D6E63] font-bold text-[14px] mr-3 bg-[#F5F5F5] px-3 py-1 rounded-full shadow-[inset_0_-2px_0_#E0E0E0]">
                 {task.durationMinutes} min
               </span>
+
+              {!isPast && diary.groups.length > 0 && (
+                <select
+                  aria-label="放进系列"
+                  value=""
+                  onChange={(e) => e.target.value && diary.moveToGroup(task.id, e.target.value)}
+                  className="mr-2 h-[32px] max-w-[110px] rounded-full border-2 border-[#A5D6A7] bg-white px-2 text-[12px] font-bold text-[#5D4037] outline-none"
+                >
+                  <option value="">放进…</option>
+                  {diary.groups.map((g) => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))}
+                </select>
+              )}
 
               {!isPast && (
                 <button
@@ -312,6 +358,7 @@ const LeftPageContent = ({ date, dateStr, isToday, tasks, diary, onEnterFocus, j
             </motion.div>
           ))}
         </AnimatePresence>
+        </div>
       </InteractiveArea>
     </div>
   );

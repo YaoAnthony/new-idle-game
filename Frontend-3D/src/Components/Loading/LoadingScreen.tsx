@@ -1,6 +1,7 @@
 import { motion, useSpring, useTransform } from "motion/react";
 import { useEffect } from "react";
 import { t } from "../../i18n/t";
+import { HouseMark } from "../Brand";
 import "./LoadingScreen.css";
 
 /**
@@ -49,6 +50,14 @@ export function LoadingScreen({ progress }: Props) {
       exit={{ opacity: 0 }}
       transition={{ duration: 0.25 }}
     >
+      {/*
+        标记也放在这一屏：它把标题页和屋子之间这几秒接上，玩家看到的是
+        "同一个东西还在"，而不是三屏各不相干的画面。轻轻上下浮，见 CSS。
+      */}
+      <div className="loading-mark" aria-hidden="true">
+        <HouseMark />
+      </div>
+
       <div className="loading-text-container">
         {/* 未填充的底层。aria-hidden：同一句话读两遍对读屏器是噪音 */}
         <div className="loading-text loading-text--bg" aria-hidden>

@@ -9,7 +9,7 @@ import { unlockAudio } from "../../Game3D/Engine/AudioEngine";
 import { applyAudioSettings } from "../../Game3D/Engine/audioSettings";
 import type { RootState } from "../../Redux/store";
 import { GameBtn } from "../GameBtn";
-import { HouseMark } from "./HouseMark";
+import { HouseMark } from "../Brand";
 import { SaveSlotsPanel } from "../SaveSlots";
 import type { SaveSlotId } from "../../Data/Save/slots";
 import {

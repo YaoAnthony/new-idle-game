@@ -1,13 +1,16 @@
 /*
- * 加载页样式。结构照搬参考实现（底层字 + clip-path 填充层），
- * 三处按这个项目改了：
+ * 加载页样式。
  *
- * 1. **不引 Google Fonts 的 Unbounded**。那套字没有中文字形，
- *    "正在加载您的世界"会整句 fallback，引它等于白发一个网络请求；
- *    而加载页恰恰是最不该等网络的一屏。用系统字。
- * 2. 去掉 `text-transform: uppercase` 和负字距——那是给拉丁字母排的，
+ * 结构照搬参考实现（底层字 + clip-path 填充层），2026-09-07 跟标题层一起
+ * 换成日记本那套语言——原来是深蓝底 + 亮蓝渐变字，而它前面是奶油色的
+ * 标题页、后面是暖色的屋子，中间闪一屏冷蓝，像走错了房间。
+ *
+ * 保留的两条项目改动（比参考实现更适合这里）：
+ * 1. **不引 Google Fonts 的 Unbounded**。那套字没有中文字形，"正在加载
+ *    您的世界"会整句 fallback，引它等于白发一个网络请求——而加载页恰恰
+ *    是最不该等网络的一屏。
+ * 2. 去掉 text-transform: uppercase 和负字距：那是给拉丁字母排的，
  *    中文用上负字距会挤成一坨。
- * 3. 颜色换成蓝色系（见下）。
  */
 
 .loading-screen {
@@ -15,24 +18,67 @@
   inset: 0;
   z-index: 50;
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
+  gap: clamp(14px, 3dvh, 26px);
 
   /*
-   * 底色比标题页那块 #232b3d 更深更蓝，中间透一点光。
-   * 纯色平铺会让这一屏像"卡住了"，一层极淡的径向渐变就够撑出空间感。
+   * 和标题页同一块奶油纸底（含那层极淡的圆点）。两屏之间是直接切换的，
+   * 底色一致才不会有"闪一下"——这一下在暗色转场里尤其明显。
    */
-  background:
-    radial-gradient(circle at 50% 45%, rgba(56, 118, 214, 0.16), transparent 55%),
-    #0e1626;
+  background-color: #fdf6e9;
+  background-image: radial-gradient(rgb(141 110 99 / 0.06) 2px, transparent 2px);
+  background-size: 24px 24px;
+}
+
+/*
+ * 上面那枚小房子。**轻轻上下浮**：加载页最怕的是"看起来卡住了"，
+ * 而进度字的填充在素材已缓存时可能一帧就走完，什么都没动过。
+ * 一个 2.6 秒的呼吸幅度只有 4px——是"还活着"的余光提示，不是动画表演。
+ */
+.loading-mark {
+  display: grid;
+  width: clamp(48px, 8dvh, 66px);
+  height: clamp(48px, 8dvh, 66px);
+  place-items: center;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow:
+    0 5px 0 #ffe082,
+    0 12px 22px rgb(93 64 55 / 0.14);
+  animation: loading-mark-bob 2.6s ease-in-out infinite;
+}
+
+.loading-mark svg {
+  width: 60%;
+  height: 60%;
+}
+
+@keyframes loading-mark-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+/* 无障碍：系统说了不要动效就别动。这条不是偏好，是要求 */
+@media (prefers-reduced-motion: reduce) {
+  .loading-mark {
+    animation: none;
+  }
 }
 
 .loading-text-container {
   position: relative;
   /* 小屏上按视宽收，长句子不会被切掉 */
-  font-size: clamp(22px, 4.2vw, 42px);
-  font-weight: 800;
-  letter-spacing: 0.04em;
+  font-family: "Nunito", "LXGW WenKai GB", "Kaiti SC", sans-serif;
+  font-size: clamp(20px, 3.6vw, 34px);
+  font-weight: 900;
+  letter-spacing: 0.06em;
   white-space: nowrap;
 }
 
@@ -46,11 +92,10 @@
   top: 0;
   left: 0;
   /*
-   * 未填充态。参考实现是同色 0.2 透明度；这里给它一点偏冷的灰蓝，
-   * 纯白压到 20% 在深蓝底上会发脏。
+   * 未填充态。在奶油底上要比底色深一档才看得见轮廓，但又不能深到
+   * 像"另一句话"——已填充和未填充是同一句，差别应该只在"亮起来了"。
    */
-  color: #7f9dc4;
-  opacity: 0.28;
+  color: #d6c4ac;
 }
 
 .loading-text--fill {
@@ -61,13 +106,14 @@
   will-change: clip-path;
 
   /*
-   * 填充色：亮蓝到浅青的横向渐变，配一层同色辉光。
-   * 单一实色也能用，但填充边缘会显得很硬——有渐变的话
-   * "刚被填到"的那几个字最亮，视线自然跟着推进的边缘走。
+   * 填充色：薄荷 → 嫩绿的横向渐变。用这套语言里代表"进行中"的那个绿
+   * （按钮的主色也是它），配一层很淡的同色辉光——单一实色也能用，但
+   * 填充边缘会太硬，有渐变的话"刚被填到"的那几个字最亮，视线自然跟着
+   * 推进的边缘走。
    */
-  background: linear-gradient(90deg, #4d9bff 0%, #7fd0ff 60%, #a8e4ff 100%);
+  background: linear-gradient(90deg, #26a69a 0%, #4db6ac 55%, #81c784 100%);
   background-clip: text;
   -webkit-background-clip: text;
   color: transparent;
-  filter: drop-shadow(0 0 18px rgba(77, 155, 255, 0.45));
+  filter: drop-shadow(0 3px 0 rgb(255 224 130 / 0.55));
 }

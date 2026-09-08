@@ -345,8 +345,16 @@ export function ConsignPanel() {
                 )}
               </div>
 
-              {/* 右：箱子（箱盖色带 / 箱内 2×2 隔间 / 抽屉条） */}
-              <div className="flex min-h-0 min-w-0 flex-[2] flex-col overflow-hidden rounded-[20px] border-2 border-[#FFCC80] bg-[#FFF3E0]/80 p-2 sm:p-3">
+              {/*
+                右栏 = 箱子卡 + 小票卡**上下叠**，和左栏并排、同高。
+                小票原来是两栏底下的一条通栏行、左边留一块空占位——于是背包
+                那一栏只到小票的顶就停了，底下那块空白是占位符，而背包已经在
+                滚动（用户 9-08："宁愿有空的也要 overflow-y"）。小票属于箱子，
+                就该长在箱子底下；左栏因此吃满整个高度，装不下才滚。
+              */}
+              <div className="flex min-h-0 min-w-0 flex-[2] flex-col gap-2 sm:gap-3">
+              {/* 箱子卡（箱盖色带 / 箱内 2×2 隔间 / 抽屉条）。flex-1：小票固定，箱子吃剩下的高度 */}
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[20px] border-2 border-[#FFCC80] bg-[#FFF3E0]/80 p-2 sm:p-3">
                 {/*
                   箱盖：通栏色带，比箱身深一档——"有盖子的箱子"这个读法靠这条。
                   盖子上挂着钱袋徽章、旋转的「8折」价签、几格。桌面断点整体放大一档。
@@ -486,21 +494,8 @@ export function ConsignPanel() {
                   )}
                 </button>
               </div>
-            </div>
 
-            {/*
-              底部小票（用户 2026-09-08 改）：**只有寄售箱那一栏宽**，不再通栏——
-              它结算的是右边那只箱子，横跨到背包底下像在给背包算账。左边留一块
-              等宽的空位，用和主体一样的 flex 比例 + 间距，小票的左右边缘才和
-              箱子严丝合缝。
-
-              内容照真小票排：一行一件（左名字右价格）→ 虚线 → 合计（标价划掉、
-              折后加粗）→ 最底下"明早到账"。每件的折后价和真结算是同一个函数
-              （Core 的 consignPriceOf），不在这里心算八折。
-            */}
-            <div className="relative z-10 mt-2 flex shrink-0 items-stretch gap-2 sm:mt-3 sm:gap-3">
-              <div className="min-w-0 flex-[3]" aria-hidden />
-              <div className="flex min-w-0 flex-[2] flex-col rounded-[14px] border-2 border-dashed border-[#E3AE90] bg-white/80 px-3 py-2 text-[12px] font-bold text-[#5D4037] lg:px-4 lg:text-[13px] short:flex-row short:items-center short:gap-3 short:py-1.5">
+              <div className="flex min-w-0 shrink-0 flex-col rounded-[14px] border-2 border-dashed border-[#E3AE90] bg-white/80 px-3 py-2 text-[12px] font-bold text-[#5D4037] lg:px-4 lg:text-[13px] short:flex-row short:items-center short:gap-3 short:py-1.5">
                 {/*
                   矮屏（short）把逐件明细藏掉，小票只剩「合计 → 明早到账」一行：
                   375px 高的屏上五行小票会把箱子挤成一条缝，而每件的折后价
@@ -553,7 +548,9 @@ export function ConsignPanel() {
                   <span className="whitespace-nowrap font-black">{t("ui.consign.forecast")}</span>
                 </div>
               </div>
+              </div>
             </div>
+
           </div>
         )}
       </Modal>

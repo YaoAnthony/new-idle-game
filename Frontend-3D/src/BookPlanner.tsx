@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Check, Trash2, Plus, Play, CalendarDays, Star, Leaf } from 'lucide-react';
 import HTMLFlipBook from 'react-pageflip';
 import { useDiaryData } from './Components/Diary/useDiaryData';
-import { PlanFolders, beginPlanDrag, PLAN_DRAG_MIME } from './Components/Diary/PlanFolders';
+import { PlanFolders, InlineRename, beginPlanDrag, PLAN_DRAG_MIME } from './Components/Diary/PlanFolders';
 
 /**
  * 原稿从 `../types` 引 Task，这个项目里没有那个文件。
@@ -122,12 +122,45 @@ const LeftPageContent = ({ date, dateStr, isToday, tasks, diary, onEnterFocus, j
    * `logCompletedAction`（扣精力、开箱、写进 dayFacts）再删模板，
    * 开始 → `startActionEntry` 跑真的计时器。
    */
+  /*
+   * 回车添加之后**焦点留在输入框里**（用户 2026-09-08：这样方便一口气写
+   * 很多条）。
+   *
+   * 焦点为什么会丢——查过了，不是重挂（添加之后输入框还是同一个元素，
+   * 也没有 blur 事件）：**翻页书（react-pageflip）每次重画都先把整页设成
+   * display:none，等它自己的 requestAnimationFrame 再显示回来**。页面隐藏的
+   * 那一瞬间焦点静默掉到 body 上，而在那之后、它的 rAF 之前调 focus()
+   * 是无效的——display:none 的东西聚不了焦。
+   *
+   * 所以要排到它那一帧**之后**：effect 里先试一次（万一它没重画），再用
+   * 双 rAF（第一层和它同帧、排在它后面；第二层保险）真正聚回去，最后一个
+   * 100ms 的定时器兜底并放下旗子。旗子由提交那一刻立起，别的渲染不聚。
+   */
+  const planInputRef = useRef<HTMLInputElement>(null);
+  const refocusPlan = useRef(false);
+  useEffect(() => {
+    if (!refocusPlan.current) return;
+    const focus = () => planInputRef.current?.focus();
+    focus();
+    const raf = requestAnimationFrame(() => requestAnimationFrame(focus));
+    const timer = setTimeout(() => {
+      refocusPlan.current = false;
+      focus();
+    }, 100);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
+  });
   const handleAddPlan = (e: React.FormEvent) => {
     e.preventDefault();
     if (!planTitle.trim()) return;
     diary.addPlan(planTitle.trim(), parseInt(planDuration) || 30);
     setPlanTitle('');
+    refocusPlan.current = true;
   };
+  /** 双击改名中的那条散计划 */
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   /**
    * 按播放键 = **进专注模式**：角色走过去用家具，书本合上，
@@ -236,6 +269,7 @@ const LeftPageContent = ({ date, dateStr, isToday, tasks, diary, onEnterFocus, j
               <Plus className="w-[20px] h-[20px]" strokeWidth={3.5} />
             </div>
             <input
+              ref={planInputRef}
               type="text"
               placeholder="今天要去做什么呢？"
               className="flex-1 bg-transparent border-none outline-none text-[17px] font-bold text-[#5D4037] placeholder:text-[#BCAAA4]"
@@ -317,7 +351,25 @@ const LeftPageContent = ({ date, dateStr, isToday, tasks, diary, onEnterFocus, j
                 已经做完的事走右页「补录」，那条有自己的额度和门槛。
                 两条路各管各的，中间不留一个绕过去的口子。
               */}
-              <span className="flex-1 text-[17px] font-bold text-[#5D4037] truncate pt-[2px] pl-1">{task.title}</span>
+              {editingId === task.id ? (
+                <InlineRename
+                  value={task.title}
+                  className="flex-1 min-w-0 ml-1 rounded-full border-2 border-[#A5D6A7] bg-white px-3 py-1 text-[16px] font-bold text-[#5D4037] outline-none"
+                  onCommit={(next) => {
+                    diary.rename(task.id, next);
+                    setEditingId(null);
+                  }}
+                  onCancel={() => setEditingId(null)}
+                />
+              ) : (
+                <span
+                  className="flex-1 text-[17px] font-bold text-[#5D4037] truncate pt-[2px] pl-1"
+                  title="双击改名"
+                  onDoubleClick={() => !isPast && setEditingId(task.id)}
+                >
+                  {task.title}
+                </span>
+              )}
               
               <span className="text-[#8D6E63] font-bold text-[14px] mr-3 bg-[#F5F5F5] px-3 py-1 rounded-full shadow-[inset_0_-2px_0_#E0E0E0]">
                 {task.durationMinutes} min
@@ -367,6 +419,23 @@ const RightPageContent = ({ dateStr, tasks, diary }) => {
    */
   const quotaUsedUp = diary.logQuotaLeft <= 0;
 
+  const logInputRef = useRef<HTMLInputElement>(null);
+  const refocusLog = useRef(false);
+  // 同左页：记完一条接着记下一条，焦点别跑（机制和理由见 handleAddPlan）
+  useEffect(() => {
+    if (!refocusLog.current) return;
+    const focus = () => logInputRef.current?.focus();
+    focus();
+    const raf = requestAnimationFrame(() => requestAnimationFrame(focus));
+    const timer = setTimeout(() => {
+      refocusLog.current = false;
+      focus();
+    }, 100);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
+  });
   const handleAddLog = (e: React.FormEvent) => {
     e.preventDefault();
     if (!logTitle.trim() || quotaUsedUp) return;
@@ -377,6 +446,7 @@ const RightPageContent = ({ dateStr, tasks, diary }) => {
     }
     setLogTitle('');
     setError(null);
+    refocusLog.current = true;
   };
 
   /*
@@ -444,6 +514,7 @@ const RightPageContent = ({ dateStr, tasks, diary }) => {
             </div>
             <input
               type="text"
+              ref={logInputRef}
               placeholder={quotaUsedUp ? "今天的补录额度用完了" : "记录已完成的成就..."}
               disabled={quotaUsedUp}
               className="flex-1 bg-transparent border-none outline-none text-[17px] font-bold text-[#5D4037] placeholder:text-[#BCAAA4]"

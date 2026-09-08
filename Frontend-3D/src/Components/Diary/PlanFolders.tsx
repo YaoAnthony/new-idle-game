@@ -58,6 +58,8 @@ export function PlanFolders({ diary, tasks, onStart, readonly }: Props) {
   const [draft, setDraft] = useState("");
   /** 正悬在哪个文件夹上（高亮落点） */
   const [hover, setHover] = useState<string | null>(null);
+  /** 正在双击改名的是谁：文件夹 id 或成员 task id（同一时刻只有一个） */
+  const [editing, setEditing] = useState<string | null>(null);
 
   const byId = new Map(tasks.map((task) => [task.id, task]));
 
@@ -171,7 +173,28 @@ export function PlanFolders({ diary, tasks, onStart, readonly }: Props) {
                     <ChevronRight className="h-4 w-4" strokeWidth={3} />
                   )}
                 </span>
-                <span className="truncate text-[16px] font-black text-[#795548]">{group.name}</span>
+                {editing === group.id ? (
+                  <InlineRename
+                    value={group.name}
+                    className="min-w-0 flex-1 rounded-full border-2 border-[#A5D6A7] bg-white px-3 py-0.5 text-[15px] font-black text-[#795548] outline-none"
+                    onCommit={(next) => {
+                      diary.renameGroup(group.id, next);
+                      setEditing(null);
+                    }}
+                    onCancel={() => setEditing(null)}
+                  />
+                ) : (
+                  <span
+                    className="truncate text-[16px] font-black text-[#795548]"
+                    title="双击改名"
+                    onDoubleClick={(event) => {
+                      event.stopPropagation();
+                      if (!readonly) setEditing(group.id);
+                    }}
+                  >
+                    {group.name}
+                  </span>
+                )}
                 <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[12px] font-bold text-[#8D6E63] shadow-[inset_0_-2px_0_#EEEEEE]">
                   {members.length} 件
                 </span>
@@ -206,11 +229,25 @@ export function PlanFolders({ diary, tasks, onStart, readonly }: Props) {
                     <span className="w-5 shrink-0 text-center text-[12px] font-black text-[#BCAAA4]">
                       {index + 1}
                     </span>
-                    <span
-                      className={`flex-1 truncate text-[15px] font-bold ${index === 0 ? "text-[#5D4037]" : "text-[#A1887F]"}`}
-                    >
-                      {task.title}
-                    </span>
+                    {editing === task.id ? (
+                      <InlineRename
+                        value={task.title}
+                        className="min-w-0 flex-1 rounded-full border-2 border-[#A5D6A7] bg-white px-3 py-0.5 text-[14px] font-bold text-[#5D4037] outline-none"
+                        onCommit={(next) => {
+                          diary.rename(task.id, next);
+                          setEditing(null);
+                        }}
+                        onCancel={() => setEditing(null)}
+                      />
+                    ) : (
+                      <span
+                        className={`flex-1 truncate text-[15px] font-bold ${index === 0 ? "text-[#5D4037]" : "text-[#A1887F]"}`}
+                        title="双击改名"
+                        onDoubleClick={() => !readonly && setEditing(task.id)}
+                      >
+                        {task.title}
+                      </span>
+                    )}
                     <span className="shrink-0 rounded-full bg-[#F5F5F5] px-2 py-0.5 text-[12px] font-bold text-[#8D6E63] shadow-[inset_0_-2px_0_#E0E0E0]">
                       {task.durationMinutes} min
                     </span>
@@ -251,5 +288,49 @@ export function PlanFolders({ diary, tasks, onStart, readonly }: Props) {
         );
       })}
     </div>
+  );
+}
+/**
+ * 双击改名用的那个小输入框（用户 2026-09-08：添加了之后也要方便改）。
+ *
+ * 单独抽出来是因为三处都要它：散计划的标题、文件夹里成员的标题、文件夹
+ * 自己的名字。只管"编辑态那一刻"：Enter 提交、Escape 放弃、失焦提交；
+ * 键盘事件在这里就截住——外面有翻页书和 ESC 裁判，一个 Escape 漏出去
+ * 会把整本书关掉。
+ */
+export function InlineRename({
+  value,
+  onCommit,
+  onCancel,
+  className,
+}: {
+  value: string;
+  onCommit: (next: string) => void;
+  onCancel: () => void;
+  className: string;
+}) {
+  const [draft, setDraft] = useState(value);
+  const commit = () => {
+    const next = draft.trim();
+    if (next && next !== value) onCommit(next);
+    else onCancel();
+  };
+  return (
+    <input
+      autoFocus
+      value={draft}
+      maxLength={40}
+      className={className}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        event.stopPropagation();
+        if (event.key === "Enter") commit();
+        if (event.key === "Escape") onCancel();
+      }}
+      // 双击进来的，别让这一下再冒成翻页或者拖拽的开头
+      onMouseDown={(event) => event.stopPropagation()}
+      onDoubleClick={(event) => event.stopPropagation()}
+    />
   );
 }

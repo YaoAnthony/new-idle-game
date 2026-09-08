@@ -533,6 +533,16 @@ export function addActionEntry(input: {
   return entry;
 }
 
+/** 改一条计划的名字（日记本双击那条改的就是它）。空名字不改；分类不跟着重算——它是当初按名字归的，改个错别字不该把一件事从创作挪去运动 */
+export function renameActionEntry(entryId: string, customName: string): void {
+  const trimmed = customName.trim();
+  if (!trimmed) return;
+  entries = entries.map((entry) =>
+    entry.entryId === entryId ? { ...entry, customName: trimmed } : entry,
+  );
+  emit("action_entries_changed", {});
+}
+
 export function removeActionEntry(entryId: string): void {
   entries = entries.filter((entry) => entry.entryId !== entryId);
   // 条目没了，它在哪个组里的记录也得跟着没——否则组里躺着一个悬空 id

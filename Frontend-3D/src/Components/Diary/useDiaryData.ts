@@ -7,6 +7,7 @@ import {
   createActionGroup,
   deleteActionGroup,
   layoutEntries,
+  renameActionGroup,
   moveEntryToGroup,
   reorderInGroup,
 } from "../../Game/State/actionGroups";
@@ -20,6 +21,7 @@ import {
   getActionEntries,
   logCompletedAction,
   removeActionEntry,
+  renameActionEntry,
   startActionEntry,
   whyCannotStartEntry,
 } from "../../Game/Systems/actions";
@@ -102,6 +104,10 @@ export type DiaryData = {
    */
   claim: (id: string) => string | null;
   remove: (id: string) => void;
+  /** 双击名字改的那条：只改标题，时长和分类不动 */
+  rename: (id: string, title: string) => void;
+  /** 文件夹改名 */
+  renameGroup: (groupId: string, name: string) => void;
   /** 建一个空文件夹，只要名字 */
   addGroup: (name: string) => void;
   /** 删文件夹；里面的计划回到散条目，不删 */
@@ -267,6 +273,11 @@ export function useDiaryData(): DiaryData {
     [],
   );
   const remove = useCallback((id: string) => removeActionEntry(id), []);
+  const rename = useCallback((id: string, title: string) => renameActionEntry(id, title), []);
+  const renameGroup = useCallback(
+    (groupId: string, name: string) => renameActionGroup(groupId, name),
+    [],
+  );
 
   // 文件夹：成员就是左页那些计划的 entryId（DiaryTask.id 用的就是它），
   // 所以这里不用做 id 换算，直接透传
@@ -307,6 +318,8 @@ export function useDiaryData(): DiaryData {
     startTimer,
     claim,
     remove,
+    rename,
+    renameGroup,
     addGroup,
     removeGroup,
     moveToGroup,

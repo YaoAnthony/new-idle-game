@@ -323,20 +323,6 @@ const LeftPageContent = ({ date, dateStr, isToday, tasks, diary, onEnterFocus, j
                 {task.durationMinutes} min
               </span>
 
-              {!isPast && diary.groups.length > 0 && (
-                <select
-                  aria-label="放进系列"
-                  value=""
-                  onChange={(e) => e.target.value && diary.moveToGroup(task.id, e.target.value)}
-                  className="mr-2 h-[32px] max-w-[110px] rounded-full border-2 border-[#A5D6A7] bg-white px-2 text-[12px] font-bold text-[#5D4037] outline-none"
-                >
-                  <option value="">放进…</option>
-                  {diary.groups.map((g) => (
-                    <option key={g.id} value={g.id}>{g.name}</option>
-                  ))}
-                </select>
-              )}
-
               {!isPast && (
                 <button
                   onClick={() => startFocus(task)}

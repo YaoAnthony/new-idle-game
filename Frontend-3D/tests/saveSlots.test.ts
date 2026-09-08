@@ -38,7 +38,7 @@ function makeSave(overrides: Partial<GameSave> = {}): GameSave {
     player: {
       name: "住户",
       avatar: { slots: {} } as never,
-      actionChains: [],
+      actionGroups: [],
       character: { inventory: [], needs: { hunger: 50, fatigue: 50 } },
       discoveredRecipeIds: [],
       actionEntries: [],

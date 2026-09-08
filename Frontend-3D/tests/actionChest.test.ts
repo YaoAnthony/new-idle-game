@@ -6,7 +6,7 @@ import {
   PlacementSurface,
   findActionByCategory,
   findItemDefinition,
-  nodeChestScore,
+  actionChestScore,
 } from "core";
 
 import { on } from "../src/Game/EventBus";
@@ -30,7 +30,7 @@ import { restoreNeeds } from "../src/Game/State/needs";
  * 行动的奖励从「四组写死的清单」换成**按投入分抽一件家具**。
  * 这一份钉的是接线：开不开箱、开几件、重要级乘在哪、休息是不是真的不掉东西。
  *
- * 抽取算法本身（权重表、降档、优先抽没有的）在 Core 的 actionChains，
+ * 抽取算法本身（权重表、降档、优先抽没有的）在 Core 的 logic/chest，
  * 那边早有用例；这里不重复验概率，只验**这条路走通了**。
  */
 
@@ -116,10 +116,10 @@ test("action_chest_重要级乘的是投入分不是件数", () => {
 
 test("action_chest_投入分公式_时长除以15再乘重要级倍率", () => {
   // 这条不走运行时，直接钉公式——它决定了"两小时的活该开出什么档"
-  expect(nodeChestScore(15)).toBeCloseTo(1);
-  expect(nodeChestScore(480)).toBeCloseTo(32);
+  expect(actionChestScore(15)).toBeCloseTo(1);
+  expect(actionChestScore(480)).toBeCloseTo(32);
   // 重要级 3 倍：8 小时重要 = 96 分，落在权重表最后一行（minScore 40）
-  expect(nodeChestScore(480) * 3).toBeCloseTo(96);
+  expect(actionChestScore(480) * 3).toBeCloseTo(96);
 });
 
 test("action_chest_休息不掉东西_它是唯一不耗精力的行动", () => {
@@ -148,7 +148,7 @@ test("action_chest_取消的行动什么都不给", () => {
   expect(end.rewards).toEqual([]);
 });
 
-test("action_chest_开箱事件带上标题_不带链专属字段", () => {
+test("action_chest_开箱事件只带标题_稀有度_物品", () => {
   placeSupport("furniture_study_desk");
   vi.useFakeTimers();
   const seen: Array<Record<string, unknown>> = [];
@@ -162,10 +162,9 @@ test("action_chest_开箱事件带上标题_不带链专属字段", () => {
 
   expect(seen).toHaveLength(1);
   expect(seen[0].title).toBe("写完 assignment2");
-  expect(seen[0].size).toBe("node");
-  // 行动开箱没有链——硬塞空串的话 ChestOverlay 会去查一条不存在的链
-  expect(seen[0].chainId).toBeUndefined();
-  expect(seen[0].iconId).toBeUndefined();
+  // 2026-09-08 起事件上没有链专属字段了（size / chainId / iconId / colorId
+  // 随旧系列任务一起删）；ChestOverlay 只认这三样
+  expect(Object.keys(seen[0]).sort()).toEqual(["items", "rarity", "title"]);
 });
 
 test("action_chest_休息不弹开箱面板", () => {

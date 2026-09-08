@@ -1577,6 +1577,132 @@ export const migrations: Migration[] = [
     to: 48,
     migrate: (save) => rewriteCottageInterior(save),
   },
+  /*
+   * v49 · 旧系列任务（画布链 actionChains）拆掉，换成清单上的文件夹 actionGroups（用户 2026-09-08 定）。
+   *
+   * **老档里的链不丢**：一条链 → 一个同名的组，链里**还没完成的节点**按拓扑序（前置在前，同层按画布 y 再 x）
+   * 变成清单条目、按序进组；做完的节点已经在日记里了，不搬。整条做完的链、以及没有剩余节点的链，不生成空组
+   * ——那是历史，不是待办。分叉链拍平成一条线，"哪两件事本来是并行的"这个信息**丢了**，这是明确接受的损失：
+   * 新结构就是一条线，而拍平之后每件事都还在。
+   *
+   * 节点 → 条目的映射写死在这里，不问当前的行动注册表（迁移不能跟着注册表变，同 LEGACY_FURNITURE_ID 的理由）：
+   * 分类字符串在当年就等于同名的行动 id（exercise / work_study / creation / rest），认不出的落到 work_study。
+   *
+   * 进行中的行动如果是从链节点发起的（带 chainRef），把 chainRef 摘掉、行动照常跑完——它的奖励在完成时照发，
+   * 只是不再回链上打勾（链已经不存在了）。
+   */
+  {
+    to: 49,
+    migrate: (save) => {
+      type LegacyNode = {
+        nodeId: string;
+        customName: string;
+        durationMinutes: number;
+        priority: string;
+        requires: string[];
+        position: { x: number; y: number };
+        completedAtUtc?: string;
+      };
+      type LegacyChain = {
+        chainId: string;
+        category: string;
+        title: string;
+        createdAtUtc: string;
+        completedAtUtc?: string;
+        nodes: LegacyNode[];
+      };
+      const player = save.player as unknown as
+        | {
+            actionChains?: LegacyChain[];
+            actionEntries?: Array<Record<string, unknown>>;
+            actionGroups?: Array<Record<string, unknown>>;
+            activeActionProcess?: { chainRef?: unknown } & Record<string, unknown>;
+          }
+        | undefined;
+      // 只有世界没有玩家的半份档（用例里有，联机快照也可能有）：没有链可搬
+      if (!player) return save;
+
+      const LEGACY_CATEGORY_TO_ACTION: Record<string, string> = {
+        exercise: "exercise",
+        work_study: "work_study",
+        creation: "creation",
+        rest: "rest",
+      };
+      const KNOWN_PRIORITY = new Set(["low", "normal", "high"]);
+
+      const entries = player.actionEntries ?? [];
+      const groups = player.actionGroups ?? [];
+      let seq = 0;
+
+      for (const chain of player.actionChains ?? []) {
+        if (chain.completedAtUtc) continue;
+        const pending = (chain.nodes ?? []).filter((node) => node.completedAtUtc === undefined);
+        if (pending.length === 0) continue;
+
+        // 拓扑序（Kahn）。只看还没完成的节点：已完成的前置视为已满足
+        const pendingIds = new Set(pending.map((node) => node.nodeId));
+        const indegree = new Map<string, number>();
+        for (const node of pending) {
+          indegree.set(node.nodeId, node.requires.filter((id) => pendingIds.has(id)).length);
+        }
+        const byCanvas = (a: LegacyNode, b: LegacyNode) =>
+          a.position.y - b.position.y || a.position.x - b.position.x;
+        /*
+         * 一层一层出：先把此刻全部能做的（同层）按画布顺序排完，再放它们
+         * 解锁出来的下一层。不能"解锁一个就立刻按画布重排"——那样一条深支线
+         * 会插到还没排完的并行支线前面，同层并行的关系就被拍乱了。
+         */
+        const ordered: LegacyNode[] = [];
+        let layer = pending.filter((node) => indegree.get(node.nodeId) === 0).sort(byCanvas);
+        while (layer.length > 0) {
+          ordered.push(...layer);
+          const next: LegacyNode[] = [];
+          for (const node of layer) {
+            for (const other of pending) {
+              if (!other.requires.includes(node.nodeId)) continue;
+              const left = (indegree.get(other.nodeId) ?? 0) - 1;
+              indegree.set(other.nodeId, left);
+              if (left === 0) next.push(other);
+            }
+          }
+          layer = next.sort(byCanvas);
+        }
+        // 有环的链（旧编辑器有环检测，理论上不会）：剩下的按画布顺序补在最后，一个都不丢
+        for (const node of pending.sort(byCanvas)) {
+          if (!ordered.includes(node)) ordered.push(node);
+        }
+
+        const entryIds: string[] = [];
+        for (const node of ordered) {
+          seq += 1;
+          const entryId = `action-v49-${chain.chainId}-${seq}`;
+          entries.push({
+            entryId,
+            actionId: LEGACY_CATEGORY_TO_ACTION[chain.category] ?? "work_study",
+            customName: node.customName,
+            durationMinutes: node.durationMinutes,
+            priority: KNOWN_PRIORITY.has(node.priority) ? node.priority : "normal",
+            createdAtUtc: chain.createdAtUtc,
+          });
+          entryIds.push(entryId);
+        }
+        groups.push({
+          groupId: `group-v49-${chain.chainId}`,
+          name: chain.title,
+          createdAtUtc: chain.createdAtUtc,
+          entryIds,
+        });
+      }
+
+      player.actionEntries = entries;
+      player.actionGroups = groups;
+      delete player.actionChains;
+      if (player.activeActionProcess && "chainRef" in player.activeActionProcess) {
+        delete player.activeActionProcess.chainRef;
+      }
+      return save;
+    },
+  },
 ];
 
 

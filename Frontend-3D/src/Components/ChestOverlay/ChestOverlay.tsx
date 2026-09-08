@@ -18,7 +18,6 @@ import { disposeTree } from "../../Game3D/Visual/primitives";
 import { t } from "../../i18n/t";
 import { ItemIcon } from "../Inventory/slots";
 import { useMirroredPanel } from "../PanelStack/useMirroredPanel";
-import { chainColor, chainEmoji } from "../ActionHub/chainVisuals";
 
 /**
  * 开箱面板：系列任务的节点完成（小箱）/ 整链结项（大箱）时弹出。
@@ -41,13 +40,7 @@ import { chainColor, chainEmoji } from "../ActionHub/chainVisuals";
  */
 
 type ChestEvent = {
-  size: "node" | "chain";
   title: string;
-  /** 链专属。行动开箱不带（期 2），下面两个 helper 自带兜底 */
-  chainId?: string;
-  nodeId?: string;
-  iconId?: string;
-  colorId?: string;
   rarity: Rarity;
   items: Array<{ itemId: string; quantity: number }>;
 };
@@ -66,8 +59,6 @@ function overshoot(x: number): number {
   const p = x - 1;
   return 1 + c3 * p * p * p + c1 * p * p;
 }
-
-const CONFETTI_COLORS = ["#e8b733", "#5fc7ce", "#c96a86", "#7aa35a", "#9a6fb8"];
 
 export function ChestOverlay() {
   const [queue, setQueue] = useState<ChestEvent[]>([]);
@@ -117,8 +108,7 @@ export function ChestOverlay() {
     scene.add(rim);
 
     const chest = buildChest(tierOf(current.rarity));
-    const big = current.size === "chain";
-    const baseScale = big ? 1.15 : 0.92;
+    const baseScale = 0.92;
     chest.rotation.y = 0.5;
     scene.add(chest);
     const lid = chest.getObjectByName("chest-lid") ?? new Object3D();
@@ -140,7 +130,7 @@ export function ChestOverlay() {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(300, 230, false);
 
-    const shakes = big ? 3 : 2;
+    const shakes = 2;
     let raf = 0;
     let didReveal = false;
     let didThud = false;
@@ -212,8 +202,6 @@ export function ChestOverlay() {
 
   if (!current) return null;
 
-  const accent = chainColor(current.colorId ?? "");
-  const big = current.size === "chain";
 
   return (
     /* z-50：要压过行动面板（z-40）——完成的瞬间玩家可能正开着别的面板 */
@@ -221,41 +209,15 @@ export function ChestOverlay() {
       className="absolute inset-0 z-50 grid place-items-center bg-black/55"
       onClick={revealed ? dismiss : undefined}
     >
-      {/* 大箱撒纸屑 */}
-      {big && (
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          {Array.from({ length: 26 }, (_, i) => (
-            <span
-              key={i}
-              className="chest-confetti"
-              style={{
-                left: `${(i * 37) % 100}%`,
-                backgroundColor: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
-                animationDuration: `${2.2 + (i % 5) * 0.35}s`,
-                animationDelay: `${0.55 + (i % 7) * 0.12}s`,
-              }}
-            />
-          ))}
-        </div>
-      )}
-
       <div className="ui-dialogue relative w-[min(430px,90vw)] rounded-[26px] px-6 pb-5 pt-5 text-center">
-        {/* 标题：小箱=节点名字；大箱=链名 + 它的图标和颜色 */}
+        {/* 标题：这次做完的那件事的名字 */}
         <div className="flex items-center justify-center gap-2">
-          {big && (
-            <span
-              className="grid h-8 w-8 place-items-center rounded-full text-[15px]"
-              style={{ backgroundColor: accent }}
-            >
-              {chainEmoji(current.iconId ?? "")}
-            </span>
-          )}
           <span className="text-[19px] font-bold tracking-wide text-[#4a3b2a]">
             {current.title}
           </span>
         </div>
         <div className="mt-0.5 text-[12px] text-[#8a6a45]">
-          {big ? t("ui.chest.chain_done") : t("ui.chest.node_done")}
+          {t("ui.chest.node_done")}
         </div>
 
         {/* 3D 小窗 */}

@@ -241,25 +241,13 @@ export type GameEvents = {
   action_groups_changed: Record<string, never>;
   /** 事后补记的每日额度变了（用掉一格 / 跨天归零 / 读档） */
   action_log_changed: { reason: "logged" | "reset" | "restored" };
-  /** 系列任务变了（建/改/删链或节点、节点完成、结项）。UI 整棵重读，不做增量 */
-  action_chains_changed: { reason: string };
   /**
    * 开箱面板该弹了（节点完成=小箱，整链结项=大箱）。
    * 奖励此刻**已经入包**，面板只负责演出——错过事件不丢东西。
    * rarity 是箱里最高的一档，箱子模型按它换木/银/金
    */
   action_chest_ready: {
-    size: "node" | "chain";
     title: string;
-    /**
-     * 链专属的三样。**行动开箱没有链，所以都是可选的**（期 2）——
-     * 硬塞空串的话 ChestOverlay 会去查一条不存在的链；不填由它退到
-     * 缺省图标和缺省配色（`chainEmoji` / `chainColor` 本来就带兜底）。
-     */
-    chainId?: string;
-    nodeId?: string;
-    iconId?: string;
-    colorId?: string;
     rarity: import("core").Rarity;
     items: Array<{ itemId: string; quantity: number }>;
   };

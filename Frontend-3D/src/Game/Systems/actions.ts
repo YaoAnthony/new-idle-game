@@ -6,8 +6,7 @@ import {
   findActionDefinition,
   findActionPriority,
   actionLogTuning,
-  nodeChestScore,
-  type ActionChainRef,
+  actionChestScore,
   type Rarity,
   type ActionDefinition,
   type ActionProcessSave,
@@ -24,9 +23,6 @@ import { signal } from "./story";
 import { addItem } from "../State/inventory";
 import { getNeeds, restoreFatigue, spendFatigue } from "../State/needs";
 import { getResidents } from "../State/residentsRuntime";
-// 循环引用是刻意的：actionChains 要 startAction（发起），这里要
-// completeChainNode（回勾）。两边都只在运行时调用，模块求值期互不取值
-import { completeChainNode } from "./actionChains";
 import { detachEntry } from "../State/actionGroups";
 import { grantChest } from "./chest";
 import { recordActionFact } from "./dayRecord";
@@ -62,7 +58,6 @@ export type ActiveAction = {
   durationMs: number;
   furnitureInstanceId: string;
   /** 从哪个链节点发起的（散清单/直接开始的没有）。完成时凭它回链打勾 */
-  chainRef?: ActionChainRef;
   /** 从日记本哪条计划发起的。**完成时凭它把那条计划划掉** */
   entryId?: string;
 };
@@ -174,7 +169,6 @@ export function startAction(
   customName: string,
   durationSeconds: number,
   priority: ActionPriority = ActionPriority.Normal,
-  chainRef?: ActionChainRef,
   entryId?: string,
 ): boolean {
   if (active) return false;
@@ -195,7 +189,6 @@ export function startAction(
     startedAtMs: nowMs(),
     durationMs: durationSeconds * 1000,
     furnitureInstanceId,
-    chainRef,
     entryId,
   });
 
@@ -275,7 +268,6 @@ function finish(completed: boolean): void {
       (resident) => resident.affectionStage !== AffectionStage.Stranger,
     );
 
-  const chainRef = active.chainRef;
   // 标题要在 setActive(null) **之前**抓走：下面那条开箱事件在清空之后才发
   const title = active.customName;
   lastEnd = { action: active, completed, rewards, residentCompanion };
@@ -283,23 +275,16 @@ function finish(completed: boolean): void {
   emit("action_changed", { status: completed ? "completed" : "cancelled" });
   /*
    * 开箱演出。**奖励此刻已经入包**（grantChest 里 addItem 过了），
-   * 这条事件纯演出——错过、关掉、崩了都不丢东西，和链开箱同一条纪律。
-   *
-   * 从链节点发起的行动**不在这里发**：那一条由 completeChainNode 回勾时
-   * 发它自己的节点箱，两边都发会弹两个箱子。
+   * 这条事件纯演出——错过、关掉、崩了都不丢东西。
    */
-  if (completed && chestRarity && !chainRef) {
+  if (completed && chestRarity) {
     emit("action_chest_ready", {
-      size: "node",
       title,
       rarity: chestRarity,
       items: rewards,
     });
   }
   if (completed) signal("action_completed", definition?.id);
-  // 链的回勾放最后：completeChainNode 会发奖、可能连带整链结项弹箱，
-  // 那些事件的监听方应当看到"行动已经结束"的世界
-  if (completed && chainRef) completeChainNode(chainRef);
 }
 
 /**
@@ -348,15 +333,15 @@ function settleActionRewards(
     }
 
     /*
-     * **开箱**（期 2）。走的是系列任务那套现成的：投入分 → 权重表 →
-     * 稀有度 → 从候选池抽一件。
+     * **开箱**（期 2）：投入分 → 权重表 → 稀有度 → 从候选池抽一件
+     * （Core 的 logic/chest）。
      *
      * 重要级乘的是**投入分**，不是件数。乘件数等于"标重要就开三个箱"
      * ——那是纯收益，重要级标签当场退化成一次无意义的点击
      * （`actionPriorityDefinitions` 的注释专门讲过这件事）。乘投入分
      * 保住了取舍：标得越重要越累、当天做得越少，但开出的东西越好。
      */
-    const score = nodeChestScore(durationMinutes) * multiplier;
+    const score = actionChestScore(durationMinutes) * multiplier;
     const box: { rewards: RewardDefinition[] } = { rewards: [] };
     const chest = grantChest(box, score);
     rewards.push(...chest.items);
@@ -463,7 +448,6 @@ export function logCompletedAction(input: {
    */
   if (settled.chestRarity) {
     emit("action_chest_ready", {
-      size: "node",
       title,
       rarity: settled.chestRarity,
       items: settled.rewards,
@@ -586,7 +570,6 @@ export function startActionEntry(entryId: string): boolean {
     entry.customName,
     entry.durationMinutes * 60,
     entry.priority,
-    undefined,
     // 完成时凭它把这条计划从左页划掉（见 ActionProcessSave.entryId）
     entry.entryId,
   );
@@ -618,7 +601,6 @@ export function snapshotAction(): ActionProcessSave | undefined {
     status: "active",
     furnitureInstanceId: active.furnitureInstanceId,
     priority: active.priority,
-    chainRef: active.chainRef,
     entryId: active.entryId,
   };
 }
@@ -649,7 +631,6 @@ export function restoreAction(saved: ActionProcessSave | undefined): void {
     startedAtMs,
     durationMs,
     furnitureInstanceId: saved.furnitureInstanceId ?? "",
-    chainRef: saved.chainRef,
     entryId: saved.entryId,
   });
 
@@ -713,7 +694,6 @@ export function claimActionReward(index: number): ClaimRewardResult {
   // 开箱演出。和另外两条路同一条纪律：东西已经入包了，这条纯演出
   if (settled.chestRarity) {
     emit("action_chest_ready", {
-      size: "node",
       title: fact.name,
       rarity: settled.chestRarity,
       items: settled.rewards,

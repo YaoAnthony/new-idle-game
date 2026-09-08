@@ -11,7 +11,7 @@ import {
   findActionByCategory,
   findActionPriority,
   findItemDefinition,
-  nodeChestScore,
+  actionChestScore,
   pickChestFurniture,
   rollChestRarity,
   itemDefinitions,
@@ -232,7 +232,6 @@ import {
 } from "../Game/Systems/dailyCommands";
 import { registerActionCommands } from "../Game/Systems/actionCommands";
 import { DiaryPanel } from "../Components/Diary/DiaryPanel";
-import { registerChainCommands } from "../Game/Systems/chainCommands";
 import { registerResidentCommands } from "../Game/Systems/residents/commands";
 import { startTownTrips } from "../Game/Systems/residents/townTrips";
 import { startVisitorSystem } from "../Game/Systems/residents/visitors";
@@ -483,7 +482,6 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       // 每日任务：正式交互在机器面板上，命令行是验收工具兼调试入口
       ...registerActionCommands(),
       ...registerDailyCommands(),
-      ...registerChainCommands(),
       ...registerResidentCommands(),
       registerCommand({
         name: "time",
@@ -1421,7 +1419,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
           const times = Math.max(1, Math.min(500, Number(args[2] ?? 1) || 1));
 
           const multiplier = findActionPriority(priority)?.rewardMultiplier ?? 1;
-          const score = nodeChestScore(minutes) * multiplier;
+          const score = actionChestScore(minutes) * multiplier;
 
           /*
            * **只掷点、不入包**：这条命令是用来看分布的，抽 200 次

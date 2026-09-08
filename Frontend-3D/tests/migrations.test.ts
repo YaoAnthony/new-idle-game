@@ -25,7 +25,7 @@ function currentSave(): GameSave {
     player: {
       name: "旅人",
       avatar: { slots: {}, palettes: {} } as never,
-      actionChains: [],
+      actionGroups: [],
       character: {
         inventory: [],
         needs: { hunger: 80, fatigue: 70 },
@@ -453,4 +453,98 @@ describe("v47/v48：主屋户型重写——洗手间没了、石台 4×4、台�
     expect(result.save.ownWorld.placedFurniture.map((placed) => placed.instanceId)).toEqual(["c2"]);
     expect(result.save.player.character.inventory.some((stack) => stack.itemId === "furniture_chair")).toBe(true);
   });
+});
+
+// ---- v49：旧系列任务（画布链）→ 清单上的文件夹 ----
+
+/** 一份 v48 的档，带一条没做完的链。字段按当年的形状手写，不引已删掉的类型 */
+function saveWithLegacyChain(): GameSave {
+  const save = saveAtVersion(48);
+  const player = save.player as unknown as Record<string, unknown>;
+  player.actionChains = [
+    {
+      chainId: "chain-1",
+      category: "creation",
+      title: "写完那本小说",
+      iconId: "book",
+      colorId: "plum",
+      createdAtUtc: "2026-08-20T00:00:00.000Z",
+      rewards: [],
+      nodes: [
+        // 故意打乱数组顺序：迁移要按前置排序，不能照抄数组
+        { nodeId: "n3", customName: "写第二章", durationMinutes: 60, priority: "normal", requires: ["n2"], position: { x: 2, y: 0 }, rewards: [] },
+        { nodeId: "n1", customName: "列大纲", durationMinutes: 30, priority: "high", requires: [], position: { x: 0, y: 0 }, rewards: [], completedAtUtc: "2026-08-21T00:00:00.000Z" },
+        { nodeId: "n2", customName: "写第一章", durationMinutes: 60, priority: "weird", requires: ["n1"], position: { x: 1, y: 0 }, rewards: [] },
+        // 和 n2 并行的支线（都只依赖已完成的 n1），画布上更靠下 → 排在 n2 后面
+        { nodeId: "n4", customName: "画人设", durationMinutes: 45, priority: "low", requires: ["n1"], position: { x: 1, y: 5 }, rewards: [] },
+      ],
+    },
+    {
+      chainId: "chain-done",
+      category: "exercise",
+      title: "早就做完的",
+      iconId: "muscle",
+      colorId: "sky",
+      createdAtUtc: "2026-08-01T00:00:00.000Z",
+      completedAtUtc: "2026-08-05T00:00:00.000Z",
+      rewards: [],
+      nodes: [
+        { nodeId: "d1", customName: "跑步", durationMinutes: 30, priority: "normal", requires: [], position: { x: 0, y: 0 }, rewards: [], completedAtUtc: "2026-08-05T00:00:00.000Z" },
+      ],
+    },
+  ];
+  player.activeActionProcess = {
+    processId: "action:1",
+    actionId: "creation",
+    startedAtUtc: "2026-09-08T00:00:00.000Z",
+    durationMinutes: 60,
+    status: "active",
+    chainRef: { chainId: "chain-1", nodeId: "n2" },
+  };
+  return save;
+}
+
+test("v49：没做完的链降成同名的组，未完成节点按前置顺序进清单", () => {
+  const result = migrateSave(saveWithLegacyChain());
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+
+  const player = result.save.player as unknown as {
+    actionChains?: unknown;
+    actionGroups: Array<{ name: string; entryIds: string[] }>;
+    actionEntries: Array<{ entryId: string; customName: string; actionId: string; priority: string }>;
+  };
+
+  expect(player.actionChains).toBeUndefined();
+  // 做完的那条链不生成空组
+  expect(player.actionGroups.map((g) => g.name)).toEqual(["写完那本小说"]);
+
+  const [group] = player.actionGroups;
+  const names = group.entryIds.map(
+    (id) => player.actionEntries.find((e) => e.entryId === id)?.customName,
+  );
+  // n1 做完了不搬；n2 / n4 都只依赖 n1，n2 在画布上更靠上所以在前；n3 要等 n2
+  expect(names).toEqual(["写第一章", "画人设", "写第二章"]);
+
+  const first = player.actionEntries.find((e) => e.customName === "写第一章")!;
+  expect(first.actionId).toBe("creation");
+  // 认不出的重要级落到 normal，别把一个非法值带进新结构
+  expect(first.priority).toBe("normal");
+});
+
+test("v49：进行中的行动摘掉 chainRef，行动本身照旧", () => {
+  const result = migrateSave(saveWithLegacyChain());
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+
+  const process = result.save.player.activeActionProcess as unknown as Record<string, unknown>;
+  expect(process.status).toBe("active");
+  expect("chainRef" in process).toBe(false);
+});
+
+test("v49：没有链的档迁完 actionGroups 是空数组，不是缺字段", () => {
+  const result = migrateSave(saveAtVersion(48));
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(result.save.player.actionGroups).toEqual([]);
 });

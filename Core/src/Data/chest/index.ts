@@ -1,14 +1,15 @@
 import { Rarity } from "../../types/base.js";
 
 /**
- * 系列任务开箱的调平衡表。**改平衡只动这张表，不动 logic 里的算法。**
+ * 开箱的调平衡表。**改平衡只动这张表，不动 logic 里的算法。**
  *
- * 投入分（score）是无量纲的：
- *   小箱（节点完成）  score = 节点时长 ÷ SCORE_DIVISOR_MINUTES
- *   大箱（链结项）    score = 全链总时长 ÷ SCORE_DIVISOR_MINUTES + 环数
+ * 2026-09-08 从 Data/actionChains 改名过来：它从期 2 起就是**所有行动**
+ * 完成时开箱的表，只是一直挂着"系列任务"的名字。旧系列任务整套拆掉，
+ * 表留下。
  *
- * 除数取 15 是让"随手一个 25 分钟的小节点"落在 1~2 分——第一行的
- * 兜底档；两小时硬活到第二行；4~5 环的中等链到第三行。数字是初值。
+ * 投入分（score）是无量纲的：score = 行动时长 ÷ SCORE_DIVISOR_MINUTES，
+ * 再乘重要级倍率（在 Systems/actions）。除数取 15 是让"随手一个 25 分钟
+ * 的小事"落在 1~2 分——第一行的兜底档；两小时硬活到第二行。数字是初值。
  */
 export const SCORE_DIVISOR_MINUTES = 15;
 

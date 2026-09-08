@@ -1502,26 +1502,8 @@ input {
   }
 }
 
-/* 大箱的纸屑：从顶上飘下来，各自转 */
-.chest-confetti {
-  position: absolute;
-  top: -18px;
-  width: 8px;
-  height: 12px;
-  border-radius: 2px;
-  animation-name: chest-confetti-fall;
-  animation-timing-function: linear;
-  animation-fill-mode: both;
-}
-@keyframes chest-confetti-fall {
-  to {
-    transform: translateY(105vh) rotate(680deg);
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .chest-card-fly,
-  .chest-confetti,
   .chest-card--rare .ui-slot {
     animation: none;
     opacity: 1;

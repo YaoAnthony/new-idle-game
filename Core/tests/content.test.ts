@@ -21,7 +21,7 @@ import {
   untradableItemIds,
   findBlueprintForBuilding,
 } from "../src/Data/items/index.js";
-import { chestExcludedItemIds } from "../src/Data/actionChains/index.js";
+import { chestExcludedItemIds } from "../src/Data/chest/index.js";
 import { recipeDefinitions } from "../src/Data/recipes/index.js";
 import { cookingRecipeDefinitions, mysteryDish } from "../src/Data/cooking/index.js";
 import { lootTableDefinitions } from "../src/Data/loot/index.js";

@@ -40,6 +40,6 @@ export * from "./territoryAudit.js";
 export * from "./terrainBake.js";
 export * from "./storyTriggers.js";
 export * from "./weather.js";
-export * from "./actionChains.js";
+export * from "./chest.js";
 export * from "./autoLife.js";
 export * from "./classifyAction.js";

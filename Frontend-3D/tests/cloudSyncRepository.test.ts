@@ -32,7 +32,7 @@ function makeSave(marker: string): GameSave {
     player: {
       name: marker,
       avatar: { slots: {} } as never,
-      actionChains: [],
+      actionGroups: [],
       character: { inventory: [], needs: { hunger: 50, fatigue: 50 } },
       discoveredRecipeIds: [],
       actionEntries: [],

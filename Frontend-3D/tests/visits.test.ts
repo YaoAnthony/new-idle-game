@@ -38,6 +38,7 @@ import {
   whyCannotVisit,
 } from "../src/Game/Systems/residents/visits";
 import { visitPlayerSkill } from "../src/Game/State/skills/visitPlayer";
+import { SAVE_SCHEMA_VERSION } from "../src/Data/Save/types";
 import { migrateSave } from "../src/Data/Save/migrations";
 
 /**
@@ -286,5 +287,6 @@ test("porch_家人档那天挂门牌_存档往返_做客不写", () => {
   expect(getResident(SLIME)).toBeDefined();
 
   const migrated = migrateSave({ meta: { saveSchemaVersion: 40 }, ownWorld: { pets: {} } } as never);
-  expect(migrated.ok && migrated.save.meta.saveSchemaVersion).toBe(48);
+  // 迁到"当前版本"，不写死具体数字——每加一条迁移这里就要跟着改一次，而它测的不是版本号
+  expect(migrated.ok && migrated.save.meta.saveSchemaVersion).toBe(SAVE_SCHEMA_VERSION);
 });

@@ -108,10 +108,9 @@ const SHAPE: string[] = [
   "ownWorld.weather.schedule[]",
   "ownWorld.weather.seed",
   "ownWorld.worldId",
-  "player.actionChains[]",
   "player.actionEntries[]",
-  // 2026-09-08：清单上的文件夹（任务组）。成员是 actionEntries 的 id，
-  // 跟着人走，联机不跟（和 actionEntries 同理）
+  // 2026-09-08：清单上的文件夹（任务组），顶替了 actionChains（画布链，
+  // v49 迁掉）。成员是 actionEntries 的 id，跟着人走，联机不跟
   "player.actionGroups[]",
   /*
    * v33：事后补记的每日额度。版本已抬、迁移已补（那条是空的，理由写在

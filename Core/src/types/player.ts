@@ -7,7 +7,7 @@ import type {
 } from "./actions.js";
 import type { AvatarConfig } from "./avatar.js";
 import type { DailyTasksSave } from "./dailyTasks.js";
-import type { ActionChainSave, ActionGroupSave } from "./actions.js";
+import type { ActionGroupSave } from "./actions.js";
 import type { PlacedFurnitureInstanceId } from "./furniture.js";
 import type { InventoryStack } from "./inventory.js";
 import type { RecipeId } from "./recipes.js";
@@ -26,23 +26,15 @@ export type PlayerSave = {
   name: string;
   avatar: AvatarConfig;
   /**
-   * 玩家自建的系列任务（行动链）。跟着人走：联机进别人的世界，
-   * 看到的还是自己的目标。
+   * 清单上的文件夹（任务组，2026-09-08）。跟着人走：联机进别人的世界，
+   * 看到的还是自己的目标。成员是 `actionEntries` 里的条目 id，见
+   * `ActionGroupSave` 的注释。
    *
-   * 这里原来是 missions: { daily, primary }（MissionInstance 三态领奖的
-   * 死壳，从未被读写）——v28 删掉。系统派发的任务将来要做时另起类型，
-   * 别复活那个壳。
+   * 这个位置上原来是 actionChains（画布上的行动链，8-20 ～ 9-08），
+   * 迁移 v49 把没做完的链降成组后整套删掉；更早是 missions（从未被读写
+   * 的死壳，v28 删）。系统派发的任务将来要做时另起类型，别复活那两个壳。
    */
-  actionChains: ActionChainSave[];
-
-  /**
-   * 清单上的文件夹（任务组，2026-09-08）。成员是 `actionEntries` 里的
-   * 条目 id，见 `ActionGroupSave` 的注释。
-   *
-   * 这一版先是可选的：这一步只加不删，存档版本不动；下一步拆旧链时
-   * 一起进迁移 v49，那时候变成必填、老链降级成组。
-   */
-  actionGroups?: ActionGroupSave[];
+  actionGroups: ActionGroupSave[];
 
   /**
    * **在别人家赚的、还没带回家的钱**（存档 v29）。
@@ -55,7 +47,7 @@ export type PlayerSave = {
    * 所以钱先记在**人**身上，回家那一刻再走正常入账（该溢出照样溢出——
    * 罐装不下是罐的事，不因为钱是外面赚的就网开一面）。
    *
-   * 落在 PlayerSave 不落在 WorldSave 的理由和 `actionChains`、`character.position`
+   * 落在 PlayerSave 不落在 WorldSave 的理由和 `actionGroups`、`character.position`
    * 一样：**它跟着人走**。做客期间的存档合成（composeGuestSave）玩家侧照抄
    * 运行时、世界侧用入房前快照，所以挂在这里的钱中途崩溃也不丢。
    *

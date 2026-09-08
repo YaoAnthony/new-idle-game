@@ -102,7 +102,13 @@ export function PlanFolders({ diary, tasks, onStart, readonly }: Props) {
     event.dataTransfer.dropEffect = "move";
   };
 
-  if (readonly && diary.groups.length === 0) return null;
+  /*
+   * 过去的页面上**不画文件夹**（用户 2026-09-08 定的规矩：过去只留做过的、
+   * 不留没做的）。文件夹里装的全是还没做的事，它们属于"今天"这一页；
+   * 翻回昨天看到一串没做的任务、还点不了开始，只会让人以为那天的东西
+   * 被锁住了。做过的那些已经在右页的记录里。
+   */
+  if (readonly) return null;
 
   return (
     <div className="mb-2">

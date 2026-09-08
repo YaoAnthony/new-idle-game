@@ -69,6 +69,10 @@ import {
   restoreActionChains,
   snapshotActionChains,
 } from "../../Game/State/actionChains";
+import {
+  restoreActionGroups,
+  snapshotActionGroups,
+} from "../../Game/State/actionGroups";
 import { restoreDoors } from "../../Game/State/doorsRuntime";
 import { restoreResidents } from "../../Game/State/residentsRuntime";
 import { getRoomStyle, setRoomStyleId } from "../../Game/State/worldRuntime";
@@ -167,6 +171,8 @@ export function serializeGameSave(previous?: GameSave): GameSave {
       discoveredRecipeIds: getDiscoveredRecipeIds(),
       // 行动清单跟着玩家走——这是你现实里要做的事，不属于哪间屋子
       actionEntries: snapshotActionEntries(),
+      // 清单上的文件夹：只是条目 id 的分组，和清单一起走
+      actionGroups: snapshotActionGroups(),
       actionLog: snapshotActionLog(),
       diary: snapshotDiary(),
       // 正在做的那条也跟着人走（v12 从 WorldSave 搬来，见 PlayerSave 的注释）
@@ -413,6 +419,7 @@ export function hydrateGameSave(save: GameSave): void {
 
   // 行动最后恢复：它可能立刻结算并发奖励，需要背包已经就位
   restoreActionEntries(save.player.actionEntries);
+  restoreActionGroups(save.player.actionGroups);
   restoreActionLog(save.player.actionLog);
   restoreDiary(save.player.diary);
   // 链要在行动**之前**就位：restoreAction 会把离线期间已到点的行动

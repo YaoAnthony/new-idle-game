@@ -7,7 +7,7 @@ import type {
 } from "./actions.js";
 import type { AvatarConfig } from "./avatar.js";
 import type { DailyTasksSave } from "./dailyTasks.js";
-import type { ActionChainSave } from "./actions.js";
+import type { ActionChainSave, ActionGroupSave } from "./actions.js";
 import type { PlacedFurnitureInstanceId } from "./furniture.js";
 import type { InventoryStack } from "./inventory.js";
 import type { RecipeId } from "./recipes.js";
@@ -34,6 +34,15 @@ export type PlayerSave = {
    * 别复活那个壳。
    */
   actionChains: ActionChainSave[];
+
+  /**
+   * 清单上的文件夹（任务组，2026-09-08）。成员是 `actionEntries` 里的
+   * 条目 id，见 `ActionGroupSave` 的注释。
+   *
+   * 这一版先是可选的：这一步只加不删，存档版本不动；下一步拆旧链时
+   * 一起进迁移 v49，那时候变成必填、老链降级成组。
+   */
+  actionGroups?: ActionGroupSave[];
 
   /**
    * **在别人家赚的、还没带回家的钱**（存档 v29）。

@@ -27,6 +27,7 @@ import { getResidents } from "../State/residentsRuntime";
 // 循环引用是刻意的：actionChains 要 startAction（发起），这里要
 // completeChainNode（回勾）。两边都只在运行时调用，模块求值期互不取值
 import { completeChainNode } from "./actionChains";
+import { detachEntry } from "../State/actionGroups";
 import { grantChest } from "./chest";
 import { recordActionFact } from "./dayRecord";
 import {
@@ -550,6 +551,8 @@ export function addActionEntry(input: {
 
 export function removeActionEntry(entryId: string): void {
   entries = entries.filter((entry) => entry.entryId !== entryId);
+  // 条目没了，它在哪个组里的记录也得跟着没——否则组里躺着一个悬空 id
+  detachEntry(entryId);
   emit("action_entries_changed", {});
 }
 

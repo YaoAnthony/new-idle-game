@@ -157,6 +157,36 @@ export type PlayerActionEntry = {
   createdAtUtc: UtcTimestamp;
 };
 
+// ---- 任务组（2026-09-08）----
+
+export type ActionGroupId = string;
+
+/**
+ * 清单上的一个**文件夹**：一个名字 + 一串有序的普通条目。
+ *
+ * 这是「系列任务」的第二版。第一版（ActionChainSave，2026-08-20）是一棵带
+ * 前置依赖和画布坐标的图，要求玩家先想清楚依赖关系再开始——实际没人这么
+ * 用，用户 2026-09-08 拍板整套拆掉，换成"拖两下就成一串"的文件夹。
+ *
+ * ---- 成员只存在 entryIds 这一处 ----
+ *
+ * 不在 PlayerActionEntry 上加 groupId。两处存同一件事，第一次不同步就
+ * 永远对不上（联机、离线补结算、读档任何一条路都可能只改一边）；而
+ * 排序在一个数组里就是一次 splice。代价是要防悬空 id：条目被删（做完
+ * 或手删）时同步剔除，读取时再过滤一遍。
+ *
+ * 数组顺序就是列表顺序；**只有第一条露在外面**，其余折叠——它是"接下来
+ * 该做的"，不是"这一组的标题"。第一条做完会从清单里划掉（行动完成本来就
+ * 会删 entry），第二条自然浮上来，不需要额外的"当前位置"字段。
+ */
+export type ActionGroupSave = {
+  groupId: ActionGroupId;
+  /** 玩家只填这一个字段。分类跟条目走，组本身没有分类 */
+  name: string;
+  createdAtUtc: UtcTimestamp;
+  entryIds: string[];
+};
+
 // ---- 系列任务（玩家自建的行动链，2026-08-20）----
 
 export type ActionChainId = string;

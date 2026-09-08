@@ -110,6 +110,9 @@ const SHAPE: string[] = [
   "ownWorld.worldId",
   "player.actionChains[]",
   "player.actionEntries[]",
+  // 2026-09-08：清单上的文件夹（任务组）。成员是 actionEntries 的 id，
+  // 跟着人走，联机不跟（和 actionEntries 同理）
+  "player.actionGroups[]",
   /*
    * v33：事后补记的每日额度。版本已抬、迁移已补（那条是空的，理由写在
    * migrations 里）。**联机不跟**——它挂在 PlayerSave 上跟着人走，

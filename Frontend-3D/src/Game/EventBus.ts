@@ -237,6 +237,8 @@ export type GameEvents = {
   };
   /** 行动清单增删（分类卡角标要重算） */
   action_entries_changed: Record<string, never>;
+  /** 任务组（清单上的文件夹）变了：建/删/拖入拖出/排序/读档。UI 整份重读 */
+  action_groups_changed: Record<string, never>;
   /** 事后补记的每日额度变了（用掉一格 / 跨天归零 / 读档） */
   action_log_changed: { reason: "logged" | "reset" | "restored" };
   /** 系列任务变了（建/改/删链或节点、节点完成、结项）。UI 整棵重读，不做增量 */

@@ -12,7 +12,7 @@ import {
   Sunrise,
 } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
-import { findItemDefinition } from "core";
+import { consignPriceOf, consignTuning, findItemDefinition } from "core";
 
 import { emit, on } from "../../Game/EventBus";
 import {
@@ -263,8 +263,17 @@ export function ConsignPanel() {
                 也不要再把格子做小，这一整轮改的就是"格子太小"。
               */}
               <div className="flex min-h-0 min-w-0 flex-[3] flex-col rounded-[20px] border-2 border-[#EEEEEE] bg-white/70 p-2 sm:p-3">
-                <div className="mb-1.5 flex h-8 w-8 shrink-0 items-center justify-center self-center rounded-full bg-[#4DB6AC] shadow-[0_3px_0_#00897B] sm:h-9 sm:w-9">
-                  <BackpackIcon className="h-4 w-4 text-white sm:h-5 sm:w-5" strokeWidth={2.5} />
+                {/*
+                  栏头：图标 + 名字（用户 2026-09-08：光一个背包图标看不出是什么）。
+                  字用手账标题那套（Nunito → 霞鹜文楷），和日记本「今日任务」同一副面孔。
+                */}
+                <div className="mb-1.5 flex shrink-0 items-center justify-center gap-2 self-center">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#4DB6AC] shadow-[0_3px_0_#00897B] sm:h-9 sm:w-9">
+                    <BackpackIcon className="h-4 w-4 text-white sm:h-5 sm:w-5" strokeWidth={2.5} />
+                  </div>
+                  <span className="text-[16px] font-black tracking-wide text-[#795548] [font-family:'Nunito','LXGW_WenKai_GB','Kaiti_SC',sans-serif] sm:text-[18px] lg:text-[20px]">
+                    {t("ui.consign.backpack")}
+                  </span>
                 </div>
 
                 {/* 背包段（槽位 8~57）。滚动只发生在这一块里 */}
@@ -346,6 +355,9 @@ export function ConsignPanel() {
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FF9800] shadow-[0_3px_0_#E65100] sm:h-9 sm:w-9 lg:h-11 lg:w-11">
                     <HandCoins className="h-5 w-5 text-white lg:h-6 lg:w-6" strokeWidth={2.5} aria-hidden />
                   </div>
+                  <span className="text-[16px] font-black tracking-wide text-[#795548] [font-family:'Nunito','LXGW_WenKai_GB','Kaiti_SC',sans-serif] sm:text-[18px] lg:text-[20px]">
+                    {t("ui.consign.title")}
+                  </span>
                   <div className="relative -rotate-1 rounded-md bg-white px-2.5 py-1 shadow-[0_2px_0_#E0A050] sm:px-3 sm:py-1.5 lg:px-4 lg:py-2">
                     <span
                       aria-hidden
@@ -471,28 +483,61 @@ export function ConsignPanel() {
             </div>
 
             {/*
-              底部结算条：一张小票——虚线撕边、日出徽标（明早）、
-              标价合计划掉 → 折后合计加粗。箱子空时只画一枚 0，不画没意义的对比。
+              底部小票（用户 2026-09-08 改）：**只有寄售箱那一栏宽**，不再通栏——
+              它结算的是右边那只箱子，横跨到背包底下像在给背包算账。左边留一块
+              等宽的空位，用和主体一样的 flex 比例 + 间距，小票的左右边缘才和
+              箱子严丝合缝。
+
+              内容照真小票排：一行一件（左名字右价格）→ 虚线 → 合计（标价划掉、
+              折后加粗）→ 最底下"明早到账"。每件的折后价和真结算是同一个函数
+              （Core 的 consignPriceOf），不在这里心算八折。
             */}
-            <div className="relative z-10 mt-2 flex shrink-0 items-center gap-2 rounded-[14px] border-2 border-dashed border-[#E3AE90] bg-white/70 px-3 py-2 sm:mt-3 lg:px-4 lg:py-2.5">
-              <div className="flex items-center gap-1.5 lg:gap-2">
-                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-b from-[#FFCC80] to-[#FF9800] lg:h-9 lg:w-9">
-                  <Sunrise className="h-4 w-4 text-white lg:h-5 lg:w-5" strokeWidth={2.5} aria-hidden />
-                </div>
-                <span className="text-[12px] font-black text-[#8D6E63] lg:text-sm">
-                  {t("ui.consign.forecast")}
-                </span>
-              </div>
-              <div className="ml-auto flex items-center gap-2">
-                {rawTotal > 0 ? (
-                  <>
-                    <GoldChip amount={rawTotal} size="inline" strike />
-                    <Percent className="h-3.5 w-3.5 text-[#BCAAA4]" strokeWidth={3} aria-hidden />
-                    <GoldChip amount={discounted} size="chip" />
-                  </>
+            <div className="relative z-10 mt-2 flex shrink-0 items-stretch gap-2 sm:mt-3 sm:gap-3">
+              <div className="min-w-0 flex-[3]" aria-hidden />
+              <div className="flex min-w-0 flex-[2] flex-col rounded-[14px] border-2 border-dashed border-[#E3AE90] bg-white/80 px-3 py-2 text-[12px] font-bold text-[#5D4037] lg:px-4 lg:text-[13px]">
+                {visible.some(Boolean) ? (
+                  <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
+                    {visible.map((slot, index) =>
+                      slot ? (
+                        <li key={index} className="flex items-baseline gap-2">
+                          <span className="min-w-0 flex-1 truncate">
+                            {t(findItemDefinition(slot.itemId)?.localizationKey ?? slot.itemId)}
+                            {slot.count > 1 && (
+                              <span className="ml-1 text-[#BCAAA4]">×{slot.count}</span>
+                            )}
+                          </span>
+                          <span className="shrink-0 tabular-nums text-[#E65100]">
+                            {consignPriceOf(priceOf(slot.itemId), consignTuning.priceRate) * slot.count}
+                          </span>
+                        </li>
+                      ) : null,
+                    )}
+                  </ul>
                 ) : (
-                  <GoldChip amount={0} size="chip" />
+                  <div className="text-[#BCAAA4]">—</div>
                 )}
+
+                <div className="my-1.5 border-t-2 border-dashed border-[#E3AE90]/70" />
+
+                <div className="flex items-center gap-2">
+                  <span className="flex-1">{t("ui.consign.total")}</span>
+                  {rawTotal > 0 ? (
+                    <>
+                      <GoldChip amount={rawTotal} size="inline" strike />
+                      <Percent className="h-3.5 w-3.5 text-[#BCAAA4]" strokeWidth={3} aria-hidden />
+                      <GoldChip amount={discounted} size="chip" />
+                    </>
+                  ) : (
+                    <GoldChip amount={0} size="chip" />
+                  )}
+                </div>
+
+                <div className="mt-1.5 flex items-center gap-1.5 border-t-2 border-dashed border-[#E3AE90]/70 pt-1.5 text-[#8D6E63]">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-b from-[#FFCC80] to-[#FF9800]">
+                    <Sunrise className="h-3.5 w-3.5 text-white" strokeWidth={2.5} aria-hidden />
+                  </div>
+                  <span className="font-black">{t("ui.consign.forecast")}</span>
+                </div>
               </div>
             </div>
           </div>

@@ -305,6 +305,10 @@ const ZH: Record<string, string> = {
   "ui.consign.claim": "领取",
   "ui.consign.vault_full": "金库满了",
   "ui.consign.drawer": "抽屉",
+  // 寄售面板两栏的标题（2026-09-08：光一个背包图标看不出是什么）
+  "ui.consign.backpack": "背包",
+  // 小票合计那一行
+  "ui.consign.total": "合计",
   "ui.shelf.shelf": "架上",
   "ui.shelf.worth": "架上这些值",
   "ui.shelf.budget": "今天客人带了",

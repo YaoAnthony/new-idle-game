@@ -3,7 +3,7 @@ import { hasUnread } from "../../Game/Systems/mail";
 import { doorNoteOf, readDoorNote } from "../../Game/Systems/doorNote";
 import { MailboxView } from "./MailboxView";
 import { residentNickname } from "../../i18n/residentName";
-import { BodyPosture, CreatureRole, DayPhaseId, Facing, FurnitureCapability, constructionProgress, isConstructionQueued, WeatherKind, anchorOf, anchorRectToWorld, findItemDefinition, findResidentDefinition, roomCellToWorld, type AutoStepKind, type DeckRect, type WeatherDefinition, yardBoundsOf, navBoundsOf } from "core";
+import { BodyPosture, CreatureRole, DayPhaseId, Facing, FurnitureCapability, constructionProgress, constructionRemainingMs, isConstructionQueued, WeatherKind, anchorOf, anchorRectToWorld, findItemDefinition, findResidentDefinition, roomCellToWorld, type AutoStepKind, type DeckRect, type WeatherDefinition, yardBoundsOf, navBoundsOf } from "core";
 import { isHouseStowed } from "core";
 import type { InteractHint, PlacedFurniture, RoomSave } from "core";
 import {
@@ -2640,6 +2640,8 @@ export class RoomScene {
     instanceId: string;
     progress: number;
     queued: boolean;
+    /** 还剩多少毫秒；排队中没有 */
+    remainingMs: number | null;
     x: number;
     y: number;
   }> {
@@ -2649,6 +2651,7 @@ export class RoomScene {
       instanceId: string;
       progress: number;
       queued: boolean;
+      remainingMs: number | null;
       x: number;
       y: number;
     }> = [];
@@ -2670,6 +2673,7 @@ export class RoomScene {
         instanceId: site.instanceId,
         progress: constructionProgress(site, nowUtc),
         queued: isConstructionQueued(site),
+        remainingMs: constructionRemainingMs(site, nowUtc),
         x: rect.left + ((this.projectScratch.x + 1) / 2) * rect.width,
         y: rect.top + ((1 - this.projectScratch.y) / 2) * rect.height,
       });

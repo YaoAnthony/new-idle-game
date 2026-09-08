@@ -9,6 +9,8 @@ import {
   checkUpgrade,
   successorsOf,
   type LevelShape,
+  constructionRemainingMs,
+  splitDuration,
 } from "../src/logic/buildings.js";
 import { auditBuildings } from "../src/logic/buildingAudit.js";
 import { farmActionAt, farmStageAt } from "../src/logic/farm.js";
@@ -417,4 +419,39 @@ test("按 F 做什么由地里的状态决定——同一个键，四种事", ()
   assert.equal(farmActionAt("ripe", false), "harvest");
   assert.equal(farmActionAt("planted", true), "none");
   assert.equal(farmActionAt("growing", true), "none");
+});
+
+// ---- 工地倒计时（2026-09-08：进度条上要写"还剩几天几小时几分"）----
+
+test("constructionRemainingMs：排队中是 null 不是 0，到点夹在 0", () => {
+  const now = "2026-09-08T12:00:00.000Z";
+  // 排队：没人建，说"还剩 0"是假话
+  assert.equal(constructionRemainingMs({ construction: { targetLevelId: "l2" } }, now), null);
+  // 在建：还剩 90 分钟
+  assert.equal(
+    constructionRemainingMs(
+      { construction: { targetLevelId: "l2", workerId: "golem", startUtc: "2026-09-08T10:00:00.000Z", finishUtc: "2026-09-08T13:30:00.000Z" } },
+      now,
+    ),
+    90 * 60_000,
+  );
+  // 过了完工时刻（还没被结算）：0，不出负数
+  assert.equal(
+    constructionRemainingMs(
+      { construction: { targetLevelId: "l2", workerId: "golem", startUtc: "2026-09-07T10:00:00.000Z", finishUtc: "2026-09-08T11:00:00.000Z" } },
+      now,
+    ),
+    0,
+  );
+  // 成品：不在施工
+  assert.equal(constructionRemainingMs({}, now), null);
+});
+
+test("splitDuration：天/时/分三段，分钟向上取整", () => {
+  assert.deepEqual(splitDuration(0), { days: 0, hours: 0, minutes: 0 });
+  // 30 秒也算 1 分——倒计时显示 0 分却还在建，比多等一分钟更像坏了
+  assert.deepEqual(splitDuration(30_000), { days: 0, hours: 0, minutes: 1 });
+  assert.deepEqual(splitDuration(90 * 60_000), { days: 0, hours: 1, minutes: 30 });
+  // 2 天 3 小时 15 分
+  assert.deepEqual(splitDuration(((2 * 24 + 3) * 60 + 15) * 60_000), { days: 2, hours: 3, minutes: 15 });
 });

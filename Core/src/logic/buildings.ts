@@ -126,6 +126,40 @@ export function wallConnections(
  * 游戏一天再回来，排队的工地全建好了"这件事在**数据上就不可能发生**，
  * 不需要在别处补一层判断。
  */
+/**
+ * 这块工地还要多久（毫秒）。**排队中 / 不在施工 / 数据坏了 → null**，
+ * 而不是 0：0 是"马上好"，null 是"没法说"——排队的工地没人在建，
+ * 说它"还剩 0"是假话（进度那边把排队算 0 是因为条得画在某个位置，
+ * 这里没有那个约束）。到点之后夹在 0，不会出负数。
+ */
+export function constructionRemainingMs(
+  placement: Pick<BuildingPlacement, "construction">,
+  nowUtc: string,
+): number | null {
+  const site = placement.construction;
+  if (!site || !site.startUtc || !site.finishUtc) return null;
+  const finish = Date.parse(site.finishUtc);
+  const now = Date.parse(nowUtc);
+  if (!Number.isFinite(finish) || !Number.isFinite(now)) return null;
+  return Math.max(0, finish - now);
+}
+
+/**
+ * 毫秒 → 天 / 时 / 分 三段，给"还剩 2天3小时15分"那种文案用。
+ *
+ * **分钟向上取整**：还剩 61 秒说"1 分"、还剩 30 秒也说"1 分"，
+ * 而不是显示"0 分"然后又没完工——倒计时到 0 却还在建，比多等一分钟
+ * 更让人觉得坏了。完工那一刻（0 ms）三段全 0，调用方按"马上好"处理。
+ */
+export function splitDuration(ms: number): { days: number; hours: number; minutes: number } {
+  const totalMinutes = Math.ceil(Math.max(0, ms) / 60_000);
+  return {
+    days: Math.floor(totalMinutes / 1440),
+    hours: Math.floor((totalMinutes % 1440) / 60),
+    minutes: totalMinutes % 60,
+  };
+}
+
 export function constructionProgress(
   placement: Pick<BuildingPlacement, "construction">,
   nowUtc: string,

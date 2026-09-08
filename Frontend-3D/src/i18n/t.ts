@@ -157,6 +157,12 @@ const ZH: Record<string, string> = {
   "ui.build_shop.territory.done": "那边的界桩倒了——石头抡起锤子，把地圈了进来。",
   "build.in_progress": "施工中",
   "build.queued": "等着开工",
+  // 工地进度条上的倒计时（t() 不插值，数字和单位在组件里拼："还剩 2天 3小时 15分"）
+  "build.remaining": "还剩",
+  "build.almost_done": "马上好",
+  "unit.day": "天",
+  "unit.hour": "小时",
+  "unit.minute": "分",
   "build.hint.site": "施工中",
   "build.hint.manage": "看看这栋",
   "build.panel.overview": "概览",

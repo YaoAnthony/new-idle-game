@@ -29,6 +29,8 @@ import { usePanel } from "../PanelStack/usePanel";
 import { Modal } from "../Modal/Modal";
 import { factsOfToday } from "../../Game/Systems/dayRecord";
 import { HouseSeal } from "../Modal/seals";
+import { GroupSection } from "./GroupSection";
+import { getActionGroups, groupOfEntry, moveEntryToGroup } from "../../Game/State/actionGroups";
 
 /**
  * 行动面板。三屏，对照 `old/版本期望/figures` 的像素稿：
@@ -89,12 +91,14 @@ export function ActionHub() {
       if (status === "started") setOpen(false);
     });
     const offEntries = on("action_entries_changed", () => force((n) => n + 1));
+    const offGroups = on("action_groups_changed", () => force((n) => n + 1));
     const offNeeds = on("needs_changed", () => force((n) => n + 1));
     const offWorld = on("world_changed", () => force((n) => n + 1));
 
     return () => {
       offAction();
       offEntries();
+      offGroups();
       offNeeds();
       offWorld();
     };
@@ -386,6 +390,7 @@ function CategoryGrid({
         })}
       </div>
 
+      <GroupSection />
       <TodaySummary />
     </Panel>
   );
@@ -586,6 +591,25 @@ function ActionRow({
         「开始」还抢眼——最不可逆的操作长得最诱人。改成无底色的淡字，
         鼠标放上去才变红：找得到，但不会误点。
       */}
+      {getActionGroups().length > 0 && (
+        <select
+          aria-label={t("ui.group.put_into")}
+          className="shrink-0 rounded-lg px-2 py-1 text-[12px] text-[#4a5a54]"
+          style={{ background: "#fdfbf7", border: "2px solid #cfd8d4" }}
+          value={groupOfEntry(entry.entryId)?.groupId ?? ""}
+          onChange={(event) =>
+            moveEntryToGroup(entry.entryId, event.target.value || null)
+          }
+        >
+          <option value="">{t("ui.group.none")}</option>
+          {getActionGroups().map((group) => (
+            <option key={group.groupId} value={group.groupId}>
+              📁 {group.name}
+            </option>
+          ))}
+        </select>
+      )}
+
       <button
         type="button"
         aria-label={t("ui.action.delete")}

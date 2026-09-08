@@ -712,6 +712,22 @@ const ZH: Record<string, string> = {
     "保存后会回到列表，点击开始后角色会在房间里使用家具行动",
   "ui.action.minutes": "分钟",
 
+  // ---- 任务组（清单上的文件夹，2026-09-08）----
+  "ui.group.title": "系列任务",
+  "ui.group.add": "系列任务",
+  "ui.group.name_placeholder": "这一串叫什么",
+  "ui.group.empty_hint": "把几件事按顺序串起来——只露出下一件，做完一件自动到下一件。",
+  "ui.group.count": "{n} 件",
+  "ui.group.drop_hint": "还是空的。在下面的清单里给某一行选「放进系列」。",
+  "ui.group.more": "还有 {n} 件，展开",
+  "ui.group.move_up": "往上挪",
+  "ui.group.move_down": "往下挪",
+  "ui.group.take_out": "拿出来",
+  "ui.group.delete": "删除这个系列",
+  "ui.group.delete_hint": "只删文件夹，里面的事回到清单",
+  "ui.group.put_into": "放进系列",
+  "ui.group.none": "不放进系列",
+
   // 开箱面板
   "ui.chest.node_done": "完成了一个任务！",
   "ui.chest.tap_close": "点任意处收下",

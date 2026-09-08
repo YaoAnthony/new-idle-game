@@ -267,11 +267,11 @@ export function ConsignPanel() {
                   栏头：图标 + 名字（用户 2026-09-08：光一个背包图标看不出是什么）。
                   字用手账标题那套（Nunito → 霞鹜文楷），和日记本「今日任务」同一副面孔。
                 */}
-                <div className="mb-1.5 flex shrink-0 items-center justify-center gap-2 self-center">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#4DB6AC] shadow-[0_3px_0_#00897B] sm:h-9 sm:w-9">
-                    <BackpackIcon className="h-4 w-4 text-white sm:h-5 sm:w-5" strokeWidth={2.5} />
+                <div className="mb-1.5 flex shrink-0 items-center justify-center gap-2 self-center short:mb-1 short:gap-1.5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#4DB6AC] shadow-[0_3px_0_#00897B] sm:h-9 sm:w-9 short:h-7 short:w-7">
+                    <BackpackIcon className="h-4 w-4 text-white sm:h-5 sm:w-5 short:h-4 short:w-4" strokeWidth={2.5} />
                   </div>
-                  <span className="text-[16px] font-black tracking-wide text-[#795548] [font-family:'Nunito','LXGW_WenKai_GB','Kaiti_SC',sans-serif] sm:text-[18px] lg:text-[20px]">
+                  <span className="whitespace-nowrap text-[16px] font-black tracking-wide text-[#795548] [font-family:'Nunito','LXGW_WenKai_GB','Kaiti_SC',sans-serif] sm:text-[18px] lg:text-[20px] short:text-[14px]">
                     {t("ui.consign.backpack")}
                   </span>
                 </div>
@@ -351,14 +351,14 @@ export function ConsignPanel() {
                   箱盖：通栏色带，比箱身深一档——"有盖子的箱子"这个读法靠这条。
                   盖子上挂着钱袋徽章、旋转的「8折」价签、几格。桌面断点整体放大一档。
                 */}
-                <div className="-mx-2 -mt-2 mb-2 flex shrink-0 items-center justify-center gap-2 rounded-t-[18px] bg-gradient-to-b from-[#FFDDA8] to-[#FFCC80] px-3 py-2 sm:-mx-3 sm:-mt-3 sm:gap-2.5 lg:gap-3 lg:py-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FF9800] shadow-[0_3px_0_#E65100] sm:h-9 sm:w-9 lg:h-11 lg:w-11">
-                    <HandCoins className="h-5 w-5 text-white lg:h-6 lg:w-6" strokeWidth={2.5} aria-hidden />
+                <div className="-mx-2 -mt-2 mb-2 flex shrink-0 items-center justify-center gap-2 rounded-t-[18px] bg-gradient-to-b from-[#FFDDA8] to-[#FFCC80] px-3 py-2 sm:-mx-3 sm:-mt-3 sm:gap-2.5 lg:gap-3 lg:py-3 short:mb-1.5 short:gap-1.5 short:py-1">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FF9800] shadow-[0_3px_0_#E65100] sm:h-9 sm:w-9 lg:h-11 lg:w-11 short:h-7 short:w-7">
+                    <HandCoins className="h-5 w-5 text-white lg:h-6 lg:w-6 short:h-4 short:w-4" strokeWidth={2.5} aria-hidden />
                   </div>
-                  <span className="text-[16px] font-black tracking-wide text-[#795548] [font-family:'Nunito','LXGW_WenKai_GB','Kaiti_SC',sans-serif] sm:text-[18px] lg:text-[20px]">
+                  <span className="whitespace-nowrap text-[16px] font-black tracking-wide text-[#795548] [font-family:'Nunito','LXGW_WenKai_GB','Kaiti_SC',sans-serif] sm:text-[18px] lg:text-[20px] short:text-[14px]">
                     {t("ui.consign.title")}
                   </span>
-                  <div className="relative -rotate-1 rounded-md bg-white px-2.5 py-1 shadow-[0_2px_0_#E0A050] sm:px-3 sm:py-1.5 lg:px-4 lg:py-2">
+                  <div className="relative -rotate-1 rounded-md bg-white px-2.5 py-1 shadow-[0_2px_0_#E0A050] sm:px-3 sm:py-1.5 lg:px-4 lg:py-2 short:px-2 short:py-0.5">
                     <span
                       aria-hidden
                       className="absolute -top-1 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-[#BCAAA4]"
@@ -383,8 +383,14 @@ export function ConsignPanel() {
                   }`}
                   style={{ containerType: "size" }}
                 >
+                  {/*
+                    矮屏（short）改成一横行 4 格，不再是正方形：正方形隔间靠高度
+                    定尺寸（min(100%, 100cqh)），375px 高的屏上箱身只剩几十像素，
+                    2×2 被压成一条缝，四个格子谁也看不见。横排之后每格边长由
+                    宽度决定，高度只要一格。
+                  */}
                   <div
-                    className="grid aspect-square grid-cols-2 grid-rows-2 gap-1.5 sm:gap-2 lg:gap-3"
+                    className="grid aspect-square grid-cols-2 grid-rows-2 gap-1.5 sm:gap-2 lg:gap-3 short:aspect-auto short:!w-full short:grid-cols-4 short:grid-rows-1 short:gap-1.5"
                     style={{ width: "min(100%, 100cqh)" }}
                   >
                     {visible.map((slot, index) => (
@@ -392,7 +398,7 @@ export function ConsignPanel() {
                         key={index}
                         type="button"
                         disabled={!slot}
-                        className={`relative grid min-h-0 place-items-center rounded-[10px] border-2 transition-colors ${
+                        className={`relative grid min-h-0 place-items-center rounded-[10px] border-2 transition-colors short:aspect-square ${
                           slot
                             ? "cursor-pointer border-[#FFCC80] bg-white shadow-[0_2px_0_#FFCC80] hover:border-[#FF9800]"
                             : "cursor-default border-dashed border-[#E3AE90]/70 bg-white/40"
@@ -437,7 +443,7 @@ export function ConsignPanel() {
                   type="button"
                   disabled={hint !== "claimable"}
                   onClick={(event) => claim(event.currentTarget)}
-                  className={`mt-1.5 flex shrink-0 items-center gap-2 rounded-[10px] border-2 px-2.5 py-1.5 transition-transform lg:mt-2 lg:px-4 lg:py-2.5 ${
+                  className={`mt-1.5 flex shrink-0 items-center gap-2 rounded-[10px] border-2 px-2.5 py-1.5 transition-transform lg:mt-2 lg:px-4 lg:py-2.5 short:mt-1 short:py-1 ${
                     hint === "claimable"
                       ? "cursor-pointer border-[#FF9800] bg-white shadow-[0_3px_0_#E65100] active:translate-y-[2px] active:shadow-none"
                       : hint === "vault_full"
@@ -494,9 +500,14 @@ export function ConsignPanel() {
             */}
             <div className="relative z-10 mt-2 flex shrink-0 items-stretch gap-2 sm:mt-3 sm:gap-3">
               <div className="min-w-0 flex-[3]" aria-hidden />
-              <div className="flex min-w-0 flex-[2] flex-col rounded-[14px] border-2 border-dashed border-[#E3AE90] bg-white/80 px-3 py-2 text-[12px] font-bold text-[#5D4037] lg:px-4 lg:text-[13px]">
+              <div className="flex min-w-0 flex-[2] flex-col rounded-[14px] border-2 border-dashed border-[#E3AE90] bg-white/80 px-3 py-2 text-[12px] font-bold text-[#5D4037] lg:px-4 lg:text-[13px] short:flex-row short:items-center short:gap-3 short:py-1.5">
+                {/*
+                  矮屏（short）把逐件明细藏掉，小票只剩「合计 → 明早到账」一行：
+                  375px 高的屏上五行小票会把箱子挤成一条缝，而每件的折后价
+                  箱格角上本来就写着，明细在这里是重复的。
+                */}
                 {visible.some(Boolean) ? (
-                  <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
+                  <ul className="m-0 flex list-none flex-col gap-0.5 p-0 short:hidden">
                     {visible.map((slot, index) =>
                       slot ? (
                         <li key={index} className="flex items-baseline gap-2">
@@ -514,17 +525,20 @@ export function ConsignPanel() {
                     )}
                   </ul>
                 ) : (
-                  <div className="text-[#BCAAA4]">—</div>
+                  <div className="text-[#BCAAA4] short:hidden">—</div>
                 )}
 
-                <div className="my-1.5 border-t-2 border-dashed border-[#E3AE90]/70" />
+                <div className="my-1.5 border-t-2 border-dashed border-[#E3AE90]/70 short:hidden" />
 
-                <div className="flex items-center gap-2">
-                  <span className="flex-1">{t("ui.consign.total")}</span>
+                <div className="flex items-center gap-2 short:flex-1 short:gap-1.5">
+                  <span className="flex-1 whitespace-nowrap">{t("ui.consign.total")}</span>
                   {rawTotal > 0 ? (
                     <>
-                      <GoldChip amount={rawTotal} size="inline" strike />
-                      <Percent className="h-3.5 w-3.5 text-[#BCAAA4]" strokeWidth={3} aria-hidden />
+                      {/* 矮屏只留折后价：划掉的标价和 % 在一行小票里放不下，而 8折 价签就在箱盖上 */}
+                      <span className="contents short:hidden">
+                        <GoldChip amount={rawTotal} size="inline" strike />
+                        <Percent className="h-3.5 w-3.5 text-[#BCAAA4]" strokeWidth={3} aria-hidden />
+                      </span>
                       <GoldChip amount={discounted} size="chip" />
                     </>
                   ) : (
@@ -532,11 +546,11 @@ export function ConsignPanel() {
                   )}
                 </div>
 
-                <div className="mt-1.5 flex items-center gap-1.5 border-t-2 border-dashed border-[#E3AE90]/70 pt-1.5 text-[#8D6E63]">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-b from-[#FFCC80] to-[#FF9800]">
+                <div className="mt-1.5 flex items-center gap-1.5 border-t-2 border-dashed border-[#E3AE90]/70 pt-1.5 text-[#8D6E63] short:mt-0 short:shrink-0 short:border-t-0 short:border-l-2 short:pl-3 short:pt-0">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-b from-[#FFCC80] to-[#FF9800] short:hidden">
                     <Sunrise className="h-3.5 w-3.5 text-white" strokeWidth={2.5} aria-hidden />
                   </div>
-                  <span className="font-black">{t("ui.consign.forecast")}</span>
+                  <span className="whitespace-nowrap font-black">{t("ui.consign.forecast")}</span>
                 </div>
               </div>
             </div>

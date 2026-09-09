@@ -726,6 +726,9 @@ export function auditStoryContent(options: AuditOptions = {}): string[] {
         case "set_flag":
           if (!effect.key) problems.push(`${where}：set_flag 的键是空的`);
           break;
+        case "open_letter":
+          if (!findLetterDefinition(effect.letterId)) problems.push(`${where}：open_letter 指向不存在的信 "${effect.letterId}"`);
+          break;
         case "porch_decorate":
           if (!residentDefinitionOf(effect.residentId)) problems.push(`${where}：porch_decorate 指向不存在的居民 "${effect.residentId}"`);
           if (effect.decorationId !== null && !findDecoration(effect.decorationId)) problems.push(`${where}：porch_decorate 指向不存在的装饰 "${effect.decorationId}"`);

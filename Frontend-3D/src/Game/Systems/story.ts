@@ -254,6 +254,10 @@ function runEffect(effect: StoryEffect): void {
     case "set_flag":
       setFlag(effect.key, effect.value);
       break;
+    // 开场的信封拆开：信纸直接摊开，不经信箱
+    case "open_letter":
+      emit("note_open_requested", { letterId: effect.letterId });
+      break;
     case "porch_decorate":
       setDecoration(effect.residentId, effect.decorationId);
       break;

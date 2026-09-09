@@ -1,6 +1,7 @@
 import { Object3D } from "three";
 import { PALETTE, jitterShade } from "../../Visual/palette.js";
 import { box, group } from "../../Visual/primitives.js";
+import { buildWitchLetter } from "../../Visual/recipes/letter.js";
 import type { WindowAnchor } from "./HouseBuilder.js";
 
 /**
@@ -34,6 +35,8 @@ export class PlankDoor {
   readonly root: Object3D;
 
   private readonly hinge: Object3D;
+  /** 门上贴着的信封（开场的条子）。挂在门板上跟着转；有没有由 setNote 定 */
+  private readonly note: Object3D;
   private open = false;
   private swing = 0;
 
@@ -43,7 +46,11 @@ export class PlankDoor {
     this.root.position.set(...anchor.center);
 
     const [nx, , nz] = anchor.inward;
-    this.root.lookAt(anchor.center[0] + nx, anchor.center[1], anchor.center[2] + nz);
+    this.root.lookAt(
+      anchor.center[0] + nx,
+      anchor.center[1],
+      anchor.center[2] + nz,
+    );
 
     const w = anchor.width;
     const h = anchor.height * 0.98;
@@ -52,9 +59,18 @@ export class PlankDoor {
 
     // ---- 门框：左右立梃 + 上槛。门槛不要（视觉上会绊脚）----
     this.root.add(
-      box([w + 0.12, 0.1, LEAF_THICKNESS * 2], { color: PALETTE.woodDark, position: [0, h / 2 + 0.02, 0] }),
-      box([0.1, h, LEAF_THICKNESS * 2], { color: PALETTE.woodDark, position: [-w / 2 - 0.02, 0, 0] }),
-      box([0.1, h, LEAF_THICKNESS * 2], { color: PALETTE.woodDark, position: [w / 2 + 0.02, 0, 0] }),
+      box([w + 0.12, 0.1, LEAF_THICKNESS * 2], {
+        color: PALETTE.woodDark,
+        position: [0, h / 2 + 0.02, 0],
+      }),
+      box([0.1, h, LEAF_THICKNESS * 2], {
+        color: PALETTE.woodDark,
+        position: [-w / 2 - 0.02, 0, 0],
+      }),
+      box([0.1, h, LEAF_THICKNESS * 2], {
+        color: PALETTE.woodDark,
+        position: [w / 2 + 0.02, 0, 0],
+      }),
     );
 
     // ---- 门板：合页节点在左沿，门板整体向 +X 伸出 ----
@@ -104,6 +120,17 @@ export class PlankDoor {
         castShadow: false,
       }),
     );
+    /*
+     * 信封：贴在门板**屋内**那面、略高于视线中心，正面朝屋里（局部 +Z）。
+     * 挂屋外那面更"像"留条子，但玩家开局站在屋里，屋外那面要开门出去
+     * 才看得见——条子的意义就是一睁眼就看到。
+     */
+    this.note = buildWitchLetter();
+    this.note.position.set(leafW / 2, leafH * 0.08, LEAF_THICKNESS / 2 + 0.03);
+    // 手持尺寸的信封贴在 2 米高的门上太小，蜡封读不出来；放大到门板宽的三成
+    this.note.scale.setScalar(1.5);
+    this.note.visible = false;
+    leaf.push(this.note);
     this.hinge.add(group("leaf", leaf));
     this.root.add(this.hinge);
 
@@ -127,7 +154,11 @@ export class PlankDoor {
       awning.add(
         box([awningW + 0.02, 0.05, awningD / 3 + 0.04], {
           color: jitterShade("#7a6a55", r, 9, 0.06),
-          position: [0, awningY + 0.05 + Math.sin(tilt) * (awningD / 2 - d), -0.02 - Math.cos(tilt) * d],
+          position: [
+            0,
+            awningY + 0.05 + Math.sin(tilt) * (awningD / 2 - d),
+            -0.02 - Math.cos(tilt) * d,
+          ],
           rotation: [-tilt, 0, 0],
         }),
       );
@@ -136,7 +167,11 @@ export class PlankDoor {
       awning.add(
         box([0.08, 0.08, awningD * 0.95], {
           color: PALETTE.woodDark,
-          position: [side * (awningW / 2 - 0.1), awningY - awningD * 0.3, -awningD * 0.38],
+          position: [
+            side * (awningW / 2 - 0.1),
+            awningY - awningD * 0.3,
+            -awningD * 0.38,
+          ],
           rotation: [-Math.PI / 4, 0, 0],
         }),
       );
@@ -146,6 +181,11 @@ export class PlankDoor {
 
   setOpen(open: boolean): void {
     this.open = open;
+  }
+
+  /** 门上有没有贴着信封。视图只画，"有没有"来自门实体的旗子 */
+  setNote(visible: boolean): void {
+    this.note.visible = visible;
   }
 
   update(deltaSeconds: number): void {

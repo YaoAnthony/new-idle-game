@@ -68,6 +68,8 @@ export const untradableItemIds: ReadonlySet<string> = new Set([
   "favor_token_fox_town_parcel",
   // 石傀儡的头。卖了他就永远醒不过来，而商人不卖回来——这是死锁
   "golem_head",
+  // 开场魔女的信。卖了开场那三行字就再也看不到，而商人不卖回来
+  "witch_letter",
   // 每日任务机器。卖了每日任务就没了入口，同样买不回来
   "furniture_daily_board",
   // 院子里那口井：全据点唯一的水源，宠物喝水靠它
@@ -1637,6 +1639,21 @@ export const itemDefinitions = [
     rarity: Rarity.Common,
     visual: { id: "blueprint" },
     blueprint: { buildingId: "furniture_shop" },
+  },
+  // ---- 开场：门上那只信封（2026-09-09）----
+  {
+    /**
+     * 魔女留在门上的信。不消耗、不可交易：拿着按 F 随时再读（readable），
+     * 卖掉了开场那三行字就再也看不到——和 golem_head 一样是死锁。
+     * 造型和快捷栏图标同一只：奶油信封、紫色蜡封、金色月牙星。
+     */
+    id: "witch_letter",
+    localizationKey: "item.witch_letter",
+    category: ItemCategory.Quest,
+    stackLimit: 1,
+    rarity: Rarity.Common,
+    visual: { id: "witch_letter" },
+    readable: { letterId: "witch_first" },
   },
   // ---- 居民系统 05：委托 ----
   {

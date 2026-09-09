@@ -102,6 +102,8 @@ const ZH: Record<string, string> = {
   "pet.stone_golem": "石傀儡",
   "pet.stone_golem.nickname": "石头",
   "item.golem_head": "石傀儡的头",
+  "item.witch_letter": "魔女的信",
+  "item.witch_letter.desc": "门上拿下来的。紫色的蜡封上是一弯月牙。拿在手上按 F 可以再读。",
   "hint.golem_head": "捡起来",
   "golem.hint.attach": "装上头",
   "golem.hint.dormant": "一尊没有头的石像",
@@ -393,6 +395,12 @@ const ZH: Record<string, string> = {
   "toast.town_locked": "桥那头的路还没通。阿茜好像一直念叨着镇上……",
   "toast.portal_locked": "这条路还没通。",
 
+  // 开场：门上的信封（2026-09-09）
+  "dlg.narrator": "旁白",
+  "dlg.opening_envelope": "门上的信封",
+  "dlg.opening_envelope.n1": "门上拿下来了一个信封",
+  "dlg.opening_envelope.open": "拆开",
+  "dlg.opening_envelope.later": "再看看",
   "dlg.otter_first_meet": "水獭上门",
   "dlg.otter_first_meet.n1": "打扰啦！我在河上就瞧见了——一条小龙抱着几枚金币，一头扎进上游的水洞。那亮闪闪的，是你家的吧？",
   "dlg.otter_first_meet.n2": "那家伙就爱亮晶晶的玩意儿，跑不远。要不要我去把它逮回来？",
@@ -963,7 +971,7 @@ const ZH: Record<string, string> = {
   "door.hint.open": "开门",
   "door.hint.close": "关门",
   // 14：门上贴着条子。气泡就是提示，不写"按 F"
-  "door.hint.note": "？",
+  "door.hint.note": "信封",
   // 推不开时的旁白。不预告"锁着"，让玩家自己推一下才发现
   "door.locked_feedback": "你推了推门——似乎锁住了。",
   "door.resident_door": "邻居的门",

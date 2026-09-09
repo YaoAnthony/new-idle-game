@@ -20,6 +20,7 @@ import { buildGramophone } from "./recipes/gramophone.js";
 import { buildOfuro } from "./recipes/bath.js";
 import { buildCommonChest, buildRareChest, buildUncommonChest } from "./recipes/chest.js";
 import { buildRecordSleeve } from "./recipes/recordSleeve.js";
+import { buildWitchLetter } from "./recipes/letter.js";
 import { buildPlate, buildTallPot, buildWok } from "./recipes/cookware.js";
 import {
   buildEmberWisp,
@@ -142,6 +143,7 @@ const REGISTRY: Record<string, VisualEntry> = {
   stone_golem: { kind: "procedural", build: buildStoneGolem },
   golem_head: { kind: "procedural", build: buildGolemHead },
   blueprint: { kind: "procedural", build: buildBlueprint },
+  witch_letter: { kind: "procedural", build: buildWitchLetter },
   well_stone: { kind: "procedural", build: buildWell },
   kitchen_counter_l: { kind: "procedural", build: buildKitchenCounter },
   cardboard_box: { kind: "procedural", build: buildCardboardBox },

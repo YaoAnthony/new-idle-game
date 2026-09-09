@@ -1,6 +1,7 @@
 import { outsideFrontDoor, visitorAtDoor } from "../../Game/Systems/residents/visits";
 import { hasUnread } from "../../Game/Systems/mail";
 import { doorNoteOf, readDoorNote } from "../../Game/Systems/doorNote";
+import { signal as storySignal } from "../../Game/Systems/story";
 import { MailboxView } from "./MailboxView";
 import { residentNickname } from "../../i18n/residentName";
 import { BodyPosture, CreatureRole, DayPhaseId, Facing, FurnitureCapability, constructionProgress, constructionRemainingMs, isConstructionQueued, WeatherKind, anchorOf, anchorRectToWorld, findItemDefinition, findResidentDefinition, roomCellToWorld, type AutoStepKind, type DeckRect, type WeatherDefinition, yardBoundsOf, navBoundsOf } from "core";
@@ -2440,11 +2441,18 @@ export class RoomScene {
     }
 
     /**
-     * 附近没有可交互目标时，F = **用手上那件东西**（现在只剩"吃"）。
+     * 附近没有可交互目标时，F = **用手上那件东西**。
      *
      * 原来这件事绑在"按数字键选中快捷栏"上，于是想看看 3 号格是什么，
      * 一按就把菜吃了。选中和使用是两回事，帮助行里写的也一直是"F 使用"。
+     *
+     * 可读物（信封）先于"吃"：只发 `item_used`，读什么由剧情规则接。
      */
+    const held = getSelectedStack();
+    if (held && findItemDefinition(held.itemId)?.readable) {
+      storySignal("item_used", held.itemId);
+      return;
+    }
     eatHeldItem();
   }
 
@@ -3043,6 +3051,8 @@ export class RoomScene {
      */
     for (const { view, agent } of this.doorViews) {
       view.setOpen(agent?.open ?? false);
+      // 14：门上的信封跟旗子走——拿下来那一帧就消失
+      if (view instanceof PlankDoor) view.setNote(agent ? doorNoteOf(agent) !== null : false);
       view.update(deltaSeconds);
     }
     for (const view of this.roomDoorViews.values()) view.update(deltaSeconds);

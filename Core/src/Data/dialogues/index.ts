@@ -29,6 +29,35 @@ import { residentArcDialogues } from "./residentArcs.js";
  */
 export const dialogueDefinitions: DialogueDefinition[] = [
   /**
+   * 开场：门上的信封拿下来了（2026-09-09）。没有说话人——是旁白，
+   * speakerNameKey 给"旁白"两个字，头像图不存在就自动收起。
+   * 两个选项都零效果：「拆开」只报告 witch_letter_open，弹信纸的是规则。
+   */
+  {
+    id: "opening_envelope",
+    localizationKey: "dlg.opening_envelope",
+    speakerNameKey: "dlg.narrator",
+    entryNodeId: "n1",
+    nodes: {
+      n1: {
+        nodeId: "n1",
+        speaker: "npc",
+        localizationKey: "dlg.opening_envelope.n1",
+        choices: [
+          {
+            choiceId: "open",
+            localizationKey: "dlg.opening_envelope.open",
+            emitEventId: "witch_letter_open",
+          },
+          {
+            choiceId: "later",
+            localizationKey: "dlg.opening_envelope.later",
+          },
+        ],
+      },
+    },
+  },
+  /**
    * 水獭初见（期 3 · 失窃链第三幕）。**追不追是玩家的选择**——
    * "不用管它"那一项发 theft_waived，规则 ④' 把事件直接推到 settled，
    * 于是次日的"抓回来"永远不成立：龙不会被抓、钱不回来，但生意照做。

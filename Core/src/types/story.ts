@@ -153,7 +153,17 @@ export type StorySignalKind =
    */
   | "resident_knocked"
   | "resident_visited_player"
-  | "visit_refused";
+  | "visit_refused"
+  /**
+   * 开场（居民系统 14 续）：门上的条子被玩家拿下来了（subject 是 letterId）。
+   * 拿下来之后发生什么（进背包、弹对话）由规则接——门只知道"被拿走了"。
+   */
+  | "door_note_taken"
+  /**
+   * 玩家拿着一件东西按了 F（subject 是 itemId），且那件东西不是吃的。
+   * 现在只有可读物（信封）发它；以后"用一下"的道具都走这一个口。
+   */
+  | "item_used";
 
 export type StorySignal = {
   kind: StorySignalKind;
@@ -382,6 +392,8 @@ export type StoryEffect =
   | { kind: "send_resident_letter"; residentId: ResidentId }
   /** 通用旗子（11）：value 为 null = 拔掉 */
   | { kind: "set_flag"; key: string; value: string | null }
+  /** 打开一封信的信纸（不经信箱）。开场的条子拆开时用 */
+  | { kind: "open_letter"; letterId: string }
   /** 他门口的装饰（11）：生日彩带 / 节日灯笼。null = 撤掉。有自己的锚点，不占展示位 */
   | { kind: "porch_decorate"; residentId: ResidentId; decorationId: string | null }
   /** 记一条报纸事实（11："下周三是阿茜的生日"） */

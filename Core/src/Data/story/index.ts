@@ -44,6 +44,32 @@ export const storyRules: StoryRule[] = [
     triggers: [{ signal: "game_started" }],
     effects: [{ kind: "set_flag", key: DOOR_NOTE_FLAG, value: "witch_first" }],
   },
+  /*
+   * 条子是一只信封（2026-09-09）。按 F 不再直接摊开信纸，而是：
+   * 门上拿下来 → 进背包（第一个空格就是快捷栏）→ 一句旁白问"拆开 / 再看看"。
+   * 拆开弹信纸；再看看就留在手上，拿着按 F 随时再问一遍——所以后两条
+   * `once: false`，信封也不消耗（用户定：信不会丢）。
+   */
+  {
+    id: "opening_envelope_taken",
+    triggers: [{ signal: "door_note_taken", subject: "witch_first" }],
+    effects: [
+      { kind: "give_item", itemId: "witch_letter", quantity: 1 },
+      { kind: "start_dialogue", dialogueId: "opening_envelope" },
+    ],
+  },
+  {
+    id: "opening_envelope_reopen",
+    once: false,
+    triggers: [{ signal: "item_used", subject: "witch_letter" }],
+    effects: [{ kind: "start_dialogue", dialogueId: "opening_envelope" }],
+  },
+  {
+    id: "opening_envelope_opened",
+    once: false,
+    triggers: [{ signal: "dialogue_event", subject: "witch_letter_open" }],
+    effects: [{ kind: "open_letter", letterId: "witch_first" }],
+  },
 
   /*
    * ==== 委托做成了（居民系统 05）====

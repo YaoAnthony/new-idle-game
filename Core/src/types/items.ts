@@ -130,6 +130,12 @@ export type ItemDefinition = {
   favorToken?: true;
 
   /**
+   * 拿在手上按 F 能读的东西：里面是哪封信。开场门上那只信封就是它。
+   * 和 golemPart 同一个路数——交互按字段认，不点名 id。
+   */
+  readable?: { letterId: string };
+
+  /**
    * **一张图纸**：拿在手上按 F 就进入选址，落下去开工。
    *
    * 和 placement / seed / golemPart 同一个路数：能力块而不是新类型。

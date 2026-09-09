@@ -79,6 +79,37 @@ export type ProjectedSpot = {
   visible: boolean;
 };
 
+/** 特写镜头的参数 */
+export type CloseupParams = {
+  /** 镜头到站位的水平距离（米） */
+  distance: number;
+  /** 镜头高度（米） */
+  height: number;
+  /** 注视点高度（米，人身上哪一点在画面中线） */
+  lookHeight: number;
+  /** 注视点往屏幕右挪多少：距离处画面半宽的比例，人就落在左边 */
+  sideRatio: number;
+  /** 特写视角（度） */
+  fov: number;
+  /** 镜头绕人转的角度（度）：0 正面，正值镜头往屏幕右侧绕 */
+  yaw: number;
+};
+
+/*
+ * 2026-09-09 用临时调参面板定的数（四个站位从最右到最左都试过）：
+ * 比第一版远（3.6 → 5.3），人不再撑满半屏，房子也进画；人只略偏左
+ * （0.09）、镜头往左绕 12°——右边那张信息卡本来就只占三分之一，
+ * 人压到左边三分之一反而空出一大块草地。
+ */
+export const DEFAULT_CLOSEUP: CloseupParams = {
+  distance: 5.3,
+  height: 1.8,
+  lookHeight: 1.05,
+  sideRatio: 0.09,
+  fov: 37,
+  yaw: -12,
+};
+
 export type StageSlotState = {
   slot: SaveSlotId;
   /** 有档时给外观；null = 空位或读不出外观（退回默认外观） */
@@ -282,6 +313,9 @@ export class SaveStageScene {
   private readonly camPosTarget = new Vector3(0, 4.6, 14);
   private readonly camLook = new Vector3(0, 2.0, -3);
   private readonly camLookTarget = new Vector3(0, 2.0, -3);
+  private camFov = 37;
+  private camFovTarget = 37;
+  private readonly closeup: CloseupParams = DEFAULT_CLOSEUP;
   /** 每帧渲染完把四个站位的屏幕坐标交出去（名牌定位用） */
   private frameListener: ((spots: ProjectedSpot[]) => void) | null = null;
 
@@ -396,17 +430,31 @@ export class SaveStageScene {
     if (!spot) {
       this.camPosTarget.set(0, 4.6, 14);
       this.camLookTarget.set(0, 2.0, -3);
+      this.camFovTarget = this.overviewFov();
       return;
     }
-    const distance = 3.6;
+    const { distance, height, lookHeight, sideRatio, fov, yaw } = this.closeup;
     const halfWidth =
-      Math.tan((this.camera.fov / 2) * (Math.PI / 180)) *
-      distance *
-      this.camera.aspect;
-    const side = halfWidth * 0.55;
+      Math.tan((fov / 2) * (Math.PI / 180)) * distance * this.camera.aspect;
+    const side = halfWidth * sideRatio;
     const { x, z } = spot.root.position;
-    this.camPosTarget.set(x + side, 1.7, z + distance);
-    this.camLookTarget.set(x + side, 1.05, z);
+    const angle = yaw * (Math.PI / 180);
+    this.camLookTarget.set(x + side, lookHeight, z);
+    this.camPosTarget.set(
+      x + side + Math.sin(angle) * distance,
+      height,
+      z + Math.cos(angle) * distance,
+    );
+    this.camFovTarget = fov;
+  }
+
+  /*
+   * 全景视角按画幅分三档：窄画幅（横屏矮屏）开大一点，四个人才不出画——
+   * 视角是竖向的，画幅越扁、横向能看到的越少。
+   */
+  private overviewFov(): number {
+    const aspect = this.camera.aspect;
+    return aspect > 2 ? 30 : aspect > 1.6 ? 37 : 42;
   }
 
   /** 四个站位头顶（名牌挂的地方）的屏幕坐标，相对画布 */
@@ -430,14 +478,10 @@ export class SaveStageScene {
     const height = Math.max(1, Math.round(rect.height));
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
-    /*
-     * 窄画幅（横屏矮屏）把视角开大一点，四个人才不出画：
-     * 视角是竖向的，画幅越扁、横向能看到的越少。
-     */
-    this.camera.fov = width / height > 2 ? 30 : width / height > 1.6 ? 37 : 42;
     this.camera.updateProjectionMatrix();
-    // 特写的横向偏移是按画幅算的，画幅变了要重算
-    if (this.selected) this.select(this.selected);
+    // 全景视角和特写的横向偏移都按画幅算，画幅变了要重算
+    this.select(this.selected);
+    if (!this.selected) this.camFov = this.camFovTarget;
   }
 
   private readonly onPointerDown = (event: PointerEvent): void => {
@@ -469,6 +513,11 @@ export class SaveStageScene {
     const ease = 1 - Math.exp(-dt * 5);
     this.camPos.lerp(this.camPosTarget, ease);
     this.camLook.lerp(this.camLookTarget, ease);
+    this.camFov += (this.camFovTarget - this.camFov) * ease;
+    if (Math.abs(this.camera.fov - this.camFov) > 0.01) {
+      this.camera.fov = this.camFov;
+      this.camera.updateProjectionMatrix();
+    }
     this.camera.position.copy(this.camPos);
     this.camera.lookAt(this.camLook);
     this.renderer.render(this.scene, this.camera);

@@ -14,7 +14,16 @@ import { on } from "../EventBus";
 import { getClock } from "../State/clock";
 import { depositGoldTo, getGold, spendGoldFrom } from "../State/gold";
 import { addItem, getCounts, removeItem } from "../State/inventory";
-import { getResident, removeResident, spawnResident } from "../State/residentsRuntime";
+import {
+  getResident,
+  removeResident,
+  spawnResident,
+  spawnResidentAt,
+} from "../State/residentsRuntime";
+import { isIndoors } from "../State/world/walkable";
+import { getCurrentMap } from "../State/worldRuntime";
+import { visitorEntranceOf } from "./residents/moveIn";
+import { outsideFrontDoor } from "./residents/visits";
 import { getEventStage, isEventCompleted, isFeatureUnlocked } from "./events";
 import { recordGoldFact } from "./dayRecord";
 
@@ -40,6 +49,55 @@ import { recordGoldFact } from "./dayRecord";
  * 唯一的溢价是**今日想要**：确定性抽几件加价收，给"今天去看一眼行情"
  * 一个理由，也给报纸的广告版（期 7）留素材。
  */
+
+/**
+ * 商人登场：从领地入口走进来，摊支在**主屋门外**。
+ *
+ * 原来两位商人都走 `spawnResident`——那条是"从主屋西门进来、走到屋里随机
+ * 一格"的登场演出，圆心也定在门内那一格。它写于这个游戏还只是一间屋子的
+ * 时候；主屋户型重写之后那格早已不是门，而商人的 wanderRadius 只有一两米，
+ * 于是小鱼人拖着筏车在你家客厅里打转，永远出不去（用户 2026-09-08 报的）。
+ *
+ * 摊支在门外而不是门口那一步：他带着车、碰撞半径 0.9，站在门口就把门堵死。
+ * 沿门的朝外方向再退几步、往旁边错开一点——玩家出门看得见他，进出不撞车。
+ * 主屋没有门（理论上不会）时退回老路，别让班表日因为一个演出问题少一位商人。
+ */
+function standSpot(): { x: number; z: number } | null {
+  const door = outsideFrontDoor();
+  if (!door) return null;
+  const dx = door.x - door.doorX;
+  const dz = door.z - door.doorZ;
+  const length = Math.hypot(dx, dz) || 1;
+  const outX = dx / length;
+  const outZ = dz / length;
+  // 门外 3.5 米、向右错 2 米；这一点落在屋里（门开在墙角之类）就退回门外一步
+  const stand = { x: door.doorX + outX * 3.5 - outZ * 2, z: door.doorZ + outZ * 3.5 + outX * 2 };
+  return isIndoors(stand.x, stand.z) ? { x: door.x, z: door.z } : stand;
+}
+
+export function arriveAtStand(residentId: string, definitionId: string): void {
+  const stand = standSpot();
+  if (!stand) {
+    spawnResident(residentId, definitionId);
+    return;
+  }
+  spawnResidentAt(residentId, definitionId, visitorEntranceOf(getCurrentMap().mapId), stand);
+}
+
+/**
+ * 救已经困在屋里的那位（老档）。修之前登场的商人，圆心还记在门内那格，
+ * 存档里也是这么存的——光改登场那条路，已经在场的这位下次班表日之前都
+ * 出不来。每次对齐在场状态时顺手看一眼：圆心在室内就把摊挪到门外，他会
+ * 自己溜达过去。只挪圆心不瞬移人，别让玩家眼前的人凭空消失。
+ */
+export function rescueIndoorMerchant(residentId: string): boolean {
+  const agent = getResident(residentId);
+  if (!agent || !isIndoors(agent.homeX, agent.homeZ)) return false;
+  const stand = standSpot();
+  if (!stand) return false;
+  agent.rehome(stand.x, stand.z);
+  return true;
+}
 
 export const OTTER_RESIDENT_ID = residentIdOf("otter_trader");
 export const FISH_RESIDENT_ID = residentIdOf("fish_trader");
@@ -74,7 +132,7 @@ export function isOtterHereToday(): boolean {
 /**
  * 每天开始时对齐在场状态。
  *
- * - 该在而不在 → 从门口走进来（`spawnResident` 自带登场）
+ * - 该在而不在 → 从领地入口走进来、摊支在主屋门外（`arriveAtStand`）
  * - 不该在而在 → 送走（**移除不是隐藏**——隐藏的话碰撞体还在，
  *   玩家会撞到一团空气）
  * - 小龙：事件结了（settled/completed）它就该走——第五幕的对话演完，
@@ -85,9 +143,11 @@ export function syncTraderPresence(): void {
   const otterInWorld = Boolean(getResident(OTTER_RESIDENT_ID));
   if (otterHere && !otterInWorld && isFeatureUnlocked("merchant_trading")) {
     // 剧情期间的登场由 storyRules 的 spawn_resident 负责，这里只管班表日
-    spawnResident(OTTER_RESIDENT_ID, "otter_trader");
+    arriveAtStand(OTTER_RESIDENT_ID, "otter_trader");
   } else if (!otterHere && otterInWorld) {
     removeResident(OTTER_RESIDENT_ID);
+  } else if (otterInWorld) {
+    rescueIndoorMerchant(OTTER_RESIDENT_ID);
   }
 
   if (isEventCompleted("gold_theft") && getResident(DRAGON_RESIDENT_ID)) {
@@ -283,9 +343,11 @@ export function syncTravelerPresence(): void {
   const here = isTravelerHereToday();
   const inWorld = Boolean(getResident(FISH_RESIDENT_ID));
   if (here && !inWorld) {
-    spawnResident(FISH_RESIDENT_ID, "fish_trader");
+    arriveAtStand(FISH_RESIDENT_ID, "fish_trader");
   } else if (!here && inWorld) {
     removeResident(FISH_RESIDENT_ID);
+  } else if (inWorld) {
+    rescueIndoorMerchant(FISH_RESIDENT_ID);
   }
 }
 

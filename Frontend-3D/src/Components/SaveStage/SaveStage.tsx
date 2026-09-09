@@ -119,6 +119,17 @@ export function SaveStage({
     : null;
   const cloudLocked = (slot: SaveSlotId) => slot === "cloud" && !loggedIn;
 
+  // ESC 和「返回」同一条路：先退特写，再退到标题
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || loginOpen) return;
+      if (selected) setSelected(null);
+      else onBack();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selected, loginOpen, onBack]);
+
   const confirmRemove = async (slot: SaveSlotId) => {
     const removed = await slots.remove(slot);
     setAsking(false);
@@ -141,7 +152,11 @@ export function SaveStage({
       />
 
       {/* 名牌：四块常驻，位置每帧由场景写 transform */}
-      <div className="save-stage__plates" aria-hidden={loading}>
+      <div
+        className="save-stage__plates"
+        aria-hidden={loading}
+        data-hidden={selected !== null}
+      >
         {summaries.map((summary) => {
           const locked = cloudLocked(summary.slot);
           const occupied = summary.state === "occupied";
@@ -199,7 +214,11 @@ export function SaveStage({
       </div>
 
       <div className="save-stage__top">
-        <button type="button" className="save-stage__back" onClick={onBack}>
+        <button
+          type="button"
+          className="save-stage__back"
+          onClick={() => (selected ? setSelected(null) : onBack())}
+        >
           <ArrowLeftIcon className="size-4" aria-hidden="true" />
           {copy.stageBack}
         </button>
@@ -294,12 +313,24 @@ export function SaveStage({
           ) : current.state === "occupied" ? (
             <>
               <p className="save-stage__card-headline">
-                {headline(current, copy)}
+                {current.dayCount === null
+                  ? "—"
+                  : copy.slotDay.replace("%s", String(current.dayCount))}
               </p>
-              <p className="save-stage__card-sub">
-                {copy.slotSaved} {formatSavedAt(current.savedAtUtc)} ·{" "}
-                {formatSize(current.bytes)}
-              </p>
+              <dl className="save-stage__rows">
+                <div className="save-stage__row">
+                  <dt>{copy.slotGoldUnit}</dt>
+                  <dd>{current.gold ?? "—"}</dd>
+                </div>
+                <div className="save-stage__row">
+                  <dt>{copy.slotSaved}</dt>
+                  <dd>{formatSavedAt(current.savedAtUtc)}</dd>
+                </div>
+                <div className="save-stage__row">
+                  <dt>{copy.slotSize}</dt>
+                  <dd>{formatSize(current.bytes)}</dd>
+                </div>
+              </dl>
               {current.tooNew ? (
                 <p className="save-stage__card-flag">{copy.slotTooNew}</p>
               ) : current.fromBackup ? (

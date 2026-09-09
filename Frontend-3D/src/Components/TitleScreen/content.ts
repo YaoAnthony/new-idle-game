@@ -41,6 +41,7 @@ export type TitleScreenCopy = {
   stageAvatarStale: string;
   stageEnter: string;
   stageCreate: string;
+  slotSize: string;
   slotDownload: string;
   slotUpload: string;
   /** 导入失败的六种理由（Data/Save/transfer 的 ImportFailure） */
@@ -107,6 +108,7 @@ export const TITLE_SCREEN_COPY: Record<TitleLocale, TitleScreenCopy> = {
     stageAvatarStale: "外观待更新",
     stageEnter: "进入这个家",
     stageCreate: "在这里开始新生活",
+    slotSize: "存档大小",
     slotDownload: "下载",
     slotUpload: "上传存档",
     slotImportEmpty: "文件是空的",
@@ -168,6 +170,7 @@ export const TITLE_SCREEN_COPY: Record<TitleLocale, TitleScreenCopy> = {
     stageAvatarStale: "見た目は更新待ち",
     stageEnter: "このお家に入る",
     stageCreate: "ここで新しい暮らしを",
+    slotSize: "データ容量",
     slotDownload: "ダウンロード",
     slotUpload: "読み込む",
     slotImportEmpty: "ファイルが空です",

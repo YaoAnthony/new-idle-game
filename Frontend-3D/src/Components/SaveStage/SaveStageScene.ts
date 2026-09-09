@@ -89,7 +89,8 @@ export type StageSlotState = {
 };
 
 /*
- * 四个站位：镜头在 +z 一侧看向房子，屏幕左→右对应世界 +x→−x。
+ * 四个站位：镜头在 +z 一侧朝 −z 看向房子，世界 +x 就是屏幕右——
+ * 数组顺序 A/B/C/云端 对应 x 由正到负，即屏幕上从右往左是 A、B、C、云端。
  * 间距 2.6：角色肩宽约 0.9，两人之间留得下一个圆环的空档，
  * 667×375 的横屏上四个人也排得进画面。
  */
@@ -270,9 +271,17 @@ export class SaveStageScene {
   private readonly doors: PlankDoor[] = [];
   private frame = 0;
   private readonly startedAt = performance.now();
+  private lastFrameAt = performance.now();
   private selected: SaveSlotId | null = null;
-  /** 镜头横向跟着选中的站位轻推，lerp 收 */
-  private camTargetX = 0;
+  /*
+   * 镜头两档：全景（看整块草地和房子）/ 特写（推到选中的站位跟前）。
+   * 位置和注视点都存"当前值 + 目标值"，每帧 lerp 收——切档是一段推轨，
+   * 不是一下跳过去。
+   */
+  private readonly camPos = new Vector3(0, 4.6, 14);
+  private readonly camPosTarget = new Vector3(0, 4.6, 14);
+  private readonly camLook = new Vector3(0, 2.0, -3);
+  private readonly camLookTarget = new Vector3(0, 2.0, -3);
   /** 每帧渲染完把四个站位的屏幕坐标交出去（名牌定位用） */
   private frameListener: ((spots: ProjectedSpot[]) => void) | null = null;
 
@@ -373,10 +382,31 @@ export class SaveStageScene {
     this.frameListener = listener;
   }
 
+  /**
+   * 选中 → 镜头推到那个站位跟前。
+   *
+   * 人要站在**画面左侧**，右边留给信息卡：注视点从站位中心往世界 +x
+   * （镜头朝 −z 看，+x 是屏幕右）挪一段，挪多少按当前视角和画幅算——离镜头 3.6 米处画面
+   * 半宽的 55%，这样不管是 16:9 还是 SE 的 667×375，人都落在左边三分之一
+   * 附近，不会被卡盖住也不会贴边。
+   */
   select(slot: SaveSlotId | null): void {
     this.selected = slot;
     const spot = slot ? this.spots.find((item) => item.slot === slot) : null;
-    this.camTargetX = spot ? spot.root.position.x * 0.35 : 0;
+    if (!spot) {
+      this.camPosTarget.set(0, 4.6, 14);
+      this.camLookTarget.set(0, 2.0, -3);
+      return;
+    }
+    const distance = 3.6;
+    const halfWidth =
+      Math.tan((this.camera.fov / 2) * (Math.PI / 180)) *
+      distance *
+      this.camera.aspect;
+    const side = halfWidth * 0.55;
+    const { x, z } = spot.root.position;
+    this.camPosTarget.set(x + side, 1.7, z + distance);
+    this.camLookTarget.set(x + side, 1.05, z);
   }
 
   /** 四个站位头顶（名牌挂的地方）的屏幕坐标，相对画布 */
@@ -406,6 +436,8 @@ export class SaveStageScene {
      */
     this.camera.fov = width / height > 2 ? 30 : width / height > 1.6 ? 37 : 42;
     this.camera.updateProjectionMatrix();
+    // 特写的横向偏移是按画幅算的，画幅变了要重算
+    if (this.selected) this.select(this.selected);
   }
 
   private readonly onPointerDown = (event: PointerEvent): void => {
@@ -425,10 +457,20 @@ export class SaveStageScene {
 
   private loop = (): void => {
     this.frame = requestAnimationFrame(this.loop);
-    const t = (performance.now() - this.startedAt) / 1000;
+    const now = performance.now();
+    const t = (now - this.startedAt) / 1000;
+    const dt = (now - this.lastFrameAt) / 1000;
+    this.lastFrameAt = now;
     for (const spot of this.spots) spot.animate(t, spot.slot === this.selected);
-    this.camera.position.x += (this.camTargetX - this.camera.position.x) * 0.06;
-    this.camera.lookAt(this.camera.position.x * 0.6, 2.0, -3);
+    /*
+     * 按真实时间收敛（每秒吃掉剩余距离的 99%），不按帧数：
+     * 掉帧或页面被节流时推轨照样在半秒左右到位，而不是拖成慢动作。
+     */
+    const ease = 1 - Math.exp(-dt * 5);
+    this.camPos.lerp(this.camPosTarget, ease);
+    this.camLook.lerp(this.camLookTarget, ease);
+    this.camera.position.copy(this.camPos);
+    this.camera.lookAt(this.camLook);
     this.renderer.render(this.scene, this.camera);
     this.frameListener?.(this.projectSpots());
   };

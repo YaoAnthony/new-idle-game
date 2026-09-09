@@ -228,6 +228,7 @@ export function SaveSlotsPanel({
         savedAtUtc: null,
         bytes: null,
         fromBackup: false,
+        avatar: null,
       }),
     );
   const loading = summaries === null;

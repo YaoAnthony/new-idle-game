@@ -246,3 +246,26 @@ describe("槽位摘要", () => {
     expect(summaries.map((item) => item.slot)).toEqual(["a", "b", "c", "cloud"]);
   });
 });
+
+describe("摘要里的外观（存档舞台要把角色立起来）", () => {
+  test("合法的外观原样带出来", async () => {
+    const { defaultAvatarConfig } = await import("core");
+    const avatar = defaultAvatarConfig();
+    await createLocalSaveRepository("a").save(
+      makeSave({ player: { ...makeSave().player, avatar } as never }),
+    );
+    const summary = await describeSaveSlot("a");
+    expect(summary.avatar).toEqual(avatar);
+  });
+
+  test("引用了不存在零件的外观是 null——舞台退回默认外观，不能整张不显示", async () => {
+    const { defaultAvatarConfig } = await import("core");
+    const broken = { ...defaultAvatarConfig(), hairId: "hair_that_was_deleted" };
+    await createLocalSaveRepository("b").save(
+      makeSave({ player: { ...makeSave().player, avatar: broken } as never }),
+    );
+    const summary = await describeSaveSlot("b");
+    expect(summary.state).toBe("occupied");
+    expect(summary.avatar).toBeNull();
+  });
+});

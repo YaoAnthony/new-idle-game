@@ -1,4 +1,4 @@
-import { daysBetweenDayIds } from "core";
+import { auditAvatarConfig, daysBetweenDayIds, type AvatarConfig } from "core";
 
 import { createIndexDbRepository } from "../IndexDB";
 import { keysForSlot, SAVE_SLOT_IDS, type SaveSlotId } from "./slots";
@@ -40,12 +40,21 @@ export type SaveSlotSummary = {
   bytes: number | null;
   /** 主档读不出来，这份摘要来自备份——卡上要说一声，别让玩家以为没事 */
   fromBackup: boolean;
+  /**
+   * 这个档里捏出来的角色外观（存档舞台要把他立起来）。
+   *
+   * **过一遍 auditAvatarConfig**：老版本存的外观可能引用了这个版本已经删掉
+   * 的零件（同 profileStore 那条），过不了就是 null——舞台退回默认外观并
+   * 标一句"外观待更新"，不能因为一个零件缺失整张舞台不显示。
+   */
+  avatar: AvatarConfig | null;
 };
 
 const store = createIndexDbRepository<unknown>("gameSaves");
 
 type RawSave = {
   meta?: { saveSchemaVersion?: unknown; createdAtUtc?: unknown; updatedAtUtc?: unknown };
+  player?: { avatar?: unknown };
   ownWorld?: {
     baseGold?: unknown;
     buildings?: unknown;
@@ -101,6 +110,19 @@ function goldOf(save: RawSave): number | null {
   return base + jars;
 }
 
+function avatarOf(save: RawSave): AvatarConfig | null {
+  const avatar = save.player?.avatar;
+  if (!avatar || typeof avatar !== "object") return null;
+  try {
+    return auditAvatarConfig(avatar as AvatarConfig, "存档外观").length === 0
+      ? (avatar as AvatarConfig)
+      : null;
+  } catch {
+    // 审计函数对形状不对的对象可能抛（比如 slots 不是对象）：当没有
+    return null;
+  }
+}
+
 function bytesOf(value: unknown): number | null {
   try {
     return new TextEncoder().encode(JSON.stringify(value)).length;
@@ -132,6 +154,7 @@ function summarize(
     savedAtUtc,
     bytes: bytesOf(value),
     fromBackup,
+    avatar: avatarOf(save),
   };
 }
 
@@ -145,6 +168,7 @@ function emptySummary(slot: SaveSlotId, state: SaveSlotSummary["state"]): SaveSl
     savedAtUtc: null,
     bytes: null,
     fromBackup: false,
+    avatar: null,
   };
 }
 

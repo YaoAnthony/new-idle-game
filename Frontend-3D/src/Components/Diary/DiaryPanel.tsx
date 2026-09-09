@@ -233,14 +233,15 @@ export function DiaryPanel() {
   return (
     <>
       {/*
-        右上角第三个按钮。几何交给 `.hud-corner-btn--inner-2`（按同一套
-        `--hud-btn` / `--hud-gap` 变量算），长相跟设计稿走：绿底白书。
+        右上角第二个按钮（原来是第三个，中间那颗「行动」钮 2026-09-08 连
+        面板一起删了，日记本补上来）。几何交给 `.hud-corner-btn--inner`
+        （按同一套 `--hud-btn` / `--hud-gap` 变量算），长相跟设计稿走：绿底白书。
       */}
       <motion.button
         type="button"
         aria-label="日记本"
-        className="hud-corner-btn hud-corner-tile hud-corner-btn--inner-2 z-10 grid place-items-center"
-        /* 皮抽进了 .hud-corner-tile（index.css），这里只给颜色——三个角落钮
+        className="hud-corner-btn hud-corner-tile hud-corner-btn--inner z-10 grid place-items-center"
+        /* 皮抽进了 .hud-corner-tile（index.css），这里只给颜色——角落钮
            同一套形状，靠颜色区分 */
         style={
           {

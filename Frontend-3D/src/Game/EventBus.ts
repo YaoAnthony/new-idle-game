@@ -99,10 +99,13 @@ export type GameEvents = {
    * ESC 菜单点了一格，请求打开某个面板。
    *
    * 走事件而不是把各面板的 open 提到上层：每个面板的开关本来就归它自己管
-   * （B 开背包、右上角按钮开行动），菜单只是**多一个入口**。
-   * 提上去的话，每加一个面板就要动一次共享状态。
+   * （B 开背包），菜单只是**多一个入口**。提上去的话，每加一个面板就要动
+   * 一次共享状态。
+   *
+   * 联合类型只剩 backpack：行动面板删了、消息和设置那两格也从菜单摘了
+   * （2026-09-08）。再加格子时把名字加回这里，对应面板再挂一个监听。
    */
-  ui_panel_requested: { panel: "backpack" | "actions" | "settings" | "chat" };
+  ui_panel_requested: { panel: "backpack" };
   /** ESC 菜单请求回到标题界面（存盘之后） */
   ui_return_to_title: Record<string, never>;
   /**

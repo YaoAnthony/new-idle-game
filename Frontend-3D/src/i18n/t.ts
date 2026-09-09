@@ -503,9 +503,6 @@ const ZH: Record<string, string> = {
   // ESC 侧边菜单
   "ui.esc.title": "菜单",
   "ui.esc.backpack": "背包",
-  "ui.esc.actions": "行动",
-  "ui.esc.chat": "消息",
-  "ui.esc.settings": "设置",
   "ui.esc.return_title": "回到标题",
   "ui.esc.current_action": "正在进行的行动",
   "ui.esc.no_action": "现在什么都没在做",
@@ -668,76 +665,6 @@ const ZH: Record<string, string> = {
   "item.furniture_easel.desc": "支起来的画板，颜料还没干。想创作的时候用。",
   "recipe.easel": "画架",
 
-  // ---- 行动 UI（三屏：分类网格 → 分类列表 → 添加表单）----
-  "ui.action.title": "行动",
-  "ui.action.pick_category": "选择一个行动类型",
-  "ui.action.enter": "点击进入",
-  "ui.action.unlocked_hint": "新功能已解锁",
-
-  "ui.action.pick_entry": "选择一个现实里要做的行动",
-  "ui.action.add": "添加行动",
-  "ui.action.empty_title": "还没有行动",
-  "ui.action.empty_hint": "先添加一个你现实里想做的事",
-  /*
-   * 空态要讲清楚**两种用法**，因为这一屏正是玩家第一次决定"我要怎么用
-   * 这个系统"的地方——而它有两条路：先计划（写下来、坐下来做）和
-   * 事后记录（做完了回头记一笔）。只写"先添加一个"的话，记录型的人
-   * 会以为自己得先假装计划一遍。
-   */
-  "ui.action.empty_two_ways":
-    "写下想做的事，坐下来做完它；或者做完了再回来记一笔——两种拿到的一样多。",
-  "ui.action.list_footer_empty":
-    "添加后会出现在这里，点击开始后角色会在房间里使用家具行动",
-  "ui.action.list_footer": "开始后，角色会在房间里使用家具行动",
-  "ui.action.start": "开始",
-  /*
-   * 事后补记（P 路径）的文案。
-   *
-   * 「开始」和「已经做完了」是**同一张表单的两个出口**：计划型的人写好
-   * 条目坐下来做，记录型的人做完了才回头记一笔。两者拿一样的奖励，
-   * 区别只在结算发生在做之前还是做之后。
-   */
-  "ui.action.log_done": "已经做完了",
-  "ui.action.log_row": "记一笔",
-  "ui.action.log_quota": "今天还能补记 {left} 件",
-  "ui.action.log_quota_out": "今天的补记额度用完了",
-  "ui.action.log_hint": "没开计时器也做完了的事，记一笔照样算",
-  "ui.action.log_fail_count": "今天的补记额度用完了，明天见",
-  "ui.action.log_fail_minutes": "今天补记的总时长到顶了",
-  "ui.action.log_fail_busy": "手上还有进行中的行动",
-  "ui.action.log_fail_tired": "精力不够。补记和亲手做扣一样的精力",
-  "ui.action.log_fail_unknown": "找不到对应的行动",
-  "ui.action.log_fail_duration": "时长超出这类行动的范围",
-  "ui.action.delete": "删除",
-
-  "ui.action.form_title": "添加行动",
-  "ui.action.what": "要做什么",
-  "ui.action.what_placeholder": "例如：写作业",
-  "ui.action.how_long": "做多久",
-  "ui.action.priority": "重要级",
-  "ui.action.furniture": "使用家具",
-  "ui.action.cancel": "取消",
-  "ui.action.save": "保存行动",
-  "ui.action.form_footer":
-    "保存后会回到列表，点击开始后角色会在房间里使用家具行动",
-  "ui.action.minutes": "分钟",
-
-  // ---- 任务组（清单上的文件夹，2026-09-08）----
-  "ui.group.title": "系列任务",
-  "ui.group.add": "系列任务",
-  "ui.group.name_placeholder": "这一串叫什么",
-  "ui.group.empty_hint": "把几件事按顺序串起来——只露出下一件，做完一件自动到下一件。",
-  "ui.group.count": "{n} 件",
-  "ui.group.drop_hint": "还是空的。在下面的清单里给某一行选「放进系列」。",
-  "ui.group.more": "还有 {n} 件，展开",
-  "ui.group.move_up": "往上挪",
-  "ui.group.move_down": "往下挪",
-  "ui.group.take_out": "拿出来",
-  "ui.group.delete": "删除这个系列",
-  "ui.group.delete_hint": "只删文件夹，里面的事回到清单",
-  "ui.group.put_into": "放进系列",
-  "ui.group.none": "不放进系列",
-
   // 开箱面板
   "ui.chest.node_done": "完成了一个任务！",
   "ui.chest.tap_close": "点任意处收下",
@@ -766,11 +693,6 @@ const ZH: Record<string, string> = {
   "hint.garden_bench": "坐下歇歇",
   "ui.travel.moving": "移动中…",
   "ui.travel.in_session": "联机中不能离开这张地图",
-
-  // 疲劳门槛
-  "ui.action.too_tired": "太累了，先睡一觉或做件休息任务",
-  "ui.action.fatigue_cost": "消耗精力",
-  "ui.action.fatigue_restore": "恢复精力",
 
   // ---- 厨房系统 ----
 

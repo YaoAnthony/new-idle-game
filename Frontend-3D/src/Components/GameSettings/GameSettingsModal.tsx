@@ -13,7 +13,6 @@ import {
   cycleMusicMode,
   getMusicMode,
 } from "../../Game3D/Engine/MusicDirector";
-import { on } from "../../Game/EventBus";
 import { listCommands } from "../../Game/CommandLine/commands";
 import {
   INPUT_ACTION_GROUPS,
@@ -83,14 +82,6 @@ export function GameSettingsModal() {
   );
   /** 改完键位/语言要重启或重进才全生效的提示 */
   const [notice, setNotice] = useState<string | null>(null);
-
-  useEffect(
-    () =>
-      on("ui_panel_requested", ({ panel }) => {
-        if (panel === "settings") setOpen(true);
-      }),
-    [setOpen],
-  );
 
   // 改了就立刻作用到音频总线并落盘——没有"确定"按钮，拖着就能听见
   useEffect(() => {
@@ -166,12 +157,12 @@ export function GameSettingsModal() {
     <>
       {/*
         **这块面板不再有自己的角落按钮**（2026-09-08）。右上角最外侧那个
-        位置让给了 ESC 抽屉的开关（见 EscMenu），设置从抽屉里的「设置」
-        那一格进来——走的是 `ui_panel_requested`，下面那条监听接着。
+        位置让给了 ESC 抽屉的开关（见 EscMenu）。
 
-        换过来的理由：抽屉里装着回到标题、聊天记录这些只有它有的东西，
-        而它之前只有 ESC 键能开，触摸端根本进不去；设置反过来在抽屉里
-        有一格，少一个入口不会丢。
+        同一天晚些时候抽屉里的「设置」格也按用户要求摘了（抽屉只留背包
+        和回到标题），于是这块面板**眼下没有游戏内入口**，只剩标题界面
+        那条路。组件和面板栈里的 "settings" 槽位都留着：要接回来只需在
+        EscMenu 的 TILES 加一格、这里再挂一条 `ui_panel_requested` 监听。
 
         `unlockAudio()` 原来挂在这个按钮上（用户的第一个手势顺便解锁音频）。
         没有跟着按钮搬走，因为**不需要**：Game3D 进世界时已经挂了一次性的

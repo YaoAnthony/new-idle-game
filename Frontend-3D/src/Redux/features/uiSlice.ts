@@ -21,11 +21,10 @@ import type { RootState } from "../store";
 
 export type PanelId =
   | "backpack"
-  | "actions"
   | "chat"
   | "settings"
   | "daily"
-  /** 日记本（行动的新入口）。和 actions 并存到迁移完成为止 */
+  /** 日记本：行动的**唯一**入口（旧的行动面板 actions 2026-09-08 整块删了） */
   | "diary"
   | "station"
   | "buildShop"

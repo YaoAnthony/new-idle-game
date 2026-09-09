@@ -4,10 +4,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   FaBars,
   FaBoxOpen,
-  FaCog,
-  FaCommentDots,
   FaDoorOpen,
-  FaListUl,
   FaTimes,
   FaUser,
 } from "react-icons/fa";
@@ -97,6 +94,12 @@ type Tile = {
   run: () => void;
 };
 
+/*
+ * 只剩两格（用户 2026-09-08 定）。原来还有「行动」「消息」「设置」三格：
+ * 「行动」随旧行动面板整块删了（入口改走日记本）；「消息」有回车键开，
+ * 「设置」用户说不要就一起摘了——这里没留它的入口，要恢复得在这里再加一格
+ * 并把 EventBus 的 `ui_panel_requested` 联合类型放宽回去。
+ */
 const TILES: Tile[] = [
   {
     key: "backpack",
@@ -104,27 +107,6 @@ const TILES: Tile[] = [
     icon: <FaBoxOpen />,
     accent: "#bba7ff",
     run: () => emit("ui_panel_requested", { panel: "backpack" }),
-  },
-  {
-    key: "actions",
-    labelKey: "ui.esc.actions",
-    icon: <FaListUl />,
-    accent: "#80b7ff",
-    run: () => emit("ui_panel_requested", { panel: "actions" }),
-  },
-  {
-    key: "chat",
-    labelKey: "ui.esc.chat",
-    icon: <FaCommentDots />,
-    accent: "#7fe0bd",
-    run: () => emit("ui_panel_requested", { panel: "chat" }),
-  },
-  {
-    key: "settings",
-    labelKey: "ui.esc.settings",
-    icon: <FaCog />,
-    accent: "#9fb8d8",
-    run: () => emit("ui_panel_requested", { panel: "settings" }),
   },
   {
     key: "title",
@@ -196,15 +178,15 @@ export function EscMenu() {
         
         在这之前它不存在——抽屉只有 ESC 键能开，于是触摸端根本进不来
         （没有 ESC 键），而"回到标题""聊天记录"这些只有这里有。
-        原来占着这个位置的是设置钮（开一个居中 Modal），现在设置从抽屉里
-        那格进，位置让给抽屉本身。
+        原来占着这个位置的是设置钮（开一个居中 Modal），位置让给了抽屉
+        本身；设置那格后来也从抽屉里摘了（2026-09-08，用户定）。
 
         位置选它不是随手排的：抽屉的展开动画是一个 clip-path 圆，圆心就
         写死在右上角 40px 处（见 backgroundVariants）——那个圆本来就是
         从这个钮底下铺开的，只是一直没人站在那儿。
 
-        `motion.button` 的 hover/tap 缩放和另外两个钮同一套；颜色用蓝灰，
-        因为它是系统功能，不该和日记本（绿）、行动（琥珀）抢眼。
+        `motion.button` 的 hover/tap 缩放和日记本钮同一套；颜色用蓝灰，
+        因为它是系统功能，不该和日记本（绿）抢眼。
       */}
       <motion.button
         type="button"

@@ -28,7 +28,6 @@ import {
   residentIdOf,
 } from "core";
 import { useEffect, useRef, useState } from "react";
-import { ActionHub } from "../Components/ActionHub/ActionHub";
 import { t } from "../i18n/t";
 import { ChatPanel } from "../Components/Chat/ChatPanel";
 import { EscArbiter } from "../Components/PanelStack/EscArbiter";
@@ -2113,7 +2112,6 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       <MailboxPanel />
       <NotePanel />
       <DialoguePanel />
-      <ActionHub />
       <DiaryPanel />
       {/*
         左上角这一列：时钟在上、需求条在下，交给同一个 flex 列排。

@@ -1,16 +1,14 @@
 import { Dialog, DialogPanel, DialogTitle } from "@headlessui/react";
-import { XMarkIcon } from "@heroicons/react/24/solid";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 import { logout } from "../../Features/Auth/authBridge";
-import { LoginDialog } from "../../Features/Auth/LoginDialog";
 import { unlockAudio } from "../../Game3D/Engine/AudioEngine";
 import { applyAudioSettings } from "../../Game3D/Engine/audioSettings";
 import type { RootState } from "../../Redux/store";
 import { GameBtn } from "../GameBtn";
 import { HouseMark } from "../Brand";
-import { SaveSlotsPanel } from "../SaveSlots";
+import { SaveStage } from "../SaveStage";
 import type { SaveSlotId } from "../../Data/Save/slots";
 import {
   type AudioChannel,
@@ -20,7 +18,7 @@ import {
 import { TITLE_SCREEN_COPY, type TitleLocale } from "./content";
 import "./TitleScreen.css";
 
-type ActiveDialog = "start" | "settings" | null;
+type ActiveDialog = "settings" | null;
 
 type TitleScreenProps = {
   config: TitleScreenConfig;
@@ -70,8 +68,12 @@ export function TitleScreen({
     readStoredLocale(config),
   );
   const [activeDialog, setActiveDialog] = useState<ActiveDialog>(null);
-  /** 开始弹窗里的两个页面：存档页 / 登录表单 */
-  const [startView, setStartView] = useState<"slots" | "login">("slots");
+  /**
+   * 存档舞台：「开始游戏」之后铺满整屏的 3D 草地（SaveStage）。
+   * 它原来是这一页里的一个弹窗（四张卡）；换成 3D 之后弹窗的尺寸装不下
+   * 一块草地和四个人，索性做成独立一屏，左上角「返回」回到标题。
+   */
+  const [stageOpen, setStageOpen] = useState(false);
   const account = useSelector((state: RootState) => state.user);
   const [audioSettings, setAudioSettings] = useState<AudioSettings>(() =>
     readStoredSettings(config),
@@ -118,7 +120,6 @@ export function TitleScreen({
 
   const closeDialog = () => {
     setActiveDialog(null);
-    setStartView("slots");
   };
 
   const selectLocale = (nextLocale: TitleLocale) => {
@@ -212,7 +213,7 @@ export function TitleScreen({
                一屏只该有一个 mint */
             tone={canContinue ? "cream" : "mint"}
             fullWidth
-            onClick={() => setActiveDialog("start")}
+            onClick={() => setStageOpen(true)}
           >
             {copy.start}
           </GameBtn>
@@ -228,13 +229,31 @@ export function TitleScreen({
       </motion.div>
 
       <AnimatePresence>
-        {activeDialog ? (
-          <Dialog
-            static
-            open
-            onClose={closeDialog}
-            className="relative z-10"
+        {stageOpen ? (
+          <motion.div
+            key="save-stage"
+            className="fixed inset-0 z-10"
+            initial={reduceMotion ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: reduceMotion ? 0 : 0.22 }}
           >
+            <SaveStage
+              copy={copy}
+              loggedIn={account.status === "authed"}
+              accountEmail={account.user?.email}
+              onBack={() => setStageOpen(false)}
+              onEnter={(slot) => onEnterSlot?.(slot)}
+              onCreate={(slot) => onCreateInSlot?.(slot)}
+              onLogout={() => logout()}
+            />
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {activeDialog ? (
+          <Dialog static open onClose={closeDialog} className="relative z-10">
             <motion.div
               className="fixed inset-0 z-10 bg-[rgb(93_64_55_/_0.42)] backdrop-blur-[2px]"
               initial={reduceMotion ? false : { opacity: 0 }}
@@ -246,11 +265,7 @@ export function TitleScreen({
 
             <div className="title-screen-dialog-layer fixed inset-0 z-20 grid place-items-center overflow-y-auto p-5">
               <motion.div
-                className={
-                  activeDialog === "start"
-                    ? "title-screen-start-frame w-[min(700px,94vw)]"
-                    : "w-[min(590px,92vw)]"
-                }
+                className="w-[min(590px,92vw)]"
                 initial={
                   reduceMotion ? false : { opacity: 0, y: 8, scale: 0.99 }
                 }
@@ -268,67 +283,11 @@ export function TitleScreen({
                 <DialogPanel
                   className={[
                     "title-screen-dialog-panel soft-panel ui-scroll max-h-[calc(100dvh-40px)] w-full overflow-y-auto outline-none",
-                    /* 存档页绿封面、设置桃色：两个弹窗一眼分得开，不用读标题 */
-                    activeDialog === "settings" ? "soft-panel--peach" : "",
+                    /* 设置用桃色封面（存档页的绿封面已随 3D 舞台一起退役） */
+                    "soft-panel--peach",
                   ].join(" ")}
                 >
                   <div className="soft-panel__paper">
-                  {activeDialog === "start" ? (
-                    <div className="title-screen-start-content relative flex flex-col items-center p-[clamp(16px,3.2vw,28px)]">
-                      <DialogTitle className="soft-title m-0 pr-10 text-center text-[clamp(17px,3vw,22px)] leading-tight">
-                        {startView === "login" ? copy.loginDialogTitle : copy.slotsTitle}
-                      </DialogTitle>
-
-                      <button
-                        type="button"
-                        className="soft-close absolute right-3 top-3 z-[2]"
-                        aria-label={copy.back}
-                        onClick={closeDialog}
-                      >
-                        <XMarkIcon className="size-5" aria-hidden="true" />
-                      </button>
-
-                      {startView === "login" ? (
-                        <div className="flex w-full max-w-[380px] flex-col items-center gap-3 pt-4">
-                          <LoginDialog onDone={() => setStartView("slots")} />
-                          <button
-                            type="button"
-                            className="cursor-pointer border-0 bg-transparent text-xs font-bold text-[#8d6e63] underline"
-                            onClick={() => setStartView("slots")}
-                          >
-                            {copy.back}
-                          </button>
-                        </div>
-                      ) : (
-                        <SaveSlotsPanel
-                          copy={copy}
-                          loggedIn={account.status === "authed"}
-                          onEnter={(slot) => {
-                            onEnterSlot?.(slot);
-                            closeDialog();
-                          }}
-                          onCreate={(slot) => {
-                            onCreateInSlot?.(slot);
-                            closeDialog();
-                          }}
-                          onLogin={() => setStartView("login")}
-                        />
-                      )}
-
-                      {startView === "slots" && account.status === "authed" ? (
-                        <p className="m-0 mt-3 text-xs font-bold text-[#8d6e63]">
-                          {copy.loggedInAs}：{account.user?.email}
-                          <button
-                            type="button"
-                            className="ml-2 cursor-pointer border-0 bg-transparent text-xs font-bold text-[#4db6ac] underline"
-                            onClick={() => logout()}
-                          >
-                            {copy.logout}
-                          </button>
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : (
                     <div className="title-screen-settings-content flex flex-col items-center p-[clamp(16px,3.2vw,28px)]">
                       <DialogTitle className="title-screen-settings-title soft-title m-0 text-center text-[clamp(22px,4.4vw,30px)] leading-tight">
                         {copy.settingsTitle}
@@ -423,7 +382,6 @@ export function TitleScreen({
                         {copy.done}
                       </GameBtn>
                     </div>
-                  )}
                   </div>
                 </DialogPanel>
               </motion.div>

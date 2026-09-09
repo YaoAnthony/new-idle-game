@@ -1,0 +1,392 @@
+/*
+ * 存档舞台的 UI 层：铺在 3D 画布上面的名牌、详情卡、返回键。
+ *
+ * 画布是傍晚的紫橙色，日记本那套奶油白卡放上去反而更跳——名牌和详情卡
+ * 都沿用存档卡的白卡 + 硬底影，字色一律 #5d4037 那组棕。
+ */
+
+.save-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  overflow: hidden;
+  background: #54445f;
+  font-family: "Nunito", "LXGW WenKai GB", "Kaiti SC", sans-serif;
+}
+
+.save-stage__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.save-stage__top {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: clamp(10px, 2vw, 18px) clamp(12px, 2.4vw, 22px);
+  pointer-events: none;
+}
+
+.save-stage__top > * {
+  pointer-events: auto;
+}
+
+/* 返回：白胶囊 + 硬底影，和存档卡上的小按钮同一套物理 */
+.save-stage__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  border-radius: 999px;
+  background: #ffffff;
+  padding: 7px 14px 7px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  color: #8d6e63;
+  cursor: pointer;
+  box-shadow: 0 3px 0 #e0e0e0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.save-stage__back:active {
+  transform: translateY(3px);
+  box-shadow: none;
+}
+
+.save-stage__title {
+  margin: 0;
+  font-size: clamp(16px, 2.6vw, 22px);
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #fff3e0;
+  text-shadow: 0 2px 0 rgb(60 40 70 / 0.5);
+}
+
+.save-stage__account {
+  font-size: 12px;
+  font-weight: 800;
+  color: #fff3e0;
+  text-shadow: 0 1px 0 rgb(60 40 70 / 0.5);
+}
+
+.save-stage__account button {
+  margin-left: 6px;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  color: #80cbc4;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* 底部那行"点一个位置"：舞台没选中时的唯一提示 */
+.save-stage__hint {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(14px, 3vh, 26px);
+  transform: translateX(-50%);
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: rgb(255 243 224 / 0.8);
+  pointer-events: none;
+}
+
+/*
+ * 名牌：挂在每个站位头顶，位置每帧由 3D 投影写进 transform。
+ * 只有 translate 在动，其余全是静态样式——别让 React 每帧重渲。
+ */
+.save-stage__plates {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.save-stage__plate {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  min-width: 78px;
+  border: 2px solid #eeeeee;
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 5px 10px;
+  text-align: center;
+  white-space: nowrap;
+  box-shadow: 0 3px 0 #f0ece7;
+  will-change: transform;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: border-color 120ms ease-out;
+}
+
+.save-stage__plate[data-selected="true"] {
+  border-color: #4db6ac;
+}
+
+.save-stage__plate[data-dim="true"] {
+  opacity: 0.72;
+}
+
+.save-stage__plate-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #8d6e63;
+}
+
+.save-stage__plate-line {
+  font-size: 12px;
+  font-weight: 900;
+  color: #5d4037;
+}
+
+.save-stage__plate-flag {
+  font-size: 10px;
+  font-weight: 800;
+  color: #ef6c00;
+}
+
+.save-stage__plate-hint {
+  font-size: 11px;
+  font-weight: 800;
+  color: #4db6ac;
+}
+
+/* 每个槽一枚固定颜色的点：和平面存档卡时期同一套颜色，玩家认的是色 */
+.save-stage__dot {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--slot-dot, #ffca28);
+  box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.1);
+}
+
+[data-slot="a"] {
+  --slot-dot: #ffca28;
+}
+[data-slot="b"] {
+  --slot-dot: #ff8a65;
+}
+[data-slot="c"] {
+  --slot-dot: #81c784;
+}
+[data-slot="cloud"] {
+  --slot-dot: #4fc3f7;
+}
+
+/*
+ * 详情卡：贴底居中的白卡。选中哪个站位就讲哪个档；删除时整张翻成粉色问句，
+ * 和平面存档卡时期一样——一次误点删不掉档。
+ */
+.save-stage__card {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(12px, 3vh, 28px);
+  width: min(440px, calc(100vw - 24px));
+  transform: translateX(-50%);
+  border: 2px solid #eeeeee;
+  border-radius: 20px;
+  background: #ffffff;
+  padding: clamp(10px, 1.8vw, 14px) clamp(12px, 2vw, 18px);
+  box-shadow:
+    0 4px 0 #f0ece7,
+    0 10px 24px rgb(40 24 50 / 0.35);
+}
+
+.save-stage__card--asking {
+  border-color: #ef9a9a;
+  background: #ffebee;
+}
+
+.save-stage__card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.save-stage__card-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #8d6e63;
+}
+
+.save-stage__card-close {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: #f5f5f5;
+  color: #8d6e63;
+  cursor: pointer;
+}
+
+.save-stage__card-headline {
+  margin: 2px 0 0;
+  font-size: clamp(15px, 2.2vw, 18px);
+  font-weight: 900;
+  color: #5d4037;
+}
+
+.save-stage__card-sub {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #bcaaa4;
+}
+
+.save-stage__card-flag {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 800;
+  color: #ef6c00;
+}
+
+.save-stage__card-ask {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 900;
+  color: #c62828;
+}
+
+.save-stage__card-warn {
+  margin: 2px 0 0;
+  font-size: 11px;
+  font-weight: 800;
+  color: #e57373;
+}
+
+.save-stage__card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  border-top: 2px dashed rgb(255 224 130 / 0.85);
+  padding-top: 8px;
+}
+
+.save-stage__card--asking .save-stage__card-actions {
+  border-top: 0;
+  padding-top: 2px;
+}
+
+/* 主动作（进入 / 新建 / 登录）薄荷色，独占一行的左半边 */
+.save-stage__primary {
+  flex: 1 1 auto;
+}
+
+.save-stage__notice {
+  position: absolute;
+  left: 50%;
+  top: clamp(54px, 9vh, 72px);
+  transform: translateX(-50%);
+  margin: 0;
+  max-width: calc(100vw - 24px);
+  border: 2px solid #ef9a9a;
+  border-radius: 16px;
+  background: #ffebee;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+  color: #c62828;
+}
+
+/* 登录：一张小奶油面板盖在舞台上 */
+.save-stage__login {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(40 24 50 / 0.45);
+}
+
+.save-stage__login-panel {
+  width: min(420px, 92vw);
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+}
+
+/*
+ * 横屏矮屏（基准机 iPhone SE 667×375）：详情卡挪到右下角、缩窄，
+ * 别把四个人整个盖住；名牌字号再压一档。
+ */
+@media (orientation: landscape) and (max-height: 500px) {
+  .save-stage__top {
+    padding: 8px 10px;
+  }
+
+  .save-stage__title {
+    font-size: 15px;
+  }
+
+  .save-stage__card {
+    left: auto;
+    right: 10px;
+    bottom: 10px;
+    width: min(300px, calc(100vw - 20px));
+    transform: none;
+    padding: 8px 12px;
+  }
+
+  .save-stage__card-headline {
+    font-size: 14px;
+  }
+
+  .save-stage__card-actions {
+    margin-top: 5px;
+    padding-top: 5px;
+  }
+
+  .save-stage__plate {
+    min-width: 64px;
+    padding: 3px 8px;
+    border-radius: 11px;
+  }
+
+  .save-stage__plate-line,
+  .save-stage__plate-hint {
+    font-size: 10px;
+  }
+
+  .save-stage__plate-name {
+    font-size: 10px;
+  }
+
+  .save-stage__hint {
+    bottom: 8px;
+    font-size: 11px;
+  }
+
+  .save-stage__notice {
+    top: 44px;
+    font-size: 10px;
+  }
+}

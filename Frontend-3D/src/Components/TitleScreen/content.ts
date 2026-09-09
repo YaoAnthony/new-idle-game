@@ -35,6 +35,12 @@ export type TitleScreenCopy = {
   slotDeleteWarn: string;
   slotDeleteYes: string;
   slotDeleteNo: string;
+  /* ---- 存档舞台（3D）---- */
+  stageBack: string;
+  stageHint: string;
+  stageAvatarStale: string;
+  stageEnter: string;
+  stageCreate: string;
   slotDownload: string;
   slotUpload: string;
   /** 导入失败的六种理由（Data/Save/transfer 的 ImportFailure） */
@@ -96,6 +102,11 @@ export const TITLE_SCREEN_COPY: Record<TitleLocale, TitleScreenCopy> = {
     slotDeleteWarn: "删了找不回来",
     slotDeleteYes: "确定删除",
     slotDeleteNo: "算了",
+    stageBack: "返回",
+    stageHint: "点一个位置",
+    stageAvatarStale: "外观待更新",
+    stageEnter: "进入这个家",
+    stageCreate: "在这里开始新生活",
     slotDownload: "下载",
     slotUpload: "上传存档",
     slotImportEmpty: "文件是空的",
@@ -152,6 +163,11 @@ export const TITLE_SCREEN_COPY: Record<TitleLocale, TitleScreenCopy> = {
     slotDeleteWarn: "元に戻せません",
     slotDeleteYes: "削除する",
     slotDeleteNo: "やめる",
+    stageBack: "もどる",
+    stageHint: "場所をえらんでください",
+    stageAvatarStale: "見た目は更新待ち",
+    stageEnter: "このお家に入る",
+    stageCreate: "ここで新しい暮らしを",
     slotDownload: "ダウンロード",
     slotUpload: "読み込む",
     slotImportEmpty: "ファイルが空です",
@@ -161,8 +177,10 @@ export const TITLE_SCREEN_COPY: Record<TitleLocale, TitleScreenCopy> = {
     slotImportTooNew: "新しいバージョンのセーブです。ゲームを更新してください",
     slotImportFailed: "読み込みに失敗しました（セーブは変更されていません）",
     slotExportEmpty: "このスロットは空です",
-    slotCloudOffline: "サーバーに接続できません。クラウドのデータは残っています",
-    slotCloudSignedOut: "ログインの有効期限が切れました。ログインし直してください",
+    slotCloudOffline:
+      "サーバーに接続できません。クラウドのデータは残っています",
+    slotCloudSignedOut:
+      "ログインの有効期限が切れました。ログインし直してください",
     slotDeleteCloudWarn: "クラウド側のデータも削除されます",
     settingsTitle: "設定",
     soundTitle: "サウンド",

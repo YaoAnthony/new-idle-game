@@ -320,10 +320,6 @@
     padding: 8px;
   }
 
-  .title-screen-start-frame {
-    width: min(660px, 96vw);
-  }
-
   .soft-panel {
     border-radius: 26px;
     padding: 7px;
@@ -335,10 +331,6 @@
 
   .title-screen-dialog-panel {
     max-height: calc(100dvh - 16px);
-  }
-
-  .title-screen-start-content {
-    padding: 12px;
   }
 
   .soft-close {

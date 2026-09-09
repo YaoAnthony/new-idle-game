@@ -1,137 +1,12 @@
 /*
- * 存档页的四张卡（2026-09-07 换皮，跟标题页一起从像素木框搬到日记本语言）。
+ * 存档相关的小按钮（2026-09-07 换皮，跟标题页一起从像素木框搬到日记本语言）。
  *
- * 数值取自 BookPlanner.tsx 那本本子：白卡 `border-2 #EEEEEE rounded-[20px]`、
- * 柔和投影、灰底胶囊装元信息、按钮是圆胶囊 + 实色硬底影。这一页原来是
- * 米黄木牌 + 直角小按钮，和进游戏之后看到的东西不是一套。
- *
- * 一条自己加的规矩：**每个槽有一枚固定颜色的圆点**（A 奶黄 / B 桃 / C 薄荷 /
- * 云端 天蓝）。四张卡的文字排版是一样的，颜色是唯一能被余光认出来的东西——
- * 玩家记住的是"我那个是绿点的"，不是"我那个在左下"。
+ * 这个文件原来是平面存档页四张卡的全部样式。2026-09-08 存档页换成了
+ * 3D 舞台（Components/SaveStage），卡片没了，只剩详情卡上还在用的这几枚
+ * 按钮——胶囊 + 实色硬底影，按下去真的沉下去，和标题页的 GameBtn 同一套
+ * 物理，只是小一号。舞台自己的样式在 SaveStage.css。
  */
 
-.save-slot {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  border: 2px solid #eeeeee;
-  border-radius: 20px;
-  background: #ffffff;
-  box-shadow:
-    0 4px 0 #f0ece7,
-    0 10px 20px rgb(93 64 55 / 0.07);
-  transition: border-color 120ms ease-out, transform 120ms ease-out;
-}
-
-.save-slot:hover {
-  border-color: #d9ecd9;
-  transform: translateY(-1px);
-}
-
-/* 卡面本身就是"进入 / 新建"的按钮：整张可点，别让玩家去找小按钮 */
-.save-slot-face {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  cursor: pointer;
-  flex-direction: column;
-  gap: 3px;
-  border: 0;
-  border-radius: 18px 18px 0 0;
-  background: transparent;
-  padding: clamp(9px, 1.5vw, 13px) clamp(11px, 1.7vw, 15px);
-  text-align: left;
-  font-family: "Nunito", "LXGW WenKai GB", "Kaiti SC", sans-serif;
-  color: #5d4037;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.save-slot-face:hover {
-  background: #fcfaf5;
-}
-
-.save-slot-face:active {
-  background: #f7f3ea;
-}
-
-.save-slot-face:disabled {
-  cursor: default;
-  /* 版本太新的档：能看能删，进不去。灰掉的是"进"，不是整张卡 */
-  opacity: 0.6;
-}
-
-.save-slot-face:focus-visible {
-  outline: 3px solid #4db6ac;
-  outline-offset: -3px;
-}
-
-/* 槽名那一行：一枚色点 + 名字 */
-.save-slot-name {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  font-size: clamp(12px, 1.6vw, 14px);
-  font-weight: 900;
-  line-height: 1.1;
-  letter-spacing: 0.04em;
-  color: #8d6e63;
-}
-
-.save-slot-dot {
-  width: 11px;
-  height: 11px;
-  flex: none;
-  border-radius: 999px;
-  background: var(--slot-dot, #ffca28);
-  box-shadow: inset 0 -2px 0 rgb(0 0 0 / 0.1);
-}
-
-.save-slot[data-slot="a"] { --slot-dot: #ffca28; }
-.save-slot[data-slot="b"] { --slot-dot: #ff8a65; }
-.save-slot[data-slot="c"] { --slot-dot: #81c784; }
-.save-slot[data-slot="cloud"] { --slot-dot: #4fc3f7; }
-
-.save-slot-line {
-  overflow: hidden;
-  font-size: clamp(11px, 1.4vw, 13px);
-  font-weight: 700;
-  line-height: 1.3;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* 第一眼要看到的那一行：第几天 + 金币 */
-.save-slot-headline {
-  font-size: clamp(14px, 1.9vw, 17px);
-  font-weight: 900;
-  color: #5d4037;
-}
-
-.save-slot-sub {
-  color: #bcaaa4;
-}
-
-.save-slot-flag {
-  overflow: hidden;
-  font-size: clamp(10px, 1.3vw, 12px);
-  font-weight: 800;
-  color: #ef6c00;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.save-slot-actions {
-  display: flex;
-  gap: 6px;
-  /* 奶黄虚线，和书页上那道分隔同色——灰虚线在白卡上等于没有 */
-  border-top: 2px dashed rgb(255 224 130 / 0.85);
-  padding: 7px clamp(11px, 1.7vw, 15px);
-}
-
-/*
- * 卡底的小按钮。胶囊 + 实色硬底影，按下去真的沉下去——和标题页的
- * GameBtn 同一套物理，只是小一号。
- */
 .save-slot-button {
   cursor: pointer;
   border: 0;
@@ -143,7 +18,10 @@
   font-weight: 900;
   color: #8d6e63;
   box-shadow: 0 3px 0 #e0e0e0;
-  transition: transform 90ms ease-out, box-shadow 90ms ease-out, filter 90ms ease-out;
+  transition:
+    transform 90ms ease-out,
+    box-shadow 90ms ease-out,
+    filter 90ms ease-out;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -161,7 +39,14 @@
   outline-offset: 2px;
 }
 
-/* 空槽的"上传存档"是这张卡上唯一的动作，给它薄荷色 */
+.save-slot-button:disabled {
+  cursor: default;
+  /* 版本太新的档：能看能删，进不去。灰掉的是"进"，不是整张卡 */
+  opacity: 0.55;
+  transform: none;
+}
+
+/* 主动作（进入 / 新建 / 上传 / 登录）薄荷色 */
 .save-slot-button--mint {
   background: #4db6ac;
   color: #ffffff;
@@ -186,125 +71,10 @@
   box-shadow: none;
 }
 
-/* 翻面之后的问句：粉底，和白卡拉开，一眼知道这张卡状态变了 */
-.save-slot-asking {
-  justify-content: center;
-  gap: 5px;
-  border-color: #ef9a9a;
-  background: #ffebee;
-  padding: clamp(9px, 1.5vw, 13px) clamp(11px, 1.7vw, 15px);
-  font-family: "Nunito", "LXGW WenKai GB", "Kaiti SC", sans-serif;
-}
-
-.save-slot-ask {
-  margin: 0;
-  font-size: clamp(12px, 1.6vw, 14px);
-  font-weight: 900;
-  line-height: 1.25;
-  color: #c62828;
-}
-
-.save-slot-ask-warn {
-  margin: 0;
-  font-size: clamp(10px, 1.3vw, 12px);
-  font-weight: 800;
-  color: #e57373;
-}
-
-.save-slot-asking .save-slot-actions {
-  border-top: 0;
-  padding: 3px 0 0;
-}
-
-/*
- * 出错时的一行话。放在四张卡下面而不是卡里：卡的高度是四张一致的，
- * 往里塞一行会把那一张撑高、整排跟着错位，而错位发生的时机正是玩家
- * 刚点错东西、最需要版面稳住的时候。
- */
-.save-slots-notice {
-  margin: 10px 0 0;
-  border: 2px solid #ef9a9a;
-  border-radius: 16px;
-  background: #ffebee;
-  padding: 6px 12px;
-  font-family: "Nunito", "LXGW WenKai GB", "Kaiti SC", sans-serif;
-  font-size: clamp(11px, 1.4vw, 13px);
-  font-weight: 800;
-  line-height: 1.35;
-  color: #c62828;
-}
-
-/*
- * 横屏矮屏（基准机 iPhone SE 667×375）。四张卡 2×2 要塞进
- * calc(100dvh - 16px) 的弹窗里，行距和字号全部再压一档。
- */
+/* 横屏矮屏（基准机 iPhone SE 667×375） */
 @media (orientation: landscape) and (max-height: 500px) {
-  .save-slots {
-    gap: 7px;
-    padding-top: 4px;
-  }
-
-  .save-slot {
-    border-radius: 16px;
-  }
-
-  .save-slot-face {
-    gap: 1px;
-    border-radius: 14px 14px 0 0;
-    padding: 7px 10px;
-  }
-
-  .save-slot-name {
-    gap: 5px;
-    font-size: 11px;
-  }
-
-  .save-slot-dot {
-    width: 9px;
-    height: 9px;
-  }
-
-  .save-slot-headline {
-    font-size: 13px;
-  }
-
-  .save-slot-line {
-    font-size: 10px;
-  }
-
-  .save-slot-flag {
-    font-size: 9px;
-  }
-
-  .save-slot-actions {
-    padding: 5px 10px;
-  }
-
   .save-slot-button {
     padding: 3px 10px;
     font-size: 10px;
   }
-
-  .save-slot-ask {
-    font-size: 11px;
-  }
-
-  .save-slot-ask-warn {
-    font-size: 9px;
-  }
-
-  .save-slots-notice {
-    margin-top: 6px;
-    padding: 4px 10px;
-    font-size: 10px;
-  }
-}
-
-/*
- * 空槽和未登录云槽那行"点这里…"。它是这张卡上唯一的动作提示，
- * 用薄荷色而不是灰色——灰色会让它读成一行说明文字，而说明文字没人点。
- */
-.save-slot-action-hint {
-  font-weight: 800;
-  color: #4db6ac;
 }

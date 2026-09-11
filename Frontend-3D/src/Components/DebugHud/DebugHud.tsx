@@ -4,7 +4,7 @@ import { isDebugMode, readDebugProbe } from "../../Game/State/debugMode";
 import { HudPanel } from "../Hud/HudPanel";
 
 /**
- * F3 调试面板（第一版：只显示坐标）。住在左上角那一列的最底下，
+ * F3 调试面板（坐标 + 帧率）。住在左上角那一列的最底下，
  * 外壳/宽度/定位全交给 HudColumn + HudPanel，这里只出内容。
  *
  * **不订阅位置事件，10Hz 轮询探针**：坐标每帧都变，走事件总线会把
@@ -30,6 +30,9 @@ export function DebugHud() {
 
   const fmt = (v: number | undefined): string =>
     v === undefined ? "—" : (v >= 0 ? " " : "") + v.toFixed(2);
+  // 探针可能是热更新前挂的旧闭包（缺字段），别把 NaN 摆出来
+  const int = (v: number | undefined): string =>
+    Number.isFinite(v) ? String(Math.round(v as number)) : "—";
 
   const row = (label: string, value: string) => (
     <div className="flex items-baseline justify-between gap-3">
@@ -48,6 +51,15 @@ export function DebugHud() {
         <span className="text-[11px] font-semibold text-[var(--ink)]">调试</span>
         <span className="text-[10px] text-[var(--ink-soft)]">F3 关</span>
       </div>
+      {row("fps", int(probe?.fps))}
+      {row("draw", int(probe?.drawCalls))}
+      {row("tris", int(probe?.triangles))}
+      {row(
+        "画质",
+        probe && Number.isFinite(probe.pixelRatio)
+          ? `dpr ${probe.pixelRatio.toFixed(1)} · fx ${probe.postFX ? "开" : "关"}`
+          : "—",
+      )}
       {row("x", fmt(probe?.x))}
       {row("y", fmt(probe?.y))}
       {row("z", fmt(probe?.z))}

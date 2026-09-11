@@ -42,6 +42,14 @@ export type DebugProbe = () => {
   /** 脚下承托面（世界 Y），和 y 分开看得出"在跳/在台阶上" */
   groundY: number;
   mapId: string;
+  /** 最近半秒的平均帧率（渲染器数的） */
+  fps: number;
+  /** 上一帧的 draw call 数 / 三角形数 */
+  drawCalls: number;
+  triangles: number;
+  /** 当前生效的像素比和后处理开关（对照画质实验用） */
+  pixelRatio: number;
+  postFX: boolean;
 } | null;
 
 let probe: DebugProbe | null = null;

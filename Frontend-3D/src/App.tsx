@@ -31,7 +31,7 @@ import { preloadWorldAudio } from "./Game3D/Engine/worldPreload";
 /**
  * 顶层流程：标题页 → 加载 → 房间。
  *
- * "继续游戏"只在本地真的有可读存档时出现（V0.1 的可选小号入口）。
+ * 进档只有一条路：标题「开始游戏」→ 存档舞台点一张卡（有档就读、空的就捏脸）。
  * 从备份回退时必须明确告诉玩家——治愈游戏里悄悄回退比丢档更糟。
  *
  * 加载这一步**在存档灌进运行时之后**：要先知道这是哪个地区、屋里摆了
@@ -43,7 +43,6 @@ type Stage = "title" | "creator" | "loading" | "playing";
 
 function App() {
   const [stage, setStage] = useState<Stage>("title");
-  const [canContinue, setCanContinue] = useState(false);
   /** 传给 GameView：true 表示存档已经灌进运行时，不要再铺开局摆设和开场剧情 */
   const [loadedFromSave, setLoadedFromSave] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -64,7 +63,7 @@ function App() {
   > | null>(null);
   const [conflictBusy, setConflictBusy] = useState(false);
   /**
-   * 在途的启动对账。**"继续游戏"必须等它**——快进分支会把云端存档写进
+   * 在途的启动对账。**读档必须等它**——快进分支会把云端存档写进
    * 本地主档，这中间读档的话，玩家进的是旧世界，之后一次自动存盘就把
    * 刚下载回来的进度盖没了（跨设备玩的人丢的是另一台机器上的进度，
    * 而且丢得无声无息）。等一下最多几秒，丢进度是永久的。
@@ -116,7 +115,6 @@ function App() {
       on("ui_return_to_title", () => {
         void saveNow().then(() => {
           setLoadedFromSave(false);
-          setCanContinue(true);
           setStage("title");
         });
       }),
@@ -131,27 +129,10 @@ function App() {
     [],
   );
 
-  useEffect(() => {
-    let cancelled = false;
-    /*
-     * 先等搬家落定再问"有档吗"。抢跑会读到空——老档正从 world 挪去
-     * world.a 的半路上，两个键都可能是空的，玩家会看到"没有可继续的
-     * 存档"，然后开一个新档把它盖掉。
-     */
-    void whenSlotsReady()
-      .then(() => getSaveRepository().hasSave())
-      .then((has) => {
-        if (!cancelled) setCanContinue(has);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   /**
    * 登录（含启动时 token 校验通过）→ 跑云档对账。除冲突外的分支
    * 都在 syncController 里就地处理完（上传绑定 / 快进下载 / 照常本地），
-   * 这里只管两件事：冲突弹框，以及对账后主档可能换了 → 刷新"继续游戏"。
+   * 这里只管冲突弹框；在途的那次要记下来，读档得等它落定。
    */
   useEffect(
     () =>
@@ -160,14 +141,10 @@ function App() {
           reconciling.current = null;
           return;
         }
-        const running = startupReconcile(userId).then(async (outcome) => {
-          if (outcome.kind === "conflict") {
-            setCloudConflict(outcome);
-            return;
-          }
-          setCanContinue(await getSaveRepository().hasSave());
+        const running = startupReconcile(userId).then((outcome) => {
+          if (outcome.kind === "conflict") setCloudConflict(outcome);
         });
-        // 记下来给 continueGame 等；自己跑完就摘掉
+        // 记下来给 loadActiveSlot 等；自己跑完就摘掉
         reconciling.current = running;
         void running.finally(() => {
           if (reconciling.current === running) reconciling.current = null;
@@ -226,7 +203,6 @@ function App() {
         setWorldEpoch((epoch) => epoch + 1);
       }
       setCloudConflict(null);
-      setCanContinue(await getSaveRepository().hasSave());
     },
     [stage],
   );
@@ -260,7 +236,8 @@ function App() {
     setStage("loading");
   }, []);
 
-  const continueGame = useCallback(async () => {
+  /** 读活动槽里的档进世界。存档舞台点了有档的卡之后走这里。 */
+  const loadActiveSlot = useCallback(async () => {
     // 搬家和对账都可能正在动主档：等它们落定再读，别读到半路的旧档
     await whenSlotsReady();
     if (reconciling.current) await reconciling.current;
@@ -286,22 +263,21 @@ function App() {
         ? `读取存档失败：${outcome.message}`
         : "没有找到可继续的存档。",
     );
-    setCanContinue(false);
   }, []);
 
   /**
    * 存档页点了一张有档的卡。
    *
-   * **先把活动槽切过去再读**——`continueGame` 和后面所有的写盘走的都是
+   * **先把活动槽切过去再读**——`loadActiveSlot` 和后面所有的写盘走的都是
    * 活动槽，顺序反了就是"读 A 的档、写进上一个槽"。切槽是同步的
    * （内存那份立刻生效），所以这里不需要等。
    */
   const enterSlot = useCallback(
     async (slot: SaveSlotId) => {
       setActiveSlot(slot);
-      await continueGame();
+      await loadActiveSlot();
     },
-    [continueGame],
+    [loadActiveSlot],
   );
 
   /** 存档页点了一张空卡：在这个槽开新档 */
@@ -318,8 +294,6 @@ function App() {
       {stage === "title" ? (
         <TitleScreen
           config={TITLE_SCREEN_CONFIG}
-          canContinue={canContinue}
-          onContinue={() => void continueGame()}
           onEnterSlot={(slot) => void enterSlot(slot)}
           onCreateInSlot={createInSlot}
         />

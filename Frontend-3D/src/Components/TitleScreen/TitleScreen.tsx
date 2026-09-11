@@ -26,9 +26,6 @@ type TitleScreenProps = {
   onEnterSlot?: (slot: SaveSlotId) => void;
   /** 存档页：在这个空槽开新档（走捏脸） */
   onCreateInSlot?: (slot: SaveSlotId) => void;
-  /** 上次玩的那个槽里有档时才显示"继续游戏"（不用进存档页的快捷入口） */
-  canContinue?: boolean;
-  onContinue?: () => void;
 };
 
 const STANDARD_EASE = [0.16, 1, 0.3, 1] as const;
@@ -60,8 +57,6 @@ export function TitleScreen({
   config,
   onEnterSlot,
   onCreateInSlot,
-  canContinue = false,
-  onContinue,
 }: TitleScreenProps) {
   const reduceMotion = useReducedMotion();
   const [locale, setLocale] = useState<TitleLocale>(() =>
@@ -195,23 +190,10 @@ export function TitleScreen({
         </AnimatePresence>
 
         <div className="title-screen-actions mt-[clamp(10px,1.8dvh,20px)] grid w-[min(290px,76vw)] gap-2.5 max-sm:w-[min(260px,80vw)] [@media(max-height:620px)]:mt-1 [@media(max-height:620px)]:gap-1.5">
-          {canContinue ? (
-            <GameBtn
-              className="title-screen-continue-button"
-              size="lg"
-              tone="mint"
-              fullWidth
-              onClick={() => onContinue?.()}
-            >
-              {copy.continueGame}
-            </GameBtn>
-          ) : null}
           <GameBtn
             className="title-screen-primary-button"
-            size={canContinue ? "md" : "lg"}
-            /* 有档可继续时主动作是"继续"，"开始游戏"退成次要——
-               一屏只该有一个 mint */
-            tone={canContinue ? "cream" : "mint"}
+            size="lg"
+            tone="mint"
             fullWidth
             onClick={() => setStageOpen(true)}
           >

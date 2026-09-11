@@ -3,9 +3,6 @@ export type TitleLocale = "zh" | "ja";
 export type TitleScreenCopy = {
   titleAlt: string;
   start: string;
-  /** 只在本地存在可继续的存档时显示（V0.1 要求的小号入口） */
-  continueGame: string;
-  continueHint: string;
   settings: string;
   localeLabel: string;
   back: string;
@@ -75,8 +72,6 @@ export const TITLE_SCREEN_COPY: Record<TitleLocale, TitleScreenCopy> = {
   zh: {
     titleAlt: "我的异世界小家",
     start: "开始游戏",
-    continueGame: "继续游戏",
-    continueHint: "回到你的小家",
     settings: "设置",
     localeLabel: "语言",
     back: "关闭",
@@ -137,8 +132,6 @@ export const TITLE_SCREEN_COPY: Record<TitleLocale, TitleScreenCopy> = {
   ja: {
     titleAlt: "私の異世界の小さなお家",
     start: "ゲームを始める",
-    continueGame: "つづきから",
-    continueHint: "お家に戻る",
     settings: "設定",
     localeLabel: "言語",
     back: "閉じる",

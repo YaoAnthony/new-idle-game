@@ -32,17 +32,49 @@ const FAVORS: readonly FavorDefinition[] = favorDefinitions;
  */
 const NEIGHBORS = ["slime_neighbor", "fox_neighbor", "spirit_neighbor"] as const;
 
+/** 开场：两箱都拆了。进度键只增不减，收拾屋子那条规则拿它当前置 */
+const OPENING_BOXES_FEATURE = "opening.boxes_unpacked";
+
 export const storyRules: StoryRule[] = [
   /*
    * ==== 开场（居民系统 14）====
    *
    * 新档醒来，门上贴着魔女的一张条子（`witch_first`，三行原文）。就这一条：不引导、不列任务、
    * 不发第二封信、不写独白。`game_started` 只在新档发（读档不发），老档 flags 里没有 door_note 就不出现。
+   *
+   * 大门同时锁上（2026-09-09）：推门念门表 lockedTextKey 那句"先把家里收拾一下吧"。
    */
   {
     id: "opening_note",
     triggers: [{ signal: "game_started" }],
-    effects: [{ kind: "set_flag", key: DOOR_NOTE_FLAG, value: "witch_first" }],
+    effects: [
+      { kind: "set_flag", key: DOOR_NOTE_FLAG, value: "witch_first" },
+      { kind: "lock_door", doorId: "front_door" },
+    ],
+  },
+  /*
+   * 第一次拿到家具 → 弹"怎么摆家具"的引导（一次性）。
+   * 判的是统计表里的 furniture_obtained（stat_at_least），不是数信号：成就系统
+   * 以后也读同一张表，"第 N 件家具"这类判断都从这里走。
+   */
+  {
+    id: "opening_first_furniture",
+    triggers: [
+      {
+        signal: "furniture_obtained",
+        requires: [{ kind: "stat_at_least", key: "furniture_obtained", value: 1 }],
+      },
+    ],
+    effects: [{ kind: "show_guide", guideId: "place_furniture" }],
+  },
+  /*
+   * 大门开锁："收拾一下"= 两箱都拆了（进度键）之后，放下过一件家具。
+   * furniture_placed 是屋里那张摆设表（world/furniture）每新增一件发的，听它就是在看那张表。
+   */
+  {
+    id: "opening_home_tidy",
+    triggers: [{ signal: "furniture_placed", requiresFeature: OPENING_BOXES_FEATURE }],
+    effects: [{ kind: "unlock_door", doorId: "front_door" }],
   },
   /*
    * 条子是一只信封（2026-09-09）。按 F 不再直接摊开信纸，而是：
@@ -69,6 +101,28 @@ export const storyRules: StoryRule[] = [
     once: false,
     triggers: [{ signal: "dialogue_event", subject: "witch_letter_open" }],
     effects: [{ kind: "open_letter", letterId: "witch_first" }],
+  },
+  /*
+   * 读完合上信纸 → 叹口气（第一次才叹；信可以反复看，气不用反复叹）。
+   * 接的是"合上"不是"拆开"：拆开那一拍人还没读到最后一行。
+   */
+  {
+    id: "opening_letter_closed",
+    triggers: [{ signal: "letter_closed", subject: "witch_first" }],
+    effects: [{ kind: "start_dialogue", dialogueId: "opening_sigh" }],
+  },
+  /*
+   * 两个纸箱都拆了 → 自言自语"就这么点东西吗"。
+   * 不点名箱子（战利品表 id）：signalCount 不带 subject 就是"拆过几个容器"，
+   * 开局屋里只有这两箱，第二次拆开即成立。
+   */
+  {
+    id: "opening_boxes_unpacked",
+    triggers: [{ signal: "unpacked", signalCount: 2 }],
+    effects: [
+      { kind: "unlock_feature", featureId: OPENING_BOXES_FEATURE },
+      { kind: "start_dialogue", dialogueId: "opening_boxes_done" },
+    ],
   },
 
   /*

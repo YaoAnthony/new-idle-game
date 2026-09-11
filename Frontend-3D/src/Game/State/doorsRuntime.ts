@@ -72,6 +72,8 @@ let pendingSaves: DoorSave[] | null = null;
 
 export function restoreDoors(saved: DoorSave[] | undefined): void {
   pendingSaves = saved ?? null;
+  // 换了一份存档（或开新档）：上一个世界的剧情锁不该带过来。这个世界的锁已经在 saved 里
+  storyLocks.clear();
 }
 
 /**
@@ -483,6 +485,8 @@ export function initDoors(): void {
     if (!passable) return false;
     return throughFrontDoor(local, radius);
   });
+  // 剧情比门先到的锁 / 开锁（见 storyLocks）
+  applyStoryLocks();
 }
 
 /**
@@ -513,6 +517,34 @@ function syncResidentDoors(): void {
     lastOpen.set(door.refId, door.open);
   }
 }
+/**
+ * 剧情要求某一种门锁上 / 打开（开场的大门）。
+ *
+ * 事件可能比门先到：新档的 game_started 在剧情系统启动那一拍就发，而门要等
+ * RoomScene 构造时 initDoors 才建出来。所以先记在这张表里，有门就套上、
+ * 建门时再套一遍。
+ *
+ * **套过也不划掉**：场景会重建（开发模式 StrictMode 把挂载跑两遍，换图也重建），
+ * 每次 initDoors 都从存档那份重来，表里没了锁就丢了——第一版就是这么让大门
+ * 开着的。表只在 restoreDoors（换存档）时清；到那时锁已经在存档里了。
+ */
+const storyLocks = new Map<string, boolean>();
+
+function applyStoryLocks(): void {
+  for (const [doorId, locked] of storyLocks) {
+    for (const door of doors.values()) {
+      if (door.definition.id !== doorId) continue;
+      if (locked) door.lock();
+      else door.unlock();
+    }
+  }
+}
+
+on("door_lock_requested", ({ doorId, locked }) => {
+  storyLocks.set(doorId, locked);
+  applyStoryLocks();
+});
+
 on("world_changed", (payload) => {
   if ((payload as { reason?: string } | undefined)?.reason === "buildings" && doors.size > 0) syncResidentDoors();
 });

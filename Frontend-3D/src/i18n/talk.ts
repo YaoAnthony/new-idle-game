@@ -555,7 +555,7 @@ export const TALK_ZH: Record<string, string> = {
   "letter.spirit.thanks_favor": "{you}：\n\n那碗汤的暖，我留了很久。\n这是林子里的东西，请收下。",
   "postcard.hometown": "{you}：\n\n老家一切都好。这里的天空比院子里的大一点，但没有你。\n过两天就回来。",
   // 14：开场贴在门上的条子。**文案照抄用户原文，不加一字、不改标点**
-  "letter.witch.first": "学徒，我出门了哈，屋子你随便用\n\n对了，我之前捣鼓了个石头傀儡，脑袋不知道滚哪儿去了，你有空找找\n\n别把我屋子弄成猪窝，不然回来你就完蛋了",
+  "letter.witch.first": "徒弟，我出门了哈，屋子你随便用\n\n但要是房子给我搞成猪窝的话，那你就完蛋了",
   "letter.you.hi": "你好呀，最近怎么样？",
   "letter.you.thanks": "谢谢你那天帮我的忙。",
   "letter.you.miss": "有几天没见了，有点想你。",

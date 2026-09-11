@@ -64,6 +64,8 @@ import { ConsignPanel } from "../Components/ConsignPanel/ConsignPanel";
 import { NewspaperPanel } from "../Components/NewspaperPanel/NewspaperPanel";
 import { MailboxPanel } from "../Components/Mailbox/MailboxPanel";
 import { NotePanel } from "../Components/Note/NotePanel";
+import { Eyelids } from "../Components/Opening/Eyelids";
+import { GuidePanel } from "../Components/Guide/GuidePanel";
 import {
   parseEnum,
   registerCommand,
@@ -339,6 +341,13 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
   const sceneRef = useRef<RoomScene | null>(null);
   /** 换图计数。map_changed +1 → 场景 effect 拆旧建新 */
   const [mapEpoch, setMapEpoch] = useState(0);
+  /**
+   * 过场（开场醒来、居民首次进屋）期间 HUD 整体不画：第一人称躺在床上
+   * 看天花板，角上还挂着时钟和快捷栏就出戏了。新档一挂载就当作在过场，
+   * 场景第一帧才发 cutscene_changed，等它就会闪一下。
+   */
+  const [cutscene, setCutscene] = useState(!loadedFromSave);
+  useEffect(() => on("cutscene_changed", ({ active }) => setCutscene(active)), []);
   const [touchMode, setTouchMode] = useState(isTouchMode());
 
   /**
@@ -2094,7 +2103,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
         className="game-canvas absolute inset-0 overflow-hidden"
       />
       {/* 快捷栏只管选中；"使用"（吃 / 进布置模式）统一走 F，见 RoomScene */}
-      <Hotbar />
+      {!cutscene && <Hotbar />}
       <InteractBubble scene={scene} />
       <BuildProgress scene={scene} />
       {/* 家具从背包也能直接进布置模式了——原来只有快捷栏能进，
@@ -2112,6 +2121,10 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       <MailboxPanel />
       <NotePanel />
       <DialoguePanel />
+      {/* 剧情弹的引导（第一次拿到家具讲怎么摆）。内容表在 Components/Guide/guides.ts */}
+      <GuidePanel />
+      {/* 开场睁眼的黑幕：新档一挂就全黑，压在所有面板之上 */}
+      <Eyelids initiallyShut={!loadedFromSave && mapEpoch === 0} />
       <DiaryPanel />
       {/*
         左上角这一列：时钟在上、需求条在下，交给同一个 flex 列排。
@@ -2125,14 +2138,14 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
         桌面端时钟从右上角搬到这里：右上角要留给"行动"和设置两个圆钮，
         三样东西挤一角谁都不舒服，而左上角腾出来了。
       */}
-      <HudColumn touchMode={touchMode} />
+      {!cutscene && <HudColumn touchMode={touchMode} />}
       <GameSettingsModal />
       <SleepOverlay />
       <RewardPanel />
       <ChestOverlay />
       {/* 建筑选址的确认条（B17）。没在选址时它自己 null */}
       <BuildingPlacePanel />
-      <HudTopCenter />
+      {!cutscene && <HudTopCenter />}
       {/* 金币飞行演出层（收银台领钱）。纯演出，钱在事件前已入账 */}
       <CoinFlight />
       {/* 消息面板挂在游戏里而不是 App 里：消息记录属于**这个世界**，

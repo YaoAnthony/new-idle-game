@@ -17,7 +17,7 @@ export type SaveMode = "local_only" | "cloud_sync" | "multiplayer_session";
  * 记的版本，不看这个常量）——v19 就这么漏过一次，联机之后险些把
  * 带发号方前缀的 id 套成两层。加迁移时两处一起改。
  */
-export const SAVE_SCHEMA_VERSION = 49;
+export const SAVE_SCHEMA_VERSION = 50;
 
 /**
  * **云槽的键**，也是多槽之前唯一的那一套键。

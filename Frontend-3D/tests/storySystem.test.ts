@@ -361,3 +361,61 @@ describe("对话条件", () => {
     ).toBe(false);
   });
 });
+
+// ---- 开场：合上信纸叹气、拆完两箱自言自语 ----
+
+describe("开场独白", () => {
+  test("合上魔女的条子才叹气，且只叹一次", () => {
+    signal("letter_opened", "witch_first");
+    expect(getFiredStoryRuleIds()).not.toContain("opening_letter_closed");
+
+    signal("letter_closed", "witch_first");
+    expect(getFiredStoryRuleIds()).toContain("opening_letter_closed");
+
+    // once 默认 true：再看一遍信不再叹
+    const before = getFiredStoryRuleIds().length;
+    signal("letter_closed", "witch_first");
+    expect(getFiredStoryRuleIds().length).toBe(before);
+  });
+
+  test("别的信合上不叹气", () => {
+    signal("letter_closed", "witch_from_town");
+    expect(getFiredStoryRuleIds()).not.toContain("opening_letter_closed");
+  });
+
+  test("拆第二个箱子才说'就这么点东西吗'，不管是哪两个箱子", () => {
+    signal("unpacked", "moving_tools");
+    expect(getFiredStoryRuleIds()).not.toContain("opening_boxes_unpacked");
+
+    signal("unpacked", "moving_furniture");
+    expect(getFiredStoryRuleIds()).toContain("opening_boxes_unpacked");
+  });
+});
+
+// ---- 统计 + 第一次拿到家具的引导 ----
+
+describe("统计与引导", () => {
+  test("家具进背包：furniture_obtained 统计按件数加，非家具不算", async () => {
+    const { addItem } = await import("../src/Game/State/inventory");
+    const { getStat, restoreStats } = await import("../src/Game/State/stats");
+    restoreStats(undefined);
+    addItem("furniture_chair", 2);
+    addItem("tomato", 3);
+    expect(getStat("furniture_obtained")).toBe(2);
+    addItem("furniture_table", 1);
+    expect(getStat("furniture_obtained")).toBe(3);
+  });
+
+  test("第一次拿到家具弹一次引导，之后不再弹", async () => {
+    const { addItem } = await import("../src/Game/State/inventory");
+    const { restoreStats } = await import("../src/Game/State/stats");
+    restoreStats(undefined);
+    const guides: string[] = [];
+    const off = on("guide_open_requested", ({ guideId }) => guides.push(guideId));
+    addItem("furniture_chair", 1);
+    addItem("furniture_table", 1);
+    off();
+    expect(guides).toEqual(["place_furniture"]);
+    expect(getFiredStoryRuleIds()).toContain("opening_first_furniture");
+  });
+});

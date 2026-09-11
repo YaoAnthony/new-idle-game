@@ -11,6 +11,7 @@ import {
   type ItemCounts,
 } from "core";
 import { emit } from "../EventBus";
+import { bumpStat } from "./stats";
 import { t } from "../../i18n/t";
 import { getClock } from "./clock";
 
@@ -358,6 +359,13 @@ export function addItem(
   }
 
   announce("add");
+
+  // 家具进了背包：统计 +N、发信号。塞不下的那部分不算——没拿到就是没拿到
+  const obtained = quantity - remaining;
+  if (definition.category === ItemCategory.Furniture && obtained > 0) {
+    bumpStat("furniture_obtained", obtained);
+    emit("story_signal", { kind: "furniture_obtained", subject: itemId });
+  }
 }
 
 /**
@@ -712,23 +720,10 @@ export function seedInitialInventory(): void {
    * 但教程第一步就是拆箱，兜的是一个玩家必然会做的动作；
    * 代价却是开场第一眼手上凭空多个东西，和"行李全在箱子里"自相矛盾。
    *
-   * 只剩一点食材，够开火做一顿。
-   *
-   * （这三样原来的理由是"第一天能做饭见苔苔"，属于已推倒的旧剧情。
-   * 保留数量是因为它现在另有独立的理由：厨房是核心循环的一环，
-   * 开局手里一点原料都没有的话，玩家得先跑完一轮采集才摸得到灶台。
-   * 新剧情要改开局节奏，这里是可动的。）
+   * **食材也没有了**（2026-09-09，用户定："刚来的背包怎么会有鸡蛋番茄和米饭"）。
+   * 原来留两个番茄两个蛋两把米是旧剧情"第一天做饭"的遗物；新开场是在
+   * 魔女的屋子里醒来，身上什么都没有才对。第一顿的原料以后由剧情给。
    */
-  const materials: Array<[string, number]> = [
-    ["tomato", 2],
-    ["egg", 2],
-    ["rice", 2],
-  ];
-  // 放背包段而不是快捷栏：开局手上是空的，第一件事是去拆门口的箱子
-  materials.forEach(([itemId, count], index) => {
-    inventory[HOTBAR_SIZE + index] = { itemId, count };
-  });
-
   announce("seed");
 }
 

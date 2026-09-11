@@ -120,6 +120,12 @@ export type StorySignalKind =
   /** 10：信到了 / 拆了 / 你写了一封。subject 是 letterId（写的那封是收信人 definitionId） */
   | "letter_received"
   | "letter_opened"
+  /**
+   * 信纸合上了（subject 是 letterId）。开场读完魔女的条子、关掉信纸那一拍的
+   * 独白接它——"读完"这个时点只有合上才成立，拆开时人还没看。
+   * 只有摊开的信纸（NotePanel）发；信箱里的信没有这个动作。
+   */
+  | "letter_closed"
   | "letter_written"
   /** 11：生日当天收了你的礼（subject = definitionId）。记忆规则接 */
   | "resident_gift_on_birthday"
@@ -159,6 +165,11 @@ export type StorySignalKind =
    * 拿下来之后发生什么（进背包、弹对话）由规则接——门只知道"被拿走了"。
    */
   | "door_note_taken"
+  /**
+   * 一件家具进了背包（subject 是 itemId）。拆箱、买、做、捡都算——入包那一拍发，
+   * 同时统计 `furniture_obtained` +1。"第一次拿到家具弹引导"接它，用 stat_at_least 判次数。
+   */
+  | "furniture_obtained"
   /**
    * 玩家拿着一件东西按了 F（subject 是 itemId），且那件东西不是吃的。
    * 现在只有可读物（信封）发它；以后"用一下"的道具都走这一个口。
@@ -282,6 +293,14 @@ export type StoryEffect =
   | { kind: "set_event_stage"; eventId: EventId; stageId: EventStageId; complete?: boolean }
   | { kind: "set_affection"; residentId: ResidentId; stage: AffectionStage }
   | { kind: "unlock_feature"; featureId: FeatureId }
+  /**
+   * 锁上 / 打开某一种门（按门定义 id，当前图里这种门全算）。
+   * 开场：新档 game_started 锁大门，收拾完屋子开。锁进存档，读档不重放。
+   */
+  | { kind: "lock_door"; doorId: string }
+  | { kind: "unlock_door"; doorId: string }
+  /** 弹一块引导面板（Frontend Components/Guide 的注册表按 guideId 找内容：标题、说明、以后的示意图） */
+  | { kind: "show_guide"; guideId: string }
   | { kind: "give_item"; itemId: ItemId; quantity: number }
   /**
    * 扣掉背包里的东西。修理、交付、以物易物都要它。

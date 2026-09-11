@@ -366,6 +366,15 @@ export type WorldSave = {
      * 老存档没有这一段，读出来当空表。
      */
     poolMisses?: Record<string, number>;
+
+    /**
+     * 统计（2026-09-09）：这个存档里"发生过多少次"的计数表，成就系统的底座。
+     * 键是自由字符串（`furniture_obtained`、`furniture_placed`…），谁产生就谁记
+     * （State 层 `stats.ts` 的 bumpStat）。和 signalCounts 的分别：那张表是剧情
+     * 解释器自己的，键跟着信号走；这张是玩法直接记的、给成就 / 引导 / 对话
+     * 条件（`stat_at_least`）查的。老存档没有这一段，读出来当空表（v50）。
+     */
+    stats?: Record<string, number>;
   };
 
   // activeActionProcess 搬去 PlayerSave 了（save v12）。

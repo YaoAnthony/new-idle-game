@@ -3,6 +3,7 @@ import {
   BloomEffect,
   EffectComposer,
   EffectPass,
+  GaussianBlurPass,
   RenderPass,
   SMAAEffect,
   SMAAPreset,
@@ -44,6 +45,11 @@ export type PostFXHandle = {
   readonly enabled: boolean;
   setEnabled: (enabled: boolean) => void;
   render: (deltaSeconds: number) => void;
+  /**
+   * 全屏高斯模糊的强度（0 = 关掉，不多花一趟）。开场"刚睁眼"那段用：
+   * 1 左右是眼前一片糊，坐起来的过程里退回 0。低端机 bypass 时没有它。
+   */
+  setBlur: (scale: number) => void;
   setSize: (width: number, height: number) => void;
   dispose: () => void;
 };
@@ -66,8 +72,17 @@ export function createPostFX(
   renderer: WebGLRenderer,
   scene: Scene,
   camera: Camera,
+  /** 多重采样覆盖（?msaa= 实验用）；null 走默认 */
+  msaaOverride: number | null = null,
 ): PostFXHandle {
   const lowEnd = detectLowEnd(renderer);
+  const maxSamples = renderer.capabilities.maxSamples ?? 0;
+  const multisampling =
+    msaaOverride !== null
+      ? Math.min(msaaOverride, maxSamples)
+      : lowEnd
+        ? 0
+        : Math.min(4, maxSamples);
 
   /*
    * **MSAA 必须在 composer 上开**（2026-08-25 用户报"到处是锯齿"）。
@@ -86,7 +101,7 @@ export function createPostFX(
    */
   const composer = new EffectComposer(renderer, {
     frameBufferType: HalfFloatType,
-    multisampling: lowEnd ? 0 : Math.min(4, renderer.capabilities.maxSamples ?? 0),
+    multisampling,
   });
 
   composer.addPass(new RenderPass(scene, camera));
@@ -109,6 +124,15 @@ export function createPostFX(
 
   composer.addPass(new EffectPass(camera, smaa, bloom, vignette));
 
+  /*
+   * 模糊排在最后，**不用时从链上卸掉**而不是 enabled=false：composer 只让链尾
+   * 那个 pass 画到屏幕，链尾要是关着的，前面的效果全画进缓冲区、屏幕上定格
+   * 在上一帧（开场坐起来后画面卡在糊图上就是这个）。addPass / removePass
+   * 会自己把 renderToScreen 交给新的链尾。半分辨率跑两遍够糊了。
+   */
+  const blur = new GaussianBlurPass({ kernelSize: 35, iterations: 2, resolutionScale: 0.5 });
+  let blurAttached = false;
+
   let enabled = !lowEnd;
 
   return {
@@ -122,6 +146,14 @@ export function createPostFX(
 
     render(deltaSeconds: number) {
       composer.render(deltaSeconds);
+    },
+
+    setBlur(scale: number) {
+      blur.scale = scale;
+      const wanted = scale > 0.01;
+      if (wanted && !blurAttached) composer.addPass(blur);
+      if (!wanted && blurAttached) composer.removePass(blur);
+      blurAttached = wanted;
     },
 
     setSize(width: number, height: number) {

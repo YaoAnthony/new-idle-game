@@ -22,6 +22,12 @@ export const doorDefinitions: DoorDefinition[] = [
      */
     lockable: true,
     defaultLocked: false,
+    /*
+     * 开场（2026-09-09）：新档的 game_started 规则把它锁上（lock_door），
+     * 屋子收拾好——两箱拆完、家具落地——规则再开（unlock_door）。门表本身不锁：
+     * 测试和老档的新世界都该是开着的。锁着时推门弹这段自言自语。
+     */
+    lockedDialogueId: "opening_door_locked",
     behavior: {
       autoOpenRadius: 1.2,
       autoCloseRadius: 1.8,

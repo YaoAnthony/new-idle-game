@@ -101,6 +101,7 @@ const SHAPE: string[] = [
   // v30：抽签池的保底计数。不进档的话读一次档等待就归零
   "ownWorld.progression.poolMisses",
   "ownWorld.progression.signalCounts",
+  "ownWorld.progression.stats",
   "ownWorld.progression.unlockedFeatureIds[]",
   "ownWorld.seed",
   "ownWorld.weather.lastResolvedWorldDayId",

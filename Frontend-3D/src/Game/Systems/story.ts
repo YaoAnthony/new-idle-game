@@ -130,6 +130,15 @@ function runEffect(effect: StoryEffect): void {
     case "unlock_feature":
       unlockFeature(effect.featureId);
       break;
+    case "lock_door":
+      emit("door_lock_requested", { doorId: effect.doorId, locked: true });
+      break;
+    case "unlock_door":
+      emit("door_lock_requested", { doorId: effect.doorId, locked: false });
+      break;
+    case "show_guide":
+      emit("guide_open_requested", { guideId: effect.guideId });
+      break;
 
     case "give_item":
       addItem(effect.itemId, effect.quantity);

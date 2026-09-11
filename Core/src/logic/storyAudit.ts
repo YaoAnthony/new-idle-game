@@ -4,6 +4,7 @@ import {
 } from "../Data/dialogues/index.js";
 import { eventDefinitions, findEventDefinition } from "../Data/events/index.js";
 import { findItemDefinition } from "../Data/items/index.js";
+import { findDoorDefinition } from "../Data/doors/index.js";
 import {
   expressionDefinitions,
   findExpression,
@@ -94,6 +95,10 @@ export function auditCondition(where: string, condition: DialogueCondition): str
         problems.push(`${where}：${condition.kind} 指向不存在的居民 "${condition.residentId}"`);
       }
       if (condition.kind === "neighbor_remembers" && !condition.memoryId) problems.push(`${where}：neighbor_remembers 的 memoryId 是空的`);
+      break;
+    case "stat_at_least":
+      if (!condition.key) problems.push(`${where}：stat_at_least 的键是空的`);
+      if (!(condition.value > 0)) problems.push(`${where}：stat_at_least 的次数得是正数`);
       break;
     case "remembers":
       if (!condition.memoryId) problems.push(`${where}：remembers 的 memoryId 是空的`);
@@ -725,6 +730,13 @@ export function auditStoryContent(options: AuditOptions = {}): string[] {
         // 11
         case "set_flag":
           if (!effect.key) problems.push(`${where}：set_flag 的键是空的`);
+          break;
+        case "show_guide":
+          if (!effect.guideId) problems.push(`${where}：show_guide 的 guideId 是空的`);
+          break;
+        case "lock_door":
+        case "unlock_door":
+          if (!findDoorDefinition(effect.doorId)) problems.push(`${where}：${effect.kind} 指向不存在的门 "${effect.doorId}"`);
           break;
         case "open_letter":
           if (!findLetterDefinition(effect.letterId)) problems.push(`${where}：open_letter 指向不存在的信 "${effect.letterId}"`);

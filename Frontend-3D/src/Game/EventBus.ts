@@ -93,6 +93,8 @@ export type GameEvents = {
    * 而订阅方（音景）不该反过来去查门在哪。
    */
   door_toggled: { refId: string; open: boolean; x: number; z: number };
+  /** 剧情效果 lock_door / unlock_door：这一种门（定义 id）锁上 / 打开。doorsRuntime 接 */
+  door_lock_requested: { doorId: string; locked: boolean };
   /** 一次性容器（纸箱/奖励箱）的领取面板开合 */
   unpack_changed: { open: boolean };
   /**
@@ -348,6 +350,15 @@ export type GameEvents = {
   story_signal: import("core").StorySignal;
   /** 剧情要求显示一条提示 */
   story_toast: { localizationKey: string; durationMs: number };
+  /** 剧情效果 show_guide：弹这一块引导面板（Components/Guide） */
+  guide_open_requested: { guideId: string };
+  /** 统计表某个键变了（State/stats）。成就面板以后听它 */
+  stats_changed: { key: string; value: number };
+  /**
+   * 开场"睁眼"的眼皮开合度：0 全黑、1 全开、-1 = 演完了把覆盖层撤掉。
+   * Game3D/World/OpeningIntro 每帧发，Components/Opening/Eyelids 画。
+   */
+  opening_eyelids: { open: number };
 
   // ---- 每日任务机器（V0.11）----
 

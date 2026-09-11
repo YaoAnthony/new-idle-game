@@ -11,6 +11,7 @@ import {
 } from "core";
 import { emit } from "../EventBus";
 import { getCount, getSelectedStack, type SlotRef } from "../State/inventory";
+import { getStat } from "../State/stats";
 import { getResident, getResidents } from "../State/residentsRuntime";
 import { playerInHomeOf } from "./residents/spots";
 import { letterReplyPending } from "./mail";
@@ -84,6 +85,8 @@ export function evaluateCondition(condition: DialogueCondition, residentId: stri
       return isFeatureUnlocked(condition.featureId);
     case "has_item":
       return getCount(condition.itemId) >= condition.quantity;
+    case "stat_at_least":
+      return getStat(condition.key) >= condition.value;
     case "weather_is":
       return getWeather().id === condition.weatherId;
 

@@ -1,4 +1,5 @@
 import { DEFAULT_HOUSE_ID, type GameSave } from "core";
+import { restoreStats, snapshotStats } from "../../Game/State/stats";
 import { restoreClock, snapshotClock } from "../../Game/State/clock";
 import {
   restoreChatLog,
@@ -246,6 +247,7 @@ export function serializeGameSave(previous?: GameSave): GameSave {
         firedStoryRuleIds: getFiredStoryRuleIds(),
         signalCounts: getSignalCounts(),
         poolMisses: getPoolMisses(),
+        stats: snapshotStats(),
       },
     },
   };
@@ -400,6 +402,7 @@ export function hydrateGameSave(save: GameSave): void {
   restoreFiredStoryRules(save.ownWorld.progression.firedStoryRuleIds ?? []);
   restoreSignalCounts(save.ownWorld.progression.signalCounts);
   restorePoolMisses(save.ownWorld.progression.poolMisses);
+  restoreStats(save.ownWorld.progression.stats);
   restoreDayFacts(save.ownWorld.dayFacts);
   restoreResidentTrips(save.ownWorld.residentTrips);
   restoreTripPlans(save.ownWorld.tripPlans);

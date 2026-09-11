@@ -1703,6 +1703,11 @@ export const migrations: Migration[] = [
       return save;
     },
   },
+  /** v50 · 世界表 progression 加 stats（统计，成就的底座）。老档没有 = 空表，读档侧兜住，这里不用写 */
+  {
+    to: 50,
+    migrate: (save) => save,
+  },
 ];
 
 

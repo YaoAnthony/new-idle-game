@@ -9,11 +9,13 @@ import { isHouseStowed } from "core";
 import type { InteractHint, PlacedFurniture, RoomSave } from "core";
 import {
   PointLight,
+  Quaternion,
   Raycaster,
   Scene,
   Vector2,
   Vector3,
 } from "three";
+import { OpeningIntro } from "./OpeningIntro";
 import {
   matchesAction,
   type InputAction,
@@ -390,6 +392,15 @@ export class RoomScene {
 
   /** 换图后置真：这个场景在等 React 拆，update 全跳过（防踩落点的竞态） */
   private travelFrozen = false;
+
+  /**
+   * 开场"醒来"（2026-09-09，见 OpeningIntro）。新档才有：构造时标记
+   * pending，第一帧 update 再真正开演——枕头的位置要从床的视图上读，
+   * 视图在构造里才建好。演完交接：把镜头从坐姿插值回第三人称机位。
+   */
+  private introPending = false;
+  private intro: OpeningIntro | null = null;
+  private introHandoff: { position: Vector3; quaternion: Quaternion; elapsed: number } | null = null;
 
   /** 提示气泡附着的家具（独立于 interactTarget，见 refreshInteractTarget） */
   private hintTarget: HintTarget | null = null;
@@ -901,6 +912,11 @@ export class RoomScene {
       z: this.controller.z,
       groundY: this.controller.supportY,
       mapId: getCurrentMap().mapId,
+      fps: this.renderer.fps(),
+      drawCalls: this.renderer.drawStats().calls,
+      triangles: this.renderer.drawStats().triangles,
+      pixelRatio: this.renderer.quality().pixelRatio,
+      postFX: this.renderer.quality().postFX,
     }));
 
     // 补一次初始同步。**必须在两个 placement 都建好之后**——读档进来、
@@ -912,7 +928,51 @@ export class RoomScene {
     this.applyEnvironment();
     this.resize();
 
+    // 新档：在床上醒来。人先藏起来、站到床边，镜头下一帧从枕头上开演
+    if (options.seedFurniture !== false) this.prepareOpening();
+
     this.renderer.start((delta) => this.update(delta));
+  }
+
+  /** 床在屋里西北角（seedInitialFurniture 的格 (7,0)）：人站在床东侧，面朝屋里 */
+  private prepareOpening(): void {
+    this.introPending = true;
+    emit("cutscene_changed", { active: true });
+    this.controller.teleport(-7.3, 15.3);
+    this.controller.enabled = false;
+    this.characterRig.root.visible = false;
+  }
+
+  private startOpening(): void {
+    const bed = this.furnitureView.findByFurnitureId("furniture_bed")[0];
+    let pillow: Vector3;
+    let feet: Vector3;
+    if (bed) {
+      // 枕头在床模型本地 (0, 0.72, −1.02)（recipes/bedroom.ts），脚那头在 +z
+      bed.updateWorldMatrix(true, false);
+      pillow = bed.localToWorld(new Vector3(0, 0.72, -1.02));
+      feet = bed.localToWorld(new Vector3(0, 0.72, 1.02)).sub(pillow);
+    } else {
+      // 没找到床（不该发生）：按格 (7,0) 朝北硬算，别让开场演不下去
+      pillow = new Vector3(-9, 0.72, 16.3);
+      feet = new Vector3(0, 0, -1);
+    }
+    this.intro = new OpeningIntro(this.rig.camera, pillow, feet, (scale) =>
+      this.renderer.postFX.setBlur(scale),
+    );
+  }
+
+  /** 坐起来了 → 人现身、输入放开，镜头用 0.9 s 滑回第三人称机位 */
+  private finishOpening(): void {
+    this.intro = null;
+    this.introHandoff = {
+      position: this.rig.camera.position.clone(),
+      quaternion: this.rig.camera.quaternion.clone(),
+      elapsed: 0,
+    };
+    this.characterRig.root.visible = true;
+    this.controller.enabled = true;
+    emit("cutscene_changed", { active: false });
   }
 
   private attachInput(): () => void {
@@ -1569,7 +1629,8 @@ export class RoomScene {
   private refreshInteractTarget(): void {
     // 全景里不提示"按 F 干什么"：镜头都飞到天上了，那个气泡只会
     // 挂在画面中央挡住截图。退出时下一轮检查会自己把它找回来
-    if (this.rig.inOverview) {
+    // 开场躺着的时候同理：镜头在枕头上，气泡挂在床上只会穿帮
+    if (this.rig.inOverview || this.introPending || this.intro || this.introHandoff) {
       // 两样都要清：interactTarget 管"按 F 会发生什么"，hintTarget 管
       // 那个挂在家具上的气泡。只清前者的话气泡照样浮在半空——
       // 它们是同一次检查算出来的两份结果，退出时也要一起回来
@@ -2159,6 +2220,8 @@ export class RoomScene {
    * 附近有目标就操作目标 → 都没有就用手上那件东西。
    */
   interact(): void {
+    // 开场还没演完：还躺着呢，什么都不许按
+    if (this.intro || this.introHandoff) return;
     if (isResting()) {
       this.interactWhileResting();
       return;
@@ -2214,6 +2277,11 @@ export class RoomScene {
            * 同一句话刷满消息栏，比不说还糟。
            */
           this.roomDoorViews.get(refId)?.nudge();
+          // 门表指定了对话（开场的大门）：弹自言自语，不走聊天栏。对话开着时 F 到不了这里，不用冷却
+          if (agent.definition.lockedDialogueId) {
+            startDialogue(agent.definition.lockedDialogueId, null);
+            return;
+          }
           const now = performance.now();
           if (now - this.lastLockedNoticeAt > 2000) {
             this.lastLockedNoticeAt = now;
@@ -2919,6 +2987,11 @@ export class RoomScene {
     // 换图后这个场景已是弃子，只等 React 拆——不许再动任何状态
     if (this.travelFrozen) return;
 
+    if (this.introPending) {
+      this.introPending = false;
+      this.startOpening();
+    }
+
     this.controller.update(deltaSeconds, this.rig.azimuthDegrees);
 
     // 音景要知道玩家站在哪儿（家具音的距离衰减、分区档案、脚步声）。
@@ -2985,7 +3058,23 @@ export class RoomScene {
         );
       }
     }
-    this.rig.update(deltaSeconds);
+    if (this.intro) {
+      // 开场：镜头归 OpeningIntro，rig 这几秒不动（它一动就把第一人称机位盖掉）
+      this.intro.update(deltaSeconds);
+      if (this.intro.finished) this.finishOpening();
+    } else if (this.introHandoff) {
+      // 交接：rig 先算出它想要的机位，再从坐姿那个机位插过去
+      const handoff = this.introHandoff;
+      this.rig.update(deltaSeconds);
+      handoff.elapsed += deltaSeconds;
+      const t = Math.min(1, handoff.elapsed / 0.9);
+      const a = t * t * (3 - 2 * t);
+      this.rig.camera.position.lerpVectors(handoff.position, this.rig.camera.position, a);
+      this.rig.camera.quaternion.slerpQuaternions(handoff.quaternion, this.rig.camera.quaternion, a);
+      if (t >= 1) this.introHandoff = null;
+    } else {
+      this.rig.update(deltaSeconds);
+    }
 
     // 遮挡检测限流，淡入淡出本身每帧走——否则透明度会一跳一跳的
     this.occlusionCheckTimer += deltaSeconds;

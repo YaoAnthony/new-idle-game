@@ -1,7 +1,8 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { on } from "../../Game/EventBus";
 import { letterText } from "../../Game/Systems/mail";
+import { signal } from "../../Game/Systems/story";
 import { t } from "../../i18n/t";
 import { usePanel } from "../PanelStack/usePanel";
 
@@ -28,6 +29,16 @@ export function NotePanel() {
       }),
     [setOpen],
   );
+
+  /*
+   * 合上那一拍发 letter_closed（开场的叹气接它）。盯 open 的 true→false，
+   * 而不是挂在两个关闭按钮上：ESC / 面板栈从外面把它关掉也算"合上"。
+   */
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (wasOpen.current && !open && letterId) signal("letter_closed", letterId);
+    wasOpen.current = open;
+  }, [open, letterId]);
 
   const duration = reduceMotion ? 0 : 0.35;
 

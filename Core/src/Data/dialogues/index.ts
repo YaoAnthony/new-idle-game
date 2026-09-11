@@ -57,6 +57,45 @@ export const dialogueDefinitions: DialogueDefinition[] = [
       },
     },
   },
+  /** 读完条子合上：一句自言自语，没有选项，说完就结束 */
+  {
+    id: "opening_sigh",
+    localizationKey: "dlg.opening_sigh",
+    entryNodeId: "n1",
+    nodes: {
+      n1: {
+        nodeId: "n1",
+        speaker: "player",
+        localizationKey: "dlg.opening_sigh.n1",
+      },
+    },
+  },
+  /** 开场推锁着的大门：一句自言自语，每推一次弹一次（门表 lockedDialogueId 指过来） */
+  {
+    id: "opening_door_locked",
+    localizationKey: "dlg.opening_door_locked",
+    entryNodeId: "n1",
+    nodes: {
+      n1: {
+        nodeId: "n1",
+        speaker: "player",
+        localizationKey: "dlg.opening_door_locked.n1",
+      },
+    },
+  },
+  /** 两个纸箱都拆完：一句自言自语 */
+  {
+    id: "opening_boxes_done",
+    localizationKey: "dlg.opening_boxes_done",
+    entryNodeId: "n1",
+    nodes: {
+      n1: {
+        nodeId: "n1",
+        speaker: "player",
+        localizationKey: "dlg.opening_boxes_done.n1",
+      },
+    },
+  },
   /**
    * 水獭初见（期 3 · 失窃链第三幕）。**追不追是玩家的选择**——
    * "不用管它"那一项发 theft_waived，规则 ④' 把事件直接推到 settled，

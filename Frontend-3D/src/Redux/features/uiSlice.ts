@@ -21,6 +21,8 @@ import type { RootState } from "../store";
 
 export type PanelId =
   | "backpack"
+  /** 引导面板（Components/Guide）：剧情效果 show_guide 弹出，一次讲一件事 */
+  | "guide"
   | "chat"
   | "settings"
   | "daily"

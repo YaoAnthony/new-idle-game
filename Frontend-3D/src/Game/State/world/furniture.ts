@@ -188,9 +188,13 @@ export function replayRemoveFurniture(instanceId: string): void {
  *
  * 大门在小屋**世界北面**（房间本地的南墙，房子锚点朝南转了 180°），
  * 门洞占世界 x −4..−2、z=5 那条线；屋外是 z<5 的院子。台子是 4×2 的大件，
- * 锚点（左上格）院子格 (31, 29) → 压 x 31..34 / y 29..30 = 世界
- * x −8.5..−4.5 / z 2.5..4.5：沿着墙外那两排、门西侧半格外，不压门洞
- * （−4..−2），也不挡从门口往北走的路。
+ * 锚点（左上格）院子格 (31, 26) → 压 x 31..34 / y 26..27 = 世界
+ * x −8.5..−4.5 / z −0.5..1.5：门西侧半格外，不压门洞（−4..−2），也不挡从
+ * 门口往北走的路。
+ *
+ * **离墙三格半**（2026-09-11，原来是贴墙那两排 y 29..30）：交互气泡的半径是 2.4 米，
+ * 贴墙摆的话人在屋里靠窗站着就能隔着墙按 F 开寄售箱。箱心现在离墙外皮 4.5 米，
+ * 屋里任何位置都够不着。
  *
  * **朝南**：`FACING_ROTATION[North] = 0`，模型本地 +Z 在朝北时指向世界 +z
  * （南，也就是墙那边）；要让正面（木牌 + 搭扣，设计图上的那一面）对着从
@@ -203,7 +207,7 @@ export function replayRemoveFurniture(instanceId: string): void {
  */
 export const CONSIGN_BOX_SEED = {
   furnitureId: "furniture_consign_box",
-  gridPosition: { x: 31, y: 29 } as GridPosition,
+  gridPosition: { x: 31, y: 26 } as GridPosition,
   facing: Facing.South,
 } as const;
 

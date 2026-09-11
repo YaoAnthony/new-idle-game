@@ -220,8 +220,9 @@ test("开局_门口旁边就有一只寄售箱_不压门洞_不挡从门口往�
 
   /*
    * 大门在小屋世界**北**面：门洞占 x −4..−2、z=5 那条线，屋外是 z<5。
-   * 台子是 4×2：每一格都要在屋外、贴着墙外那两排、全在门洞西侧——
-   * "门口旁边"，不是院子中间，也不是压着门。
+   * 台子是 4×2：每一格都要在屋外、全在门洞西侧、离墙至少一个气泡半径
+   * （2.4 米——原来贴墙那两排，人在屋里靠窗就能隔墙按 F 开它，2026-09-11 挪远），
+   * 但也别跑到院子深处——"门口旁边"，不是院子中间，也不是压着门。
    */
   const yard = getRoom(yardId)!;
   const footprint = findPlaceableItem("furniture_consign_box")!.placement.footprint;
@@ -230,8 +231,8 @@ test("开局_门口旁边就有一只寄售箱_不压门洞_不挡从门口往�
   expect(cells).toHaveLength(8);
   for (const cell of cells) {
     const at = roomCellToWorld(yard, cell.x + 0.5, cell.y + 0.5);
-    expect(at.z, `格 ${cell.x},${cell.y} 进屋了`).toBeLessThan(5);
-    expect(at.z, `格 ${cell.x},${cell.y} 离墙太远`).toBeGreaterThan(2);
+    expect(at.z, `格 ${cell.x},${cell.y} 屋里隔墙够得着（气泡半径 2.4）`).toBeLessThan(5 - 2.4);
+    expect(at.z, `格 ${cell.x},${cell.y} 离墙太远`).toBeGreaterThan(-3);
     expect(at.x + 0.5, `格 ${cell.x},${cell.y} 压到门洞`).toBeLessThanOrEqual(-4);
     expect(at.x, `格 ${cell.x},${cell.y} 跑到墙角外面去了`).toBeGreaterThan(-10);
   }

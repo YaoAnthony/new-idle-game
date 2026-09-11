@@ -363,17 +363,22 @@ export function ConsignPanel() {
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#FF9800] shadow-[0_3px_0_#E65100] sm:h-9 sm:w-9 lg:h-11 lg:w-11 short:h-7 short:w-7">
                     <HandCoins className="h-5 w-5 text-white lg:h-6 lg:w-6 short:h-4 short:w-4" strokeWidth={2.5} aria-hidden />
                   </div>
-                  <span className="whitespace-nowrap text-[16px] font-black tracking-wide text-[#795548] [font-family:'Nunito','LXGW_WenKai_GB','Kaiti_SC',sans-serif] sm:text-[18px] lg:text-[20px] short:text-[14px]">
+                  {/*
+                    三段文字都随视口 clamp 缩放、一律不换行（2026-09-09 用户："8折太小换行了"）：
+                    价签和计数还要 shrink-0——flex 一挤先压它们，「8折」就折成"8 / 折"两行。
+                    真挤不下时让标题让位（min-w-0 + truncate），价签和计数是不能糊的数字。
+                  */}
+                  <span className="min-w-0 truncate text-[clamp(14px,1.5vw,20px)] font-black tracking-wide text-[#795548] [font-family:'Nunito','LXGW_WenKai_GB','Kaiti_SC',sans-serif]">
                     {t("ui.consign.title")}
                   </span>
-                  <div className="relative -rotate-1 rounded-md bg-white px-2.5 py-1 shadow-[0_2px_0_#E0A050] sm:px-3 sm:py-1.5 lg:px-4 lg:py-2 short:px-2 short:py-0.5">
+                  <div className="relative shrink-0 -rotate-1 whitespace-nowrap rounded-md bg-white px-[clamp(8px,0.9vw,16px)] py-[clamp(3px,0.45vw,8px)] shadow-[0_2px_0_#E0A050]">
                     <span
                       aria-hidden
                       className="absolute -top-1 left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-[#BCAAA4]"
                     />
-                    <span className="text-[13px] font-black text-[#E65100] lg:text-base">8折</span>
+                    <span className="text-[clamp(12px,1.2vw,16px)] font-black leading-none text-[#E65100]">8折</span>
                   </div>
-                  <span className="rounded-full bg-white px-2.5 py-0.5 text-[12px] font-black tabular-nums text-[#E65100] shadow-[inset_0_-2px_0_#FFCC80] sm:px-3 sm:py-1 sm:text-[13px] lg:px-4 lg:py-1.5 lg:text-base">
+                  <span className="shrink-0 whitespace-nowrap rounded-full bg-white px-[clamp(8px,0.9vw,16px)] py-[clamp(2px,0.35vw,6px)] text-[clamp(12px,1.15vw,16px)] font-black tabular-nums text-[#E65100] shadow-[inset_0_-2px_0_#FFCC80]">
                     {stocked}/{capacity}
                   </span>
                 </div>

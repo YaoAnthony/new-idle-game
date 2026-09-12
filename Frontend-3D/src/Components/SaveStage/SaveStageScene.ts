@@ -7,14 +7,17 @@ import {
 import {
   AmbientLight,
   CanvasTexture,
-  CircleGeometry,
   Color,
   DirectionalLight,
+  Fog,
   HemisphereLight,
   Mesh,
   MeshBasicMaterial,
+  MeshLambertMaterial,
   Object3D,
+  PCFSoftShadowMap,
   PerspectiveCamera,
+  PointLight,
   Raycaster,
   Scene,
   Vector2,
@@ -31,16 +34,16 @@ import {
   type CharacterRig,
 } from "../../Game3D/World/CharacterView.js";
 import { PlankDoor } from "../../Game3D/World/House/PlankDoor.js";
-import { PALETTE } from "../../Game3D/Visual/palette.js";
 import {
   box,
   cylinder,
   disposeTree,
-  flatMaterial,
   group,
   sphere,
 } from "../../Game3D/Visual/primitives.js";
 import { SAVE_SLOT_IDS, type SaveSlotId } from "../../Data/Save/slots";
+import { buildStageEnvironment, type StageEnvironment, type StageVariant } from "./stageEnvironments.js";
+import { LANTERN_OFF, LANTERN_ON, buildLanternPost, buildPedestal, type LanternPost } from "./stageProps.js";
 
 /**
  * 存档舞台：傍晚，你家小屋前的草地，四个站位一字排开（本地 A / B / C ＋ 云端）。
@@ -143,19 +146,44 @@ const DUSK = {
   cloud: "#ffffff",
 };
 
-function skyTexture(): CanvasTexture {
+/**
+ * 天空：三段竖向渐变（顶 / 地平线上一带 / 地平线）+ 右下一团太阳的光晕。
+ * 原来是两色直线渐变，地平线那一圈没有"日落的那道亮"，整张天像一块背景板。
+ * 256×256 拉满整屏，光晕的位置按屏幕比例定（右下）。
+ */
+function skyTexture(sky: StageEnvironment["sky"]): CanvasTexture {
   const canvas = document.createElement("canvas");
-  canvas.width = 4;
+  canvas.width = 256;
   canvas.height = 256;
   const context = canvas.getContext("2d")!;
   const gradient = context.createLinearGradient(0, 0, 0, 256);
-  gradient.addColorStop(0, DUSK.skyTop);
-  gradient.addColorStop(1, DUSK.skyBottom);
+  gradient.addColorStop(0, sky.top);
+  gradient.addColorStop(0.62, sky.mid);
+  gradient.addColorStop(1, sky.bottom);
   context.fillStyle = gradient;
-  context.fillRect(0, 0, 4, 256);
+  context.fillRect(0, 0, 256, 256);
+  const glow = context.createRadialGradient(178, 178, 4, 178, 178, 120);
+  glow.addColorStop(0, sky.glow);
+  glow.addColorStop(0.35, `${sky.glow}66`);
+  glow.addColorStop(1, `${sky.glow}00`);
+  context.fillStyle = glow;
+  context.fillRect(0, 0, 256, 256);
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = "srgb";
   return texture;
+}
+
+/**
+ * 布景方向：每次进舞台三选一随机（用户 2026-09-12 定：三个都要，随机来）。
+ * 地址栏 `?stage=meadow|forest|lake` 能指定，给截图和调试用。
+ * 用 Math.random 而不是按日期的 hash：这一屏本来就是"回家看一眼"，每次不一样才有意思；
+ * 存档、名牌、镜头都不依赖它，随机也不会让任何东西对不上。
+ */
+function pickStageVariant(): StageVariant {
+  const value = new URLSearchParams(window.location.search).get("stage");
+  if (value === "meadow" || value === "forest" || value === "lake") return value;
+  const all: StageVariant[] = ["meadow", "forest", "lake"];
+  return all[Math.floor(Math.random() * all.length)];
 }
 
 /** 地上的虚线圆环：12 小段方块绕一圈。空位的"这里可以站人"就靠它 */
@@ -201,24 +229,30 @@ class Spot {
   private mark: Object3D | null = null;
   private cloud: Object3D | null = null;
   private lift = 0;
+  private readonly lantern: LanternPost;
+  private readonly lanternLight: PointLight;
+  /** 灯的亮度 0..1，按帧 lerp 向 hot / selected 收 */
+  private glow = 0;
+  private hot = false;
+  private readonly lampOff = new Color(LANTERN_OFF);
+  private readonly lampOn = new Color(LANTERN_ON);
 
   constructor(
     readonly slot: SaveSlotId,
     x: number,
     z: number,
+    seed: number,
   ) {
     this.root.position.set(x, 0, z);
-    // 矮石台：比草地高一点，让人和圆环有个"台"可站
-    this.root.add(
-      cylinder(1.05, 1.1, 0.14, 24, {
-        position: [0, 0.07, 0],
-        color: PALETTE.baseStoneDark,
-      }),
-      cylinder(0.98, 0.98, 0.04, 24, {
-        position: [0, 0.16, 0],
-        color: PALETTE.paperShade,
-      }),
-    );
+    // 石台（围边石 + 台面刻线 + 苔，见 stageProps）和它右后方的一盏灯柱
+    this.root.add(buildPedestal(seed));
+    this.lantern = buildLanternPost();
+    this.lantern.root.position.set(0.95, 0, -1.25);
+    this.root.add(this.lantern.root);
+    // 暖色点光挂在灯芯上，平时强度 0；亮起来照到人的肩和石台
+    this.lanternLight = new PointLight(LANTERN_ON, 0, 7, 2);
+    this.lanternLight.position.set(0.95, 1.5, -1.25);
+    this.root.add(this.lanternLight);
     // 命中体：不可见的圆柱，比人宽一圈，手机上也点得中
     this.hit = cylinder(1.15, 1.15, 2.6, 12, {
       position: [0, 1.3, 0],
@@ -233,7 +267,7 @@ class Spot {
     this.clearContent();
     if (state.occupied) {
       this.rig = buildCharacter(state.avatar ?? defaultAvatarConfig());
-      this.rig.root.position.y = 0.18;
+      this.rig.root.position.y = 0.23;
       // 面朝镜头（镜头在 +z）
       this.rig.heading.rotation.y = 0;
       this.root.add(this.rig.root);
@@ -241,7 +275,7 @@ class Spot {
     }
     const color = state.locked ? DUSK.ringDim : DUSK.ringLit;
     this.ring = dashedRing(color);
-    this.ring.position.y = 0.18;
+    this.ring.position.y = 0.23;
     this.root.add(this.ring);
     if (state.slot === "cloud") {
       this.cloud = cloudPuff();
@@ -256,13 +290,25 @@ class Spot {
       this.root.add(this.cloud);
     } else {
       this.mark = plusMark(color);
-      this.mark.position.y = 0.18;
+      this.mark.position.y = 0.23;
       this.root.add(this.mark);
     }
   }
 
+  /** 指针停在这个站位上 */
+  setHot(hot: boolean): void {
+    this.hot = hot;
+  }
+
   animate(timeSeconds: number, selected: boolean): void {
     if (this.rig) animateCharacter(this.rig, 0, false, timeSeconds);
+    // 灯：悬停或选中就亮，亮得快（0.25）暗得慢（0.08）——移开指针时灯"余温"一下
+    const wantGlow = this.hot || selected ? 1 : 0;
+    this.glow += (wantGlow - this.glow) * (wantGlow > this.glow ? 0.25 : 0.08);
+    const flicker = 1 - Math.sin(timeSeconds * 9.3) * 0.06 - Math.sin(timeSeconds * 23.1) * 0.03;
+    (this.lantern.lamp.material as MeshBasicMaterial).color.copy(this.lampOff).lerp(this.lampOn, this.glow);
+    (this.lantern.shade.material as MeshLambertMaterial).emissiveIntensity = this.glow * 0.9 * flicker;
+    this.lanternLight.intensity = this.glow * 2.6 * flicker;
     if (this.ring) this.ring.rotation.y = timeSeconds * 0.35;
     if (this.cloud)
       this.cloud.position.y = 1.3 + Math.sin(timeSeconds * 1.3) * 0.08;
@@ -286,6 +332,8 @@ class Spot {
 
   dispose(): void {
     this.clearContent();
+    (this.lantern.lamp.material as MeshBasicMaterial).dispose();
+    (this.lantern.shade.material as MeshLambertMaterial).dispose();
     disposeTree(this.root);
   }
 }
@@ -300,6 +348,7 @@ export class SaveStageScene {
   private readonly scratch = new Vector3();
   private house: Object3D | null = null;
   private readonly doors: PlankDoor[] = [];
+  private readonly environment: StageEnvironment;
   private frame = 0;
   private readonly startedAt = performance.now();
   private lastFrameAt = performance.now();
@@ -324,47 +373,43 @@ export class SaveStageScene {
   constructor(
     private readonly canvas: HTMLCanvasElement,
     private readonly onPick: (slot: SaveSlotId) => void,
+    variant: StageVariant = pickStageVariant(),
   ) {
     this.renderer = new WebGLRenderer({ canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.scene.background = skyTexture();
+    // 影子是这一屏"有细节"的一半：树、人、石台落在草地上的影子把东西钉在地上
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = PCFSoftShadowMap;
 
-    this.camera = new PerspectiveCamera(32, 1, 0.1, 80);
+    this.environment = buildStageEnvironment(variant);
+    this.scene.background = skyTexture(this.environment.sky);
+    this.scene.fog = new Fog(this.environment.fog.color, this.environment.fog.near, this.environment.fog.far);
+
+    this.camera = new PerspectiveCamera(32, 1, 0.1, 160);
     this.camera.position.set(0, 4.6, 14);
     this.camera.lookAt(0, 2.0, -3);
 
-    // 灯：Lighting.ts 黄昏那一档——西北方几乎平射的橙光
+    // 灯：Lighting.ts 黄昏那一档——西北方几乎平射的橙光，带影子
     this.scene.add(new HemisphereLight(DUSK.hemiSky, DUSK.hemiGround, 0.55));
     this.scene.add(new AmbientLight(DUSK.ambient, 0.35));
-    const sun = new DirectionalLight(DUSK.sun, 2.0);
-    sun.position.set(-6, 3.2, 4);
+    const sun = new DirectionalLight(this.environment.sun.color, this.environment.sun.intensity);
+    sun.position.set(-12, 7, 8);
+    sun.castShadow = true;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.near = 1;
+    sun.shadow.camera.far = 60;
+    sun.shadow.camera.left = -24;
+    sun.shadow.camera.right = 24;
+    sun.shadow.camera.top = 24;
+    sun.shadow.camera.bottom = -24;
+    sun.shadow.bias = -0.0008;
     this.scene.add(sun);
+    this.scene.add(sun.target);
 
-    // 草地：一大片圆盘 + 几块深色草斑，边缘隐进天色里
-    const ground = new Mesh(
-      new CircleGeometry(40, 48),
-      flatMaterial(DUSK.grass),
-    );
-    ground.rotation.x = -Math.PI / 2;
-    this.scene.add(ground);
-    for (const [px, pz, r] of [
-      [6, 4, 2.2],
-      [-7, 2, 1.8],
-      [2, -3, 1.4],
-      [-3, 6, 1.2],
-      [8, -5, 2.6],
-    ]) {
-      const patch = new Mesh(
-        new CircleGeometry(r, 18),
-        flatMaterial(DUSK.grassDark),
-      );
-      patch.rotation.x = -Math.PI / 2;
-      patch.position.set(px, 0.01, pz);
-      this.scene.add(patch);
-    }
+    this.scene.add(this.environment.root);
 
     this.spots = SAVE_SLOT_IDS.map(
-      (slot, index) => new Spot(slot, SPOT_X[index], SPOT_Z),
+      (slot, index) => new Spot(slot, SPOT_X[index], SPOT_Z, 40 + index),
     );
     for (const spot of this.spots) this.scene.add(spot.root);
 
@@ -519,7 +564,10 @@ export class SaveStageScene {
    * 每次 move 都写 classList 会让样式白重算一遍。
    */
   private readonly onPointerMove = (event: PointerEvent): void => {
-    const hot = this.pickAt(event) !== undefined;
+    const slot = this.pickAt(event);
+    // 灯跟着指针：停在谁的台上，谁右后方那盏亮（用户 2026-09-12）
+    for (const spot of this.spots) spot.setHot(spot.slot === slot);
+    const hot = slot !== undefined;
     if (hot === this.hot) return;
     this.hot = hot;
     this.canvas.classList.toggle("save-stage__canvas--hot", hot);
@@ -532,6 +580,17 @@ export class SaveStageScene {
     const dt = (now - this.lastFrameAt) / 1000;
     this.lastFrameAt = now;
     for (const spot of this.spots) spot.animate(t, spot.slot === this.selected);
+    // 萤火虫：各自绕基点慢慢画圈、上下浮，亮度随相位闪
+    for (const fly of this.environment.fireflies) {
+      const [bx, by, bz] = fly.userData.base as [number, number, number];
+      const phase = fly.userData.phase as number;
+      fly.position.set(
+        bx + Math.sin(t * 0.5 + phase) * 0.9,
+        by + Math.sin(t * 1.1 + phase * 2) * 0.3,
+        bz + Math.cos(t * 0.4 + phase) * 0.9,
+      );
+      (fly.material as MeshBasicMaterial).opacity = 0.35 + 0.65 * Math.max(0, Math.sin(t * 2.2 + phase * 3));
+    }
     /*
      * 按真实时间收敛（每秒吃掉剩余距离的 99%），不按帧数：
      * 掉帧或页面被节流时推轨照样在半秒左右到位，而不是拖成慢动作。
@@ -556,6 +615,7 @@ export class SaveStageScene {
     this.canvas.removeEventListener("pointermove", this.onPointerMove);
     for (const spot of this.spots) spot.dispose();
     if (this.house) disposeTree(this.house);
+    disposeTree(this.environment.root);
     for (const door of this.doors) disposeTree(door.root);
     (this.scene.background as CanvasTexture | null)?.dispose();
     this.renderer.dispose();

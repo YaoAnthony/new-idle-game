@@ -4,6 +4,8 @@ import {
 } from "../Data/dialogues/index.js";
 import { eventDefinitions, findEventDefinition } from "../Data/events/index.js";
 import { findItemDefinition } from "../Data/items/index.js";
+import { findAchievementDefinition } from "../Data/achievements/index.js";
+import { isStatKey } from "../types/stats.js";
 import { findDoorDefinition } from "../Data/doors/index.js";
 import {
   expressionDefinitions,
@@ -98,10 +100,14 @@ export function auditCondition(where: string, condition: DialogueCondition): str
       break;
     case "stat_at_least":
       if (!condition.key) problems.push(`${where}：stat_at_least 的键是空的`);
+      else if (!isStatKey(condition.key)) problems.push(`${where}：stat_at_least 的键 "${condition.key}" 不在 STAT_KEYS 名单里`);
       if (!(condition.value > 0)) problems.push(`${where}：stat_at_least 的次数得是正数`);
       break;
     case "remembers":
       if (!condition.memoryId) problems.push(`${where}：remembers 的 memoryId 是空的`);
+      break;
+    case "achievement_unlocked":
+      if (!findAchievementDefinition(condition.achievementId)) problems.push(`${where}：achievement_unlocked 指向不存在的成就 "${condition.achievementId}"`);
       break;
     // 11
     case "is_birthday_of":

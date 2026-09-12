@@ -1,3 +1,4 @@
+import type { AchievementStates } from "./achievements.js";
 import type { BuildingPlacement } from "./building.js";
 import type { ChatMessage } from "./chat.js";
 import type { DailyBoardSave } from "./dailyTasks.js";
@@ -375,6 +376,12 @@ export type WorldSave = {
      * 条件（`stat_at_least`）查的。老存档没有这一段，读出来当空表（v50）。
      */
     stats?: Record<string, number>;
+
+    /**
+     * 成就状态（2026-09-12）：达成日、领奖日，按成就 id。只存"发生过的事实"，
+     * "完成了没"随时从 stats 重算（logic/achievements）。老存档没有 = 空表（v53）。
+     */
+    achievements?: AchievementStates;
   };
 
   // activeActionProcess 搬去 PlayerSave 了（save v12）。

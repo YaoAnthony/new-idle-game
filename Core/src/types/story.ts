@@ -167,6 +167,8 @@ export type StorySignalKind =
   | "door_note_taken"
   /** 桌上的日记本被拿走了（飞进右上角之后发，subject = 实例所属的 furnitureId）。开场二 */
   | "journal_taken"
+  /** 一条成就达成了（subject = 成就 id）。运行时 Systems/achievements 发；"达成 X 之后来一封信"这类接它 */
+  | "achievement_unlocked"
   /**
    * 一件家具进了背包（subject 是 itemId）。拆箱、买、做、捡都算——入包那一拍发，
    * 同时统计 `furniture_obtained` +1。"第一次拿到家具弹引导"接它，用 stat_at_least 判次数。

@@ -1,3 +1,4 @@
+import type { AchievementId } from "./achievements.js";
 import type { FeatureId, LocalizationKey } from "./base.js";
 import type { EventId, EventStageId } from "./events.js";
 import type { ActionCategory } from "./actions.js";
@@ -37,6 +38,8 @@ export type DialogueCondition =
   | { kind: "has_item"; itemId: ItemId; quantity: number }
   /** 存档统计（WorldSave.progression.stats）里这个键至少到了多少。"拿到过第一件家具"用它 */
   | { kind: "stat_at_least"; key: string; value: number }
+  /** 某条成就已达成（存档 progression.achievements 里有它）。"摆够十件家具解锁 X"这类内容门槛用它 */
+  | { kind: "achievement_unlocked"; achievementId: AchievementId }
   | { kind: "weather_is"; weatherId: WeatherId }
   // ---- 03 加的九种。读的都是运行时现状，不进存档的只有 lastGreetPhase ----
   /** 此刻的时段（黎明 / 白天 / 黄昏 / 夜里） */

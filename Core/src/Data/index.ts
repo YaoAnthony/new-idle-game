@@ -1,3 +1,4 @@
+export * from "./achievements/index.js";
 export * from "./actions/index.js";
 export * from "./autoLife/index.js";
 export * from "./audio/index.js";

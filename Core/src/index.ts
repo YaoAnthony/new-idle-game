@@ -1,4 +1,6 @@
 export * from "./types/account.js";
+export * from "./types/achievements.js";
+export * from "./types/stats.js";
 export * from "./types/actions.js";
 export * from "./types/audio.js";
 export * from "./types/autoLife.js";

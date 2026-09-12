@@ -676,6 +676,16 @@ input {
   height: calc(var(--note-line) * 1.7);
 }
 
+/* 笔尖星光的画布：盖住整张纸再往外多 60px，星星能飞出纸边；不吃指针 */
+.ui-note-sparks {
+  position: absolute;
+  inset: -60px;
+  width: calc(100% + 120px);
+  height: calc(100% + 120px);
+  pointer-events: none;
+  z-index: 3;
+}
+
 /* 家具交互气泡：羊皮纸小卡 + 指向家具的尖角 */
 .ui-bubble {
   border: 2px solid var(--line-deep);

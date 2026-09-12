@@ -1746,6 +1746,11 @@ export const migrations: Migration[] = [
       return save;
     },
   },
+  /** v53 · 世界表 progression 加 achievements（成就的达成日 / 领奖日）。老档没有 = 空表，读档侧兜住 */
+  {
+    to: 53,
+    migrate: (save) => save,
+  },
 ];
 
 

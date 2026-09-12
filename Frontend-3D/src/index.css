@@ -207,6 +207,129 @@ input {
   touch-action: none;
 }
 
+/* ---- 自定义鼠标光标（2026-09-12 定稿）----
+ *
+ * 美术给了一套 16×16 的像素光标（源图在 `public/ui/cursor/`），这里把系统光标
+ * 换掉。默认用箭头，悬停/拖拽用猫爪那三张。
+ *
+ * **图是预先放大好的，不是让浏览器拉的。** 16px 只有系统光标的一半大，压在
+ * 白天亮堂的屋子和奶油底 HUD 上一眼找不着；而放大这件事**交不出去**——
+ * `cursor` 吃不到 `image-rendering: pixelated`（光标由浏览器/系统合成，根本不走
+ * 页面渲染路径），浏览器一律平滑插值，像素画立刻糊成一团。所以 x2/x4 两套图
+ * 是 `asset-prep` 的 `pixel-up` 用最近邻预先出好的，改图要回那条指令重出，
+ * 别在这儿改尺寸。
+ *
+ * **每个状态两张图**：`image-set()` 让 1× 屏取 x2（32px）、2× 屏取 x4（64px），
+ * 两边都落在整数倍上、都锐。只给一张的话另一边必然糊。
+ *
+ * **故意不写 url() 兜底那一行**：万一哪个浏览器不认 image-set，整条 cursor
+ * 声明作废、一路继承到根上退成 `auto`——也就是系统光标，那本来就是我们要的
+ * 兜底。多写一行 url() 反而是让它拿到一张会被拉糊的图。
+ *
+ * **热点（url 后面那两个数）是量出来的**，单位是 CSS 像素 = 原图坐标 ×2：
+ * 箭头取笔尖 (4,1)；伸指的爪取左上那根趾尖 (5,1)；摊开的爪比伸指的整体右移
+ * 1px，跟着挪到 (6,1)；握住的拳头比摊开的右下偏 1px，挪到 (7,2)。
+ * **热点跟着画面挪，换图时爪子才是在原地攥起来的，不会跳一下。**
+ *
+ * 没换的两个：`not-allowed` 和输入框的 I 型。这套图里没有对应的画——禁用态
+ * 丢掉那个 🚫 只会更难懂，I 型换掉则是连"这儿能打字"都看不出来了。
+ */
+:root {
+  --cursor-default:
+    image-set(
+      url("/ui/cursor/x2/arrow.png") 1x,
+      url("/ui/cursor/x4/arrow.png") 2x
+    )
+    8 2, default;
+  --cursor-pointer:
+    image-set(
+      url("/ui/cursor/x2/paw-point.png") 1x,
+      url("/ui/cursor/x4/paw-point.png") 2x
+    )
+    10 2, pointer;
+  --cursor-grab:
+    image-set(
+      url("/ui/cursor/x2/paw.png") 1x,
+      url("/ui/cursor/x4/paw.png") 2x
+    )
+    12 2, grab;
+  --cursor-grabbing:
+    image-set(
+      url("/ui/cursor/x2/paw-hold.png") 1x,
+      url("/ui/cursor/x4/paw-hold.png") 2x
+    )
+    14 4, grabbing;
+}
+
+/*
+ * 下面这一组**必须包在 `@layer base` 里**，不是排版洁癖：
+ *
+ * Tailwind 的 preflight 自己写了两条光标规则——`button, [role="button"]
+ * { cursor: pointer }` 和 `:disabled { cursor: default }`（见
+ * `node_modules/tailwindcss/src/css/preflight.css`）。不盖住它们，项目里 108 个
+ * 按钮全都还是**系统小手**，猫爪只在显式写了 `cursor-pointer` 的三分之一上出现。
+ * 而想盖住，规则就得带 `button` / `:disabled` 这种权重；一旦写在文件普通位置，
+ * 它又会反过来压住 Tailwind 的 `.cursor-not-allowed`——禁用的格子会被改回猫爪。
+ *
+ * `@layer base` 正好把这两件事分开：这段被挪到 base 段**末尾**（preflight 之后），
+ * 压得住 preflight；而整个 base 段排在 utilities 之前，任何 `cursor-*` 类名仍然
+ * 后来居上。组件自己的 .css 在 index.css 之后加载，压得更稳——
+ * `.save-stage__canvas` 就是这样单独定自己那块的光标的。
+ *
+ * （上面"为一条虚线不值得动分层"说的是 `@layer components`，那次是为了**抬**层级；
+ * 这次是为了**降**权重，方向相反。）
+ */
+@layer base {
+  html {
+    cursor: var(--cursor-default);
+  }
+
+  /*
+   * `cursor` 是继承属性，html 上钉死之后输入框也跟着变箭头，原本 `auto` 给的
+   * I 型就没了——光标能进去，但看不出这儿能打字。补回来。
+   * 包 `:where()` 是为了权重归零，谁都盖得过它。
+   */
+  :where(input, textarea, [contenteditable="true"], .selectable) {
+    cursor: text;
+  }
+
+  /* preflight 那两条的对位覆盖：选择器一模一样，靠"写在后面"赢。
+   * 改这两行前先确认 preflight 里还是这两个选择器，Tailwind 升版动过就得跟着动。 */
+  button,
+  [role="button"] {
+    cursor: var(--cursor-pointer);
+  }
+
+  /* 禁用态回到我们自己的箭头（preflight 给的是系统箭头）。写在按钮那条后面，
+   * 权重也更高，所以 disabled 的按钮不会停在猫爪上。
+   * 真想显示 🚫 的地方照旧写 `cursor-not-allowed`，类名在 utilities 段，压得过这条。 */
+  :disabled {
+    cursor: var(--cursor-default);
+  }
+
+  /*
+   * 其余可点元素。这些的小手来自浏览器自带样式（比作者样式弱），所以
+   * `:where()` 的零权重就够用，不必像上面那两条一样硬碰。
+   * 放在 I 型那条后面，`type=checkbox` 这些才能从 I 型改回猫爪。
+   */
+  :where(
+    summary,
+    a[href],
+    select,
+    input:is(
+        [type="button"],
+        [type="submit"],
+        [type="reset"],
+        [type="checkbox"],
+        [type="radio"],
+        [type="range"],
+        [type="file"]
+      )
+  ) {
+    cursor: var(--cursor-pointer);
+  }
+}
+
 /* ---- 游戏 UI 皮肤 ----
  *
  * **全部用 CSS 画，不用背景图**（2026-07-31 定稿）。
@@ -273,7 +396,7 @@ input {
   box-shadow:
     inset 0 -2px 0 rgb(227 174 144 / 0.28),
     0 2px 4px rgb(196 148 120 / 0.22);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   user-select: none;
   /*
    * `manipulation` 而不是 `none`：去掉双击缩放那 300ms 的点击延迟，但**保留
@@ -1153,7 +1276,7 @@ input {
   min-width: 56px;
   height: 14px;
   background: transparent;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .mixer__slider::-webkit-slider-runnable-track {

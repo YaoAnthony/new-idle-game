@@ -14,12 +14,21 @@
   font-family: "Nunito", "LXGW WenKai GB", "Kaiti SC", sans-serif;
 }
 
+/*
+ * 画布是整屏的，**光标不能一刀切成"可点"**——那样一进选档页满屏都是猫爪，
+ * 像卡住了。默认是箭头，真正打到存档台时由 SaveStageScene 的 onPointerMove
+ * 挂上 --hot（那边有为什么值得每次 move 射一次线的说明）。
+ */
 .save-stage__canvas {
   display: block;
   width: 100%;
   height: 100%;
-  cursor: pointer;
+  cursor: var(--cursor-default);
   touch-action: none;
+}
+
+.save-stage__canvas--hot {
+  cursor: var(--cursor-pointer);
 }
 
 .save-stage__top {
@@ -52,7 +61,7 @@
   font-size: 13px;
   font-weight: 900;
   color: #8d6e63;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   box-shadow: 0 3px 0 #e0e0e0;
   -webkit-tap-highlight-color: transparent;
 }
@@ -87,7 +96,7 @@
   font-weight: 900;
   color: #80cbc4;
   text-decoration: underline;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 /* 底部那行"点一个位置"：舞台没选中时的唯一提示 */
@@ -132,7 +141,7 @@
   box-shadow: 0 3px 0 #f0ece7;
   will-change: transform;
   pointer-events: auto;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   transition: border-color 120ms ease-out;
 }
 
@@ -246,7 +255,7 @@
   border-radius: 999px;
   background: #f5f5f5;
   color: #8d6e63;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .save-stage__card-headline {

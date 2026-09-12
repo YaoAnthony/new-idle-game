@@ -46,7 +46,7 @@
     0 var(--game-btn-drop) 0 var(--game-btn-edge),
     0 8px 18px rgb(93 64 55 / 0.12),
     inset 0 0 0 2px rgb(93 64 55 / 0.05);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   user-select: none;
   outline: none;
   transition:

@@ -318,6 +318,8 @@ export class SaveStageScene {
   private readonly closeup: CloseupParams = DEFAULT_CLOSEUP;
   /** 每帧渲染完把四个站位的屏幕坐标交出去（名牌定位用） */
   private frameListener: ((spots: ProjectedSpot[]) => void) | null = null;
+  /** 指针当前是不是压在某个存档台上（只用来决定光标，见 onPointerMove） */
+  private hot = false;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -369,6 +371,7 @@ export class SaveStageScene {
     this.buildHouse();
 
     canvas.addEventListener("pointerdown", this.onPointerDown);
+    canvas.addEventListener("pointermove", this.onPointerMove);
     this.resize();
     this.loop();
   }
@@ -484,7 +487,8 @@ export class SaveStageScene {
     if (!this.selected) this.camFov = this.camFovTarget;
   }
 
-  private readonly onPointerDown = (event: PointerEvent): void => {
+  /** 屏幕坐标 → 打到哪个存档台。点击和悬停共用一条，免得两边判据走偏。 */
+  private pickAt(event: PointerEvent): SaveSlotId | undefined {
     const rect = this.canvas.getBoundingClientRect();
     this.pointer.set(
       ((event.clientX - rect.left) / rect.width) * 2 - 1,
@@ -495,8 +499,30 @@ export class SaveStageScene {
       this.spots.map((spot) => spot.hit),
       false,
     );
-    const slot = hits[0]?.object.userData.slot as SaveSlotId | undefined;
+    return hits[0]?.object.userData.slot as SaveSlotId | undefined;
+  }
+
+  private readonly onPointerDown = (event: PointerEvent): void => {
+    const slot = this.pickAt(event);
     if (slot) this.onPick(slot);
+  };
+
+  /*
+   * 悬停只做一件事：换光标。打到存档台才是猫爪，草地和天空还是箭头。
+   *
+   * 原来是 `.save-stage__canvas { cursor: pointer }` 一刀切整块画布。系统小手
+   * 时期看不出毛病，换成像素猫爪之后，一进选档页**整屏都是猫爪**，
+   * 看着像"点了一下就卡住了"——所以这里补一次真正的命中判定。
+   *
+   * 每次 pointermove 都射一次线看着奢侈，其实只有 4 个 hit mesh，而且这一页
+   * 除了选档没别的事在跑。命中结果缓存在 `hot` 里，只有变了才动 class——
+   * 每次 move 都写 classList 会让样式白重算一遍。
+   */
+  private readonly onPointerMove = (event: PointerEvent): void => {
+    const hot = this.pickAt(event) !== undefined;
+    if (hot === this.hot) return;
+    this.hot = hot;
+    this.canvas.classList.toggle("save-stage__canvas--hot", hot);
   };
 
   private loop = (): void => {
@@ -527,6 +553,7 @@ export class SaveStageScene {
   dispose(): void {
     cancelAnimationFrame(this.frame);
     this.canvas.removeEventListener("pointerdown", this.onPointerDown);
+    this.canvas.removeEventListener("pointermove", this.onPointerMove);
     for (const spot of this.spots) spot.dispose();
     if (this.house) disposeTree(this.house);
     for (const door of this.doors) disposeTree(door.root);

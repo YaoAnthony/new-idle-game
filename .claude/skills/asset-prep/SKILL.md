@@ -1,7 +1,7 @@
 ---
 name: asset-prep
 description: "美术出图进 public/ 之前的后处理工具箱：白底抠成透明、扫出还没处理的白底图。用户说'这张图白底''帮我抠个图''图放进去有白框''扫一下图标'就用它。每条指令对应目录里一个脚本，加新处理 = 加脚本 + 在指令表加一行。"
-argument-hint: "dewhite <图> [输出] [fuzz] | check [目录] | list"
+argument-hint: "dewhite <图> [输出] [fuzz] | check [目录] | pixel-up <图|目录> | list"
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash, Edit, Write
 ---
@@ -18,6 +18,7 @@ allowed-tools: Read, Glob, Grep, Bash, Edit, Write
 |------|--------|------|
 | `dewhite <图> [输出] [fuzz]` | 白底出图 → 透明底 | `dewhite.sh` |
 | `check [目录]` | 扫出还是白底不透明的 PNG | `check-alpha.sh` |
+| `pixel-up <图\|目录> [--name x]` | 像素图整数倍放大，出 @2x/@4x | `pixel-up.py` |
 | `list` | 就是把这张表念给用户听 | — |
 
 参数照着 `argument-hint` 传。用户没指定指令时，先跑 `check` 报告现状，再问要不要处理。
@@ -58,7 +59,36 @@ done
 全不透明的再看**四角是不是接近白**。四角有颜色的是满幅图（`portraits/` 的立绘、
 `ui-mockups/` 的设计稿），本来就该不透明，**不要动**。
 
-## 4. 验收（跑完必须做，不许跳）
+## 4. `pixel-up` —— 像素图放大出 @2x
+
+```bash
+python .claude/skills/asset-prep/pixel-up.py <图|目录> [--scales 2,4] [--out 目录] [--name 新名]
+```
+
+**为什么不能交给 CSS 拉**：平常放大像素图靠 `image-rendering: pixelated` 保住硬边，
+但 `cursor: url(...)` 吃不到这条属性——光标图是浏览器/系统合成的，不走页面渲染路径，
+16px 的图摆在 32px 的位置上永远是平滑插值糊出来的。这种场合只能**先放大好再交出去**。
+（favicon、分享图同理。）
+
+**只收整数倍**：2.5 倍的最近邻会让源像素块一大一小（有的占 2 格、有的占 3 格），
+横竖都不匀，像素画"每格一样大"的规整感当场就没了。真要 2.5 倍该换一张源图，
+不在这儿凑——脚本直接拒掉小数。
+
+**默认出 x2 和 x4 两套**：CSS 那头写 `image-set(url(x2/a.png) 1x, url(x4/a.png) 2x)`，
+1× 屏取 x2、2× 屏取 x4，两边都落在整数倍上。只出一张的话另一边必然糊：只给 x2，
+2× 屏把它当 64 设备像素平滑拉开；只给 x4，1× 屏又缩一半，边缘出灰。
+
+**`--name` 是给源图改名用的**。美术给的像素图常带空格和大写
+（`Arrow Mouse icon 1.png`），这种名字进 URL 要转义，不如在出图这一步就换成
+`arrow`。批量模式下用不了——一个名字盖不住一堆图。
+
+输出落在 `<out>/x2/`、`<out>/x4/` 里，**从不覆盖输入**，所以这条指令没有 dewhite
+那套备份逻辑（源图一直都在）。
+
+首个用例是 `Frontend-3D/public/ui/cursor/` 那套 16px 鼠标光标，CSS 那头怎么接
+写在 `Frontend-3D/src/index.css` 的"自定义鼠标光标"一节。
+
+## 5. 验收（跑完必须做，不许跳）
 
 1. **看图，别只看 exit code**。合成三张底再看：
    ```bash
@@ -71,8 +101,12 @@ done
    - **奶油底**是真实观感（背包格子的底色），确认没有白方块。
 2. 再跑一次 `check`，应该 **PASS**。
 3. 动过 `public/icons/` 下建筑图的，跑 `npx vitest run tests/buildingIcons.test.ts`（在 `Frontend-3D/`）。
+4. **`pixel-up` 出的图**：放大看边缘。一个源像素应该是一个**实心方块**；
+   边上出现两三级渐变过渡 = 采样器没走最近邻，图废了重出。
+   光标另外还要**真进浏览器晃一遍**——热点（`cursor: url(x) 热点x 热点y`）
+   量错了图不会报错，只是点不准，静态看图看不出来。
 
-## 5. 写回之前先问一句（ask before writing）
+## 6. 写回之前先问一句（ask before writing）
 
 `dewhite` 原地覆盖是**有损**的——背景像素被丢掉了。所以：
 
@@ -80,7 +114,7 @@ done
 - 新图第一次进仓库不用问，但要把落地路径念一遍再写。
 - 备份在 `/tmp/dewhite-backup-*/`，跟用户说一声——`/tmp` 会被系统清，要长期留的自己挪走。
 
-## 6. 顺带一提：图标是按 id 拼路径取的
+## 7. 顺带一提：图标是按 id 拼路径取的
 
 物品图标**没有** `icon` 字段可以填，取图是一条约定：`/icons/<itemId>.png`
 （`Game/Systems/materials.ts`、`Components/Inventory/slots.tsx`、`TradePanel.tsx` 三处）。
@@ -90,7 +124,7 @@ done
 拿到一张图不知道该叫什么，先去 `Core/src/Data/items/index.ts` 查 id，别照着中文名音译
 （`cloud_deng.png` 那种名字取图链路是找不到的）。
 
-## 7. 怎么加一条新指令
+## 8. 怎么加一条新指令
 
 以后再遇到"每次出图都要手动做一遍"的事（批量缩到 1024、生成 @2x、压体积……），
 按这四步加，**不要在对话里敲一次性命令**：
@@ -100,7 +134,7 @@ done
 3. 补一节用法（参数、什么时候用、坑）。
 4. 跑 `/skill-test static asset-prep`，7 项结构检查要 COMPLIANT。
 
-## 8. 做完之后
+## 9. 做完之后
 
 - 图是给新家具/新建筑配的 → 回 `Frontend-3D/Agent/create-furniture/SKILL.md` 走完注册和验收。
 - 想全面盘一遍资源合规（命名、体积预算、孤儿文件）→ `/asset-audit`。

@@ -137,7 +137,7 @@
   border-radius: 999px;
   background: #e2ddd3;
   color: #2b3b36;
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
 }
 
 .esc-stats {
@@ -217,7 +217,7 @@
     rgba(0, 0, 0, 0.12);
   color: #2b3b36;
   font-size: clamp(11px, 1.4vh, 13px);
-  cursor: pointer;
+  cursor: var(--cursor-pointer);
   overflow: hidden;
 }
 

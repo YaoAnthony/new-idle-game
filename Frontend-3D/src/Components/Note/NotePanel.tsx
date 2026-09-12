@@ -28,7 +28,12 @@ import { usePanel } from "../PanelStack/usePanel";
  *     出来的，得认得出是一家；
  *   - 淡淡的横格线，每行一道，正好垫在字底下——信纸的读法靠它，不靠字体；
  *   - **没有关闭叉**。底下一枚对话框那种上下跳的三角，点纸任何地方合上，
- *     和对话框一模一样——玩家在读这张纸之前刚学会那个动作。
+ *     和对话框一模一样——玩家在读这张纸之前刚学会那个动作；
+ *   - **落款是一个鬼脸涂鸦**（2026-09-12 加），右下角，打开 2 秒后才一笔
+ *     一笔画出来。设计稿定了条子没有寄件人、文案一字不加，所以落款不是
+ *     字，是她随手画的一张戴尖帽吐舌头的脸——懒、随手、只在意屋子，这个
+ *     人的签名本来就该是这样。延迟 2 秒是让玩家先把两行字读完：字和画
+ *     同时出现，眼睛会先被动的东西抓走。
  *
  * 动效沿用：遮罩淡入，纸从下方浮起（0.35 s，接拆信封的动作）。不走 Modal 的
  * 印章仪式——那是"打开一块面板"的语言，这里是"摊开一张纸"。reduced-motion 即时。
@@ -96,11 +101,82 @@ export function NotePanel() {
             <span className="ui-note-body pointer-events-none whitespace-pre-line">
               {letterText({ letterId })}
             </span>
+            <span className="ui-note-sign pointer-events-none" aria-hidden>
+              <Doodle instant={Boolean(reduceMotion)} />
+            </span>
             <span className="ui-dialogue-arrow pointer-events-none absolute -bottom-1 left-1/2" />
           </motion.button>
         </motion.div>
       ) : null}
     </AnimatePresence>
+  );
+}
+
+/**
+ * 落款的鬼脸：戴尖帽、一只眼眨着、吐舌头。
+ *
+ * 全是描边路径，没有填充——它要读成"用笔画上去的"，和上面实心块面的
+ * 蜡封（那是按上去的）不是一种东西。每一笔用 pathLength 从 0 走到 1，
+ * 按笔顺错开：先脸、再帽子、再五官，画完整张脸蹦一下，像落笔那一下的劲。
+ * 路径故意不闭合、曲线故意歪，闭合的正圆是图标不是涂鸦。
+ *
+ * instant（reduced-motion）：直接画好，不演。
+ */
+function Doodle({ instant }: { instant: boolean }) {
+  const ink = "#5e3a7c";
+  // 笔顺：脸 → 帽檐 → 帽尖 → 眨的眼 → 睁的眼 → 嘴 → 舌头
+  const strokes = [
+    "M60 32 C78 30 92 44 90 60 C88 78 74 90 58 88 C40 87 28 74 30 58 C32 42 44 33 62 33",
+    "M28 36 C46 29 76 29 94 36",
+    "M46 33 C50 22 55 12 60 5 C68 6 75 8 83 5 C77 13 79 24 78 33",
+    "M42 54 L52 59 L42 64",
+    "M70 55 C74 54 76 58 73 60 C70 62 67 58 70 55",
+    "M42 70 C50 82 70 82 80 68",
+    "M60 77 C59 86 68 88 70 79",
+  ];
+  const total = strokes.length;
+  const start = 2;
+  const step = 0.16;
+  const each = 0.34;
+  return (
+    <motion.svg
+      viewBox="0 0 120 96"
+      width="100%"
+      height="100%"
+      fill="none"
+      stroke={ink}
+      strokeWidth={3.2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      /*
+       * 这里**不能写 initial={false}**：motion 会把它沿树往下传，子路径拿到的
+       * initial 就成了 false，pathLength 直接停在 1——整张脸一打开就画好了，
+       * 2 秒延迟形同虚设（第一轮截图就是这样）。给一个显式初始值就断开传递。
+       */
+      initial={{ scale: 1, rotate: 0 }}
+      animate={instant ? undefined : { scale: [1, 1, 1.14, 1], rotate: [0, 0, -6, 0] }}
+      transition={{
+        delay: start + step * (total - 1) + each,
+        duration: 0.32,
+        ease: "easeOut",
+        times: [0, 0, 0.5, 1],
+      }}
+      style={{ transformOrigin: "50% 60%", overflow: "visible" }}
+    >
+      {strokes.map((d, i) => (
+        <motion.path
+          key={i}
+          d={d}
+          initial={instant ? false : { pathLength: 0, opacity: 0 }}
+          animate={{ pathLength: 1, opacity: 1 }}
+          transition={{
+            pathLength: { delay: start + step * i, duration: each, ease: "easeInOut" },
+            opacity: { delay: start + step * i, duration: 0.01 },
+          }}
+        />
+      ))}
+    </motion.svg>
   );
 }
 

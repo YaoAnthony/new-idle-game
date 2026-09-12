@@ -665,6 +665,17 @@ input {
   );
 }
 
+/*
+ * 落款：正文底下靠右一块方框，装鬼脸涂鸦。高度和字号一起随 vmin 走；
+ * 往右探出一点点（负外边距）是"签在边上"的读法，正正齐着正文像表格。
+ */
+.ui-note-sign {
+  display: block;
+  margin: calc(var(--note-pad) * 0.25) calc(var(--note-pad) * -0.35) 0 auto;
+  width: calc(var(--note-line) * 2.1);
+  height: calc(var(--note-line) * 1.7);
+}
+
 /* 家具交互气泡：羊皮纸小卡 + 指向家具的尖角 */
 .ui-bubble {
   border: 2px solid var(--line-deep);

@@ -3,9 +3,11 @@ import { AnimatePresence, motion, type Variants } from "motion/react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   FaBars,
+  FaBookOpen,
   FaBoxOpen,
   FaDoorOpen,
   FaTimes,
+  FaTrophy,
   FaUser,
 } from "react-icons/fa";
 import { emit, on } from "../../Game/EventBus";
@@ -107,6 +109,21 @@ const TILES: Tile[] = [
     icon: <FaBoxOpen />,
     accent: "#bba7ff",
     run: () => emit("ui_panel_requested", { panel: "backpack" }),
+  },
+  // 2026-09-12：成就 / 攻略查询器从这里进（用户定 ESC 是入口）
+  {
+    key: "achievements",
+    labelKey: "ui.esc.achievements",
+    icon: <FaTrophy />,
+    accent: "#ffd166",
+    run: () => emit("ui_panel_requested", { panel: "achievements" }),
+  },
+  {
+    key: "guideBook",
+    labelKey: "ui.esc.guide_book",
+    icon: <FaBookOpen />,
+    accent: "#9ad3a1",
+    run: () => emit("ui_panel_requested", { panel: "guideBook" }),
   },
   {
     key: "title",

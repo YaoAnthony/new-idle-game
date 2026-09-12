@@ -38,6 +38,7 @@ import {
   peekLog,
 } from "../State/actionLog";
 import { getDefinition, getWorld } from "../State/worldRuntime";
+import { bumpStat } from "../State/stats";
 
 /**
  * 行动系统：玩家现实中要做的事（写作业、运动…），角色在屋里陪着做。
@@ -200,6 +201,8 @@ export function startAction(
   timer = setTimeout(() => finish(true), durationSeconds * 1000);
   emit("action_changed", { status: "started" });
   signal("action_started", definitionId);
+  // 成就 night_owl：游戏时钟 0~4 点开始的专注
+  if (getClock().local.hour < 4) bumpStat("focus_after_midnight");
   return true;
 }
 
@@ -284,7 +287,10 @@ function finish(completed: boolean): void {
       items: rewards,
     });
   }
-  if (completed) signal("action_completed", definition?.id);
+  if (completed) {
+    bumpStat("action_completed");
+    signal("action_completed", definition?.id);
+  }
 }
 
 /**
@@ -453,6 +459,8 @@ export function logCompletedAction(input: {
       items: settled.rewards,
     });
   }
+  // 统计记的是"补录"不是"完成"：成就 focused_day 数的是计时走到头的那些（上面 finish 里记）
+  bumpStat("action_backfilled");
   signal("action_completed", definition.id);
 
   /*
@@ -527,6 +535,7 @@ export function addActionEntry(input: {
     priority: input.priority,
     createdAtUtc: nowUtc(),
   };
+  bumpStat("action_created");
 
   entries = [...entries, entry];
   emit("action_entries_changed", {});

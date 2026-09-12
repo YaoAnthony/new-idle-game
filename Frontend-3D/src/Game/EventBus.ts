@@ -110,7 +110,8 @@ export type GameEvents = {
    * 联合类型只剩 backpack：行动面板删了、消息和设置那两格也从菜单摘了
    * （2026-09-08）。再加格子时把名字加回这里，对应面板再挂一个监听。
    */
-  ui_panel_requested: { panel: "backpack" };
+  /** ESC 抽屉点了一格。成就 / 攻略查询器 2026-09-12 加 */
+  ui_panel_requested: { panel: "backpack" | "achievements" | "guideBook" };
   /** ESC 菜单请求回到标题界面（存盘之后） */
   ui_return_to_title: Record<string, never>;
   /**
@@ -352,9 +353,22 @@ export type GameEvents = {
   /** 玩法信号：剧情解释器与教程系统监听（内容在 Core storyRules） */
   story_signal: import("core").StorySignal;
   /** 剧情要求显示一条提示 */
-  story_toast: { localizationKey: string; durationMs: number };
+  story_toast: {
+    localizationKey: string;
+    durationMs: number;
+    /** 现成的正文（带参数拼好的），给了就不再 t(localizationKey) */
+    text?: string;
+    /** 标题行（成就达成用）。没有就只有正文一行 */
+    title?: string;
+    /** 左侧小图：`/icons/x.png` 路径或 emoji */
+    icon?: string;
+  };
+  /** 一条成就达成了（Systems/achievements）。面板、音效接它 */
+  achievement_unlocked: { achievementId: string };
+  /** 成就状态表变了（达成 / 领奖 / 读档） */
+  achievements_changed: { reason: "unlocked" | "claimed" | "restored" };
   /** 剧情效果 show_guide：弹这一块引导面板（Components/Guide） */
-  guide_open_requested: { guideId: string };
+  guide_open_requested: { guideId: string; /** 玩家自己点的（攻略查询器）：立刻开在最上面，不排队 */ immediate?: boolean };
   /** 统计表某个键变了（State/stats）。成就面板以后听它 */
   stats_changed: { key: string; value: number };
   /**

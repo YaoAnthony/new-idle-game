@@ -10,6 +10,7 @@ import {
   findFestivalDefinition,
 } from "core";
 import { emit } from "../EventBus";
+import { isAchievementUnlocked } from "./achievements";
 import { getCount, getSelectedStack, type SlotRef } from "../State/inventory";
 import { getStat } from "../State/stats";
 import { getResident, getResidents } from "../State/residentsRuntime";
@@ -87,6 +88,8 @@ export function evaluateCondition(condition: DialogueCondition, residentId: stri
       return getCount(condition.itemId) >= condition.quantity;
     case "stat_at_least":
       return getStat(condition.key) >= condition.value;
+    case "achievement_unlocked":
+      return isAchievementUnlocked(condition.achievementId);
     case "weather_is":
       return getWeather().id === condition.weatherId;
 

@@ -66,6 +66,8 @@ import { MailboxPanel } from "../Components/Mailbox/MailboxPanel";
 import { NotePanel } from "../Components/Note/NotePanel";
 import { Eyelids } from "../Components/Opening/Eyelids";
 import { GuidePanel } from "../Components/Guide/GuidePanel";
+import { GuideBookPanel } from "../Components/GuideBook/GuideBookPanel";
+import { AchievementsPanel } from "../Components/Achievements/AchievementsPanel";
 import {
   parseEnum,
   registerCommand,
@@ -134,6 +136,8 @@ import {
   startDayRecord,
 } from "../Game/Systems/dayRecord";
 import { startAutoLife } from "../Game/Systems/autoLife";
+import { startAchievementSystem } from "../Game/Systems/achievements";
+import { startNoiseClock } from "../Game/Systems/noiseTime";
 import { listResidents, startResidents } from "../Game/Systems/residents/moveIn";
 import {
   buyFromTraveler,
@@ -232,6 +236,7 @@ import {
   startDailyRollover,
 } from "../Game/Systems/dailyCommands";
 import { registerActionCommands } from "../Game/Systems/actionCommands";
+import { registerAchievementCommands } from "../Game/Systems/achievementCommands";
 import { DiaryPanel } from "../Components/Diary/DiaryPanel";
 import { registerResidentCommands } from "../Game/Systems/residents/commands";
 import { startTownTrips } from "../Game/Systems/residents/townTrips";
@@ -431,6 +436,9 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
     const stopStory = isRemoteWorldActive()
       ? () => {}
       : startStorySystem(!loadedFromSave);
+    // 成就：听统计表、读档对账。做客时统计表是房主的，不落成
+    const stopAchievements = isRemoteWorldActive() ? () => {} : startAchievementSystem();
+    const stopNoiseClock = isRemoteWorldActive() ? () => {} : startNoiseClock();
     // 水獭的班表同步（期 3）。做客时不跑：商人是世界的，归房主管
     const stopTrading = isRemoteWorldActive() ? () => {} : startTrading();
     // 居民搬入（期 4）：房子完工 → 驻地重定向 + resident_moved_in
@@ -490,6 +498,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       // 每日任务：正式交互在机器面板上，命令行是验收工具兼调试入口
       ...registerActionCommands(),
       ...registerDailyCommands(),
+      ...registerAchievementCommands(),
       ...registerResidentCommands(),
       registerCommand({
         name: "time",
@@ -1961,6 +1970,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       void saveNow().then(stopAutosave);
       offSpoil();
       stopStory();
+      stopAchievements();
+      stopNoiseClock();
       stopTrading();
       stopResidents();
       stopTownTrips();
@@ -2123,6 +2134,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       <DialoguePanel />
       {/* 剧情弹的引导（第一次拿到家具讲怎么摆）。内容表在 Components/Guide/guides.ts */}
       <GuidePanel />
+      <GuideBookPanel />
+      <AchievementsPanel />
       {/* 开场睁眼的黑幕：新档一挂就全黑，压在所有面板之上 */}
       <Eyelids initiallyShut={!loadedFromSave && mapEpoch === 0} />
       <DiaryPanel />

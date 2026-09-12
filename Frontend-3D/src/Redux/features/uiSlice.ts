@@ -23,6 +23,10 @@ export type PanelId =
   | "backpack"
   /** 引导面板（Components/Guide）：剧情效果 show_guide 弹出，一次讲一件事 */
   | "guide"
+  /** 成就面板（ESC 进） */
+  | "achievements"
+  /** 攻略查询器（ESC 进）：教程索引，点一条弹 guide */
+  | "guideBook"
   | "chat"
   | "settings"
   | "daily"

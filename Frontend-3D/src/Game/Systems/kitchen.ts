@@ -6,6 +6,7 @@ import {
   findItemDefinition,
   heatBandOf,
   heatRatio,
+  mysteryDish,
   resolveCookingTarget,
   shouldKeepHeating,
   heatRingFill,
@@ -34,6 +35,7 @@ import {
   getWorld,
   setSlotContent,
 } from "../State/worldRuntime";
+import { bumpStat } from "../State/stats";
 
 /**
  * 厨房：把 Core 的规则表接到运行时状态上。
@@ -239,6 +241,7 @@ export function interactWithKitchenSlot(ref: KitchenSlotRef): boolean {
         },
       });
 
+      bumpStat(action.output === mysteryDish.itemId ? "cook_burnt" : "cook_completed");
       emit("story_signal", { kind: "cook_completed", subject: action.output });
       return true;
     }
@@ -259,6 +262,7 @@ export function interactWithKitchenSlot(ref: KitchenSlotRef): boolean {
 
       // 一步盛出来的那道菜也该发信号，否则"做完一道菜"的剧情只认两步流程
       for (const item of action.items) {
+        bumpStat(item.itemId === mysteryDish.itemId ? "cook_burnt" : "cook_completed");
         emit("story_signal", { kind: "cook_completed", subject: item.itemId });
       }
       // 盛出后锅恢复为空锅

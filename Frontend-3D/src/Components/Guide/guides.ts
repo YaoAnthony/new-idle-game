@@ -10,9 +10,37 @@
  * 示意图放 public/ui/，存 WebP 不存 PNG：这种满幅插画 PNG 1.6 MB、WebP 质量 85
  * 只有 100 KB，肉眼看不出差别，而它是开场第一分钟就要下载的东西。
  */
+/**
+ * 攻略查询器的分类（2026-09-12）。顺序即左栏顺序；**没有条目的分类不显示**
+ * （白噪音 / 常见问题现在是空的，教程补进来它们自动出现）。
+ */
+export const GUIDE_CATEGORY_ORDER = ["furniture", "cooking", "diary", "rewards", "ambience", "faq"] as const;
+export type GuideCategory = (typeof GUIDE_CATEGORY_ORDER)[number];
+
+/** 左栏每个分类前面那个小图。设计稿是插画，先用 emoji 顶着 */
+export const GUIDE_CATEGORY_ICON: Record<GuideCategory, string> = {
+  furniture: "🛋️",
+  cooking: "🍲",
+  diary: "📔",
+  rewards: "🎁",
+  ambience: "🎵",
+  faq: "💬",
+};
+
+/** 卡片右上角的标签 */
+export type GuideTag = "basic" | "recommended" | "newbie";
+
 export type GuideDefinition = {
   id: string;
   titleKey: string;
+  /** 攻略查询器：归哪一类 */
+  category: GuideCategory;
+  /** 攻略查询器：卡片上那句副标题（"学会拿出家具、旋转方向、完成放置"） */
+  subtitleKey: string;
+  /** 攻略查询器：右上角标签。不填不显示 */
+  tag?: GuideTag;
+  /** 攻略查询器：缩略图。不填用第一张图裁 */
+  thumb?: string;
   /** 图下面的一句说明。有图就别写，图说不清的才补 */
   bodyKey?: string;
   /** public/ 下的示意图路径。没画好就不填，面板画占位 */
@@ -31,21 +59,44 @@ export const guideDefinitions: GuideDefinition[] = [
   {
     id: "place_furniture",
     titleKey: "guide.place_furniture.title",
+    category: "furniture",
+    subtitleKey: "guide.place_furniture.subtitle",
+    tag: "basic",
     image: "/ui/tutorial_furniture.webp",
   },
   {
     id: "kitchen",
     titleKey: "guide.kitchen.title",
+    category: "cooking",
+    subtitleKey: "guide.kitchen.subtitle",
+    tag: "recommended",
     image: "/ui/tutorial_kitchen.webp",
   },
   // 日记本（开场二）：两页——第一页从打开日记本到领奖励的五步，第二页续
   {
     id: "diary",
     titleKey: "guide.diary.title",
+    category: "diary",
+    subtitleKey: "guide.diary.subtitle",
+    tag: "newbie",
     images: ["/ui/tutorial_mission_1.webp", "/ui/tutorial_mission_2.webp"],
+  },
+  // 查询器里单列一条「P 人也能领奖励」：图就是日记本教程的第二页（设计稿里它是独立条目）
+  {
+    id: "backfill",
+    titleKey: "guide.backfill.title",
+    category: "rewards",
+    subtitleKey: "guide.backfill.subtitle",
+    tag: "recommended",
+    image: "/ui/tutorial_mission_2.webp",
   },
 ];
 
 export function findGuideDefinition(id: string): GuideDefinition | undefined {
   return guideDefinitions.find((guide) => guide.id === id);
+}
+
+/** 有条目的分类，按 GUIDE_CATEGORY_ORDER */
+export function guideCategoriesInUse(): GuideCategory[] {
+  return GUIDE_CATEGORY_ORDER.filter((category) => guideDefinitions.some((guide) => guide.category === category));
 }

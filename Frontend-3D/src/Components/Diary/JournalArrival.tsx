@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import { on } from "../../Game/EventBus";
 import { signal } from "../../Game/Systems/story";
 import { SparkField } from "../Effects/sparks";
+import { bumpStat } from "../../Game/State/stats";
 
 /**
  * 日记本飞进右上角的 DOM 段（开场二，2026-09-12）。
@@ -38,6 +39,7 @@ export function JournalArrival({ target }: { target: RefObject<HTMLElement | nul
     const button = target.current;
     if (!img || !canvas || !button) {
       // 没地方可飞（按钮没挂上）：别卡住剧情，直接当作到了
+      bumpStat("journal_taken");
       signal("journal_taken", "journal");
       setFlight(null);
       return;
@@ -76,6 +78,7 @@ export function JournalArrival({ target }: { target: RefObject<HTMLElement | nul
           landed = true;
           img.style.opacity = "0";
           field.burst(end.x, end.y, 22, 150);
+          bumpStat("journal_taken");
           signal("journal_taken", "journal");
         }
       }

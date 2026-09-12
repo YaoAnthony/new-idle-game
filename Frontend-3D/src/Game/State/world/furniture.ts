@@ -17,6 +17,7 @@ import {
   type PlacementTarget,
 } from "./placement.js";
 import { worldState } from "./state.js";
+import { bumpStat } from "../stats";
 
 /**
  * 已放置家具的增删 + 槽位内容（灶眼上的锅、砧板上的菜）。
@@ -98,6 +99,7 @@ export function placeFurnitureAt(
 
   insertPlacedFurniture(placed);
   emit("world_op", { op: { kind: "furniture_placed", placed } });
+  bumpStat("furniture_placed");
   emit("story_signal", { kind: "furniture_placed", subject: furnitureId });
   return check;
 }

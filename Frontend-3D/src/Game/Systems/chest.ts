@@ -10,6 +10,7 @@ import {
 import { addItem, getInventory } from "../State/inventory";
 import { getAllStorageCounts } from "../State/storage";
 import { getWorld } from "../State/worldRuntime";
+import { bumpStat } from "../State/stats";
 
 /**
  * 开箱：按投入分抽一件家具、入包、报出最高档位。
@@ -54,6 +55,7 @@ export function grantChest(
   for (const reward of target.rewards) {
     if (reward.type !== "item") continue;
     addItem(reward.itemId, reward.quantity);
+    bumpStat("rewards_claimed", reward.quantity);
     items.push({ itemId: reward.itemId, quantity: reward.quantity });
     const rarity = findItemDefinition(reward.itemId)?.rarity;
     if (rarity && rarityIndex(rarity) > rarityIndex(best)) best = rarity;

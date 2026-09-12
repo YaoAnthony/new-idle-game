@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from "vitest";
-import { DEFAULT_MAP_ID, Facing, affectionTuning, mailTuning, residentIdOf } from "core";
+import { DEFAULT_MAP_ID, Facing, MAILBOX_FEATURE, affectionTuning, mailTuning, residentIdOf } from "core";
 import { restoreBuildings } from "../src/Game/State/buildings";
 import { addItem, getCount, getSelectedStack, replaceCounts, setSelectedStack } from "../src/Game/State/inventory";
 import { getResident, removeResident, restoreResidents, spawnResident } from "../src/Game/State/residentsRuntime";
@@ -14,6 +14,7 @@ import { resetAffectionLedger, setAffection, startAffectionSystem } from "../src
 import { setTalkClockSource, type TalkClock } from "../src/Game/Systems/residents/talk";
 import { leaveForTown, restoreResidentTrips, setTripsClockSource } from "../src/Game/Systems/residents/townTrips";
 import { chatOutlook } from "../src/Game/State/skills/talk";
+import { isFeatureUnlocked, restoreProgression } from "../src/Game/Systems/events";
 import {
   claimAttachment,
   clearMailbox,
@@ -207,4 +208,19 @@ test("mail_人不在场的信留到他回来_存档往返", () => {
   restoreMailbox(saved);
   expect(listLetters().length).toBe(1);
   expect(listOutbox().length).toBe(1);
+});
+
+/**
+ * 门口的信箱第一位邻居搬进来才立（进度键 mailbox，规则 mailbox_installed）。
+ * 新档没有；谁先搬来都算；只解锁一次。场景那边建信箱前查这个键。
+ */
+test("mail_信箱进度键_新档没有_第一位搬进来解锁_不点名", () => {
+  restoreProgression({ events: {}, unlockedFeatureIds: [] });
+  expect(isFeatureUnlocked(MAILBOX_FEATURE)).toBe(false);
+  signal("furniture_placed", "stove");
+  signal("day_started");
+  expect(isFeatureUnlocked(MAILBOX_FEATURE)).toBe(false);
+  signal("resident_moved_in", "fox_neighbor");
+  expect(isFeatureUnlocked(MAILBOX_FEATURE)).toBe(true);
+  expect(fireStoryRuleById("mailbox_installed")).not.toBe("fired");
 });

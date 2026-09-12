@@ -77,6 +77,14 @@ export function findLetterDefinition(id: string): LetterDefinition | undefined {
   return letterDefinitions.find((entry) => entry.id === id);
 }
 
+/**
+ * 门口信箱的进度键。**没有邻居之前信箱不出现**（用户 2026-09-12 定：开场那一片别摆用不上的东西）：
+ * 收信要居民写、写信要有收信人、明信片要有人出门——第一位搬进来之前它没有任何功能，
+ * 只会在开场的门框视锥里晃着一只空箱子。第一位 `resident_moved_in` 那条剧情规则解锁，
+ * 老档按"已经有邻居 / 箱里已经有信"补（迁移 v51）。
+ */
+export const MAILBOX_FEATURE = "mailbox";
+
 export const mailTuning = {
   /** 信箱最多几封；满了不寄（不丢），池的 miss 不累加 */
   boxCapacity: 20,

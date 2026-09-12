@@ -1,11 +1,12 @@
 import { outsideFrontDoor, visitorAtDoor } from "../../Game/Systems/residents/visits";
 import { hasUnread } from "../../Game/Systems/mail";
+import { isFeatureUnlocked } from "../../Game/Systems/events";
 import { doorNoteOf, readDoorNote } from "../../Game/Systems/doorNote";
 import { signal as storySignal } from "../../Game/Systems/story";
 import { MailboxView } from "./MailboxView";
 import { residentNickname } from "../../i18n/residentName";
 import { BodyPosture, CreatureRole, DayPhaseId, Facing, FurnitureCapability, constructionProgress, constructionRemainingMs, isConstructionQueued, WeatherKind, anchorOf, anchorRectToWorld, findItemDefinition, findResidentDefinition, roomCellToWorld, type AutoStepKind, type DeckRect, type WeatherDefinition, yardBoundsOf, navBoundsOf } from "core";
-import { isHouseStowed } from "core";
+import { MAILBOX_FEATURE, isHouseStowed } from "core";
 import type { InteractHint, PlacedFurniture, RoomSave } from "core";
 import {
   PointLight,
@@ -489,24 +490,17 @@ export class RoomScene {
     );
 
     /*
-     * 门口的信箱（10）：大门外两步半、往右挪 0.9 米——**在门框那个视锥里**。镜头固定朝北，
-     * 主屋的门朝北开，站在门里往外看才看得见门前那一片；贴墙放在门边的话哪个角度都看不见它。
-     * 位置从门推（outsideFrontDoor），不写字面量——房子搬了信箱跟着走。旗子跟"有没拆的信"走。
+     * 门口的信箱（10）：第一位邻居搬进来才立（进度键 MAILBOX_FEATURE，剧情规则 mailbox_installed 解锁）。
+     * 解锁发生在本场景活着的时候（搬家就在院子里），所以还要听进度变化当场立起来，不能只在建场时看一眼；
+     * 房客那边整份换进度（feature:*）也走同一条。
      */
-    const outside = outsideFrontDoor();
-    if (outside) {
-      const dx = outside.x - outside.doorX;
-      const dz = outside.z - outside.doorZ;
-      const len = Math.hypot(dx, dz) || 1;
-      const sideX = -dz / len;
-      const sideZ = dx / len;
-      const mx = outside.x + sideX * 0.9 + (dx / len) * 1.2;
-      const mz = outside.z + sideZ * 0.9 + (dz / len) * 1.2;
-      this.mailboxView = new MailboxView(mx, groundHeightAt(mx, mz), mz, Math.atan2(dx, dz));
-      this.mailboxView.setFlag(hasUnread());
-      this.scene.add(this.mailboxView.root);
-      this.offEventListeners.push(on("mail_changed", () => this.mailboxView?.setFlag(hasUnread())));
-    }
+    this.ensureMailbox();
+    this.offEventListeners.push(on("mail_changed", () => this.mailboxView?.setFlag(hasUnread())));
+    this.offEventListeners.push(
+      on("event_progress_changed", ({ eventId }) => {
+        if (eventId === `feature:${MAILBOX_FEATURE}` || eventId === "feature:*") this.ensureMailbox();
+      }),
+    );
     // 声明的可走固定件（石阶、平台）。挂 scene 不挂 outdoor.root：
     // 声明里的标高是世界 Y，outdoor.root 整体压了 -floorLevel
     this.scene.add(buildGroundFixtures(getCurrentMap()));
@@ -3648,6 +3642,28 @@ export class RoomScene {
    */
   private ceilingClearanceOf(house: HouseFootprint): number {
     return getCurrentMap().openAir ? 10 : house.wallHeight;
+  }
+
+  /**
+   * 门口的信箱（10）：大门外两步半、往右挪 0.9 米——**在门框那个视锥里**。镜头固定朝北，
+   * 主屋的门朝北开，站在门里往外看才看得见门前那一片；贴墙放在门边的话哪个角度都看不见它。
+   * 位置从门推（outsideFrontDoor），不写字面量——房子搬了信箱跟着走。旗子跟"有没拆的信"走。
+   * 进度键没开（还没有邻居）就不立；已经立过的不重复立。openAir 图没有主屋也没有。
+   */
+  private ensureMailbox(): void {
+    if (this.mailboxView || !isFeatureUnlocked(MAILBOX_FEATURE)) return;
+    const outside = outsideFrontDoor();
+    if (!outside) return;
+    const dx = outside.x - outside.doorX;
+    const dz = outside.z - outside.doorZ;
+    const len = Math.hypot(dx, dz) || 1;
+    const sideX = -dz / len;
+    const sideZ = dx / len;
+    const mx = outside.x + sideX * 0.9 + (dx / len) * 1.2;
+    const mz = outside.z + sideZ * 0.9 + (dz / len) * 1.2;
+    this.mailboxView = new MailboxView(mx, groundHeightAt(mx, mz), mz, Math.atan2(dx, dz));
+    this.mailboxView.setFlag(hasUnread());
+    this.scene.add(this.mailboxView.root);
   }
 
   dispose(): void {

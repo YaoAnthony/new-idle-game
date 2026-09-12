@@ -548,3 +548,42 @@ test("v49：没有链的档迁完 actionGroups 是空数组，不是缺字段", 
   if (!result.ok) return;
   expect(result.save.player.actionGroups).toEqual([]);
 });
+
+describe("v51：信箱改进度键解锁——已有邻居或箱里有信的老档补 mailbox", () => {
+  test("有邻居的老档 → 补 mailbox；原有的键不动", () => {
+    const save = saveAtVersion(50, (draft) => {
+      draft.ownWorld.pets = {
+        "resident-slime_neighbor": { residentId: "resident-slime_neighbor", definitionId: "slime_neighbor" } as never,
+      };
+      draft.ownWorld.progression.unlockedFeatureIds = ["town_travel"];
+    });
+    const result = migrateSave(save);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.save.ownWorld.progression.unlockedFeatureIds).toEqual(["town_travel", "mailbox"]);
+  });
+
+  test("没邻居但箱里有信的老档 → 也补（信在，箱子必须在）", () => {
+    const save = saveAtVersion(50, (draft) => {
+      draft.ownWorld.mailbox = {
+        letters: [{ id: "x", letterId: "witch_first", receivedDayId: "2026-09-01", opened: true }],
+        outbox: [],
+        sentOnce: [],
+        lastSent: {},
+        scheduled: [],
+        replies: {},
+      };
+    });
+    const result = migrateSave(save);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.save.ownWorld.progression.unlockedFeatureIds).toContain("mailbox");
+  });
+
+  test("一个人都没搬来、箱子也空的老档不补，和新档一样等第一位", () => {
+    const result = migrateSave(saveAtVersion(50));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.save.ownWorld.progression.unlockedFeatureIds).not.toContain("mailbox");
+  });
+});

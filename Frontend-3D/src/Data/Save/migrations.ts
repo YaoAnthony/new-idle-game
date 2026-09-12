@@ -25,6 +25,7 @@ import { LOCAL_PLAYER_ID } from "../../Game/State/participants";
 import { SAVE_SCHEMA_VERSION } from "./types";
 import { cottageL1Interior } from "../../Maps/base/layout";
 import { footprintCells } from "core";
+import { MAILBOX_FEATURE } from "core";
 
 /**
  * v19 给老 id 补的发号方前缀。老档里的东西全产自本机，所以是 local。
@@ -1707,6 +1708,27 @@ export const migrations: Migration[] = [
   {
     to: 50,
     migrate: (save) => save,
+  },
+  /*
+   * v51 · 门口的信箱改成进度键解锁（第一位邻居搬进来，规则 mailbox_installed）。存档形状不变，补语义：
+   * 老档里已经有邻居的，那个 resident_moved_in 早发过了、规则不会再点火，不补的话读档回来信箱就消失——
+   * 已经开的东西不能因为规则改了就收回（同 v46 的小镇）。箱里已有信的也补：信在，箱子必须在。
+   * 一个人都没搬来、箱子也空的老档不补，和新档一样等第一位。
+   */
+  {
+    to: 51,
+    migrate: (save) => {
+      const progression = save.ownWorld?.progression;
+      if (!progression) return save;
+      const hasResident = Object.keys(save.ownWorld.pets ?? {}).length > 0;
+      const mailbox = save.ownWorld.mailbox;
+      const hasMail = Boolean(mailbox && ((mailbox.letters?.length ?? 0) > 0 || (mailbox.outbox?.length ?? 0) > 0));
+      if (!hasResident && !hasMail) return save;
+      const features = new Set(progression.unlockedFeatureIds ?? []);
+      features.add(MAILBOX_FEATURE);
+      progression.unlockedFeatureIds = [...features];
+      return save;
+    },
   },
 ];
 

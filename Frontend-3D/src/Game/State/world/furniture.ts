@@ -344,8 +344,9 @@ export function seedInitialFurniture(): void {
 
   /*
    * 日记本摆在桌上（台面小物，宿主 = 上面那张桌子）。
-   * 半格 (1,0)：桌面 4×2 半格里偏左那一格——书不放正中间，正中间是"陈列"，
-   * 偏一点才像随手搁下的。按 F 它飞走，见 Game3D/World/JournalFlight。
+   * 半格 (1,1)：桌面 4×2 半格里偏左、靠屋里那一排——书不放正中间，正中间是"陈列"，
+   * 偏一点才像随手搁下的。第一版放 (1,0) 是靠墙那排，桌子贴着南窗摆，书的后沿
+   * 穿进窗台（用户 2026-09-12 截图）。按 F 它飞走，见 Game3D/World/JournalFlight。
    */
   const table = worldState.placedFurniture.find(
     (item) => item.furnitureId === JOURNAL_TABLE_SEED.furnitureId,
@@ -360,7 +361,7 @@ export function seedInitialFurniture(): void {
           kind: PlacementSurface.Surface as const,
           roomId: worldState.room.roomId,
           hostInstanceId: table.instanceId,
-          gridPosition: { x: 1, y: 0 },
+          gridPosition: { x: 1, y: 1 },
           facing: Facing.North,
         },
         state: {},

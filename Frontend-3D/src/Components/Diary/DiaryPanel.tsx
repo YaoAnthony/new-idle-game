@@ -1,6 +1,9 @@
 import { motion } from "motion/react";
-import { BookOpen, ChevronLeft, ChevronRight } from "lucide-react";
-import { useCallback, useRef, useState, type CSSProperties } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { on } from "../../Game/EventBus";
+import { isFeatureUnlocked } from "../../Game/Systems/events";
+import { JournalArrival } from "./JournalArrival";
 import BookPlanner, { type BookNavApi } from "../../BookPlanner";
 import { TodayRewards } from "./TodayRewards";
 import { Modal } from "../Modal/Modal";
@@ -143,6 +146,15 @@ function NavArrow({
 export function DiaryPanel() {
   const [open, setOpen] = usePanel("diary");
   const navApi = useRef<BookNavApi | null>(null);
+  /*
+   * 右上角那颗按钮只在进度键 `diary` 开了之后才有（开场二，2026-09-12）：
+   * 新档要先把桌上那本拿到手——它飞进右上角那一拍剧情规则开这个键，按钮
+   * 跟着弹出来。老档由存档迁移 v52 直接补键，按钮照旧。
+   * 没开时按钮仍然渲染（缩到 0、不吃指针）：飞行的终点要量它的位置。
+   */
+  const [hasDiary, setHasDiary] = useState(() => isFeatureUnlocked("diary"));
+  useEffect(() => on("event_progress_changed", () => setHasDiary(isFeatureUnlocked("diary"))), []);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const [nav, setNav] = useState({ canPrev: false, canNext: false });
   /** 外壳（书皮）实测的宽度和上沿。牌子照它收、并且贴着它的上边摆 */
   const [cardBox, setCardBox] = useState({ width: 0, top: 0 });
@@ -238,8 +250,11 @@ export function DiaryPanel() {
         （按同一套 `--hud-btn` / `--hud-gap` 变量算），长相跟设计稿走：绿底白书。
       */}
       <motion.button
+        ref={buttonRef}
         type="button"
         aria-label="日记本"
+        aria-hidden={!hasDiary}
+        tabIndex={hasDiary ? 0 : -1}
         className="hud-corner-btn hud-corner-tile hud-corner-btn--inner z-10 grid place-items-center"
         /* 皮抽进了 .hud-corner-tile（index.css），这里只给颜色——角落钮
            同一套形状，靠颜色区分 */
@@ -248,14 +263,24 @@ export function DiaryPanel() {
             "--tile-face": COVER_DEEP,
             "--tile-rim": COVER_EDGE,
             "--tile-edge": "#4CAF50",
+            pointerEvents: hasDiary ? "auto" : "none",
           } as CSSProperties
         }
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
+        /*
+         * initial={false}：老档一进来键就是开的，按钮直接在，不演"弹出"。
+         * 新档拿到本子那一拍 hasDiary 翻真，才播这段 0 → 1.18 → 1 的弹出。
+         */
+        initial={false}
+        animate={{ scale: hasDiary ? [0.001, 1.18, 1] : 0.001 }}
+        transition={{ duration: 0.38, ease: "easeOut", times: [0, 0.6, 1] }}
+        whileHover={hasDiary ? { scale: 1.1 } : undefined}
+        whileTap={hasDiary ? { scale: 0.9 } : undefined}
         onClick={() => setOpen((value) => !value)}
       >
-        <BookOpen className="h-1/2 w-1/2" strokeWidth={2.5} />
+        {/* 按钮图就是桌上那本书（/icons/journal.png，和 3D 模型同一张参考图） */}
+        <img src="/icons/journal.png" alt="" className="h-[78%] w-[78%] object-contain" draggable={false} />
       </motion.button>
+      <JournalArrival target={buttonRef} />
 
       {/*
         打开走 **Pokopia 那套绽开转场**（`Modal`）：一枚书本印章转半圈，

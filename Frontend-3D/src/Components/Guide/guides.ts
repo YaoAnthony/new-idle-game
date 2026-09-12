@@ -17,7 +17,15 @@ export type GuideDefinition = {
   bodyKey?: string;
   /** public/ 下的示意图路径。没画好就不填，面板画占位 */
   image?: string;
+  /** 多张图（一页一张，面板给翻页箭头和页码点）。和 image 二选一，都给了 images 优先 */
+  images?: string[];
 };
+
+/** 这条引导的图，按页序。没图 = 空数组（面板画占位） */
+export function guideImages(guide: GuideDefinition): string[] {
+  if (guide.images && guide.images.length > 0) return guide.images;
+  return guide.image ? [guide.image] : [];
+}
 
 export const guideDefinitions: GuideDefinition[] = [
   {
@@ -29,6 +37,12 @@ export const guideDefinitions: GuideDefinition[] = [
     id: "kitchen",
     titleKey: "guide.kitchen.title",
     image: "/ui/tutorial_kitchen.webp",
+  },
+  // 日记本（开场二）：两页——第一页从打开日记本到领奖励的五步，第二页续
+  {
+    id: "diary",
+    titleKey: "guide.diary.title",
+    images: ["/ui/tutorial_mission_1.webp", "/ui/tutorial_mission_2.webp"],
   },
 ];
 

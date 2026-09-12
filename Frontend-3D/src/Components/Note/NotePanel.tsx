@@ -4,6 +4,7 @@ import { on } from "../../Game/EventBus";
 import { letterText } from "../../Game/Systems/mail";
 import { signal } from "../../Game/Systems/story";
 import { t } from "../../i18n/t";
+import { SparkField } from "../Effects/sparks";
 import { usePanel } from "../PanelStack/usePanel";
 
 /**
@@ -189,40 +190,19 @@ function Doodle({ instant }: { instant: boolean }) {
 
 /* ==============   星光   ============== */
 
-type Spark = {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  born: number;
-  life: number;
-  size: number;
-  color: string;
-  phase: number;
-  rot: number;
-  spin: number;
-};
-
-const SPARK_COLORS = ["#e8b93f", "#ffd98d", "#cdb9e8", "#fff4c2"];
-
 /** 和 motion 的 easeInOut（cubic-bezier(.42,0,.58,1)）够接近，笔尖差半个像素看不出 */
 const smooth = (t: number): number => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
 
 /**
- * 笔尖上的星光。
- *
- * 一块 canvas 盖在整张纸上（.ui-note-sparks，四边各多出 60px），每帧：
+ * 笔尖上的星光。粒子本身在 Effects/sparks（和日记本飞进右上角那条尾迹共用），
+ * 这里只管"笔现在在哪"：
  *   1. 按 DOODLE 的时间轴算此刻笔在哪一笔的百分之几，`getPointAtLength`
  *      取到 SVG 坐标，经 `getScreenCTM` 换到屏幕再减 canvas 的位置——
  *      纸的入场还在 scale，每帧重算才贴得住；
- *   2. 在笔尖撒两三颗，往上飘、减速、闪；
+ *   2. 笔尖每秒撒 90 颗（按时间计不按帧：按帧 60 fps 下密成一条线、掉帧时又稀稀拉拉）；
  *   3. 收笔那一拍（DOODLE_DONE）从脸中心炸一圈。
- * 星星是四角星（四段二次曲线），不是圆点：圆点是灰尘。
- *
- * 用 2D canvas 不用 three：这是一块 DOM 面板里的几十颗星，开一个 WebGL
- * 上下文（还得和场景那个抢）换不来任何东西。
- *
- * 画完再等星星全灭才停 rAF；面板关掉时 effect 清理，不会留一个跑空的循环。
+ * 画布盖在整张纸上（.ui-note-sparks，四边各多出 60px），星星能飞出落款那个小框。
+ * 画完再等星星全灭才停 rAF；面板关掉时 effect 清理。
  */
 function useSparkles(svgRef: React.RefObject<SVGSVGElement | null>, enabled: boolean) {
   useEffect(() => {
@@ -234,29 +214,22 @@ function useSparkles(svgRef: React.RefObject<SVGSVGElement | null>, enabled: boo
     const canvas = document.createElement("canvas");
     canvas.className = "ui-note-sparks";
     note.appendChild(canvas);
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      canvas.remove();
-      return;
-    }
+    const field = new SparkField(canvas);
 
     const paths = Array.from(svg.querySelectorAll("path"));
     const lengths = paths.map((p) => p.getTotalLength());
-    const sparks: Spark[] = [];
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const t0 = performance.now();
     let last = t0;
     let burst = false;
     let raf = 0;
-    /** 笔尖撒星按时间计（每秒 90 颗），不按帧：按帧的话 60 fps 下密成一条线、掉帧时又稀稀拉拉 */
     let spawnBudget = 0;
 
     const toCanvas = (sx: number, sy: number) => {
       const ctm = svg.getScreenCTM();
-      const rect = canvas.getBoundingClientRect();
       if (!ctm) return null;
+      const rect = canvas.getBoundingClientRect();
       const pt = new DOMPoint(sx, sy).matrixTransform(ctm);
-      return { x: (pt.x - rect.left) * dpr, y: (pt.y - rect.top) * dpr };
+      return { x: pt.x - rect.left, y: pt.y - rect.top };
     };
 
     /** 此刻笔尖在哪（SVG 坐标）；没在画返回 null */
@@ -271,95 +244,27 @@ function useSparkles(svgRef: React.RefObject<SVGSVGElement | null>, enabled: boo
       return null;
     };
 
-    const spawn = (x: number, y: number, speed: number, big: boolean, dir?: number) => {
-      const ang = dir ?? -Math.PI / 2 + (Math.random() - 0.5) * 2.2;
-      const v = speed * (0.6 + Math.random() * 0.8);
-      sparks.push({
-        x,
-        y,
-        vx: Math.cos(ang) * v,
-        vy: Math.sin(ang) * v,
-        born: performance.now() / 1000,
-        life: (big ? 0.8 : 0.5) + Math.random() * 0.4,
-        size: (big ? 5 : 2.6) * dpr * (0.8 + Math.random() * 0.5),
-        color: SPARK_COLORS[Math.floor(Math.random() * SPARK_COLORS.length)],
-        phase: Math.random() * Math.PI * 2,
-        rot: Math.random() * Math.PI,
-        spin: (Math.random() - 0.5) * 6,
-      });
-    };
-
-    const star = (s: number) => {
-      ctx.beginPath();
-      ctx.moveTo(0, -s);
-      ctx.quadraticCurveTo(0, 0, s, 0);
-      ctx.quadraticCurveTo(0, 0, 0, s);
-      ctx.quadraticCurveTo(0, 0, -s, 0);
-      ctx.quadraticCurveTo(0, 0, 0, -s);
-      ctx.closePath();
-    };
-
     const frame = (now: number) => {
       const t = (now - t0) / 1000;
-      // 上限 0.1：切走再切回来别一帧飞出屏。寿命不用 dt 累加——软渲染 5 fps 时 dt 被夹住，
-      // 星星在墙钟上会活四倍长，而笔画（motion）走的是墙钟，两边就对不上了
       const dt = Math.min((now - last) / 1000, 0.1);
       last = now;
-
-      // 尺寸跟着纸走（入场 scale、窗口缩放），每帧对一次，变了才重设——重设会清空画布
-      const w = Math.round(canvas.clientWidth * dpr);
-      const h = Math.round(canvas.clientHeight * dpr);
-      if (canvas.width !== w || canvas.height !== h) {
-        canvas.width = w;
-        canvas.height = h;
-      }
 
       const tip = penTip(t);
       if (tip) {
         spawnBudget += 90 * dt;
         const c = toCanvas(tip.x, tip.y);
-        for (; spawnBudget >= 1; spawnBudget -= 1) if (c) spawn(c.x, c.y, 55 * dpr, false);
+        for (; spawnBudget >= 1; spawnBudget -= 1) if (c) field.emit(c.x, c.y, 1);
       } else {
         spawnBudget = 0;
       }
       if (!burst && t >= DOODLE_DONE) {
         burst = true;
         const c = toCanvas(60, 58);
-        if (c) {
-          for (let i = 0; i < 18; i++) {
-            spawn(c.x, c.y, 130 * dpr, i % 3 === 0, (i / 18) * Math.PI * 2 + Math.random() * 0.3);
-          }
-        }
+        if (c) field.burst(c.x, c.y);
       }
 
-      ctx.clearRect(0, 0, w, h);
-      for (let i = sparks.length - 1; i >= 0; i--) {
-        const s = sparks[i];
-        const age = now / 1000 - s.born;
-        if (age >= s.life) {
-          sparks.splice(i, 1);
-          continue;
-        }
-        s.vx *= 0.93;
-        s.vy = s.vy * 0.93 - 40 * dpr * dt; // 往上飘
-        s.x += s.vx * dt;
-        s.y += s.vy * dt;
-        s.rot += s.spin * dt;
-        const k = 1 - age / s.life;
-        const twinkle = 0.65 + 0.35 * Math.sin(age * 26 + s.phase);
-        ctx.save();
-        ctx.translate(s.x, s.y);
-        ctx.rotate(s.rot);
-        ctx.globalAlpha = k * k;
-        ctx.fillStyle = s.color;
-        ctx.shadowColor = s.color;
-        ctx.shadowBlur = 6 * dpr;
-        star(s.size * twinkle * (0.6 + 0.4 * k));
-        ctx.fill();
-        ctx.restore();
-      }
-
-      if (t < DOODLE_DONE + 0.3 || sparks.length > 0) raf = requestAnimationFrame(frame);
+      const alive = field.render(now);
+      if (t < DOODLE_DONE + 0.3 || alive > 0) raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
 

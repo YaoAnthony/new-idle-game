@@ -79,6 +79,19 @@ export const storyRules: StoryRule[] = [
     effects: [{ kind: "show_guide", guideId: "kitchen" }],
   },
   /*
+   * 桌上的日记本飞进右上角 → 开日记本功能（按钮从此才有）+ 弹"日记本怎么用"。
+   * 场景只发 journal_taken；老档由存档迁移 v52 直接补 feature，不走这条。
+   */
+  {
+    id: "opening_journal",
+    triggers: [{ signal: "journal_taken" }],
+    effects: [
+      { kind: "unlock_feature", featureId: "diary" },
+      // 晚 0.65 s：先让按钮弹出来、星星散完，教程再盖上来；同一拍出现读起来像两件事撞在一起
+      { kind: "show_guide", guideId: "diary", delayMs: 650 },
+    ],
+  },
+  /*
    * 大门开锁："收拾一下"= 两箱都拆了（进度键）之后，放下过一件家具。
    * furniture_placed 是屋里那张摆设表（world/furniture）每新增一件发的，听它就是在看那张表。
    */

@@ -165,6 +165,8 @@ export type StorySignalKind =
    * 拿下来之后发生什么（进背包、弹对话）由规则接——门只知道"被拿走了"。
    */
   | "door_note_taken"
+  /** 桌上的日记本被拿走了（飞进右上角之后发，subject = 实例所属的 furnitureId）。开场二 */
+  | "journal_taken"
   /**
    * 一件家具进了背包（subject 是 itemId）。拆箱、买、做、捡都算——入包那一拍发，
    * 同时统计 `furniture_obtained` +1。"第一次拿到家具弹引导"接它，用 stat_at_least 判次数。
@@ -300,7 +302,7 @@ export type StoryEffect =
   | { kind: "lock_door"; doorId: string }
   | { kind: "unlock_door"; doorId: string }
   /** 弹一块引导面板（Frontend Components/Guide 的注册表按 guideId 找内容：标题、说明、以后的示意图） */
-  | { kind: "show_guide"; guideId: string }
+  | { kind: "show_guide"; guideId: string; delayMs?: number }
   | { kind: "give_item"; itemId: ItemId; quantity: number }
   /**
    * 扣掉背包里的东西。修理、交付、以物易物都要它。

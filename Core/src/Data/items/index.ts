@@ -63,6 +63,8 @@ import {
  * 加一张新图纸不用记得回来改这张表。
  */
 export const untradableItemIds: ReadonlySet<string> = new Set([
+  // 魔女的日记本：桌子被收走时它会退回背包，但不能卖——卖了就再也拿不到日记本按钮
+  "journal",
   // 05：委托的信物。不可卖、不可丢、不可寄售——三个出口查 favorToken，这里是商人那一个
   "favor_token_fox_parcel",
   "favor_token_fox_town_parcel",
@@ -310,6 +312,32 @@ export const itemDefinitions = [
       surfaceHeight: 0.83,
       /** 台面 4×2 半格 = 整个 2×1m 桌面。一张桌子能摆 8 件小物 */
       surfaceGrid: { width: 4, height: 2 },
+    },
+  },
+  /*
+   * 魔女留在桌上的日记本（开场二，2026-09-12）。
+   *
+   * 只上台面（和唱片一样）：它是开局种在桌上的一件交互点，按 F 飞走、
+   * 实例就没了。不是道具：不进纸箱、不卖（untradableItemIds）。桌子在
+   * 它被拿走之前先被收走的话，台面孤儿回收会把它退回背包，再摆回任何
+   * 桌上按 F 照样能拿——那条路没断，只是绕。
+   * 图标 /icons/journal.png 同时是右上角按钮的图。
+   */
+  {
+    id: "journal",
+    localizationKey: "item.journal",
+    category: ItemCategory.Furniture,
+    stackLimit: 1,
+    rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    visual: { id: "journal" },
+    placement: {
+      surface: PlacementSurface.Surface,
+      footprint: { width: 1, height: 1 },
+      capabilities: [FurnitureCapability.Journal],
+      blocksMovement: false,
+      surfaceFootprint: { width: 1, height: 1 },
+      interactHint: { localizationKey: "hint.journal", action: "interact", anchorHeight: 1.15 },
     },
   },
   /*

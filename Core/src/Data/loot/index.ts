@@ -54,7 +54,8 @@ export const lootTableDefinitions: LootTableDefinition[] = [
     id: "moving_furniture",
     localizationKey: "loot.moving_furniture",
     entries: [
-      { itemId: "furniture_table", quantity: 1 },
+      // 桌子不在箱子里了（2026-09-12）：屋里开局就有一张（seedInitialFurniture），
+      // 魔女的日记本放在它上面——你醒来时它已经在那儿了，不是你搬来的
       { itemId: "furniture_chair", quantity: 2 },
       // 地铺拿掉了（2026-09-09）：屋里开局就有一张真床（furniture_bed，见
       // seedInitialFurniture）——你是在它上面醒来的，再给一卷地铺就多余了

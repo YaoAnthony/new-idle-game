@@ -136,9 +136,12 @@ function runEffect(effect: StoryEffect): void {
     case "unlock_door":
       emit("door_lock_requested", { doorId: effect.doorId, locked: false });
       break;
-    case "show_guide":
-      emit("guide_open_requested", { guideId: effect.guideId });
+    case "show_guide": {
+      const run = () => emit("guide_open_requested", { guideId: effect.guideId });
+      if (effect.delayMs) setTimeout(run, effect.delayMs);
+      else run();
       break;
+    }
 
     case "give_item":
       addItem(effect.itemId, effect.quantity);

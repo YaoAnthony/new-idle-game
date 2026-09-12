@@ -21,6 +21,7 @@ import { buildOfuro } from "./recipes/bath.js";
 import { buildCommonChest, buildRareChest, buildUncommonChest } from "./recipes/chest.js";
 import { buildRecordSleeve } from "./recipes/recordSleeve.js";
 import { buildWitchLetter } from "./recipes/letter.js";
+import { buildJournal } from "./recipes/journal.js";
 import { buildPlate, buildTallPot, buildWok } from "./recipes/cookware.js";
 import {
   buildEmberWisp,
@@ -149,6 +150,7 @@ const REGISTRY: Record<string, VisualEntry> = {
   cardboard_box: { kind: "procedural", build: buildCardboardBox },
   cardboard_stack: { kind: "procedural", build: buildCardboardStack },
   wooden_table: { kind: "procedural", build: buildWoodenTable },
+  journal: { kind: "procedural", build: buildJournal },
   nightstand: { kind: "procedural", build: buildNightstand },
   wooden_chair: { kind: "procedural", build: buildWoodenChair },
   round_rug: { kind: "procedural", build: buildRoundRug },

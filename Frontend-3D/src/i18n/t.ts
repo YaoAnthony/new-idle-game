@@ -21,6 +21,7 @@ const ZH: Record<string, string> = {
   "item.furniture_nightstand": "床头柜",
   "item.furniture_workbench": "普通工作台",
   "item.furniture_table": "木桌",
+  "item.journal": "日记本",
   "item.furniture_chair": "木椅",
   "item.furniture_rug": "圆地毯",
   "item.furniture_dumbbell": "哑铃",
@@ -408,8 +409,12 @@ const ZH: Record<string, string> = {
   "dlg.opening_boxes_done": "拆完箱子",
   "guide.place_furniture.title": "怎么摆家具",
   "guide.kitchen.title": "灶台怎么用",
+  "guide.diary.title": "日记本怎么用",
   "guide.image_pending": "（示意图待补）",
   "guide.close": "知道了",
+  "guide.prev": "上一页",
+  "guide.next": "下一页",
+  "guide.page": "第 {n} 页",
   "dlg.opening_boxes_done.n1": "就这么点东西吗……",
   "dlg.otter_first_meet": "水獭上门",
   "dlg.otter_first_meet.n1": "打扰啦！我在河上就瞧见了——一条小龙抱着几枚金币，一头扎进上游的水洞。那亮闪闪的，是你家的吧？",
@@ -496,6 +501,7 @@ const ZH: Record<string, string> = {
   "loot.moving_tools": "打开了工具箱",
   "loot.moving_furniture": "打开了家什箱",
   "hint.unpack": "拆开箱子",
+  "hint.journal": "日记本",
   // 「不给了」是玩家的动作，不能复用「现在没有吃的…」——那是一句陈述，
   // 而且新 UI 里背包全都能递，"没有吃的"这个前提本身也不成立了
   "ui.decline_gift": "这次不给了",

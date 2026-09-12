@@ -27,3 +27,27 @@ test("opening_只有一条game_started规则_写的旗子就是大门读的_条�
   assert.equal(letter?.kind, "story");
   assert.equal(letter?.residentId, undefined, "魔女不出场，条子没有寄件人");
 });
+
+/**
+ * 开场二（2026-09-12）：桌子不从纸箱里来；日记本是台面小物、只有一条 journal_taken 规则，
+ * 它开的功能键和弹的引导 id 是 Frontend 那边认的那两个。
+ */
+test("opening2_纸箱里没桌子_日记本是台面小物_只有一条journal_taken规则", async () => {
+  const { findLootTable } = await import("../src/Data/loot/index.js");
+  const { findPlaceableItem } = await import("../src/Data/items/index.js");
+  const { FurnitureCapability, PlacementSurface } = await import("../src/types/furniture.js");
+  const boxItems = ["moving_tools", "moving_furniture"].flatMap((id) => findLootTable(id)!.entries.map((entry) => entry.itemId));
+  assert.ok(!boxItems.includes("furniture_table"), "桌子不该还在纸箱里");
+
+  const journal = findPlaceableItem("journal");
+  assert.ok(journal, "journal 物品要存在");
+  assert.equal(journal.placement.surface, PlacementSurface.Surface);
+  assert.ok(journal.placement.capabilities.includes(FurnitureCapability.Journal));
+
+  const rules = storyRules.filter((rule) => rule.triggers.some((trigger) => trigger.signal === "journal_taken"));
+  assert.equal(rules.length, 1);
+  assert.deepEqual(rules[0].effects, [
+    { kind: "unlock_feature", featureId: "diary" },
+    { kind: "show_guide", guideId: "diary", delayMs: 650 },
+  ]);
+});

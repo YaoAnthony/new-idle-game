@@ -120,7 +120,7 @@ export function PlanFolders({ diary, tasks, onStart, readonly }: Props) {
               autoFocus
               value={draft}
               maxLength={24}
-              placeholder="这一串叫什么"
+              placeholder="一系列任务准备完成!"
               className="h-[40px] flex-1 rounded-full border-2 border-[#A5D6A7] bg-white px-4 text-[15px] font-bold text-[#5D4037] outline-none placeholder:text-[#BCAAA4]"
               onChange={(event) => setDraft(event.target.value)}
               onBlur={submitName}

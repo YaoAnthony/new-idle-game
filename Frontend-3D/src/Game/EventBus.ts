@@ -20,7 +20,8 @@ export type StationCapability =
   | "music_player"
   | "bath"
   | "lighting"
-  | "consign";
+  | "consign"
+  | "journal";
 
 export type GameEvents = {
   /** 世界数据变化（家具增删等），渲染层据此同步场景图 */
@@ -93,6 +94,8 @@ export type GameEvents = {
    * 而订阅方（音景）不该反过来去查门在哪。
    */
   door_toggled: { refId: string; open: boolean; x: number; z: number };
+  /** 桌上的日记本 3D 段飞到画面中央了：屏幕几何（视口 CSS 像素，size = 书长边的像素高）交给 DOM 接着飞进右上角。开场二 */
+  journal_flight_handoff: { x: number; y: number; size: number };
   /** 剧情效果 lock_door / unlock_door：这一种门（定义 id）锁上 / 打开。doorsRuntime 接 */
   door_lock_requested: { doorId: string; locked: boolean };
   /** 一次性容器（纸箱/奖励箱）的领取面板开合 */

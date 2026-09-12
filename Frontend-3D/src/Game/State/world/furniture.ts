@@ -211,6 +211,13 @@ export const CONSIGN_BOX_SEED = {
   facing: Facing.South,
 } as const;
 
+/** 魔女的桌子（日记本的宿主）。导出给测试对位置 */
+export const JOURNAL_TABLE_SEED = {
+  furnitureId: "furniture_table",
+  gridPosition: { x: 5, y: 11 } as GridPosition,
+  facing: Facing.South,
+} as const;
+
 export function seedInitialFurniture(): void {
   if (worldState.placedFurniture.length > 0) return;
 
@@ -311,6 +318,16 @@ export function seedInitialFurniture(): void {
       facing: CONSIGN_BOX_SEED.facing,
       roomId: worldState.map.outdoorRoomId,
     },
+    /*
+     * 桌子（2026-09-12）：从纸箱里挪到屋里。它是魔女的桌子，日记本放在上面
+     * （下面那段 surface 摆放）。南窗底下、玄关东边：坐起来视线放平正好看见，
+     * 也不挡门到床的路。格 (5,11) 朝南，2×1 占 x5..6 / y11，南窗在 x=6。
+     */
+    {
+      furnitureId: JOURNAL_TABLE_SEED.furnitureId,
+      gridPosition: JOURNAL_TABLE_SEED.gridPosition,
+      facing: JOURNAL_TABLE_SEED.facing,
+    },
   ];
 
   worldState.placedFurniture = pieces.map((piece) => ({
@@ -324,6 +341,32 @@ export function seedInitialFurniture(): void {
     },
     state: piece.state ?? {},
   }));
+
+  /*
+   * 日记本摆在桌上（台面小物，宿主 = 上面那张桌子）。
+   * 半格 (1,0)：桌面 4×2 半格里偏左那一格——书不放正中间，正中间是"陈列"，
+   * 偏一点才像随手搁下的。按 F 它飞走，见 Game3D/World/JournalFlight。
+   */
+  const table = worldState.placedFurniture.find(
+    (item) => item.furnitureId === JOURNAL_TABLE_SEED.furnitureId,
+  );
+  if (table) {
+    worldState.placedFurniture = [
+      ...worldState.placedFurniture,
+      {
+        instanceId: nextInstanceId("journal"),
+        furnitureId: "journal",
+        placement: {
+          kind: PlacementSurface.Surface as const,
+          roomId: worldState.room.roomId,
+          hostInstanceId: table.instanceId,
+          gridPosition: { x: 1, y: 0 },
+          facing: Facing.North,
+        },
+        state: {},
+      },
+    ];
+  }
 
   emit("world_changed", { reason: "seeded" });
 }

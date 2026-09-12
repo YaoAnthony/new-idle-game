@@ -93,6 +93,13 @@ export enum FurnitureCapability {
   Unpack = "unpack",
 
   /**
+   * 魔女留在桌上的日记本（开场二，2026-09-12）：按 F 它飞进右上角变成日记本按钮。
+   * 只有那一本带它；它是一个**交互点**不是可用的家具——F 之后实例就没了，
+   * 后果（开功能、弹教程）全在 storyRules 里接 `journal_taken`。
+   */
+  Journal = "journal",
+
+  /**
    * 每日任务机器：按 F 打开池子编辑和今日清单（V0.11）。
    * 进度是全家共享的（`WorldSave.dailyBoard`），所以这个能力标记的是
    * "这件家具是那份进度的显示器和出口"，不是"它自己有一份进度"。

@@ -15,8 +15,13 @@ import {
   Scene,
   Vector2,
   Vector3,
+  Object3D,
+  Mesh,
+  MeshLambertMaterial,
 } from "three";
 import { OpeningIntro } from "./OpeningIntro";
+import { JournalFlight } from "./JournalFlight";
+import { JOURNAL_SIZE } from "../Visual/recipes/journal.js";
 import {
   matchesAction,
   type InputAction,
@@ -131,6 +136,7 @@ import {
   getWorld,
   groundHeightAt,
   isIndoors,
+  removeFurniture,
   roomIdAt,
   seedInitialFurniture,
 } from "../../Game/State/worldRuntime";
@@ -401,6 +407,11 @@ export class RoomScene {
    */
   private introPending = false;
   private intro: OpeningIntro | null = null;
+  /** 桌上的日记本正在飞（开场二）。飞行体是原视图的克隆，原实例在起飞那一拍就删了 */
+  private journalFlight: JournalFlight | null = null;
+  private journalGhost: Object3D | null = null;
+  /** 飞行体自发光用的材质副本，飞完要 dispose（原件的材质不能动） */
+  private journalGhostMaterials: MeshLambertMaterial[] = [];
   private introHandoff: { position: Vector3; quaternion: Quaternion; elapsed: number } | null = null;
 
   /** 提示气泡附着的家具（独立于 interactTarget，见 refreshInteractTarget） */
@@ -2045,7 +2056,10 @@ export class RoomScene {
       const definition = getDefinition(placed.furnitureId);
       if (!definition) continue;
 
-      const capability = definition.placement.capabilities.includes(
+      // 日记本排最前：它只有这一种交互，而且拿走之后实例就没了
+      const capability = definition.placement.capabilities.includes(FurnitureCapability.Journal)
+        ? ("journal" as const)
+        : definition.placement.capabilities.includes(
         FurnitureCapability.Unpack,
       )
         ? ("unpack" as const)
@@ -2173,6 +2187,45 @@ export class RoomScene {
   }
 
   /**
+   * 桌上的日记本按 F（开场二，2026-09-12）：把它的视图克隆一份当飞行体，实例当场
+   * 从世界里删掉（FurnitureView 下一次同步就把原件收了），JournalFlight 接管克隆体；
+   * 3D 段演完把屏幕几何投影出来交给 DOM（journal_flight_handoff）。
+   * 剧情信号 journal_taken 由 DOM 段落地那一拍发——按钮出现和功能解锁得是同一瞬间。
+   *
+   * 克隆体和原件共用几何与材质，所以飞完只 remove 不 dispose：原件那份由 FurnitureView 收。
+   */
+  private startJournalFlight(instanceId: string): void {
+    if (this.journalFlight) return;
+    const view = this.furnitureView.findByFurnitureId("journal")[0];
+    if (!view) return;
+    const ghost = view.clone(true);
+    view.getWorldPosition(ghost.position);
+    view.getWorldQuaternion(ghost.quaternion);
+    view.getWorldScale(ghost.scale);
+    /*
+     * 飞行体自发光：它要飞到镜头正前方、封面对着镜头，而屋里的光多半在它身后
+     * （窗），照原样渲染就是一块暗绿板子（截图验过）。给材质副本加半档自发光，
+     * 像"拿到东西"那种展示态；原件的材质不碰。
+     */
+    ghost.traverse((node) => {
+      const mesh = node as Mesh;
+      if (!mesh.isMesh) return;
+      const source = mesh.material as MeshLambertMaterial;
+      if (!source.isMeshLambertMaterial) return;
+      const lit = source.clone();
+      lit.emissive.copy(source.color).multiplyScalar(0.45);
+      mesh.material = lit;
+      this.journalGhostMaterials.push(lit);
+    });
+    this.scene.add(ghost);
+    removeFurniture(instanceId);
+    // 桌上没书了：气泡立刻撤，别等下一轮限流检查（面板一开检查就停，气泡会挂到教程关掉）
+    this.refreshInteractTarget();
+    this.journalGhost = ghost;
+    this.journalFlight = new JournalFlight(ghost, this.rig.camera, JOURNAL_SIZE.d);
+  }
+
+  /**
    * 坐具 / 床的提示文案。同一件家具在不同状态下该说的话不一样：
    * 站着看椅子是"坐下"，坐着看它是"起来"，躺在床上是"睡吧"。
    */
@@ -2215,7 +2268,8 @@ export class RoomScene {
    */
   interact(): void {
     // 开场还没演完：还躺着呢，什么都不许按
-    if (this.intro || this.introHandoff) return;
+    // 日记本飞着的时候也什么都不许按：那 1.4 秒是给眼睛看的
+    if (this.intro || this.introHandoff || this.journalFlight) return;
     if (isResting()) {
       this.interactWhileResting();
       return;
@@ -2323,6 +2377,8 @@ export class RoomScene {
           // 本地读到的就是权威值，在这里翻面
           const { instanceId } = this.interactTarget;
           setLampOn(instanceId, !isLampOn(instanceId));
+        } else if (this.interactTarget.capability === "journal") {
+          this.startJournalFlight(this.interactTarget.instanceId);
         } else if (this.interactTarget.capability === "unpack") {
           // 纸箱/奖励箱：弹领取面板，收下才真的入包并消失
           openUnpack(this.interactTarget.instanceId);
@@ -3068,6 +3124,20 @@ export class RoomScene {
       if (t >= 1) this.introHandoff = null;
     } else {
       this.rig.update(deltaSeconds);
+    }
+
+    if (this.journalFlight && this.journalGhost) {
+      this.journalFlight.update(deltaSeconds);
+      if (this.journalFlight.finished) {
+        // 到画面正中央了：投影成屏幕几何交给 DOM（DiaryPanel/JournalArrival 接着飞进右上角）
+        const rect = this.renderer.renderer.domElement.getBoundingClientRect();
+        emit("journal_flight_handoff", this.journalFlight.screenRect(rect));
+        this.scene.remove(this.journalGhost);
+        for (const material of this.journalGhostMaterials) material.dispose();
+        this.journalGhostMaterials = [];
+        this.journalFlight = null;
+        this.journalGhost = null;
+      }
     }
 
     // 遮挡检测限流，淡入淡出本身每帧走——否则透明度会一跳一跳的

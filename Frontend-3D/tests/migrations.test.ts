@@ -414,7 +414,7 @@ describe("v46：个人剧情线——小镇补解锁、已搬来的三位补阶�
     const result = migrateSave(saveAtVersion(45));
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.save.ownWorld.progression.unlockedFeatureIds).toEqual(["town_travel"]);
+    expect(result.save.ownWorld.progression.unlockedFeatureIds).toEqual(["town_travel", "diary"]);
     expect(Object.keys(result.save.ownWorld.progression.events)).toEqual([]);
   });
 });
@@ -560,7 +560,7 @@ describe("v51：信箱改进度键解锁——已有邻居或箱里有信的老�
     const result = migrateSave(save);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.save.ownWorld.progression.unlockedFeatureIds).toEqual(["town_travel", "mailbox"]);
+    expect(result.save.ownWorld.progression.unlockedFeatureIds).toEqual(["town_travel", "mailbox", "diary"]);
   });
 
   test("没邻居但箱里有信的老档 → 也补（信在，箱子必须在）", () => {
@@ -585,5 +585,22 @@ describe("v51：信箱改进度键解锁——已有邻居或箱里有信的老�
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.save.ownWorld.progression.unlockedFeatureIds).not.toContain("mailbox");
+  });
+});
+
+describe("v52：日记本按钮改进度键 diary——老档一律补", () => {
+  test("老档补 diary；已经有的不重复", () => {
+    const save = saveAtVersion(51, (draft) => {
+      draft.ownWorld.progression.unlockedFeatureIds = ["town_travel"];
+    });
+    const result = migrateSave(save);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.save.ownWorld.progression.unlockedFeatureIds).toEqual(["town_travel", "diary"]);
+
+    const again = migrateSave(saveAtVersion(51, (draft) => {
+      draft.ownWorld.progression.unlockedFeatureIds = ["diary"];
+    }));
+    expect(again.ok && again.save.ownWorld.progression.unlockedFeatureIds).toEqual(["diary"]);
   });
 });

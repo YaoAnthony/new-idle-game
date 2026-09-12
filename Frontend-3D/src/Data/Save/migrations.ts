@@ -1730,6 +1730,22 @@ export const migrations: Migration[] = [
       return save;
     },
   },
+  /*
+   * v52 · 日记本按钮改成进度键 `diary` 解锁（开场二：桌上的本子飞进右上角才有按钮）。
+   * 老档一律补：老玩家早就在用日记本，按钮不能因为规则改了就消失（同 v46 / v51）。
+   * 老档桌上也不会长出本子——seedInitialFurniture 只在新世界跑。
+   */
+  {
+    to: 52,
+    migrate: (save) => {
+      const progression = save.ownWorld?.progression;
+      if (!progression) return save;
+      if (!progression.unlockedFeatureIds.includes("diary")) {
+        progression.unlockedFeatureIds = [...progression.unlockedFeatureIds, "diary"];
+      }
+      return save;
+    },
+  },
 ];
 
 

@@ -407,10 +407,6 @@ const ZH: Record<string, string> = {
   "dlg.opening_door_locked.n1": "还是先把家里收拾一下吧",
   "dlg.opening_boxes_done": "拆完箱子",
   "guide.place_furniture.title": "怎么摆家具",
-  // 文案要和真实操作一致：选中快捷栏里的家具就自动进布置模式（RoomScene 里
-  // held_changed → placement.begin），落地是点一下鼠标 / 轻点屏幕，F 不参与。
-  // 旧文案写的"按 F 进入布置模式、再按 F 放下"是没查代码写的，示意图画好后对不上才发现。
-  "guide.place_furniture.body": "背包里选中家具，虚影就跟着鼠标走；按 R 转向、方向键微调，点一下放下。",
   "guide.image_pending": "（示意图待补）",
   "guide.close": "知道了",
   "dlg.opening_boxes_done.n1": "就这么点东西吗……",

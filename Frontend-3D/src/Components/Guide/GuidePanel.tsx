@@ -9,7 +9,7 @@ import { findGuideDefinition, type GuideDefinition } from "./guides";
 
 /**
  * 引导面板（2026-09-09）：剧情在某个时刻弹出来讲一件事——第一次拿到家具时讲
- * "怎么摆"。走通用 Modal（印章仪式那套），内容是标题 + 示意图 + 一段话 + 一个按钮。
+ * "怎么摆"。走通用 Modal（印章仪式那套），内容是标题 + 示意图 + 一个按钮（可选一句话）。
  *
  * 没画示意图的引导留一块虚线框占位，图画好了填进 guides.ts 的 image 就替换掉占位。
  * 什么时候弹由 Core 的 storyRules 决定（show_guide 效果），这里只听事件。
@@ -66,9 +66,11 @@ export function GuidePanel() {
               {t("guide.image_pending")}
             </div>
           )}
-          {/* 说明和按钮并排成一行：竖着叠两行在矮屏上又要从图那里抠 40px */}
-          <div className="flex shrink-0 items-center gap-4 short:gap-3">
-            <p className="m-0 flex-1 text-[14px] leading-relaxed short:text-[12px] short:leading-snug">{t(guide.bodyKey)}</p>
+          {/* 说明（如果有）和按钮并排成一行：竖着叠两行在矮屏上又要从图那里抠 40px */}
+          <div className="flex shrink-0 items-center justify-end gap-4 short:gap-3">
+            {guide.bodyKey ? (
+              <p className="m-0 flex-1 text-[14px] leading-relaxed short:text-[12px] short:leading-snug">{t(guide.bodyKey)}</p>
+            ) : null}
             <GameBtn size={phone ? "sm" : "md"} tone="mint" onClick={() => setOpen(false)}>
               {t("guide.close")}
             </GameBtn>

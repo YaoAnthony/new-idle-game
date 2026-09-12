@@ -27,6 +27,12 @@ import type { Facing } from "./base.js";
 export type BuildingPlacement = {
   /** 实例 id。以后要存档、要联机同步状态，认的是它 */
   instanceId: string;
+  /**
+   * 盖在哪张图上。**不填 = 家（DEFAULT_MAP_ID）**——老档的楼全在家里，不用迁移。
+   * 2026-09-12 加：原来渲染、碰撞、按 F 都不看这一项，去了小镇院子里的工地
+   * 虚影跟着一起出现在镇上（用户抓到）。
+   */
+  mapId?: string;
   /** 型号 id，查 Frontend 的建筑注册表 */
   buildingId: string;
 

@@ -228,3 +228,19 @@ test("construction_instantBuild的楼即使点了asSite也当场报完工", () =
 
   off();
 });
+
+test("石傀儡已经站在工地跟前也会认领——升级金库卡在「等着开工」的回归", () => {
+  const id = site(SPOT_A.x, SPOT_A.z);
+  seedInitialCreatures();
+  const golem = getResidents().find((resident) => resident.role === CreatureRole.Worker)!;
+  golem.attachPart("head");
+  // 把他直接放到工地旁边：技能会判"已经够得着"，Intent 里没有 walk_to
+  golem.x = SPOT_A.x + 2.2;
+  golem.z = SPOT_A.z;
+
+  for (let i = 0; i < 300; i += 1) golem.tick(1 / 30, { x: 0, z: 0 });
+
+  const target = listSites().find((item) => item.instanceId === id)!;
+  expect(target.construction?.workerId, "站在跟前就该当场认领，不该一直排队").toBe(golem.residentId);
+  expect(target.construction?.startUtc).toBeTruthy();
+});

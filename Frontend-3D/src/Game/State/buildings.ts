@@ -1,4 +1,5 @@
 import {
+  DEFAULT_MAP_ID,
   Facing,
   buildingRectWorld,
   checkBuildingPlacement,
@@ -28,6 +29,7 @@ import { getUnlockedFeatures } from "../Systems/events";
 import { isTerritoryGateBypassed } from "./territory";
 import {
   getCurrentMap,
+  getCurrentMapId,
   getRoom,
   getRoomStyle,
   getRooms,
@@ -97,6 +99,20 @@ function shapeOf(buildingId: string, levelId?: string): LevelShape | undefined {
 
 export function listBuildings(): readonly BuildingPlacement[] {
   return placements;
+}
+
+/** 这栋楼在不在某张图上。没记 mapId 的是老档，全在家里 */
+export function isOnMap(placement: Pick<BuildingPlacement, "mapId">, mapId: string): boolean {
+  return (placement.mapId ?? DEFAULT_MAP_ID) === mapId;
+}
+
+/**
+ * **当前这张图上的**建筑。渲染、碰撞、门、按 F 都该用这个，不用 `listBuildings`——
+ * 后者是全部（存档、指令、居民的活要看全场）。去小镇时家里的楼和工地留在家里。
+ */
+export function listBuildingsHere(): BuildingPlacement[] {
+  const mapId = getCurrentMapId();
+  return placements.filter((item) => isOnMap(item, mapId));
 }
 
 export function findPlacement(instanceId: string): BuildingPlacement | undefined {
@@ -230,6 +246,7 @@ export function placeBuilding(
   const placement: BuildingPlacement = {
     instanceId: nextObjectId("building", buildingId),
     buildingId,
+    mapId: getCurrentMapId(),
     x,
     z,
     // 落地时采一次地形；写死 0 会让带内景的楼浮空或陷进地里（见上面那段）

@@ -189,6 +189,7 @@ import { getClock } from "../../Game/State/clock";
 import {
   findPlacement,
   listBuildings,
+  listBuildingsHere,
   listSites,
   removeBuilding,
 } from "../../Game/State/buildings";
@@ -1718,7 +1719,8 @@ export class RoomScene {
      * 距离算到**占地矩形最近边**，和家具那把尺子一致：4×4 的罐子按中心
      * 算的话得走到它身体里才够得着。
      */
-    for (const building of listBuildings()) {
+    // 只看这张图上的楼：去小镇时家里的罐子不该还能按 F
+    for (const building of listBuildingsHere()) {
       const level = findBuildingLevel(
         building.buildingId,
         building.construction?.targetLevelId ?? building.levelId,
@@ -1970,7 +1972,8 @@ export class RoomScene {
       }
     }
 
-    for (const building of listBuildings()) {
+    // 只看这张图上的楼：去小镇时家里的罐子不该还能按 F
+    for (const building of listBuildingsHere()) {
       const level = findBuildingLevel(
         building.buildingId,
         building.construction?.targetLevelId ?? building.levelId,

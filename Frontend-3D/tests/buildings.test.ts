@@ -13,6 +13,7 @@ import {
   finishSite,
   upgradeBuilding,
   upgradeOptions,
+  listBuildingsHere,
 } from "../src/Game/State/buildings";
 import {
   placeBuildingAtCell,
@@ -331,4 +332,18 @@ test("塔屋（l3b）的内景墙高比 l3a 高——挑高是它和 3a 的分�
   const room = getRoom(`house:${id}`)!;
   // 墙格的 height 就是墙高；buildInterior 的 wallHeight 走这里
   expect(room.walls.south.grid.height).toBe(8);
+});
+
+test("建筑记在家那张图上：去小镇看不到，回来还在", () => {
+  const result = placeBuilding("gold_jar", 3.5, 16.5, Facing.North, { asSite: true });
+  expect(result.ok, JSON.stringify(result)).toBe(true);
+  expect(listBuildingsHere()).toHaveLength(1);
+  expect(listBuildingsHere()[0].mapId).toBe(DEFAULT_MAP_ID);
+
+  expect(travelTo("town").ok).toBe(true);
+  expect(listBuildingsHere(), "镇上不该看到家里的工地").toHaveLength(0);
+  expect(listBuildings(), "全表照旧").toHaveLength(1);
+
+  expect(travelTo(DEFAULT_MAP_ID).ok).toBe(true);
+  expect(listBuildingsHere()).toHaveLength(1);
 });

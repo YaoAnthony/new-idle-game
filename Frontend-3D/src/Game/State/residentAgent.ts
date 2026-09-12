@@ -405,6 +405,22 @@ export class ResidentAgent {
     this.run = { stepIndex: -1, timer: 0, arrived: false };
     this.detoursLeft = MAX_DETOURS_PER_INTENT;
     this.clearPath();
+    /*
+     * **没有 walk_to 的 Intent，起步那一拍就算"到了"。**
+     *
+     * onArrive 原来只在最后一个 walk_to 走完时调。技能判断"已经站在跟前了"
+     * 就不给 walk_to 步（build 技能升级金库时傀儡本来就杵在旁边），于是
+     * onArrive 永远不被调、工地永远没人认领、进度恒 0——用户 2026-09-12 抓到的
+     * "升级金库不升级，傀儡一直等着开工"。"到了"说的是路走完了，没有路也算走完。
+     */
+    if (intent.onArrive && lastWalkIndex(intent.steps) === -1) {
+      this.run.arrived = true;
+      if (intent.onArrive(this) === false) {
+        this.abandonIntent();
+        this.idleTimer = 1;
+        return;
+      }
+    }
     this.advanceStep();
   }
 

@@ -32,7 +32,7 @@ import {
   setStructureBlocker,
 } from "./worldRuntime";
 import { territoryStandingAt } from "./territory";
-import { listBuildings, rectOf } from "./buildings";
+import { listBuildingsHere, rectOf } from "./buildings";
 import { buildingsBlockAt, buildingStandHeightAt } from "./world/buildingColliders";
 
 /**
@@ -283,7 +283,7 @@ export function initDoors(): void {
      * - **地图布景**（小镇的六家店）：谁都挡，穿行也不例外。它们是
      *   世界本身，不是玩家摆出来的东西——和穿行不豁免地形是同一条线。
      */
-    if (!isPhasing() && buildingsBlockAt(listBuildings(), x, z, radius)) return true;
+    if (!isPhasing() && buildingsBlockAt(listBuildingsHere(), x, z, radius)) return true;
     return buildingsBlockAt(getCurrentMap().buildings ?? [], x, z, radius);
   });
 
@@ -292,7 +292,7 @@ export function initDoors(): void {
    * 不等于悬空走。
    */
   setStandingSurface((x, z, base) =>
-    buildingStandHeightAt(listBuildings(), x, z, base),
+    buildingStandHeightAt(listBuildingsHere(), x, z, base),
   );
 
   setOutdoorPass((x, z, radius) => {
@@ -355,7 +355,7 @@ export function initDoors(): void {
      * 门槛死区那个老 bug 就是两头都拦出来的。
      */
     let insideBuilding = false;
-    for (const placement of listBuildings()) {
+    for (const placement of listBuildingsHere()) {
       const rect = rectOf(placement);
       if (
         x + radius > rect.minX &&
@@ -505,7 +505,7 @@ function syncResidentDoors(): void {
   for (const [refId, door] of doors) if (door.owner) doors.delete(refId);
   const definition = findDoorDefinition("resident_door");
   if (!definition) return;
-  for (const placement of listBuildings()) {
+  for (const placement of listBuildingsHere()) {
     const owner = findResidentOfHouse(placement.buildingId);
     if (!owner || placement.construction) continue;
     const level = findBuildingLevel(placement.buildingId, placement.levelId);

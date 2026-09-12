@@ -8,7 +8,7 @@ import { interiorOf } from "../../Game/Systems/residents/interiors";
 import { residentDoorOf } from "../../Game/State/doorsRuntime";
 import { playerDisplayName } from "../../Game/Systems/residents/affection";
 import { homesWithSomeoneIn } from "../../Game/Systems/residents/spots";
-import { listBuildings } from "../../Game/State/buildings";
+import { listBuildings, listBuildingsHere } from "../../Game/State/buildings";
 import { groundHeightAt } from "../../Game/State/worldRuntime";
 import { GOLD_STAGES } from "../../Buildings/goldJar";
 import { buildPlacedBuilding } from "../../Buildings/placement";
@@ -141,7 +141,8 @@ export class BuildingsView {
      * 全场传进去：围墙要按四邻决定自己长什么样。整组重建本来就在做，
      * 所以放一堵墙、拆一堵墙，旁边那几堵会跟着换形状，不用额外接线。
      */
-    const all = listBuildings();
+    // 只画这张图上的：家里的楼和工地不跟着人去小镇
+    const all = listBuildingsHere();
     for (const placement of all) {
       const node = buildPlacedBuilding(placement, all);
       if (!node) continue;

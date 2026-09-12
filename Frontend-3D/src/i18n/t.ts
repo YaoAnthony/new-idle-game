@@ -407,6 +407,7 @@ const ZH: Record<string, string> = {
   "dlg.opening_door_locked.n1": "还是先把家里收拾一下吧",
   "dlg.opening_boxes_done": "拆完箱子",
   "guide.place_furniture.title": "怎么摆家具",
+  "guide.kitchen.title": "灶台怎么用",
   "guide.image_pending": "（示意图待补）",
   "guide.close": "知道了",
   "dlg.opening_boxes_done.n1": "就这么点东西吗……",

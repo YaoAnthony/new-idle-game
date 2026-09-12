@@ -4,7 +4,7 @@ import { favorDefinitions } from "../residents/favors.js";
 import { RESIDENT_FACT_KINDS, findResidentDefinition, residentIdOf } from "../residents/index.js";
 import { tripPool } from "../residents/trips.js";
 import { visitorTuning } from "../residents/visitors.js";
-import { letterDefinitions, mailTuning } from "../residents/letters.js";
+import { MAILBOX_FEATURE, letterDefinitions, mailTuning } from "../residents/letters.js";
 import { birthdayTuning } from "../residents/birthday.js";
 import { festivalDefinitions, festivalTuning } from "../festivals/index.js";
 import { DOOR_NOTE_FLAG } from "../doors/index.js";
@@ -66,6 +66,17 @@ export const storyRules: StoryRule[] = [
       },
     ],
     effects: [{ kind: "show_guide", guideId: "place_furniture" }],
+  },
+  /*
+   * 第一次把灶台放下 → 弹"灶台怎么用"的引导（一次性）。
+   * 听 furniture_placed 而不是 furniture_obtained：拿到灶台那一刻人还在拆箱，
+   * 六格图讲的全是放好之后的事（放锅、投料、起锅、盛盘），得等它落地再讲。
+   * 引导面板本身是通用的（Components/Guide），以后每件要教的东西都是这里一条规则 + 那边一张图。
+   */
+  {
+    id: "kitchen_first_stove",
+    triggers: [{ signal: "furniture_placed", subject: "stove" }],
+    effects: [{ kind: "show_guide", guideId: "kitchen" }],
   },
   /*
    * 大门开锁："收拾一下"= 两箱都拆了（进度键）之后，放下过一件家具。
@@ -418,9 +429,18 @@ export const storyRules: StoryRule[] = [
 
   /*
    * ==== 信箱（居民系统 10）====
+   * 门口的信箱在**第一位邻居搬进来**那一刻才立起来（进度键 MAILBOX_FEATURE，场景建信箱前查它）。
+   * 不挂开门、不挂第一封信：开门时还没人可通信，箱子是空摆设；等第一封信再立又太晚——
+   * 玩家搬来第一位就可能想给他写信。不点名是谁：三位里谁先来都算。
+   *
    * 每位一条规则共享 resident_mail 池（同一天最多一位写信），伙伴档起进池；写哪封在效果里按条件抽。
    * 拆信的后果由信件表的 onOpened 生成：信箱系统只管收、存、开。
    */
+  {
+    id: "mailbox_installed",
+    triggers: [{ signal: "resident_moved_in" }],
+    effects: [{ kind: "unlock_feature", featureId: MAILBOX_FEATURE }],
+  },
   ...NEIGHBORS.map((who): StoryRule => ({
     id: `mail_${who}`,
     once: false,

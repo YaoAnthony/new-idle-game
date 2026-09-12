@@ -25,6 +25,11 @@ export const guideDefinitions: GuideDefinition[] = [
     titleKey: "guide.place_furniture.title",
     image: "/ui/tutorial_furniture.webp",
   },
+  {
+    id: "kitchen",
+    titleKey: "guide.kitchen.title",
+    image: "/ui/tutorial_kitchen.webp",
+  },
 ];
 
 export function findGuideDefinition(id: string): GuideDefinition | undefined {

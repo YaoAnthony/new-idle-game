@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  auditCondition,
   auditEventDefinitions,
   auditStoryContent,
   auditTrigger,
@@ -26,6 +27,20 @@ const at = (patch: Partial<StoryTrigger>): StoryTrigger =>
 test("poolId 和 chance 不能同时写——一个是迟早会来，一个是撞见的", () => {
   const problems = auditTrigger("测试规则", at({ poolId: "resident_arrival", chance: 0.5 }));
   assert.ok(problems.some((p) => p.includes("不能同时写")), problems.join("\n"));
+});
+
+test("furniture_at_home：物品要存在、要能摆、件数得是正数——写错了就是那位永远不来", () => {
+  assert.deepEqual(auditCondition("测试", { kind: "furniture_at_home", itemId: "furniture_chair", quantity: 2 }), []);
+
+  const missing = auditCondition("测试", { kind: "furniture_at_home", itemId: "no_such_item", quantity: 1 });
+  assert.ok(missing.some((p) => p.includes("不存在的物品")), missing.join("\n"));
+
+  // 锅是箱子里的东西但不能摆：写进门槛永远数不到
+  const unplaceable = auditCondition("测试", { kind: "furniture_at_home", itemId: "wok", quantity: 1 });
+  assert.ok(unplaceable.some((p) => p.includes("不能摆")), unplaceable.join("\n"));
+
+  const zero = auditCondition("测试", { kind: "furniture_at_home", itemId: "furniture_chair", quantity: 0 });
+  assert.ok(zero.some((p) => p.includes("正数")), zero.join("\n"));
 });
 
 test("poolId 必须在 storyPools 里登记过", () => {

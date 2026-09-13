@@ -83,6 +83,18 @@ export const eventDefinitions: EventDefinition[] = [
       { stageId: "taught_chimes", localizationKey: "event.arc_spirit.taught_chimes" },
     ],
   },
+  /*
+   * 小鱼人第一次来（居民系统 20）：箱里的家具摆齐那一刻他来敲门找魔女，魔女不在，他说下次再来。
+   * 两个阶段也是"读档接着演"的门闩：还停在 knocking，就说明门口那段没演完。
+   */
+  {
+    id: "traveler_intro",
+    localizationKey: "event.traveler_intro",
+    stages: [
+      { stageId: "knocking", localizationKey: "event.traveler_intro.knocking" },
+      { stageId: "met", localizationKey: "event.traveler_intro.met" },
+    ],
+  },
 ];
 
 export function findEventDefinition(id: string): EventDefinition | undefined {

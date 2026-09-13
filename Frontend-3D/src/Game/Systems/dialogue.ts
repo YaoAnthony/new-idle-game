@@ -21,6 +21,7 @@ import { daysToBirthday, isPlayerBirthdayToday, isResidentBirthdayToday } from "
 import { getClock } from "../State/clock";
 import { isRemoteWorld } from "../Multiplayer/worldLock";
 import { getWeather } from "../State/weather";
+import { getCurrentMap, getWorld } from "../State/worldRuntime";
 import { factsOfToday, factsOfYesterday } from "./dayRecord";
 import { getEventStage, isEventCompleted, isFeatureUnlocked } from "./events";
 import { offerGift, type GiftResult } from "./gifting";
@@ -98,6 +99,14 @@ export function evaluateCondition(condition: DialogueCondition, residentId: stri
       return isFeatureUnlocked(condition.featureId);
     case "has_item":
       return getCount(condition.itemId) >= condition.quantity;
+    case "furniture_at_home": {
+      // 主屋那间（地图定义的主房间）现在摆着几件。getWorld 只给在场的家具，收起来的房子里的不算；院子是另一间，也不算
+      const homeRoomId = getCurrentMap().primaryRoomId;
+      const count = getWorld().placedFurniture.filter(
+        (placed) => placed.furnitureId === condition.itemId && placed.placement.roomId === homeRoomId,
+      ).length;
+      return count >= condition.quantity;
+    }
     case "stat_at_least":
       return getStat(condition.key) >= condition.value;
     case "achievement_unlocked":

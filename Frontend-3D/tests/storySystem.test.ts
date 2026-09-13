@@ -67,6 +67,8 @@ describe("信号计数", () => {
   });
 
   test("不带 subject 的信号只加一个键", () => {
+    // beforeEach 按读档进入挂系统，那一下记了一次 game_resumed；这条只看 backpack_opened 自己加了几个键
+    restoreSignalCounts({});
     signal("backpack_opened");
 
     expect(getSignalCounts().backpack_opened).toBe(1);
@@ -281,21 +283,24 @@ describe("启停", () => {
     stop = null;
 
     signal("backpack_opened");
-    expect(getSignalCounts()).toEqual({});
+    expect(getSignalCounts().backpack_opened).toBeUndefined();
   });
 
-  test("开场信号可选——读档进入时不该把开场戏再播一遍", () => {
+  test("开场信号可选——读档进入时不该把开场戏再播一遍_改发game_resumed", () => {
     stop?.();
     stop = null;
     restoreSignalCounts({});
 
     stop = startStorySystem(false);
     expect(getSignalCounts().game_started).toBeUndefined();
+    // 读档进来：给演到一半的戏一个接上的口
+    expect(getSignalCounts().game_resumed).toBe(1);
 
     stop();
     restoreSignalCounts({});
     stop = startStorySystem(true);
     expect(getSignalCounts().game_started).toBe(1);
+    expect(getSignalCounts().game_resumed).toBeUndefined();
   });
 });
 

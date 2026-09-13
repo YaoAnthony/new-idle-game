@@ -36,6 +36,11 @@ export type DialogueCondition =
   | { kind: "event_stage"; eventId: EventId; stageId: EventStageId }
   | { kind: "feature_unlocked"; featureId: FeatureId }
   | { kind: "has_item"; itemId: ItemId; quantity: number }
+  /**
+   * 你家（当前图的主屋那间）**现在**摆着至少这么多件（居民系统 20）。看现状不看累计：收起来就不算了。
+   * "箱里的东西都摆好了"这类门槛用它——`stat_at_least furniture_placed` 数的是摆过几次，收起再摆也加
+   */
+  | { kind: "furniture_at_home"; itemId: ItemId; quantity: number }
   /** 存档统计（WorldSave.progression.stats）里这个键至少到了多少。"拿到过第一件家具"用它 */
   | { kind: "stat_at_least"; key: string; value: number }
   /** 某条成就已达成（存档 progression.achievements 里有它）。"摆够十件家具解锁 X"这类内容门槛用它 */

@@ -16,6 +16,12 @@ import type { WeatherId } from "./weather.js";
 /** 游戏系统发出的信号种类。新增玩法时在此扩展，而不是在剧情里写 if */
 export type StorySignalKind =
   | "game_started"
+  /**
+   * 读档进了世界（居民系统 20）。**不带 subject。** 和 `game_started` 成对：新档发那条、读档发这条，
+   * 一次进入只发其中一条。"演到一半断了，读档回来接着演"的规则接它——对话、敲门这些演出不进存档，
+   * 读回来得有人再提一次。同一个世界里剧情系统拆了重挂也会再发，接它的效果要幂等。
+   */
+  | "game_resumed"
   | "backpack_opened"
   | "furniture_placed"
   /** 拆开了一个一次性容器（纸箱/奖励箱）。subject 是战利品表 id */

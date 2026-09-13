@@ -90,6 +90,13 @@ export function auditCondition(where: string, condition: DialogueCondition): str
         problems.push(`${where}：${condition.kind} 指向不存在的物品 "${condition.itemId}"`);
       }
       break;
+    case "furniture_at_home": {
+      const item = findItemDefinition(condition.itemId);
+      if (!item) problems.push(`${where}：furniture_at_home 指向不存在的物品 "${condition.itemId}"`);
+      else if (!item.placement) problems.push(`${where}：furniture_at_home 的 "${condition.itemId}" 不能摆，永远数不到`);
+      if (!(condition.quantity > 0)) problems.push(`${where}：furniture_at_home 的件数得是正数`);
+      break;
+    }
     case "neighbor_present":
     case "neighbor_remembers":
     case "neighbor_fact_yesterday":

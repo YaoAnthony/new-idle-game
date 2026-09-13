@@ -480,7 +480,7 @@ let detach: (() => void) | null = null;
  * 挂上信号监听。整个应用只调一次。
  *
  * `emitGameStarted` 在读档进入时传 false——存档里的剧情已经推进过了，
- * 不该把"终于搬进来了"再播一遍。
+ * 不该把"终于搬进来了"再播一遍；改发 `game_resumed`，给没演完的戏一个接上的口。
  */
 export function startStorySystem(emitGameStarted = true): () => void {
   if (detach) return detach;
@@ -514,8 +514,8 @@ export function startStorySystem(emitGameStarted = true): () => void {
     detach = null;
   };
 
-  // 开场信号：让"搬进新家"这类规则有机会触发
-  if (emitGameStarted) emit("story_signal", { kind: "game_started" });
+  // 进入信号：新档发 game_started（"搬进新家"这类），读档发 game_resumed（演到一半的接着演）
+  emit("story_signal", { kind: emitGameStarted ? "game_started" : "game_resumed" });
   return detach;
 }
 

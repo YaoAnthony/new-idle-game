@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, expect, test } from "vitest";
-import { DEFAULT_MAP_ID, Facing, affectionTuning, residentIdOf } from "core";
+import { DEFAULT_MAP_ID, Facing, affectionTuning, residentIdOf, visitTuning } from "core";
 
-import { emit } from "../src/Game/EventBus";
+import { emit, on } from "../src/Game/EventBus";
 import { restoreBuildings } from "../src/Game/State/buildings";
-import { initDoors, frontDoorAgent } from "../src/Game/State/doorsRuntime";
+import { initDoors, frontDoorAgent, tickDoors } from "../src/Game/State/doorsRuntime";
 import { replaceCounts } from "../src/Game/State/inventory";
 import { setLocalTransform } from "../src/Game/State/participants";
 import { getResident, removeResident, restoreResidents, spawnResident } from "../src/Game/State/residentsRuntime";
@@ -25,6 +25,7 @@ import {
   beginHouseVisit,
   houseCommentKeysFor,
   houseSnapshot,
+  knockIntent,
   outsideFrontDoor,
   playerIndoors,
   refuseVisit,
@@ -111,6 +112,53 @@ test("visit_主屋前门_门外一步在室外_门内一步在室内", () => {
   expect(isIndoors(outside!.x, outside!.z)).toBe(false);
   expect(isIndoors(2 * outside!.doorX - outside!.x, 2 * outside!.doorZ - outside!.z)).toBe(true);
   expect(frontDoorAgent()).toBeDefined();
+});
+
+test("visit_敲门站位按门的自动开半径和体型推_站定了门不会自己开", () => {
+  const slime = parked(SLIME, "slime_neighbor");
+  const outside = outsideFrontDoor()!;
+  const door = frontDoorAgent()!;
+  const openRadius = door.definition.behavior!.autoOpenRadius!;
+
+  const walk = knockIntent(slime, outside).steps[0];
+  expect(walk.verb).toBe("walk_to");
+  const stand = walk.verb === "walk_to" ? { x: walk.x, z: walk.z } : outside;
+  expect(isIndoors(stand.x, stand.z)).toBe(false);
+  expect(Math.hypot(stand.x - outside.doorX, stand.z - outside.doorZ) - slime.radius).toBeGreaterThan(openRadius);
+
+  slime.debugPlace(stand.x, stand.z);
+  tickDoors();
+  expect(door.open).toBe(false);
+
+  // 回归：原来站的门外那一步，体表在自动开半径以内，门一 tick 就自己开了
+  slime.debugPlace(outside.x, outside.z);
+  tickDoors();
+  expect(door.open).toBe(true);
+});
+
+test("visit_敲门_开敲那一拍和之后每隔几秒各敲一下_带坐标_来访只记一次", () => {
+  const slime = parked(SLIME, "slime_neighbor");
+  playerInside();
+  const knocks: Array<{ x: number; z: number }> = [];
+  const off = on("resident_knocked", ({ x, z }) => knocks.push({ x, z }));
+
+  slime.perform({
+    skillId: "visitPlayer",
+    priority: 50,
+    interruptible: true,
+    steps: [{ verb: "knock", seconds: 45, every: visitTuning.knockRepeatSeconds }],
+  });
+  slime.tick(0.1, { x: 0, z: 0 });
+  expect(knocks).toEqual([{ x: slime.x, z: slime.z }]);
+
+  // 再过两个间隔多一点：又敲了两下
+  const ticks = Math.round((visitTuning.knockRepeatSeconds * 2 + 0.5) / 0.1);
+  for (let i = 0; i < ticks; i += 1) slime.tick(0.1, { x: 0, z: 0 });
+  off();
+
+  expect(knocks).toHaveLength(3);
+  expect(getSignalCounts()["resident_knocked|slime_neighbor"]).toBe(1);
+  expect(visitorAtDoor()).toBe(SLIME);
 });
 
 test("visit_不在屋里_不在时段_今天来过_都不来", () => {

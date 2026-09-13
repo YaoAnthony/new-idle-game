@@ -239,6 +239,17 @@ export const audioProfileDefinitions = [
     audibleRadius: 9,
     pitchVariance: 0.05,
   },
+  // 有人在门外敲门（07 来访 / 剧情里的来客）。半径比开关门大：敲门是冲着屋里的人敲的，
+  // 站在屋子另一头也该听见；再远到院子外头就不该了
+  {
+    id: "sfx_door_knock",
+    busId: AudioBusId.Effects,
+    resourcePath: "/audio/action/knocking_door.wav",
+    localizationKey: "audio.door_knock",
+    loop: false,
+    audibleRadius: 16,
+    pitchVariance: 0.05,
+  },
 ] satisfies AudioProfileDefinition[];
 
 export function findAudioProfileDefinition(

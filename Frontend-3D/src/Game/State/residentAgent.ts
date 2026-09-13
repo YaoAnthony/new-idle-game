@@ -114,6 +114,8 @@ type StepRun = {
   stepIndex: number;
   /** stand / sit / sleep 的剩余秒数 */
   timer: number;
+  /** knock：离下一次再敲还有几秒（步骤没写 every 就没有） */
+  knockIn?: number;
   /** 这个 Intent 的 onArrive 已经调过（只调一次） */
   arrived: boolean;
 };
@@ -520,12 +522,13 @@ export class ResidentAgent {
         return true;
       }
       case "knock": {
-        // 站在门外等你开（07）。开始那一拍喊一声，来访系统接；等够了没人开就往下走
+        // 站在门外等你开（07）。开始那一拍敲一下，来访系统接；等够了没人开就往下走
         this.state = "idle";
         run.timer = step.seconds ?? 45;
+        run.knockIn = step.every;
+        if (step.facing !== undefined) this.face(step.facing);
         this.moving = false;
-        emit("resident_knocked", { residentId: this.residentId });
-        this.say("talk.common.knock", 3);
+        this.knockOnce();
         return true;
       }
       case "sit": {
@@ -616,6 +619,14 @@ export class ResidentAgent {
           // 没人开门：喊一声再走，来访系统把"今天来过"记上
           emit("resident_changed", { residentId: this.residentId, reason: "knock_timeout" });
           this.advanceStep();
+          return;
+        }
+        if (run.knockIn !== undefined && step.every !== undefined) {
+          run.knockIn -= deltaSeconds;
+          if (run.knockIn <= 0) {
+            run.knockIn = step.every;
+            this.knockOnce();
+          }
         }
         return;
       }
@@ -1056,6 +1067,12 @@ export class ResidentAgent {
   }
 
   /** 正在敲门就别敲了（07：你开了门 / 说了不方便）。整条 Intent 作废 */
+  /** 敲一下：发事件（带坐标，音景按距离播敲门声）+ 头顶冒"叩叩" */
+  private knockOnce(): void {
+    emit("resident_knocked", { residentId: this.residentId, x: this.x, z: this.z });
+    this.say("talk.common.knock", 3);
+  }
+
   cancelKnock(): void {
     const step = this.current?.steps[this.run?.stepIndex ?? -1];
     if (step?.verb === "knock") this.abandonIntent();

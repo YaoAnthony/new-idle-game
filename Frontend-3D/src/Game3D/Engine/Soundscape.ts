@@ -473,6 +473,8 @@ export function startSoundscape(): () => void {
         : definition?.sounds?.close;
       if (profileId) playOneShotAt(profileId, { x, z });
     }),
+    // 有人在门外敲了一下（07 来访 / 剧情来客）。身体每敲一下发一次，带坐标按距离衰减
+    on("resident_knocked", ({ x, z }) => playOneShotAt("sfx_door_knock", { x, z })),
   ];
 
   return () => {

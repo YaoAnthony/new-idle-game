@@ -184,8 +184,12 @@ export type GameEvents = {
   flags_changed: { key: string };
   /** 来访进度（07）：敲门 / 进屋 / 走了 */
   visit_changed: { residentId: string; phase: "knocking" | "inside" | "left"; reason?: string };
-  /** 他站到门外开始敲了（07，`knock` 动词开始那一拍） */
-  resident_knocked: { residentId: string };
+  /**
+   * 他在门外敲了一下（07，`knock` 动词开始那一拍，之后每隔 `every` 秒再一次）。
+   * 带世界坐标：音景按距离播敲门声，不该反过来去查人在哪（和 door_toggled 同一条理由）。
+   * 来访系统只认第一下，重复的敲是给耳朵听的。
+   */
+  resident_knocked: { residentId: string; x: number; z: number };
   /**
    * 一只活物换上了新 Intent（居民系统 01c）。房主端的联机层把它原样发成
    * `resident_intent` op；木偶不发（否则回环）。单机时空转。

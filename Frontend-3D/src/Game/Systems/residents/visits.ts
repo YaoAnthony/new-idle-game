@@ -338,15 +338,43 @@ export function forceVisit(residentId: string): string | null {
   return accepted ? null : "他不肯来";
 }
 
+/**
+ * 敲门站哪儿：沿门朝外，离门心 = 门的自动开半径 + 他的半径 + 一点余量（至少还是门外那一步）。
+ *
+ * 原来就站 `outsideFrontDoor` 那一步（离门心 1.3 米）。门的自动开量的是**体表**离门心多远（大门 1.2），
+ * 半径 0.3 的咕噜站过去体表离门 1.0——门没锁的时候他一站定门就自己开了，"敲门等你开"成了
+ * "门自己开了他还在敲"。从门的半径和他的身体推出来，换多大的家伙都不用回来调这个数。
+ */
+export function knockSpot(
+  agent: { radius: number },
+  outside: { x: number; z: number; doorX: number; doorZ: number },
+): { x: number; z: number } {
+  const openRadius = frontDoorAgent()?.definition.behavior?.autoOpenRadius ?? 0;
+  const dx = outside.x - outside.doorX;
+  const dz = outside.z - outside.doorZ;
+  const step = Math.hypot(dx, dz) || 1;
+  const distance = Math.max(step, openRadius + agent.radius + visitTuning.knockStandClearance);
+  return { x: outside.doorX + (dx / step) * distance, z: outside.doorZ + (dz / step) * distance };
+}
+
 /** 走到门外敲门的 Intent（技能和指令共用） */
-export function knockIntent(agent: ResidentAgent, outside: { x: number; z: number }): import("../../State/actions").Intent {
+export function knockIntent(
+  agent: ResidentAgent,
+  outside: { x: number; z: number; doorX: number; doorZ: number },
+): import("../../State/actions").Intent {
+  const spot = knockSpot(agent, outside);
   return {
     skillId: "visitPlayer",
     priority: findSkillPriority("visitPlayer")?.priority ?? 50,
     interruptible: true,
     steps: [
-      { verb: "walk_to", x: outside.x, z: outside.z, state: "approach" },
-      { verb: "knock", seconds: visitTuning.knockWaitSeconds },
+      { verb: "walk_to", x: spot.x, z: spot.z, state: "approach" },
+      {
+        verb: "knock",
+        seconds: visitTuning.knockWaitSeconds,
+        every: visitTuning.knockRepeatSeconds,
+        facing: { x: outside.doorX, z: outside.doorZ },
+      },
     ],
     idleAfter: 2,
     onInterrupted: () => giveUpKnocking(agent.residentId),

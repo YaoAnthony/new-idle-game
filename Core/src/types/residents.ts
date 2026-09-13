@@ -391,8 +391,9 @@ export type ResidentActionStep =
   /**
    * 敲门（居民系统 07）：站在门外等你开。有等待、有中断（你开了门这一步提前结束），
    * 符合动词的定义；也让 `/npc <谁> do knock` 能调。`seconds` 是等多久不开就走。
+   * `every`：隔几秒再敲一次（不填 = 只在开始那一拍敲一下）。`facing`：敲的时候面朝哪（门）。
    */
-  | { verb: "knock"; seconds?: number }
+  | { verb: "knock"; seconds?: number; every?: number; facing?: ResidentFacingTarget }
   | { verb: "sleep"; seconds?: number }
   | { verb: "hide" }
   | { verb: "show" }

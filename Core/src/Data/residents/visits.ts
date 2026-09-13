@@ -14,6 +14,13 @@ export const visitTuning = {
   staySeconds: [120, 240] as const,
   /** 敲门后等你多久，不开就走 */
   knockWaitSeconds: 45,
+  /** 隔几秒再敲一次。只敲一下的话，玩家正开着面板就错过了 */
+  knockRepeatSeconds: 6,
+  /**
+   * 敲门站位：离门心 = 门的自动开半径 + 他的半径 + 这个余量。
+   * 门的自动开量的是体表，站进半径里门就自己开了，"敲门等你开"就没了
+   */
+  knockStandClearance: 0.3,
   /** 一天最多来几位 */
   visitsPerDay: 1,
   /** 进屋后先四处看多久再找椅子 */

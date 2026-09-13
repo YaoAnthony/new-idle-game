@@ -1051,6 +1051,7 @@ const ZH: Record<string, string> = {
 
   "audio.door_open": "开门声",
   "audio.door_close": "关门声",
+  "audio.door_knock": "敲门声",
 
   // ---- 门 ----
   "door.front_door": "大门",

@@ -260,6 +260,19 @@ export function buildFishTrader(): Object3D {
   let elapsed = 0;
   let tailLag = 0;
 
+  /*
+   * 一次性手势（居民系统 20）。现在只有 stomp：门口那段"又是这样！"之后跺了跺脚。
+   * 没实现的名字 playGesture 直接不理——对话数据不用关心这只支不支持某个手势。
+   */
+  const GESTURE_DURATION: Record<string, number> = { stomp: 0.6 };
+  let gestureName: string | null = null;
+  let gestureElapsed = 0;
+  root.userData.playGesture = (name: string): void => {
+    if (!(name in GESTURE_DURATION)) return;
+    gestureName = name;
+    gestureElapsed = 0;
+  };
+
   root.userData.animate = (
     dt: number,
     resident: { state: string; moving: boolean },
@@ -317,6 +330,34 @@ export function buildFishTrader(): Object3D {
     const wanted = wave * (resident.moving ? 0.5 : 0.18);
     tailLag += (wanted - tailLag) * Math.min(1, dt * 6);
     tail.rotation.y = tailLag;
+
+    /*
+     * 跺脚：一只脚抬起来往下跺两下。盖在上面算好的站姿之上，而不是另起一个状态——跺脚是一下子的事，
+     * 不该打断他正站着敲门、说话；播完下一帧站姿自己归位。
+     *
+     * 光抬脚从游戏镜头里几乎看不出来（腿短，被圆身子挡住，真游戏走查的特写帧里确认过），所以
+     * 力气放在看得见的地方：抬脚时整个身子跟着往上提、往另一边歪，落地那一瞬往下一顿并压扁，
+     * 头上两片鳍一抖、两只手往下一甩。不动头的朝向：站姿那两支不重置 head.rotation.x，动了会留在脸上。
+     */
+    if (gestureName === "stomp") {
+      gestureElapsed += dt;
+      const t = Math.min(1, gestureElapsed / GESTURE_DURATION.stomp);
+      const beat = (t * 2) % 1;
+      const lift = Math.sin(beat * Math.PI);
+      // 落地那一瞬的顿：每一下从 1 衰到 0。第一下开始前脚本来就在地上，不顿
+      const thud = t > 0.05 ? Math.max(0, 1 - beat / 0.2) : 0;
+      legs[1].rotation.x = -lift * 0.95;
+      body.position.y = lift * 0.025 - thud * 0.035;
+      body.rotation.z = -lift * 0.12;
+      body.scale.set(1 + thud * 0.08, 1 - thud * 0.12, 1 + thud * 0.08);
+      for (const [i, fin] of fins.entries()) fin.rotation.z = (i === 0 ? 1 : -1) * (0.5 + thud * 0.35);
+      for (const arm of arms) arm.rotation.x = thud * 0.5;
+      if (t >= 1) {
+        gestureName = null;
+        // 走路那一支不重置缩放：播完这一拍先还原，别把压扁留到他走起来
+        body.scale.set(1, 1, 1);
+      }
+    }
   };
 
   return root;

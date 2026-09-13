@@ -5,6 +5,7 @@ import {
   FaBars,
   FaBookOpen,
   FaBoxOpen,
+  FaCog,
   FaDoorOpen,
   FaTimes,
   FaTrophy,
@@ -97,10 +98,10 @@ type Tile = {
 };
 
 /*
- * 只剩两格（用户 2026-09-08 定）。原来还有「行动」「消息」「设置」三格：
- * 「行动」随旧行动面板整块删了（入口改走日记本）；「消息」有回车键开，
- * 「设置」用户说不要就一起摘了——这里没留它的入口，要恢复得在这里再加一格
- * 并把 EventBus 的 `ui_panel_requested` 联合类型放宽回去。
+ * 2026-09-08 只剩「背包」「回到标题」两格；「行动」随旧行动面板删了（入口改走日记本），
+ * 「消息」有回车键开。「设置」那天也摘了，2026-09-12 加回来：右上角的齿轮早让位给了
+ * ESC 开关，摘掉之后游戏里就没有任何地方能调音量（用户："我的 esc 里面没有设置界面，
+ * 调不了音量"）。设置面板本身一直在，只差这一格和一条监听。
  */
 const TILES: Tile[] = [
   {
@@ -124,6 +125,13 @@ const TILES: Tile[] = [
     icon: <FaBookOpen />,
     accent: "#9ad3a1",
     run: () => emit("ui_panel_requested", { panel: "guideBook" }),
+  },
+  {
+    key: "settings",
+    labelKey: "ui.esc.settings",
+    icon: <FaCog />,
+    accent: "#9fc4e8",
+    run: () => emit("ui_panel_requested", { panel: "settings" }),
   },
   {
     key: "title",

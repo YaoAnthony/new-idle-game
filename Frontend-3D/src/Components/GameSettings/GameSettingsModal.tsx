@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { on } from "../../Game/EventBus";
 import { unlockAudio } from "../../Game3D/Engine/AudioEngine";
 import {
   applyAudioSettings,
@@ -64,8 +65,15 @@ const CHANNELS: Array<{ id: AudioChannel; labelKey: string }> = [
 const LOCALE_KEY = "idle-home:locale";
 
 export function GameSettingsModal() {
-  // 挡屏面板，开关挂在全局面板栈上
+  // 挡屏面板，开关挂在全局面板栈上；入口是 ESC 抽屉里的「设置」格（2026-09-12 加回）
   const [open, setOpen] = usePanel("settings");
+  useEffect(
+    () =>
+      on("ui_panel_requested", ({ panel }) => {
+        if (panel === "settings") setOpen(true);
+      }),
+    [setOpen],
+  );
   const [tab, setTab] = useState<SettingsTabId>("world");
   const [settings, setSettings] = useState<StoredAudioSettings>(() =>
     loadAudioSettings(),
@@ -159,10 +167,9 @@ export function GameSettingsModal() {
         **这块面板不再有自己的角落按钮**（2026-09-08）。右上角最外侧那个
         位置让给了 ESC 抽屉的开关（见 EscMenu）。
 
-        同一天晚些时候抽屉里的「设置」格也按用户要求摘了（抽屉只留背包
-        和回到标题），于是这块面板**眼下没有游戏内入口**，只剩标题界面
-        那条路。组件和面板栈里的 "settings" 槽位都留着：要接回来只需在
-        EscMenu 的 TILES 加一格、这里再挂一条 `ui_panel_requested` 监听。
+        同一天晚些时候抽屉里的「设置」格按用户要求摘了；2026-09-12 又加回
+        （摘掉之后游戏里没地方调音量）——入口是 EscMenu 的「设置」格，
+        这里挂一条 `ui_panel_requested` 监听接它。
 
         `unlockAudio()` 原来挂在这个按钮上（用户的第一个手势顺便解锁音频）。
         没有跟着按钮搬走，因为**不需要**：Game3D 进世界时已经挂了一次性的

@@ -599,6 +599,7 @@ const ZH: Record<string, string> = {
   "ui.esc.return_title": "回到标题",
   "ui.esc.achievements": "成就",
   "ui.esc.guide_book": "攻略",
+  "ui.esc.settings": "设置",
   "ui.esc.current_action": "正在进行的行动",
   "ui.esc.no_action": "现在什么都没在做",
   "ui.esc.close_hint": "关闭菜单",

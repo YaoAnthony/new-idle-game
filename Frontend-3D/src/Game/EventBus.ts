@@ -111,7 +111,7 @@ export type GameEvents = {
    * （2026-09-08）。再加格子时把名字加回这里，对应面板再挂一个监听。
    */
   /** ESC 抽屉点了一格。成就 / 攻略查询器 2026-09-12 加 */
-  ui_panel_requested: { panel: "backpack" | "achievements" | "guideBook" };
+  ui_panel_requested: { panel: "backpack" | "achievements" | "guideBook" | "settings" };
   /** ESC 菜单请求回到标题界面（存盘之后） */
   ui_return_to_title: Record<string, never>;
   /**

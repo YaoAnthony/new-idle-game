@@ -7,6 +7,7 @@ import {
   checkBuildingPlacement,
   checkRemove,
   checkUpgrade,
+  stripCenters,
   successorsOf,
   type LevelShape,
   constructionRemainingMs,
@@ -19,7 +20,7 @@ import {
   spendGold,
   totalGold,
 } from "../src/logic/goldJar.js";
-import { goldJarTuning, jarCapacity, totalCapacity } from "../src/Data/buildings/index.js";
+import { goldJarTuning, jarCapacity, totalCapacity, woodWallTuning } from "../src/Data/buildings/index.js";
 
 /**
  * 建筑系统。要钉住的是三件**只有分叉才会出问题**的事：
@@ -454,4 +455,36 @@ test("splitDuration：天/时/分三段，分钟向上取整", () => {
   assert.deepEqual(splitDuration(90 * 60_000), { days: 0, hours: 1, minutes: 30 });
   // 2 天 3 小时 15 分
   assert.deepEqual(splitDuration(((2 * 24 + 3) * 60 + 15) * 60_000), { days: 2, hours: 3, minutes: 15 });
+});
+
+// ---- 成排落地（木墙一张图纸五格）----
+
+test("stripCenters：南北向沿 z 排、以 anchor 为中点、格心落在格心", () => {
+  const cells = stripCenters({ x: 2.5, z: 10.5 }, Facing.North, 5);
+  assert.deepEqual(
+    cells.map((c) => c.z),
+    [8.5, 9.5, 10.5, 11.5, 12.5],
+  );
+  assert.ok(cells.every((c) => c.x === 2.5));
+});
+
+test("stripCenters：东西向沿 x 排——和占地宽深互换是同一条规则", () => {
+  const cells = stripCenters({ x: 2.5, z: 10.5 }, Facing.East, 5);
+  assert.deepEqual(
+    cells.map((c) => c.x),
+    [0.5, 1.5, 2.5, 3.5, 4.5],
+  );
+  assert.ok(cells.every((c) => c.z === 10.5));
+});
+
+test("stripCenters：长度 1 就是 anchor 自己；偶数长度中点落在格线上", () => {
+  assert.deepEqual(stripCenters({ x: 1.5, z: 2.5 }, Facing.South, 1), [{ x: 1.5, z: 2.5 }]);
+  assert.deepEqual(
+    stripCenters({ x: 1.5, z: 3 }, Facing.North, 2).map((c) => c.z),
+    [2.5, 3.5],
+  );
+});
+
+test("木墙一张图纸落五格是内容数据，不是控制器里的字面量", () => {
+  assert.equal(woodWallTuning.segmentsPerBlueprint, 5);
 });

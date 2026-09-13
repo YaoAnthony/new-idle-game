@@ -1,5 +1,5 @@
 import { Object3D } from "three";
-import type { WallSides } from "core";
+import { woodWallTuning, type WallSides } from "core";
 
 import { PALETTE, jitterShade } from "../Game3D/Visual/palette";
 import { box, group } from "../Game3D/Visual/primitives";
@@ -137,6 +137,8 @@ export const woodWall: BuildingDefinition = {
   // 也正因为要建很多，它不走施工那一套：不弹确认框、不立工地
   // 见 BuildingDefinition.instantBuild
   instantBuild: true,
+  // 一张图纸落一排（用户 2026-09-13："一次还是只能买一个，但一插是插五根"）
+  stripLength: woodWallTuning.segmentsPerBlueprint,
   levels: [
     {
       levelId: "l1",

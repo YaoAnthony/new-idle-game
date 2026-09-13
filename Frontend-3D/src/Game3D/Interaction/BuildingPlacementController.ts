@@ -1,6 +1,7 @@
 import {
   Facing,
   type BuildCheck,
+  stripCenters,
 } from "core";
 import {
   Mesh,
@@ -81,6 +82,32 @@ export class BuildingPlacementController {
   }
 
   /**
+   * 这次落地是一排几格（型号的 `stripLength`，木墙 = 5）。只有新建才成排：
+   * 挪和升级动的是已经立在那儿的**一格**。
+   */
+  private stripLength(): number {
+    if (this.mode !== "build") return 1;
+    return Math.max(1, findBuilding(this.buildingId)?.stripLength ?? 1);
+  }
+
+  /**
+   * 吸附和画框用的占地：一排 n 格 = 把型号的占地沿 z 拉长 n 倍
+   * （East/West 时由既有的宽深互换转到 x 上）。虚影里每一格的偏移也照这个算。
+   */
+  private effectiveFootprint(level: { footprint: { width: number; height: number } }): {
+    width: number;
+    height: number;
+  } {
+    return { width: level.footprint.width, height: level.footprint.height * this.stripLength() };
+  }
+
+  /** 这一排每一格的世界中心。n = 1 时就是 (x, z) 自己 */
+  private cells(): Array<{ x: number; z: number }> {
+    const level = findBuildingLevel(this.buildingId, this.levelId);
+    return stripCenters({ x: this.x, z: this.z }, this.facing, this.stripLength(), level?.footprint.height ?? 1);
+  }
+
+  /**
    * 进入选址。
    *
    * **升级和移动的虚影默认摆在当前位置**（同朝向）：原地合法就直接确认，
@@ -126,7 +153,18 @@ export class BuildingPlacementController {
     this.x = existing?.x ?? 0;
     this.z = existing?.z ?? 0;
 
-    const visual = level.build();
+    /*
+     * 成排的型号（木墙）虚影是 n 个模型排成一排，装在一个组里：组的旋转
+     * 和位置照旧走 refresh，每一格只在组内沿 z 偏移——East/West 时随组一起
+     * 转到 x 上，和 stripCenters 的方向一致。
+     */
+    const strip = this.stripLength();
+    const visual = new Object3D();
+    for (let i = 0; i < strip; i += 1) {
+      const piece = level.build();
+      piece.position.z = (i - (strip - 1) / 2) * level.footprint.height;
+      visual.add(piece);
+    }
     this.ghostMaterials = [];
     visual.traverse((node) => {
       if (!(node instanceof Mesh)) return;
@@ -144,7 +182,7 @@ export class BuildingPlacementController {
     this.ghost = visual;
     this.parent.add(this.ghost);
 
-    this.outline = this.buildOutline(level.footprint);
+    this.outline = this.buildOutline(this.effectiveFootprint(level));
     this.parent.add(this.outline);
 
     this.refresh();
@@ -197,7 +235,7 @@ export class BuildingPlacementController {
     const level = findBuildingLevel(this.buildingId, this.levelId);
     if (level && this.outline) {
       this.outline.removeFromParent();
-      this.outline = this.buildOutline(level.footprint);
+      this.outline = this.buildOutline(this.effectiveFootprint(level));
       this.parent.add(this.outline);
     }
     this.refresh();
@@ -220,9 +258,10 @@ export class BuildingPlacementController {
      * `round(v - offset) + offset` 一次搞定两种，不写两个分支。
      */
     const level = findBuildingLevel(this.buildingId, this.levelId);
+    const footprint = level ? this.effectiveFootprint(level) : { width: 1, height: 1 };
     const rotated = this.facing === Facing.East || this.facing === Facing.West;
-    const w = rotated ? (level?.footprint.height ?? 1) : (level?.footprint.width ?? 1);
-    const d = rotated ? (level?.footprint.width ?? 1) : (level?.footprint.height ?? 1);
+    const w = rotated ? footprint.height : footprint.width;
+    const d = rotated ? footprint.width : footprint.height;
     const snap = (v: number, size: number) => {
       const offset = size % 2 === 0 ? 0 : 0.5;
       return Math.round(v - offset) + offset;
@@ -236,15 +275,20 @@ export class BuildingPlacementController {
   private refresh(): void {
     if (!this.ghost) return;
 
-    const check: BuildCheck = previewPlacement({
-      buildingId: this.buildingId,
-      levelId: this.levelId,
-      x: this.x,
-      z: this.z,
-      facing: this.facing,
-      excludeInstanceId: this.instanceId,
-      countsAsNew: this.mode === "build",
-    });
+    // 成排的每一格各自过一遍校验，一格不合法整排不能落；报第一个不合法的理由
+    let check: BuildCheck = { ok: true };
+    for (const cell of this.cells()) {
+      check = previewPlacement({
+        buildingId: this.buildingId,
+        levelId: this.levelId,
+        x: cell.x,
+        z: cell.z,
+        facing: this.facing,
+        excludeInstanceId: this.instanceId,
+        countsAsNew: this.mode === "build",
+      });
+      if (check.ok === false) break;
+    }
     this.valid = check.ok !== false;
     this.reason = check.ok === false ? check.reason : undefined;
 
@@ -337,11 +381,19 @@ export class BuildingPlacementController {
        * 落下去的是**工地**不是成品：围栏立起、进度 0，等石傀儡走过来建。
        * 「确认」这一下是下单，不是完工——这一整套要演的就是中间那段。
        */
-      const result = placeBuilding(this.buildingId, this.x, this.z, this.facing, {
-        asSite: true,
-      });
-      ok = result.ok !== false;
-      reason = result.ok === false ? result.reason : undefined;
+      // 成排的型号逐格落（每格一个独立实例）；刚才 refresh 已经全排校验过，
+      // 中途失败只会是极端竞争，停在那一格、如实报
+      ok = true;
+      for (const cell of this.cells()) {
+        const result = placeBuilding(this.buildingId, cell.x, cell.z, this.facing, {
+          asSite: true,
+        });
+        if (result.ok === false) {
+          ok = false;
+          reason = result.reason;
+          break;
+        }
+      }
     } else if (this.instanceId) {
       const moved = moveBuilding(this.instanceId, this.x, this.z, this.facing);
       ok = moved.ok !== false;

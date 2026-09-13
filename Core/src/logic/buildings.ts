@@ -226,6 +226,34 @@ export function buildingRectWorld(
   };
 }
 
+/**
+ * 一排 1×1 实例的格心：以 `anchor` 为中点，沿朝向排开 `length` 格。
+ *
+ * 南北向沿 z 排、东西向沿 x 排——和 `buildingRectWorld` 里"East/West 宽深
+ * 互换"是同一条规则，所以把这一排当成一个 1×length 的占地去吸附、画框，
+ * 得到的中心正是这里的 anchor。length 为奇数时格心落在格心、偶数落在
+ * 格线上，和整格吸附的 `round(v - offset) + offset` 对得上。
+ */
+export function stripCenters(
+  anchor: { x: number; z: number },
+  facing: Facing,
+  length: number,
+  spacing = 1,
+): Array<{ x: number; z: number }> {
+  const count = Math.max(1, Math.floor(length));
+  const rotated = facing === Facing.East || facing === Facing.West;
+  const centers: Array<{ x: number; z: number }> = [];
+  for (let i = 0; i < count; i += 1) {
+    const offset = (i - (count - 1) / 2) * spacing;
+    centers.push(
+      rotated
+        ? { x: anchor.x + offset, z: anchor.z }
+        : { x: anchor.x, z: anchor.z + offset },
+    );
+  }
+  return centers;
+}
+
 export type BuildCheck =
   | { ok: true }
   | {

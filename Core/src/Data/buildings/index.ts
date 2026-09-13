@@ -15,6 +15,18 @@ export const goldJarTuning = {
   capacityByLevel: { l1: 10, l2: 150, l3: 400 } as Record<string, number>,
 };
 
+/**
+ * 木墙（用户 2026-09-13 定）：**一张图纸落一排五格**。
+ *
+ * 原来一张图纸落一格，围一圈院子要买几十次、插几十次，"效率有些低"。
+ * 买还是一次买一张，改的是落地：虚影是沿朝向排成一排的五格，五格全合法
+ * 才能落，落下去是五个独立的 1×1 实例（形状仍由四邻规则推，直墙就是
+ * 中间三格两侧有邻、两头收头）。数在这儿，放置控制器只读它。
+ */
+export const woodWallTuning = {
+  segmentsPerBlueprint: 5,
+};
+
 /** 这一级的容量。认不出的等级给 0——没建罐 = 装不下，是同一条语义 */
 export function jarCapacity(levelId: string): number {
   return goldJarTuning.capacityByLevel[levelId] ?? 0;

@@ -1621,7 +1621,8 @@ export const itemDefinitions = [
   {
     /**
      * 木墙的图纸。**成批买的东西**：`stackLimit` 给到 20，一次买够
-     * 围一圈的量，不用来回开面板。放置时一张一张消耗。
+     * 围一圈的量，不用来回开面板。放置时一张一张消耗，**一张落一排**
+     * （`woodWallTuning.segmentsPerBlueprint` 格，型号的 stripLength）。
      */
     id: "blueprint_wood_wall",
     localizationKey: "item.blueprint_wood_wall",

@@ -1,7 +1,7 @@
 import { beforeEach, expect, test } from "vitest";
-import { DEFAULT_MAP_ID, Facing, wallConnections } from "core";
+import { DEFAULT_MAP_ID, Facing, stripCenters, wallConnections, woodWallTuning } from "core";
 
-import { findBuildingLevel } from "../src/Buildings/index";
+import { findBuilding, findBuildingLevel } from "../src/Buildings/index";
 import {
   finishSite,
   listBuildings,
@@ -237,4 +237,28 @@ test("不立工地是型号的性质，不是某个下单入口的规矩", () =>
   expect(jar.ok).toBe(true);
   const built = listBuildings().find((item) => item.buildingId === "gold_jar");
   expect(built?.construction).toBeDefined();
+});
+
+/**
+ * 一张图纸落一排五格（用户 2026-09-13）。控制器按 `stripLength` 沿朝向排开、
+ * 逐格落；这里用同一条 `stripCenters` 把五格落下去，钉两件事：
+ * 型号上登记的数就是 Core 的那个数；落下来的五格连成一条直墙
+ * （中间三格两侧有邻，两头各只有一个邻居）。
+ */
+test("一张图纸一排五格：型号读 Core 的数，落下来是一条直墙", () => {
+  expect(findBuilding("wood_wall")?.stripLength).toBe(woodWallTuning.segmentsPerBlueprint);
+
+  const cells = stripCenters(A, Facing.North, woodWallTuning.segmentsPerBlueprint);
+  const ids = cells.map((cell) => wall(cell.x, cell.z));
+  expect(ids).toHaveLength(5);
+
+  const sides = (instanceId: string) =>
+    wallConnections(listBuildings().find((b) => b.instanceId === instanceId)!, listBuildings());
+  // 中间三格：南北两边都有邻居（直墙 I）
+  for (const id of ids.slice(1, 4)) {
+    expect(sides(id)).toMatchObject({ north: true, south: true, east: false, west: false });
+  }
+  // 两头：只有朝里那一边有邻居（收头）
+  expect(sides(ids[0])).toMatchObject({ north: false, south: true });
+  expect(sides(ids[4])).toMatchObject({ north: true, south: false });
 });

@@ -1,0 +1,751 @@
+{
+  "$comment": "由 Frontend-3D/tests/saveContract.test.ts 从注册表生成（Core/src/types/saveSlices.ts + Frontend-3D/src/Data/Save/registry），别手改。改了注册表之后跑 `npm run save-contract` 重生成",
+  "saveSchemaVersion": 53,
+  "netProtocolVersion": 13,
+  "legend": {
+    "sync": "refresh = 房主变了就推给全房、服务端也合并；join = 只在入房快照里给；none = 不参与联机（必带 reason）",
+    "changedBy": "哪些事件意味着这一片脏了 → 自动存档",
+    "replicateOn": "哪些事件值得推给房客；没写 = 同 changedBy",
+    "write": "immediate = 脏了立刻写；debounced = 2.5 秒防抖",
+    "restoreAfter": "读档时必须排在这些片之后（RESTORE_ORDER 按此校验）",
+    "hooks": "replicate = 线上形状和存档不同；applyReplica = 房客收到不是整体替换；finalize = 全部灌完后的收尾",
+    "dead": "类型里有、无人读写的字段，序列化时不写键"
+  },
+  "refreshWireKeys": [
+    "placedFurniture",
+    "droppedItems",
+    "inventories",
+    "weather",
+    "clock",
+    "gramophones",
+    "lamps",
+    "buildings",
+    "pets",
+    "favors",
+    "porch",
+    "interiors",
+    "mailbox",
+    "flags",
+    "unlockedFeatureIds"
+  ],
+  "restoreOrder": [
+    "world.worldId",
+    "world.seed",
+    "world.house",
+    "world.maps",
+    "world.placedFurniture",
+    "world.clock",
+    "world.weather",
+    "world.inventories",
+    "world.gramophones",
+    "world.lamps",
+    "world.buildings",
+    "world.baseGold",
+    "world.droppedItems",
+    "world.chatLog",
+    "world.dailyBoard",
+    "player.dailyTasks",
+    "player.avatar",
+    "player.character.inventory",
+    "player.character.heldItem",
+    "player.character.position",
+    "player.discoveredRecipeIds",
+    "player.character.restingOn",
+    "player.character.needs",
+    "world.pets",
+    "world.doors",
+    "world.progression.events",
+    "world.progression.unlockedFeatureIds",
+    "world.progression.firedStoryRuleIds",
+    "world.progression.signalCounts",
+    "world.progression.poolMisses",
+    "world.progression.stats",
+    "world.progression.achievements",
+    "world.dayFacts",
+    "world.residentTrips",
+    "world.tripPlans",
+    "world.mailbox",
+    "world.flags",
+    "player.birthday",
+    "world.favors",
+    "world.porch",
+    "world.interiors",
+    "world.travelerStock",
+    "world.newspaper",
+    "player.actionEntries",
+    "player.actionGroups",
+    "player.actionLog",
+    "player.diary",
+    "player.pendingGold",
+    "player.activeActionProcess",
+    "player.name",
+    "player.playerId",
+    "player.character.inventoryId",
+    "world.gameRules"
+  ],
+  "world": {
+    "worldId": {
+      "sync": "join",
+      "reason": "世界身份，会话中不变",
+      "changedBy": [],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "seed": {
+      "sync": "join",
+      "reason": "只在建档时定；运行时无人读它（审计 2026-09-13）",
+      "changedBy": [],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "house": {
+      "sync": "join",
+      "reason": "屋子风格。房客进场 hydrate 一次；会话中没有改风格的入口",
+      "changedBy": [],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "maps": {
+      "sync": "join",
+      "reason": "房间几何只在换世界时灌；联机限定 base 图，会话中不会换图",
+      "changedBy": [
+        "world_changed"
+      ],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "placedFurniture": {
+      "sync": "refresh",
+      "churn": "low",
+      "reason": "M1 起就在。发的是当前图在场的家具（见前端 replicate）",
+      "changedBy": [
+        "world_changed",
+        "kitchen_changed"
+      ],
+      "write": "debounced",
+      "hooks": {
+        "replicate": true,
+        "applyReplica": true,
+        "finalize": false
+      }
+    },
+    "droppedItems": {
+      "sync": "refresh",
+      "churn": "low",
+      "reason": "M1 起就在。房客端对账而不是整体替换：飞行中的要保住运动学",
+      "changedBy": [
+        "dropped_items_changed"
+      ],
+      "write": "debounced",
+      "restoreAfter": [
+        "world.maps"
+      ],
+      "hooks": {
+        "replicate": true,
+        "applyReplica": true,
+        "finalize": false
+      }
+    },
+    "inventories": {
+      "sync": "refresh",
+      "churn": "low",
+      "reason": "M1 起就在。储物箱 / 货架 / 寄售箱的格子",
+      "changedBy": [
+        "storage_changed"
+      ],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": true
+      }
+    },
+    "weather": {
+      "sync": "refresh",
+      "churn": "low",
+      "reason": "M1 起就在。房客不重掷日程，天气全靠这一片",
+      "changedBy": [
+        "weather_changed"
+      ],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "clock": {
+      "sync": "refresh",
+      "churn": "low",
+      "reason": "M1 起就在。时区 + 推导依据；拨过的时间偏移（阶段 3）也在这里",
+      "changedBy": [],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "gramophones": {
+      "sync": "refresh",
+      "churn": "low",
+      "reason": "协议 v4：每台唱片机装着哪张。谁换了唱片全房间都得听见",
+      "changedBy": [
+        "gramophone_changed"
+      ],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": true
+      }
+    },
+    "lamps": {
+      "sync": "refresh",
+      "churn": "low",
+      "reason": "协议 v6：哪几盏灯被关掉了。灯光是共享的物理事实，不是各人的显示偏好",
+      "changedBy": [
+        "lamp_changed"
+      ],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": true
+      }
+    },
+    "buildings": {
+      "sync": "refresh",
+      "churn": "low",
+      "reason": "协议 v7：补这一片之前，做客期间房主盖的墙、傀儡完工的工地、罐里涨的钱，房客一概看不到。罐子液面存在实例 state 里，跟着这一片走",
+      "changedBy": [
+        "world_changed",
+        "building_state_changed"
+      ],
+      "replicateOn": [
+        "world_changed"
+      ],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "pets": {
+      "sync": "refresh",
+      "churn": "high",
+      "reason": "协议 v8：活物的生灭与对账（谁来了、谁走了、位置差太多就放回去）。逐步行为靠 resident_intent op，走路偏差靠关键帧",
+      "changedBy": [
+        "resident_changed"
+      ],
+      "replicateOn": [
+        "resident_changed（带条件）"
+      ],
+      "write": "debounced",
+      "restoreAfter": [
+        "world.maps",
+        "player.character.needs"
+      ],
+      "hooks": {
+        "replicate": true,
+        "applyReplica": true,
+        "finalize": false
+      }
+    },
+    "favors": {
+      "sync": "refresh",
+      "churn": "low",
+      "reason": "协议 v9：房客靠它画委托的「！」气泡",
+      "changedBy": [
+        "favors_changed"
+      ],
+      "write": "debounced",
+      "hooks": {
+        "replicate": true,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "porch": {
+      "sync": "refresh",
+      "churn": "low",
+      "reason": "协议 v10：门口展示位与门牌",
+      "changedBy": [
+        "porch_changed"
+      ],
+      "write": "debounced",
+      "hooks": {
+        "replicate": true,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "interiors": {
+      "sync": "refresh",
+      "churn": "low",
+      "reason": "协议 v11：居民房室内槽位，房客进他家看到的和房主一样",
+      "changedBy": [
+        "interiors_changed"
+      ],
+      "write": "debounced",
+      "hooks": {
+        "replicate": true,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "mailbox": {
+      "sync": "refresh",
+      "churn": "low",
+      "reason": "协议 v12：房客能翻信，收不了附件",
+      "changedBy": [
+        "mail_changed"
+      ],
+      "write": "debounced",
+      "hooks": {
+        "replicate": true,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "flags": {
+      "sync": "refresh",
+      "churn": "low",
+      "reason": "协议 v13：房客按 F 要知道今天是谁的生日",
+      "changedBy": [
+        "flags_changed"
+      ],
+      "write": "debounced",
+      "hooks": {
+        "replicate": true,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "progression.unlockedFeatureIds": {
+      "sync": "refresh",
+      "wireKey": "unlockedFeatureIds",
+      "churn": "low",
+      "reason": "协议 v7：领地开没开哪块地记在这里，扩地要靠它同步。发整份而不是增量——只增不减的集合整份覆盖最省心，漏包乱序都收敛",
+      "changedBy": [
+        "world_changed"
+      ],
+      "write": "debounced",
+      "restoreAfter": [
+        "world.progression.events"
+      ],
+      "hooks": {
+        "replicate": false,
+        "applyReplica": true,
+        "finalize": false
+      }
+    },
+    "doors": {
+      "sync": "join",
+      "reason": "TODO 阶段 3 翻 refresh：门锁状态两端要一致；开关本身走 door_set op（阶段 5）",
+      "changedBy": [],
+      "write": "debounced",
+      "restoreAfter": [
+        "world.maps",
+        "world.pets"
+      ],
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "baseGold": {
+      "sync": "join",
+      "reason": "TODO 阶段 3 翻 refresh：钱匣那 10 枚，房客 HUD 看到的余额今天是旧的",
+      "changedBy": [
+        "gold_changed"
+      ],
+      "write": "debounced",
+      "restoreAfter": [
+        "world.buildings"
+      ],
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "chatLog": {
+      "sync": "join",
+      "reason": "TODO 阶段 3 翻 refresh：消息流。实时消息走聊天通道，这一片管收敛",
+      "changedBy": [
+        "chat_message"
+      ],
+      "write": "debounced",
+      "restoreAfter": [
+        "world.clock"
+      ],
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "dayFacts": {
+      "sync": "join",
+      "reason": "TODO 阶段 3 翻 refresh：昨日事实（报纸素材）",
+      "changedBy": [],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "residentTrips": {
+      "sync": "join",
+      "reason": "TODO 阶段 3 翻 refresh：谁去了小镇、几点回",
+      "changedBy": [
+        "resident_changed（带条件）"
+      ],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "tripPlans": {
+      "sync": "join",
+      "reason": "TODO 阶段 3 翻 refresh：多日出门的计划",
+      "changedBy": [
+        "trip_plans_changed"
+      ],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "travelerStock": {
+      "sync": "join",
+      "reason": "TODO 阶段 3 翻 refresh：旅行商人这一趟卖掉了什么",
+      "changedBy": [],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "newspaper": {
+      "sync": "join",
+      "reason": "TODO 阶段 3 翻 refresh：报纸。老注释的「家务事不同步」作废（用户 2026-09-13）",
+      "changedBy": [],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "dailyBoard": {
+      "sync": "join",
+      "reason": "TODO 阶段 3 翻 refresh：共享进度今天只靠 op 走，晚进房的人拿到的是开房时的",
+      "changedBy": [
+        "daily_board_changed"
+      ],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "progression.events": {
+      "sync": "join",
+      "reason": "TODO 阶段 3 翻 refresh：事件阶段。房客端的对话条件读它",
+      "changedBy": [
+        "event_progress_changed"
+      ],
+      "write": "immediate",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "progression.firedStoryRuleIds": {
+      "sync": "join",
+      "reason": "TODO 阶段 3 翻 refresh：房客端剧情不跑，但条件要读得到最新的",
+      "changedBy": [
+        "story_signal"
+      ],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "progression.signalCounts": {
+      "sync": "join",
+      "reason": "TODO 阶段 3 翻 refresh",
+      "changedBy": [
+        "story_signal"
+      ],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "progression.poolMisses": {
+      "sync": "join",
+      "reason": "TODO 阶段 3 翻 refresh",
+      "changedBy": [
+        "story_signal"
+      ],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "progression.stats": {
+      "sync": "join",
+      "reason": "TODO 阶段 3 翻 refresh：统计表。做客期间自己不记（stats.ts），看到的是房主的",
+      "changedBy": [
+        "stats_changed"
+      ],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "progression.achievements": {
+      "sync": "join",
+      "reason": "TODO 阶段 3 翻 refresh：成就的达成日 / 领奖日",
+      "changedBy": [
+        "achievements_changed"
+      ],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "gameRules": {
+      "sync": "none",
+      "reason": "死字段：全仓无读写（审计 2026-09-13），阶段 6 删",
+      "dead": "全仓无读写（审计 2026-09-13），阶段 6 连类型一起删"
+    }
+  },
+  "player": {
+    "playerId": {
+      "dead": "全仓无读写（审计 2026-09-13），阶段 6 连类型一起删"
+    },
+    "name": {
+      "changedBy": [],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "avatar": {
+      "changedBy": [],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "actionGroups": {
+      "changedBy": [
+        "action_groups_changed"
+      ],
+      "write": "debounced",
+      "restoreAfter": [
+        "player.actionEntries"
+      ],
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "pendingGold": {
+      "changedBy": [
+        "gold_changed"
+      ],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "birthday": {
+      "changedBy": [],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "character.inventory": {
+      "changedBy": [
+        "inventory_changed",
+        "held_changed"
+      ],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "character.inventoryId": {
+      "dead": "全仓无读写（审计 2026-09-13），阶段 6 连类型一起删"
+    },
+    "character.needs": {
+      "changedBy": [
+        "needs_changed"
+      ],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "character.heldItem": {
+      "changedBy": [
+        "held_changed"
+      ],
+      "write": "debounced",
+      "restoreAfter": [
+        "player.character.inventory"
+      ],
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "character.position": {
+      "changedBy": [],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "character.restingOn": {
+      "changedBy": [
+        "posture_changed"
+      ],
+      "write": "debounced",
+      "restoreAfter": [
+        "world.maps"
+      ],
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "discoveredRecipeIds": {
+      "changedBy": [],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "actionEntries": {
+      "changedBy": [
+        "action_entries_changed"
+      ],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "dailyTasks": {
+      "changedBy": [
+        "daily_tasks_changed"
+      ],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "actionLog": {
+      "changedBy": [
+        "action_log_changed"
+      ],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "diary": {
+      "changedBy": [
+        "diary_changed"
+      ],
+      "write": "debounced",
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    },
+    "activeActionProcess": {
+      "changedBy": [
+        "action_changed"
+      ],
+      "write": "debounced",
+      "restoreAfter": [
+        "player.character.inventory",
+        "player.pendingGold"
+      ],
+      "hooks": {
+        "replicate": false,
+        "applyReplica": false,
+        "finalize": false
+      }
+    }
+  }
+}

@@ -113,7 +113,7 @@ const ZH: Record<string, string> = {
   "item.blueprint_gold_jar": "金库图纸",
   "item.blueprint_wood_wall": "木墙图纸",
   "building.wood_wall": "木墙",
-  "building.wood_wall.desc": "一格一段，挨着的会自己连起来。",
+  "building.wood_wall.desc": "一张图纸落一排，挨着的会自己连起来。",
   "building.wood_wall.l1": "木墙",
   "building.wood_wall.l1.desc": "几根木杆扎的栅栏，挡得住脚步挡不住风。",
   "building.wood_wall.l2": "木墙 · 加固",

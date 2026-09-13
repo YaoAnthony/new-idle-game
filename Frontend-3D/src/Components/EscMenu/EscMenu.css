@@ -35,7 +35,7 @@
   will-change: transform, opacity;
 }
 
-/* 单独一层，clip-path 的圆从右上角那个点铺开 */
+/* 单独一层，clip-path 从右上角开关钮的圆角方块铺开（形状在 EscMenu.tsx 的 backgroundVariants） */
 .esc-panel__background {
   position: absolute;
   inset: 0;

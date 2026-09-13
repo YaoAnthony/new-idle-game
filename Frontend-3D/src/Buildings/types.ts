@@ -214,6 +214,15 @@ export type BuildingDefinition = {
    */
   maxInstances?: number;
 
+  /**
+   * **一次落几格，沿朝向排成一排**（木墙 = 5，见 Core `woodWallTuning`）。
+   *
+   * 只影响 `build` 模式：虚影画一排、每格各自过一遍放置校验、全合法才能
+   * 落，落下去是一排各自独立的 1×1 实例（挪、升、拆仍然一格一格来）。
+   * 一张图纸对应一排，消耗仍是一张。缺省 1 = 老规矩。
+   */
+  stripLength?: number;
+
   /** 至少一级。**第一个是初始等级**（新建出来就是它） */
   levels: BuildingLevel[];
 };

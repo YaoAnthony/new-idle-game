@@ -1,6 +1,6 @@
 import { findActionDefinition } from "core";
 import { AnimatePresence, motion, type Variants } from "motion/react";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import {
   FaBars,
   FaBookOpen,
@@ -26,9 +26,10 @@ import "./EscMenu.css";
  * ESC 侧边菜单。
  *
  * 结构和动画照搬 Oldfrontend 的 `GameEscMenu`：整屏遮罩 → 右侧抽屉 →
- * 单独一层背景做 clip-path 圆形展开 → 内容分区逐条 stagger 上浮。
+ * 单独一层背景做 clip-path 展开 → 内容分区逐条 stagger 上浮。
  * 那套是 framer-motion 官方 sidebar 例子的写法，参数原样保留
- * （spring 260/32、圆心固定在右上角 40px、子项 delay 0.12 / stagger 0.055）。
+ * （spring 260/32、子项 delay 0.12 / stagger 0.055）；展开的形状从圆换成了
+ * 右上角开关钮的圆角方块。
  *
  * **内容没法照抄**：那边的分区接的是 Redux + 任务/商店/联机 API，
  * 这个项目里不存在。所以外壳一比一，格子换成这边真有的东西——
@@ -54,16 +55,48 @@ const shellVariants: Variants = {
   },
 };
 
-/** 背景单独一层：圆形 clip-path 从右上角那个点铺开，抽屉才有"被拉出来"的感觉 */
+type Corner = {
+  /** 开关钮中心离容器顶边 / 右边的距离——抽屉贴着容器右上角，所以也就是离抽屉右上角 */
+  top: number;
+  right: number;
+  /** 钮的半边长 */
+  half: number;
+  /** 圆角 ÷ 半边长。放大时保持不变 */
+  roundness: number;
+  /** 展开到的半边长 */
+  reach: number;
+};
+
+const FALLBACK_CORNER: Corner = { top: 40, right: 40, half: 26, roundness: 16 / 26, reach: 2240 };
+
+/**
+ * 以钮中心为心、半边长 `size` 的圆角方块。上、右两边一放大就是负数（伸出抽屉外，
+ * 看不见）；下、左两边写成 `100% - x`，这样不用量抽屉自己的宽高——开之前它还不存在。
+ */
+function cornerSquare(c: Corner, size: number): string {
+  return `inset(${c.top - size}px ${c.right - size}px calc(100% - ${c.top + size}px) calc(100% - ${c.right + size}px) round ${size * c.roundness}px)`;
+}
+
+/**
+ * 背景单独一层：从右上角开关钮**本身的形状**铺开，抽屉才有"从钮里被拉出来"的感觉。
+ *
+ * 原来是 `circle()`，圆心写死在右上角 40px。钮换成圆角方块之后，一个圆从方块底下
+ * 冒出来就对不上了（2026-09-13，用户定）。现在起点就是钮的外框，半边长和圆角按同一个
+ * 比例一起长，中间每一帧都是"放大了的那颗钮"；圆角要是固定 16px，一放大就成了
+ * 直角方块在擦屏。
+ *
+ * 用 clip-path 而不是给一块小方 div 做 scale：放大几十倍时浏览器按原尺寸栅格化，
+ * 圆角边缘会糊成一大片。
+ */
 const backgroundVariants: Variants = {
-  open: (height = 1000) => ({
-    clipPath: `circle(${Math.max(height, 1000) * 2 + 240}px at calc(100% - 40px) 40px)`,
+  open: (corner: Corner) => ({
+    clipPath: cornerSquare(corner, corner.reach),
     transition: { type: "spring", stiffness: 22, restDelta: 2 },
   }),
-  closed: {
-    clipPath: "circle(30px at calc(100% - 40px) 40px)",
+  closed: (corner: Corner) => ({
+    clipPath: cornerSquare(corner, corner.half),
     transition: { delay: 0.08, type: "spring", stiffness: 420, damping: 42 },
-  },
+  }),
 };
 
 const contentVariants: Variants = {
@@ -148,18 +181,49 @@ const TILES: Tile[] = [
   },
 ];
 
-/** 抽屉高度要喂给 clip-path 半径，不量的话圆铺不满 */
-function useHeight(ref: React.RefObject<HTMLElement | null>): number {
-  const [height, setHeight] = useState(0);
+function measureCorner(button: HTMLElement): Corner {
+  const box = button.offsetParent as HTMLElement | null;
+  const width = box?.clientWidth ?? window.innerWidth;
+  const height = box?.clientHeight ?? window.innerHeight;
+  // offset* 是布局值，不吃 hover 时的 scale(1.1)
+  const half = button.offsetWidth / 2;
+  const radius = parseFloat(getComputedStyle(button).borderTopLeftRadius) || 0;
+  const roundness = Math.min(radius / half, 1);
+  /*
+   * 罩满抽屉不能只让半边长 ≥ 最远角的距离：圆角会把方块的角削掉。
+   * 半边长 s、圆角比 k 的圆角方块，能完整装下的正方形半边是 s·(1 − k + k/√2)，
+   * 反过来除一下。容器宽高是抽屉的上界，拿它算只会多不会少。
+   */
+  const cover = Math.max(width, height) / (1 - roundness + roundness / Math.SQRT2);
+  return {
+    top: button.offsetTop + button.offsetHeight / 2,
+    right: width - (button.offsetLeft + half),
+    half,
+    roundness,
+    // 后一项是原来圆半径的算法：spring 冲向远超需要的目标，前半程才够快，手感不变
+    reach: Math.max(cover, Math.max(height, 1000) * 2 + 240),
+  };
+}
 
-  useEffect(() => {
-    const measure = () => setHeight(ref.current?.offsetHeight ?? 0);
+/**
+ * 开关钮的位置和形状。钮一直挂着，挂载时就能量；尺寸跟 vmin 走，resize 时重量。
+ *
+ * 原来这里是 `useHeight(panelRef)`，挂载时量抽屉高度——可抽屉那时还没渲染，
+ * 量出来是 0，一直靠 `Math.max(height, 1000)` 兜底。
+ */
+function useCorner(ref: React.RefObject<HTMLElement | null>): Corner {
+  const [corner, setCorner] = useState(FALLBACK_CORNER);
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      if (ref.current) setCorner(measureCorner(ref.current));
+    };
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
   }, [ref]);
 
-  return height;
+  return corner;
 }
 
 export function EscMenu() {
@@ -174,8 +238,8 @@ export function EscMenu() {
    */
   const [open, setOpen] = usePanel("escMenu");
   const [, force] = useState(0);
-  const panelRef = useRef<HTMLElement>(null);
-  const height = useHeight(panelRef);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const corner = useCorner(buttonRef);
 
   // 菜单里的读数都是快照，开着的时候跟着这几条事件刷新
   useEffect(() => {
@@ -212,14 +276,15 @@ export function EscMenu() {
         原来占着这个位置的是设置钮（开一个居中 Modal），位置让给了抽屉
         本身；设置那格后来也从抽屉里摘了（2026-09-08，用户定）。
 
-        位置选它不是随手排的：抽屉的展开动画是一个 clip-path 圆，圆心就
-        写死在右上角 40px 处（见 backgroundVariants）——那个圆本来就是
-        从这个钮底下铺开的，只是一直没人站在那儿。
+        位置选它不是随手排的：抽屉的展开动画原来是一个 clip-path 圆，圆心
+        写死在右上角 40px 处——那个圆本来就是从这个钮底下铺开的，只是一直
+        没人站在那儿。现在展开的起点直接量这颗钮（见 backgroundVariants）。
 
         `motion.button` 的 hover/tap 缩放和日记本钮同一套；颜色用蓝灰，
         因为它是系统功能，不该和日记本（绿）抢眼。
       */}
       <motion.button
+        ref={buttonRef}
         type="button"
         aria-label={t("ui.esc.title")}
         className={`hud-corner-btn hud-corner-tile hud-corner-btn--outer grid place-items-center ${open ? "z-50" : "z-10"}`}
@@ -247,18 +312,16 @@ export function EscMenu() {
           onClick={() => setOpen(false)}
         >
           <motion.aside
-            ref={panelRef}
             className="esc-panel"
             initial="closed"
             animate="open"
             exit="closed"
-            custom={height}
             variants={shellVariants}
             onClick={(event) => event.stopPropagation()}
           >
             <motion.div
               className="esc-panel__background"
-              custom={height}
+              custom={corner}
               variants={backgroundVariants}
             />
 

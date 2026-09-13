@@ -634,6 +634,20 @@ export const storyRules: StoryRule[] = [
     ],
   },
   {
+    /*
+     * 他那段没说完就断了（刷新、关游戏）：opened_up 已经立即落盘，对话却不进存档，挂在最后一句上的
+     * slime_arc_done 永远等不到——线卡死在这一幕，报纸那条和之后的闲聊都不会出现。
+     * 所以只要还停在这一幕，每天早上他再来说一遍；说完阶段一推，这条自然不再成立。老档里已经卡住的也靠它自己好。
+     * 立幕那天早上不会跟着重说：同一次派发里阶段只读一次（story.ts 的 currentContext）。
+     * 没改成"对话开口那一拍才立幕"：说到一半断了照样卡，病根是"演到一半"不进存档，这条是补丁，
+     * 主线状态机（设计稿 18）把"读档回来接着演"做成通用的之后删掉。
+     */
+    id: "arc_slime_opens_up_again",
+    once: false,
+    triggers: [{ signal: "day_started", requiresEventStage: { eventId: "arc_slime", stageId: "opened_up" } }],
+    effects: [{ kind: "start_dialogue", dialogueId: "slime_opens_up", residentId: residentIdOf("slime_neighbor"), delayMs: 2500 }],
+  },
+  {
     id: "arc_slime_done",
     triggers: [{ signal: "dialogue_event", subject: "slime_arc_done", requiresEventStage: { eventId: "arc_slime", stageId: "opened_up" } }],
     effects: [

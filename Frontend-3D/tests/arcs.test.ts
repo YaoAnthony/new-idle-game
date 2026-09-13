@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, test } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { DEFAULT_MAP_ID, Facing, affectionTuning, residentIdOf } from "core";
 import { emit, on } from "../src/Game/EventBus";
 import { restoreBuildings } from "../src/Game/State/buildings";
@@ -9,7 +9,8 @@ import { setRemoteWorldActive } from "../src/Game/Multiplayer/worldLock";
 import { travelTo, tickPortalTravel } from "../src/Game/Systems/mapTravel";
 import { invalidateNavGrid } from "../src/Game/Systems/navigation";
 import { factsOfToday, restoreDayFacts } from "../src/Game/Systems/dayRecord";
-import { getEventStage, isEventCompleted, isFeatureUnlocked, restoreProgression } from "../src/Game/Systems/events";
+import { getEventStage, isEventCompleted, isFeatureUnlocked, restoreProgression, setEventStage } from "../src/Game/Systems/events";
+import { advance, end, getActiveDialogue } from "../src/Game/Systems/dialogue";
 import { restoreFiredStoryRules, restorePoolMisses, restoreSignalCounts, signal, startStorySystem } from "../src/Game/Systems/story";
 import { setTalkClockSource, type TalkClock } from "../src/Game/Systems/residents/talk";
 import { setAffection } from "../src/Game/Systems/residents/affection";
@@ -196,4 +197,58 @@ test("arcs_指令_arc_next逐幕点火_没线的报错", () => {
   expect(runCommand("/npc slime arc").message).toContain("▶ afraid_of_dark");
   // 木偶 / 没线的
   expect(getResident(SLIME)).toBeDefined();
+});
+
+/** 关掉挡在前面的别的对话（抽签池可能同一早上让谁来送东西），直到轮到这一段或者没了 */
+function skipDialoguesUntil(dialogueId: string): void {
+  while (getActiveDialogue() && getActiveDialogue()!.dialogueId !== dialogueId) end();
+}
+
+/** 把开着的和排着的对话一段段关掉，返回关掉的是哪几段 */
+function drainDialogues(): string[] {
+  const closed: string[] = [];
+  for (let active = getActiveDialogue(); active; active = getActiveDialogue()) {
+    closed.push(active.dialogueId);
+    end();
+  }
+  return closed;
+}
+
+test("arcs_咕噜开口那段没说完就断了_次日早上再来说一遍_说完不再来", () => {
+  vi.useFakeTimers();
+  try {
+    movedIn(SLIME, "slime_neighbor", 30);
+    setEventStage("arc_slime", "lamp_lit");
+    setAffection(SLIME, affectionTuning.stageThresholds.family);
+    // 到家人档那一下会引出送专属家具那段，和这条用例无关
+    drainDialogues();
+
+    signal("day_started");
+    vi.advanceTimersByTime(3000);
+    expect(getEventStage("arc_slime")).toBe("opened_up");
+    skipDialoguesUntil("slime_opens_up");
+    expect(getActiveDialogue()?.dialogueId).toBe("slime_opens_up");
+
+    // 说到第二句就断了（刷新 / 关游戏）：阶段已落盘，对话不进存档
+    advance();
+    end();
+    // 立幕那天早上不会跟着排第二遍
+    expect(drainDialogues()).not.toContain("slime_opens_up");
+    expect(getEventStage("arc_slime")).toBe("opened_up");
+
+    signal("day_started");
+    vi.advanceTimersByTime(3000);
+    skipDialoguesUntil("slime_opens_up");
+    expect(getActiveDialogue()?.dialogueId).toBe("slime_opens_up");
+    for (let node = 1; node < 5; node += 1) advance(); // 走到 n5，它发 slime_arc_done
+    expect(getEventStage("arc_slime")).toBe("done");
+    drainDialogues();
+
+    signal("day_started");
+    vi.advanceTimersByTime(3000);
+    expect(drainDialogues()).not.toContain("slime_opens_up");
+  } finally {
+    drainDialogues();
+    vi.useRealTimers();
+  }
 });

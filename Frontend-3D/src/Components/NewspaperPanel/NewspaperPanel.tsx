@@ -4,7 +4,7 @@ import { findItemDefinition, type NewspaperIssue,
 } from "core";
 import { useEffect, useState } from "react";
 
-import { on } from "../../Game/EventBus";
+import { handle } from "../../Game/EventBus";
 import { latestIssue, paperName } from "../../Game/Systems/newspaper";
 import { t } from "../../i18n/t";
 import { usePanel } from "../PanelStack/usePanel";
@@ -39,7 +39,7 @@ export function NewspaperPanel() {
   const [, setRevision] = useState(0);
 
   useEffect(() => {
-    const offOpen = on("newspaper_open_requested", () => {
+    const offOpen = handle("newspaper_open_requested", () => {
       setRevision((n) => n + 1);
       setOpen(true);
     });

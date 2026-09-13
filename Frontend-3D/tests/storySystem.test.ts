@@ -22,7 +22,7 @@ import {
 import { getCount, restoreInventory } from "../src/Game/State/inventory";
 import { conditionsMet } from "../src/Game/Systems/dialogue";
 import { getWeather } from "../src/Game/State/weather";
-import { emit, on } from "../src/Game/EventBus";
+import { emit, on, handle } from "../src/Game/EventBus";
 
 /**
  * 剧情解释器 + 事件进度。
@@ -411,7 +411,7 @@ describe("统计与引导", () => {
     const { restoreStats } = await import("../src/Game/State/stats");
     restoreStats(undefined);
     const guides: string[] = [];
-    const off = on("guide_open_requested", ({ guideId }) => guides.push(guideId));
+    const off = handle("guide_open_requested", ({ guideId }) => guides.push(guideId));
     addItem("furniture_chair", 1);
     addItem("furniture_table", 1);
     off();

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { jarCapacity } from "core";
 import { Home, X } from "lucide-react";
 
-import { emit, on } from "../../Game/EventBus";
+import { on, request, handle } from "../../Game/EventBus";
 import {
   findPlacement,
   removeBuilding,
@@ -181,7 +181,7 @@ export function BuildingPanel() {
     const reread = () =>
       setDetail((current) => (current ? readDetail(current.instanceId) : null));
 
-    const offOpen = on("building_panel_open_requested", ({ instanceId }) => {
+    const offOpen = handle("building_panel_open_requested", ({ instanceId }) => {
       setError(null);
       setDetail(readDetail(instanceId));
     });
@@ -207,7 +207,7 @@ export function BuildingPanel() {
 
   const doMove = () => {
     if (!detail) return;
-    emit("building_siting_requested", {
+    request("building_siting_requested", {
       mode: "move",
       instanceId: detail.instanceId,
     });
@@ -348,7 +348,7 @@ export function BuildingPanel() {
                     type="button"
                     className="w-full cursor-pointer rounded-full bg-[#FF8A65] px-4 py-2 text-[14px] font-black tracking-wide text-white shadow-[0_4px_0_#F4511E] transition-all hover:bg-[#FF7043] active:translate-y-[4px] active:shadow-none"
                     onClick={() => {
-                      emit("shelf_open_requested", {
+                      request("shelf_open_requested", {
                         instanceId: shown.instanceId,
                       });
                       close();

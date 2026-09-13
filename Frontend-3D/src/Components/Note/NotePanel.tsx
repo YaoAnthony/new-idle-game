@@ -1,6 +1,6 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
-import { on } from "../../Game/EventBus";
+import { handle } from "../../Game/EventBus";
 import { letterText } from "../../Game/Systems/mail";
 import { signal } from "../../Game/Systems/story";
 import { t } from "../../i18n/t";
@@ -48,7 +48,7 @@ export function NotePanel() {
 
   useEffect(
     () =>
-      on("note_open_requested", ({ letterId: next }) => {
+      handle("note_open_requested", ({ letterId: next }) => {
         setLetterId(next);
         setOpen(true);
       }),

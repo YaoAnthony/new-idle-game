@@ -12,6 +12,8 @@ import {
   FaUser,
 } from "react-icons/fa";
 import { emit, on } from "../../Game/EventBus";
+import { openPanel } from "../../Redux/features/uiSlice";
+import { store } from "../../Redux/store";
 import { getClock } from "../../Game/State/clock";
 import { getNeeds } from "../../Game/State/needs";
 import { getRoomStyle } from "../../Game/State/worldRuntime";
@@ -101,7 +103,12 @@ type Tile = {
  * 2026-09-08 只剩「背包」「回到标题」两格；「行动」随旧行动面板删了（入口改走日记本），
  * 「消息」有回车键开。「设置」那天也摘了，2026-09-12 加回来：右上角的齿轮早让位给了
  * ESC 开关，摘掉之后游戏里就没有任何地方能调音量（用户："我的 esc 里面没有设置界面，
- * 调不了音量"）。设置面板本身一直在，只差这一格和一条监听。
+ * 调不了音量"）。设置面板本身一直在，只差这一格。
+ *
+ * 开面板直接 dispatch 到面板栈（Redux ui.panelStack），不再绕总线：菜单和
+ * 面板同在 React 层，"请求开面板"就是"把它推进栈"，各面板的 `usePanel` 会
+ * 自己看见。原来那条 `ui_panel_requested` 事件是同一层内的函数调用穿马甲，
+ * 2026-09-13 随总线的通知/命令拆分一起删了。
  */
 const TILES: Tile[] = [
   {
@@ -109,7 +116,7 @@ const TILES: Tile[] = [
     labelKey: "ui.esc.backpack",
     icon: <FaBoxOpen />,
     accent: "#bba7ff",
-    run: () => emit("ui_panel_requested", { panel: "backpack" }),
+    run: () => store.dispatch(openPanel("backpack")),
   },
   // 2026-09-12：成就 / 攻略查询器从这里进（用户定 ESC 是入口）
   {
@@ -117,21 +124,21 @@ const TILES: Tile[] = [
     labelKey: "ui.esc.achievements",
     icon: <FaTrophy />,
     accent: "#ffd166",
-    run: () => emit("ui_panel_requested", { panel: "achievements" }),
+    run: () => store.dispatch(openPanel("achievements")),
   },
   {
     key: "guideBook",
     labelKey: "ui.esc.guide_book",
     icon: <FaBookOpen />,
     accent: "#9ad3a1",
-    run: () => emit("ui_panel_requested", { panel: "guideBook" }),
+    run: () => store.dispatch(openPanel("guideBook")),
   },
   {
     key: "settings",
     labelKey: "ui.esc.settings",
     icon: <FaCog />,
     accent: "#9fc4e8",
-    run: () => emit("ui_panel_requested", { panel: "settings" }),
+    run: () => store.dispatch(openPanel("settings")),
   },
   {
     key: "title",

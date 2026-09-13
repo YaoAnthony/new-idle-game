@@ -540,10 +540,14 @@ function applyStoryLocks(): void {
   }
 }
 
-on("door_lock_requested", ({ doorId, locked }) => {
+/**
+ * 剧情效果 lock_door / unlock_door：这一种门（定义 id）锁上 / 打开。
+ * Systems/story 直接调（同在游戏层，不必绕总线；State 不反向 import Systems）。
+ */
+export function setStoryDoorLock(doorId: string, locked: boolean): void {
   storyLocks.set(doorId, locked);
   applyStoryLocks();
-});
+}
 
 on("world_changed", (payload) => {
   if ((payload as { reason?: string } | undefined)?.reason === "buildings" && doors.size > 0) syncResidentDoors();

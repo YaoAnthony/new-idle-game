@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { FaArrowsRotate, FaHand, FaRegHandScissors } from "react-icons/fa6";
-import { emit, on } from "../../Game/EventBus";
+import { on, request } from "../../Game/EventBus";
 import { t } from "../../i18n/t";
 import "./Mobile.css";
 
@@ -54,7 +54,7 @@ export function TouchActions() {
           className="touch-button touch-button--small"
           aria-label={t("ui.touch.rotate")}
           onPointerDown={() =>
-            emit("game_action_requested", { action: "rotate_placement" })
+            request("game_action_requested", { action: "rotate_placement" })
           }
         >
           <FaArrowsRotate />
@@ -75,7 +75,7 @@ export function TouchActions() {
         type="button"
         className="touch-button touch-button--small"
         aria-label={t("ui.touch.throw")}
-        onPointerDown={() => emit("game_action_requested", { action: "throw" })}
+        onPointerDown={() => request("game_action_requested", { action: "throw" })}
       >
         <FaRegHandScissors />
       </button>
@@ -93,7 +93,7 @@ export function TouchActions() {
         ].join(" ")}
         aria-label={t("ui.touch.interact")}
         onPointerDown={() =>
-          emit("game_action_requested", { action: "interact" })
+          request("game_action_requested", { action: "interact" })
         }
       >
         <FaHand />

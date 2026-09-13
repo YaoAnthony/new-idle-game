@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { emit, on } from "../../Game/EventBus";
+import { on, request } from "../../Game/EventBus";
 import { labelsForAction } from "../../Game/Input/bindings";
 import { t } from "../../i18n/t";
 
@@ -62,7 +62,7 @@ export function BuildingPlacePanel() {
       if (event.key !== "Escape") return;
       event.preventDefault();
       event.stopPropagation();
-      emit("building_placement_action", { action: "reselect" });
+      request("building_placement_action", { action: "reselect" });
     };
     window.addEventListener("keydown", onKey, { capture: true });
     return () => window.removeEventListener("keydown", onKey, { capture: true });
@@ -113,7 +113,7 @@ export function BuildingPlacePanel() {
         type="button"
         aria-label="重选"
         className="absolute inset-0 cursor-default bg-black/35"
-        onClick={() => emit("building_placement_action", { action: "reselect" })}
+        onClick={() => request("building_placement_action", { action: "reselect" })}
       />
 
       <div className="ui-bar relative h-fit w-[min(380px,88vw)] px-7 py-6 text-center shadow-2xl">
@@ -129,14 +129,14 @@ export function BuildingPlacePanel() {
           <button
             type="button"
             className="rounded-xl bg-[#7fb069] px-6 py-2.5 text-[15px] font-bold text-white shadow-[0_2px_0_#5d8a4c]"
-            onClick={() => emit("building_placement_action", { action: "confirm" })}
+            onClick={() => request("building_placement_action", { action: "confirm" })}
           >
             确认
           </button>
           <button
             type="button"
             className="rounded-xl bg-[var(--cream-3)] px-4 py-2 text-[13px] font-semibold text-[var(--ink)]"
-            onClick={() => emit("building_placement_action", { action: "reselect" })}
+            onClick={() => request("building_placement_action", { action: "reselect" })}
           >
             重选
           </button>
@@ -156,7 +156,7 @@ export function BuildingPlacePanel() {
             <button
               type="button"
               className="rounded-xl px-4 py-2 text-[13px] text-[var(--ink-soft)]"
-              onClick={() => emit("building_placement_action", { action: "cancel" })}
+              onClick={() => request("building_placement_action", { action: "cancel" })}
             >
               取消
             </button>

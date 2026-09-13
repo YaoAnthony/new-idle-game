@@ -11,7 +11,7 @@ import {
 import { registerCommand, type CommandResult } from "../../CommandLine/commands";
 import { listBuildings } from "../../State/buildings";
 import { listDoors } from "../../State/doorsRuntime";
-import { emit } from "../../EventBus";
+import { request } from "../../EventBus";
 import { clearMailbox, deliverLetter, listLetters, listOutbox, processOutbox, writeLetter } from "../mail";
 import { forceBirthdayToday, getPlayerBirthday, setPlayerBirthday } from "./birthday";
 import { activeFestival, endFestival, listFestivals, startFestival } from "../festivals";
@@ -644,7 +644,7 @@ export function registerResidentCommands(): Array<() => void> {
       handler: (args) => {
         const op = (args[0] ?? "list").toLowerCase();
         if (op === "open") {
-          emit("mailbox_open_requested", {});
+          request("mailbox_open_requested", {});
           return ok("打开信箱");
         }
         if (op === "list") {

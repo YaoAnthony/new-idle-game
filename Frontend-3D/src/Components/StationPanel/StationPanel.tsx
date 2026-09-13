@@ -1,7 +1,7 @@
 import { FurnitureCapability } from "core";
 import { BookOpen, Hammer } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { on } from "../../Game/EventBus";
+import { on, handle } from "../../Game/EventBus";
 import { craft, listRecipes, type RecipeView } from "../../Game/Systems/crafting";
 import { t } from "../../i18n/t";
 import { GameBtn } from "../GameBtn/GameBtn";
@@ -72,7 +72,7 @@ export function StationPanel() {
   };
 
   useEffect(() => {
-    const offOpen = on("station_open_requested", (target) => {
+    const offOpen = handle("station_open_requested", (target) => {
       setStation(target);
       refresh(target);
     });

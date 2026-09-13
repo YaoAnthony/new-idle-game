@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from "vitest";
-import { emit, on } from "../src/Game/EventBus";
+import { emit, handle } from "../src/Game/EventBus";
 import { restoreFlags } from "../src/Game/Systems/flags";
 import { restoreProgression } from "../src/Game/Systems/events";
 import { getFiredStoryRuleIds, restoreFiredStoryRules, restorePoolMisses, restoreSignalCounts, startStorySystem } from "../src/Game/Systems/story";
@@ -27,7 +27,7 @@ afterEach(() => {
 test("kitchenGuide_放下灶台弹一次_再放不弹_别的家具不弹", () => {
   stop = startStorySystem(true);
   const opened: string[] = [];
-  const off = on("guide_open_requested", ({ guideId }) => opened.push(guideId));
+  const off = handle("guide_open_requested", ({ guideId }) => opened.push(guideId));
 
   emit("story_signal", { kind: "furniture_placed", subject: "furniture_table" });
   expect(opened).toEqual([]);

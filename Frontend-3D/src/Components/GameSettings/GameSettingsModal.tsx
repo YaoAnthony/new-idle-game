@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { on } from "../../Game/EventBus";
 import { unlockAudio } from "../../Game3D/Engine/AudioEngine";
 import {
   applyAudioSettings,
@@ -67,13 +66,6 @@ const LOCALE_KEY = "idle-home:locale";
 export function GameSettingsModal() {
   // 挡屏面板，开关挂在全局面板栈上；入口是 ESC 抽屉里的「设置」格（2026-09-12 加回）
   const [open, setOpen] = usePanel("settings");
-  useEffect(
-    () =>
-      on("ui_panel_requested", ({ panel }) => {
-        if (panel === "settings") setOpen(true);
-      }),
-    [setOpen],
-  );
   const [tab, setTab] = useState<SettingsTabId>("world");
   const [settings, setSettings] = useState<StoredAudioSettings>(() =>
     loadAudioSettings(),
@@ -169,7 +161,7 @@ export function GameSettingsModal() {
 
         同一天晚些时候抽屉里的「设置」格按用户要求摘了；2026-09-12 又加回
         （摘掉之后游戏里没地方调音量）——入口是 EscMenu 的「设置」格，
-        这里挂一条 `ui_panel_requested` 监听接它。
+        它直接把 "settings" 推进面板栈，这里的 usePanel 就会看见。
 
         `unlockAudio()` 原来挂在这个按钮上（用户的第一个手势顺便解锁音频）。
         没有跟着按钮搬走，因为**不需要**：Game3D 进世界时已经挂了一次性的

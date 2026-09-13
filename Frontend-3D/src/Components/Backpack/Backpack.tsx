@@ -60,16 +60,9 @@ const TAB_KEY: Record<string, string> = {
 };
 
 export function Backpack() {
-  // 开关挂在全局面板栈上（见 usePanel）：谁开着、ESC 该退哪一层，全场一份账
+  // 开关挂在全局面板栈上（见 usePanel）：谁开着、ESC 该退哪一层，全场一份账。
+  // ESC 菜单 / 触摸端快捷栏那一格开背包也是直接推这个栈，这里不用再听任何事件
   const [open, setOpen] = usePanel("backpack");
-
-  // ESC 菜单里那一格也能开背包——B 键之外的第二个入口，开关仍归这里管
-  useEffect(
-    () => on("ui_panel_requested", ({ panel }) => {
-      if (panel === "backpack") setOpen(true);
-    }),
-    [setOpen],
-  );
   // 一份数据。面板把它切成两片渲染（背包网格 + 底下那行快捷栏），
   // 但槽位号是同一套，所以跨片拖拽不需要任何换算
   const [items, setItems] = useState(getInventory());

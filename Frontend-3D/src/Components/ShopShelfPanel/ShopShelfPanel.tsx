@@ -2,7 +2,7 @@ import { findItemDefinition } from "core";
 import { useEffect, useState } from "react";
 import { ArrowLeftRight, Backpack as BackpackIcon, Store } from "lucide-react";
 
-import { on } from "../../Game/EventBus";
+import { on, handle } from "../../Game/EventBus";
 import {
   getInventory,
   isLoadedWare,
@@ -74,7 +74,7 @@ export function ShopShelfPanel() {
   const capacity = instanceId ? shelfCapacityOf(instanceId) : 0;
 
   useEffect(() => {
-    const offOpen = on("shelf_open_requested", ({ instanceId: id }) => {
+    const offOpen = handle("shelf_open_requested", ({ instanceId: id }) => {
       setInstanceId(id);
       setSlots(getStorage(shelfIdFor(id)));
       setBackpack(getInventory());

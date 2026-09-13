@@ -1,6 +1,6 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { on } from "../../Game/EventBus";
+import { handle } from "../../Game/EventBus";
 import { t } from "../../i18n/t";
 import { useAppSelector } from "../../Redux/hooks";
 import { selectPanelStack } from "../../Redux/features/uiSlice";
@@ -60,7 +60,7 @@ export function GuidePanel() {
 
   useEffect(
     () =>
-      on("guide_open_requested", ({ guideId, immediate }) => {
+      handle("guide_open_requested", ({ guideId, immediate }) => {
         const found = findGuideDefinition(guideId);
         if (!found) return;
         // 玩家自己点的（攻略查询器）：立刻开在最上面。剧情弹的：有别的面板开着就排队，栈空了再弹

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { on } from "../../Game/EventBus";
+import { handle } from "../../Game/EventBus";
 
 /**
  * 金币飞行演出：收银台领钱时，一串金币从收银台的屏幕位置抛进左上角的
@@ -77,7 +77,7 @@ export function CoinFlight() {
 
   useEffect(
     () =>
-      on("coin_fly_requested", ({ amount, x, y }) => {
+      handle("coin_fly_requested", ({ amount, x, y }) => {
         const layer = layerRef.current;
         const hud = document.querySelector("[data-gold-hud]");
         if (!layer || !hud) return;

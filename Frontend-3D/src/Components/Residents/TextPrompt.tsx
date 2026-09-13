@@ -1,6 +1,6 @@
 import { NET_LIMITS } from "core";
 import { useEffect, useState } from "react";
-import { on } from "../../Game/EventBus";
+import { handle } from "../../Game/EventBus";
 import { getResident } from "../../Game/State/residentsRuntime";
 import { setResidentAddress } from "../../Game/Systems/residents/naming";
 import { residentNickname } from "../../i18n/residentName";
@@ -21,7 +21,7 @@ export function TextPrompt() {
   const [value, setValue] = useState("");
 
   useEffect(() => {
-    return on("text_prompt_requested", (payload) => {
+    return handle("text_prompt_requested", (payload) => {
       const agent = getResident(payload.residentId);
       setValue((payload.target === "nickname" ? agent?.playerNickname : agent?.catchphrase) ?? "");
       setRequest(payload);

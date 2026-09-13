@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { FaBoxOpen } from "react-icons/fa6";
-import { emit, on } from "../../Game/EventBus";
+import { on } from "../../Game/EventBus";
+import { openPanel } from "../../Redux/features/uiSlice";
+import { useAppDispatch } from "../../Redux/hooks";
 import {
   getHotbar,
   getSelectedHotbarIndex,
@@ -23,6 +25,7 @@ import { t } from "../../i18n/t";
  */
 
 export function Hotbar() {
+  const dispatch = useAppDispatch();
   const [slots, setSlots] = useState(getHotbar());
   const [selected, setSelected] = useState(getSelectedHotbarIndex());
   // 对话时整条快捷栏让位（动森做法）——否则对话框底部的继续三角正好压在上面
@@ -117,9 +120,7 @@ export function Hotbar() {
                 className="ui-slot grid place-items-center text-[16px] text-[var(--ink-soft)]"
                 style={{ width: 38, height: 38 }}
                 aria-label={t("ui.backpack")}
-                onPointerDown={() =>
-                  emit("ui_panel_requested", { panel: "backpack" })
-                }
+                onPointerDown={() => dispatch(openPanel("backpack"))}
               >
                 <FaBoxOpen />
               </button>

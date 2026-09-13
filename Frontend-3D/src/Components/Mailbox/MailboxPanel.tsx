@@ -1,7 +1,7 @@
 import { CreatureRole, findLetterDefinition, findResidentDefinition, mailTuning } from "core";
 import { useEffect, useState } from "react";
 
-import { on } from "../../Game/EventBus";
+import { on, handle } from "../../Game/EventBus";
 import { isRemoteWorld } from "../../Game/Multiplayer/worldLock";
 import { getSelectedStack } from "../../Game/State/inventory";
 import { getResidents } from "../../Game/State/residentsRuntime";
@@ -23,7 +23,7 @@ export function MailboxPanel() {
   const [writing, setWriting] = useState(false);
 
   useEffect(() => {
-    const offOpen = on("mailbox_open_requested", () => {
+    const offOpen = handle("mailbox_open_requested", () => {
       setRevision((n) => n + 1);
       setWriting(false);
       setOpen(true);

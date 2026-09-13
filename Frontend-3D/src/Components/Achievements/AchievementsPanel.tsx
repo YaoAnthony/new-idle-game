@@ -51,16 +51,12 @@ export function AchievementsPanel() {
     return () => media.removeEventListener("change", onChange);
   }, []);
 
-  useEffect(
-    () =>
-      on("ui_panel_requested", ({ panel }) => {
-        if (panel !== "achievements") return;
-        setViews(listAchievements());
-        setPoints(getAchievementPoints());
-        setOpen(true);
-      }),
-    [setOpen],
-  );
+  // ESC 菜单直接把 "achievements" 推进面板栈；这里看见自己开了就重拉一遍数据
+  useEffect(() => {
+    if (!open) return;
+    setViews(listAchievements());
+    setPoints(getAchievementPoints());
+  }, [open]);
 
   useEffect(() => {
     const refresh = () => {

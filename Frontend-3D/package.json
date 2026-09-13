@@ -10,6 +10,7 @@
     "prebuild": "node scripts/generate-music-registry.mjs && node scripts/generate-font-subset.mjs",
     "build": "tsc -b && vite build",
     "test": "vitest run",
+    "bus:report": "node scripts/bus-report.mjs",
     "test:watch": "vitest",
     "typecheck:tests": "tsc -p tsconfig.test.json",
     "lint": "eslint .",

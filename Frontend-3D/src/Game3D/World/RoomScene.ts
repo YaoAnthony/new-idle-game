@@ -119,7 +119,7 @@ import {
   throwHeldItem,
   tickItemPickup,
 } from "../../Game/Systems/dropping";
-import { emit, on, type StationCapability } from "../../Game/EventBus";
+import { emit, on, request, handle, type StationCapability } from "../../Game/EventBus";
 import {
   getResident,
   getResidents,
@@ -856,7 +856,7 @@ export class RoomScene {
       this.renderer.renderer.domElement,
     );
     this.offEventListeners.push(
-      on("building_siting_requested", ({ mode, instanceId, levelId }) => {
+      handle("building_siting_requested", ({ mode, instanceId, levelId }) => {
         // 型号从实例查——面板只知道"哪一栋"，不该再抄一份型号 id
         const placement = findPlacement(instanceId);
         if (!placement) return;
@@ -867,7 +867,7 @@ export class RoomScene {
           levelId,
         });
       }),
-      on("building_placement_action", ({ action }) => {
+      handle("building_placement_action", ({ action }) => {
         if (action === "confirm") {
           /*
            * 确认成功才**消耗图纸**。失败（那块地不能放）时图纸留在手上，
@@ -1033,7 +1033,7 @@ export class RoomScene {
      * 合成的键盘事件 `isTrusted` 是 false，解锁不了音频（本项目踩过这个坑），
      * 而且等于把"按了哪个键"和"要做什么"焊死——键位以后要可重映射。
      */
-    const offAction = on("game_action_requested", ({ action }) => {
+    const offAction = handle("game_action_requested", ({ action }) => {
       if (action === "interact") this.interact();
       else if (action === "throw") this.throwHeld();
       else if (action === "rotate_placement") {
@@ -2298,7 +2298,7 @@ export class RoomScene {
 
     if (this.interactTarget) {
       if (this.interactTarget.kind === "mailbox") {
-        emit("mailbox_open_requested", {});
+        request("mailbox_open_requested", {});
         return;
       }
       if (this.interactTarget.kind === "door") {
@@ -2354,7 +2354,7 @@ export class RoomScene {
           this.restAtTarget(BodyPosture.Lie);
         } else if (this.interactTarget.capability === "storage") {
           const { instanceId } = this.interactTarget;
-          emit("storage_open_requested", {
+          request("storage_open_requested", {
             instanceId,
             furnitureId:
               getWorld().placedFurniture.find(
@@ -2363,7 +2363,7 @@ export class RoomScene {
           });
         } else if (this.interactTarget.capability === "consign") {
           // 寄售箱：面板里放货、看明早到账、领钱都在一处
-          emit("consign_open_requested", { instanceId: this.interactTarget.instanceId });
+          request("consign_open_requested", { instanceId: this.interactTarget.instanceId });
         } else if (this.interactTarget.capability === "sitting") {
           this.restAtTarget(BodyPosture.Sit);
         } else if (this.interactTarget.capability === "bath") {
@@ -2386,7 +2386,7 @@ export class RoomScene {
           // 纸箱/奖励箱：弹领取面板，收下才真的入包并消失
           openUnpack(this.interactTarget.instanceId);
         } else if (this.interactTarget.capability === "daily_board") {
-          emit("daily_board_open_requested", {});
+          request("daily_board_open_requested", {});
         } else if (this.interactTarget.capability === "music_player") {
           /*
            * 两种 F（2026-08-05 定）：
@@ -2456,19 +2456,19 @@ export class RoomScene {
           const slot = this.nearestKitchenSlot();
           if (slot) interactWithKitchenSlot(slot);
         } else {
-          emit("station_open_requested", {
+          request("station_open_requested", {
             instanceId: this.interactTarget.instanceId,
             capability: this.interactTarget.capability,
           });
         }
       } else if (this.interactTarget.kind === "building") {
-        emit("building_panel_open_requested", {
+        request("building_panel_open_requested", {
           instanceId: this.interactTarget.instanceId,
         });
       } else if (this.interactTarget.kind === "shopSpot") {
         if (this.interactTarget.spot === "crate") {
           // 上架箱：开上架面板（原来开在管理面板里的那个入口，现在归它）
-          emit("shelf_open_requested", {
+          request("shelf_open_requested", {
             instanceId: this.interactTarget.instanceId,
           });
         } else {
@@ -2484,7 +2484,7 @@ export class RoomScene {
               this.projectScratch.set(spot.x, spot.y + 1.0, spot.z);
               this.projectScratch.project(this.rig.camera);
               const rect = this.container.getBoundingClientRect();
-              emit("coin_fly_requested", {
+              request("coin_fly_requested", {
                 amount,
                 x: rect.left + ((this.projectScratch.x + 1) / 2) * rect.width,
                 y: rect.top + ((1 - this.projectScratch.y) / 2) * rect.height,
@@ -2531,11 +2531,11 @@ export class RoomScene {
          */
         const offer = resident?.interact({ x: this.controller.x, z: this.controller.z }) ?? null;
         if (offer?.kind === "build_shop") {
-          emit("build_shop_open_requested", {});
+          request("build_shop_open_requested", {});
           return;
         }
         if (offer?.kind === "trade") {
-          emit("trade_open_requested", { merchantId: offer.merchantId });
+          request("trade_open_requested", { merchantId: offer.merchantId });
           return;
         }
         if (offer?.kind === "dialogue") {

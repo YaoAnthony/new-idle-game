@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { FurnitureCapability, PlacementSurface, findLootTable, findPlaceableItem } from "core";
-import { emit, on } from "../src/Game/EventBus";
+import { emit, handle } from "../src/Game/EventBus";
 import { clearAllFurniture, JOURNAL_TABLE_SEED, seedInitialFurniture } from "../src/Game/State/world/furniture";
 import { getWorld } from "../src/Game/State/worldRuntime";
 import { restoreFlags } from "../src/Game/Systems/flags";
@@ -54,7 +54,7 @@ test("journal_拿走一次_开功能_弹一次教程_再发不弹", () => {
   stop = startStorySystem(true);
   expect(isFeatureUnlocked("diary")).toBe(false);
   const opened: string[] = [];
-  const off = on("guide_open_requested", ({ guideId }) => opened.push(guideId));
+  const off = handle("guide_open_requested", ({ guideId }) => opened.push(guideId));
 
   // 教程晚 0.65 s 才弹（先让按钮弹出来、星星散完），功能是当场开的
   vi.useFakeTimers();

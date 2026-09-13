@@ -10,9 +10,10 @@ import {
   type StorySignal,
   type StoryEffect,
 } from "core";
-import { emit, on } from "../EventBus";
+import { emit, on, request } from "../EventBus";
 import { isRemoteWorld } from "../Multiplayer/worldLock";
 import { getClock } from "../State/clock";
+import { setStoryDoorLock } from "../State/doorsRuntime";
 import { depositGoldTo, takeGoldUpTo } from "../State/gold";
 import { addItem, getCounts, removeItem } from "../State/inventory";
 import { getResident, setResidentAffection, spawnResident } from "../State/residentsRuntime";
@@ -131,13 +132,13 @@ function runEffect(effect: StoryEffect): void {
       unlockFeature(effect.featureId);
       break;
     case "lock_door":
-      emit("door_lock_requested", { doorId: effect.doorId, locked: true });
+      setStoryDoorLock(effect.doorId, true);
       break;
     case "unlock_door":
-      emit("door_lock_requested", { doorId: effect.doorId, locked: false });
+      setStoryDoorLock(effect.doorId, false);
       break;
     case "show_guide": {
-      const run = () => emit("guide_open_requested", { guideId: effect.guideId });
+      const run = () => request("guide_open_requested", { guideId: effect.guideId });
       if (effect.delayMs) setTimeout(run, effect.delayMs);
       else run();
       break;
@@ -268,7 +269,7 @@ function runEffect(effect: StoryEffect): void {
       break;
     // 开场的信封拆开：信纸直接摊开，不经信箱
     case "open_letter":
-      emit("note_open_requested", { letterId: effect.letterId });
+      request("note_open_requested", { letterId: effect.letterId });
       break;
     case "porch_decorate":
       setDecoration(effect.residentId, effect.decorationId);
@@ -288,7 +289,7 @@ function runEffect(effect: StoryEffect): void {
 
     // 改称呼的输入框（04）。做客时不弹：那是房主的邻居
     case "prompt_text":
-      if (!isRemoteWorld()) emit("text_prompt_requested", { residentId: effect.residentId, target: effect.target });
+      if (!isRemoteWorld()) request("text_prompt_requested", { residentId: effect.residentId, target: effect.target });
       break;
 
     // 记忆唯一的写入口（03）。做客时剧情系统本来就不跑；人不在场就丢掉——

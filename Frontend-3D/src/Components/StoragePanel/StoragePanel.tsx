@@ -1,6 +1,6 @@
 import { findPlaceableItem } from "core";
 import { useEffect, useState } from "react";
-import { on } from "../../Game/EventBus";
+import { emit, on, handle } from "../../Game/EventBus";
 import {
   getInventory,
   isLoadedWare,
@@ -47,9 +47,11 @@ export function StoragePanel() {
   };
 
   useEffect(() => {
-    const offOpen = on("storage_open_requested", (request) => {
+    const offOpen = handle("storage_open_requested", (request) => {
       setTarget(request);
       refresh(storageIdFor(request.instanceId));
+      // 接下命令之后广播"开了"这个事实：音景放开箱声听的是这条，不偷听命令
+      emit("storage_opened", { instanceId: request.instanceId });
     });
 
     const offInventory = on("inventory_changed", () =>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { findItemDefinition } from "core";
-import { on } from "../../Game/EventBus";
+import { on, handle } from "../../Game/EventBus";
 import { getGold } from "../../Game/State/gold";
 import { getCounts } from "../../Game/State/inventory";
 import {
@@ -63,7 +63,7 @@ export function TradePanel() {
   const bump = () => setRevision((n) => n + 1);
 
   useEffect(() => {
-    const offOpen = on("trade_open_requested", (request) => {
+    const offOpen = handle("trade_open_requested", (request) => {
       setMerchantId(request.merchantId);
       // 只卖的商人没有"卖"页签，进来就得落在买上
       if (request.merchantId !== "otter_trader") setTab("buy");

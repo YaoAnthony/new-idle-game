@@ -1,6 +1,6 @@
 import { ChevronRight, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { emit, on } from "../../Game/EventBus";
+import { request } from "../../Game/EventBus";
 import { t } from "../../i18n/t";
 import { GameBtn } from "../GameBtn/GameBtn";
 import {
@@ -47,15 +47,10 @@ export function GuideBookPanel() {
     return () => media.removeEventListener("change", onChange);
   }, []);
 
-  useEffect(
-    () =>
-      on("ui_panel_requested", ({ panel }) => {
-        if (panel !== "guideBook") return;
-        setQuery("");
-        setOpen(true);
-      }),
-    [setOpen],
-  );
+  // ESC 菜单直接把 "guideBook" 推进面板栈；每次开都从空搜索开始
+  useEffect(() => {
+    if (open) setQuery("");
+  }, [open]);
 
   const needle = query.trim().toLowerCase();
   const entries = guideDefinitions.filter((guide) =>
@@ -64,7 +59,7 @@ export function GuideBookPanel() {
       : guide.category === category,
   );
 
-  const openGuide = (guide: GuideDefinition) => emit("guide_open_requested", { guideId: guide.id, immediate: true });
+  const openGuide = (guide: GuideDefinition) => request("guide_open_requested", { guideId: guide.id, immediate: true });
 
   return (
     <Modal

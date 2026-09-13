@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test } from "vitest";
 import { DEFAULT_MAP_ID, DOOR_NOTE_FLAG } from "core";
-import { emit, on } from "../src/Game/EventBus";
+import { emit, handle } from "../src/Game/EventBus";
 import { initDoors, listDoors, restoreDoors } from "../src/Game/State/doorsRuntime";
 import { restoreResidents } from "../src/Game/State/residentsRuntime";
 import { getCurrentMapId } from "../src/Game/State/worldRuntime";
@@ -52,7 +52,7 @@ test("opening_新档_门上有条子_三行原文_读一次就没了_其他门�
   for (const other of listDoors().filter((item) => item.definition.id !== "front_door")) expect(doorNoteOf(other)).toBeNull();
 
   const opened: string[] = [];
-  const off = on("note_open_requested", ({ letterId }) => opened.push(letterId));
+  const off = handle("note_open_requested", ({ letterId }) => opened.push(letterId));
   expect(readDoorNote(door)).toBe(true);
   // 拿下来：门上没了、信封进背包、旁白问"拆开 / 再看看"——信纸还没开
   expect(getFlag(DOOR_NOTE_FLAG)).toBeUndefined();

@@ -75,7 +75,7 @@ import {
   type CommandResult,
 } from "../Game/CommandLine/commands";
 import { saveNow, startAutosave } from "../Data/Save";
-import { emit, on } from "../Game/EventBus";
+import { emit, on, request } from "../Game/EventBus";
 import {
   debugAdvanceHours,
   debugJumpToPhase,
@@ -1562,7 +1562,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
             return ok(`报名改成「${paperName()}${"晨报"}」`);
           }
           if (args[0] === "open") {
-            emit("newspaper_open_requested", {});
+            request("newspaper_open_requested", {});
             return ok("打开报纸");
           }
           if (args[0] === "issue") {
@@ -1652,7 +1652,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
              * 直接发同一个事件，省掉走过去那段——**验的是同一块面板**，
              * 因为面板只认这个事件，不认调用方是谁。
              */
-            emit("shelf_open_requested", { instanceId });
+            request("shelf_open_requested", { instanceId });
             return ok("开了上架面板");
           }
 
@@ -1735,7 +1735,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
 
           if (args[0] === "open") {
             // 真游戏的入口是对着箱子按 F。这条直接发同一个事件——验的是同一块面板
-            emit("consign_open_requested", { instanceId: boxes[0] });
+            request("consign_open_requested", { instanceId: boxes[0] });
             return ok("开了寄售箱面板");
           }
 
@@ -1801,7 +1801,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
            * 默认开水獭那一版；`/trade peddler` 开稀客的。
            * 面板本身按 merchantId 参数化，这里只是把 id 递进去。
            */
-          emit("trade_open_requested", {
+          request("trade_open_requested", {
             merchantId:
               args[0] === "peddler" ? "traveling_peddler" : "otter_trader",
           });

@@ -13,7 +13,7 @@ import {
   type Camera,
 } from "three";
 
-import { emit } from "../../Game/EventBus";
+import { emit, request } from "../../Game/EventBus";
 import {
   findPlacement,
   moveBuilding,
@@ -305,7 +305,7 @@ export class BuildingPlacementController {
     if (!this.ghost || !this.valid || this.committed) return;
     this.committed = true;
     if (!this.needsConfirm) {
-      emit("building_placement_action", { action: "confirm" });
+      request("building_placement_action", { action: "confirm" });
       return;
     }
     this.refresh();

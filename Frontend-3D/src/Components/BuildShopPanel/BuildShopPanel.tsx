@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { on } from "../../Game/EventBus";
+import { on, handle } from "../../Game/EventBus";
 import { pushSystemMessage } from "../../Game/State/chatLog";
 import { addItem } from "../../Game/State/inventory";
 import {
@@ -114,7 +114,7 @@ export function BuildShopPanel() {
 
   useEffect(() => {
     const refresh = () => setHave(materialCounts());
-    const offOpen = on("build_shop_open_requested", () => {
+    const offOpen = handle("build_shop_open_requested", () => {
       refresh();
       bump();
       setOpen(true);

@@ -14,7 +14,7 @@ import {
 import { motion, useReducedMotion } from "motion/react";
 import { consignPriceOf, consignTuning, findItemDefinition } from "core";
 
-import { emit, on } from "../../Game/EventBus";
+import { on, request, handle } from "../../Game/EventBus";
 import {
   HOTBAR_SIZE,
   getInventory,
@@ -108,7 +108,7 @@ export function ConsignPanel() {
   const capacity = boxCapacity();
 
   useEffect(() => {
-    const offOpen = on("consign_open_requested", ({ instanceId: id }) => {
+    const offOpen = handle("consign_open_requested", ({ instanceId: id }) => {
       setInstanceId(id);
       setSlots(getStorage(boxInventoryIdFor(id)));
       setBackpack(getInventory());
@@ -189,7 +189,7 @@ export function ConsignPanel() {
     setDrawerTick((n) => n + 1);
     if (amount <= 0) return;
     const rect = from.getBoundingClientRect();
-    emit("coin_fly_requested", {
+    request("coin_fly_requested", {
       amount,
       x: rect.left + rect.width / 2,
       y: rect.top + rect.height / 2,

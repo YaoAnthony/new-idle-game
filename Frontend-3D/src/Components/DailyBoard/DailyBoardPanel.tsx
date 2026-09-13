@@ -1,6 +1,6 @@
 import { dailyBoardDefinition } from "core";
 import { useEffect, useState } from "react";
-import { on } from "../../Game/EventBus";
+import { on, handle } from "../../Game/EventBus";
 import {
   addTask,
   canReroll,
@@ -39,7 +39,7 @@ export function DailyBoardPanel() {
   const [addHint, setAddHint] = useState<string | null>(null);
 
   useEffect(
-    () => on("daily_board_open_requested", () => setOpen(true)),
+    () => handle("daily_board_open_requested", () => setOpen(true)),
     [setOpen],
   );
 

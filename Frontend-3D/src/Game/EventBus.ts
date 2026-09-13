@@ -1,6 +1,23 @@
 /**
  * 事件总线（V0.2 明确要求）。系统之间不直接互相调用，通过事件解耦。
  * Game3D 渲染层只能通过事件影响游戏状态，不能直接改存档数据。
+ *
+ * 总线上跑**两种东西**，语义不同，API 也分开（2026-09-13 拆的）：
+ *
+ * - **通知**（`GameEvents`，`emit` / `on`）：过去时，"某件事发生了"。
+ *   谁都可以听，没人听也无所谓，监听器之间互不知道。
+ * - **命令**（`GameCommands`，`request` / `handle`）：祈使句，"去做这件事"。
+ *   **有且只有一个接手人**。它们之所以走总线而不是直接调函数，是因为
+ *   发送方在另一层（Game3D / Systems 发，React 面板接；或反过来），而
+ *   游戏层按规矩不 import Redux store（见 Features/Auth/authBridge）。
+ *   开发期挂第二个接手人会报错，没人接手会告警——这两种情况在 `on`
+ *   的世界里都是静默的，正是命令混在通知里最容易漏的两个 bug。
+ *
+ * 判断一条新东西该放哪：名字能写成 `xxx_changed` / `xxx_happened` 的是
+ * 通知；写成 `xxx_requested` / `do_xxx` 的是命令。同一层内的请求**不要**
+ * 上总线，直接调函数或 dispatch（ESC 菜单开背包就是这么改回去的）。
+ *
+ * 想看全表（谁发、谁听、有没有孤儿）：`npm run bus:report`。
  */
 
 /**
@@ -51,8 +68,6 @@ export type GameEvents = {
     committed?: boolean;
     label?: string;
   };
-  /** 确认条按了什么。UI 只发意图，动手的是场景里的控制器 */
-  building_placement_action: { action: "confirm" | "reselect" | "cancel" };
   /**
    * 自动跑腿结束：到了 / 玩家接管 / 找不到路。
    *
@@ -96,54 +111,10 @@ export type GameEvents = {
   door_toggled: { refId: string; open: boolean; x: number; z: number };
   /** 桌上的日记本 3D 段飞到画面中央了：屏幕几何（视口 CSS 像素，size = 书长边的像素高）交给 DOM 接着飞进右上角。开场二 */
   journal_flight_handoff: { x: number; y: number; size: number };
-  /** 剧情效果 lock_door / unlock_door：这一种门（定义 id）锁上 / 打开。doorsRuntime 接 */
-  door_lock_requested: { doorId: string; locked: boolean };
   /** 一次性容器（纸箱/奖励箱）的领取面板开合 */
   unpack_changed: { open: boolean };
-  /**
-   * ESC 菜单点了一格，请求打开某个面板。
-   *
-   * 走事件而不是把各面板的 open 提到上层：每个面板的开关本来就归它自己管
-   * （B 开背包），菜单只是**多一个入口**。提上去的话，每加一个面板就要动
-   * 一次共享状态。
-   *
-   * 联合类型只剩 backpack：行动面板删了、消息和设置那两格也从菜单摘了
-   * （2026-09-08）。再加格子时把名字加回这里，对应面板再挂一个监听。
-   */
-  /** ESC 抽屉点了一格。成就 / 攻略查询器 2026-09-12 加 */
-  ui_panel_requested: { panel: "backpack" | "achievements" | "guideBook" | "settings" };
   /** ESC 菜单请求回到标题界面（存盘之后） */
   ui_return_to_title: Record<string, never>;
-  /**
-   * 玩家按 F 请求打开**建造面板**（对着醒着的石傀儡）。
-   *
-   * 没有对话这一步：用户定的"不用说话，点开就是面板"。石傀儡是工头
-   * 不是村民，走过去就该直接看到能盖什么。
-   */
-  build_shop_open_requested: Record<string, never>;
-  /**
-   * 玩家按 F 请求打开**交易面板**（对着在场的水獭，期 3）。
-   * 和石傀儡的建造面板同一个路数：商人是摊主不是村民，
-   * 走过去就该看到能买卖什么，寒暄留给剧情主动拉起的对话。
-   */
-  /**
-   * 开交易面板。**带上是哪个商人**——水獭和小鱼人共用同一块面板，
-   * 卖什么、能不能卖给他、限不限量全看这个 id。
-   */
-  trade_open_requested: { merchantId: string };
-  /** 玩家按 F 对着自己盖的建筑：开管理面板（迁移/拆除/升级/概览） */
-  building_panel_open_requested: { instanceId: string };
-  /** 面板请求进入选址（迁移/升级都要选位置，由场景的控制器接管） */
-  building_siting_requested: {
-    mode: "move" | "upgrade";
-    instanceId: string;
-    levelId?: string;
-  };
-  /** 玩家按 F 请求打开工作站界面。灶台不走这条——菜是真的在锅里做的 */
-  station_open_requested: {
-    instanceId: string;
-    capability: "crafting";
-  };
   /**
    * 消息流里多了一条（玩家打的字 / 命令反馈 / 剧情提示 / NPC 说话）。
    * 裁剪也走这条——聊天面板重读一遍列表就是了，几百条的量级不值得
@@ -183,8 +154,6 @@ export type GameEvents = {
   kitchen_changed: { instanceId: string; slotId: string };
   /** 宠物离散状态变化（出场 / 好感度） */
   resident_changed: { residentId: string; reason: string };
-  /** 剧情效果 prompt_text（04）：改他叫你的昵称 / 他的口头禅，弹一个单行输入 */
-  text_prompt_requested: { residentId: string; target: "nickname" | "catchphrase" };
   /** 委托状态表变了（05）：日记本右页、"！"气泡、联机切片都读它 */
   favors_changed: { reason: string };
   /** 两位居民开聊 / 聊完（06）。调试和以后的表现层用 */
@@ -234,16 +203,6 @@ export type GameEvents = {
   touch_mode_changed: { touch: boolean };
   /** F3 调试模式开关。HUD 据此显示/收起调试面板（坐标等） */
   debug_mode_changed: { enabled: boolean };
-  /**
-   * 请求执行一个玩法动作。**键盘和触摸按钮走同一条路**——
-   * 手机上的按钮不去伪造 KeyboardEvent，那种合成事件 `isTrusted` 是 false，
-   * 解锁不了音频（本项目已经踩过"音频解锁必须真实手势"的坑），
-   * 而且等于把"按了哪个键"和"要做什么"这两件事永久焊死。
-   * 键位以后可重映射（V0.2 要求），届时改的只有键盘那一侧的映射表。
-   */
-  game_action_requested: {
-    action: "interact" | "throw" | "rotate_placement" | "dump_kitchen";
-  };
   /** 行动清单增删（分类卡角标要重算） */
   action_entries_changed: Record<string, never>;
   /** 任务组（清单上的文件夹）变了：建/删/拖入拖出/排序/读档。UI 整份重读 */
@@ -284,14 +243,6 @@ export type GameEvents = {
   /** 日记本的历史变了（记了一笔/补发了奖励/读档）。UI 整棵重读 */
   diary_changed: Record<string, never>;
 
-  /**
-   * 收银台领了钱，请 UI 放金币飞行演出。
-   *
-   * `x/y` 是收银台投影到屏幕上的像素点（RoomScene 算好递过来——UI 层
-   * 拿不到相机）。**钱在发事件之前已经入账**：动画是纯演出，错过、
-   * 关掉、崩了都不丢钱，和开箱那条同一纪律。
-   */
-  coin_fly_requested: { amount: number; x: number; y: number };
   /** 场景 → 计划器：这一步的身体部分完成了（走到了/没路可走原地算到） */
   auto_step_arrived: { step: import("core").AutoStepKind };
   /**
@@ -331,25 +282,12 @@ export type GameEvents = {
   food_eaten: { itemId: string };
   /** 某个储物家具的内容变了 */
   storage_changed: { inventoryId: string };
-  /** 玩家按 F 请求打开某个储物家具 */
-  storage_open_requested: { instanceId: string; furnitureId: string };
-  /** 家具小店的上架面板（期 5）。从建筑管理面板那一颗按钮发出 */
-  shelf_open_requested: { instanceId: string };
-  /** 寄售箱面板：玩家对着箱子按 F */
-  consign_open_requested: { instanceId: string };
-  /** 今日报纸（期 7）。出刊那天早上自动弹一次，之后从侧边栏开 */
-  newspaper_open_requested: Record<string, never>;
-  /** 门口的信箱（10） */
-  mailbox_open_requested: Record<string, never>;
-  /** 门上的条子（14）：读哪封信 */
-  note_open_requested: { letterId: string };
   /**
-   * 玩家按 F 请求打开每日任务面板。不带 instanceId——
-   * 进度是全家一份（WorldSave.dailyBoard），哪台机器打开的都一样。
+   * 储物面板**开了**（StoragePanel 接下 `storage_open_requested` 之后发）。
+   * 音景听这条放开箱声。原来它偷听的是命令本身——命令只许一个接手人，
+   * "开了"这个事实才是给旁观者听的。
    */
-  daily_board_open_requested: Record<string, never>;
-  /** 背包面板被打开（教程用） */
-  ui_backpack_opened: Record<string, never>;
+  storage_opened: { instanceId: string };
   /** 玩法信号：剧情解释器与教程系统监听（内容在 Core storyRules） */
   story_signal: import("core").StorySignal;
   /** 剧情要求显示一条提示 */
@@ -360,15 +298,13 @@ export type GameEvents = {
     text?: string;
     /** 标题行（成就达成用）。没有就只有正文一行 */
     title?: string;
-    /** 左侧小图：`/icons/x.png` 路径或 emoji */
+    /** 左侧小图：图标键（`items/x`，见 Assets/icons）或 emoji */
     icon?: string;
   };
   /** 一条成就达成了（Systems/achievements）。面板、音效接它 */
   achievement_unlocked: { achievementId: string };
   /** 成就状态表变了（达成 / 领奖 / 读档） */
   achievements_changed: { reason: "unlocked" | "claimed" | "restored" };
-  /** 剧情效果 show_guide：弹这一块引导面板（Components/Guide） */
-  guide_open_requested: { guideId: string; /** 玩家自己点的（攻略查询器）：立刻开在最上面，不排队 */ immediate?: boolean };
   /** 统计表某个键变了（State/stats）。成就面板以后听它 */
   stats_changed: { key: string; value: number };
   /**
@@ -441,20 +377,151 @@ export type GameEvents = {
   };
 };
 
+/**
+ * 命令：跨层的"请你去做"。每一条**恰好一个**接手人（`handle`）。
+ * 载荷类型说明见各条注释；发送方用 `request`。
+ */
+export type GameCommands = {
+  /** 确认条按了什么。UI 只发意图，动手的是场景里的控制器 */
+  building_placement_action: { action: "confirm" | "reselect" | "cancel" };
+  /**
+   * 玩家按 F 请求打开**建造面板**（对着醒着的石傀儡）。
+   *
+   * 没有对话这一步：用户定的"不用说话，点开就是面板"。石傀儡是工头
+   * 不是村民，走过去就该直接看到能盖什么。
+   */
+  build_shop_open_requested: Record<string, never>;
+  /**
+   * 开交易面板（对着在场的水獭，期 3）。**带上是哪个商人**——水獭和
+   * 小鱼人共用同一块面板，卖什么、能不能卖给他、限不限量全看这个 id。
+   * 和石傀儡的建造面板同一个路数：商人是摊主不是村民，寒暄留给剧情。
+   */
+  trade_open_requested: { merchantId: string };
+  /** 玩家按 F 对着自己盖的建筑：开管理面板（迁移/拆除/升级/概览） */
+  building_panel_open_requested: { instanceId: string };
+  /** 面板请求进入选址（迁移/升级都要选位置，由场景的控制器接管） */
+  building_siting_requested: {
+    mode: "move" | "upgrade";
+    instanceId: string;
+    levelId?: string;
+  };
+  /** 玩家按 F 请求打开工作站界面。灶台不走这条——菜是真的在锅里做的 */
+  station_open_requested: {
+    instanceId: string;
+    capability: "crafting";
+  };
+  /** 剧情效果 prompt_text（04）：改他叫你的昵称 / 他的口头禅，弹一个单行输入 */
+  text_prompt_requested: { residentId: string; target: "nickname" | "catchphrase" };
+  /**
+   * 请求执行一个玩法动作。**键盘和触摸按钮走同一条路**——
+   * 手机上的按钮不去伪造 KeyboardEvent，那种合成事件 `isTrusted` 是 false，
+   * 解锁不了音频（本项目已经踩过"音频解锁必须真实手势"的坑），
+   * 而且等于把"按了哪个键"和"要做什么"这两件事永久焊死。
+   * 键位以后可重映射（V0.2 要求），届时改的只有键盘那一侧的映射表。
+   */
+  game_action_requested: {
+    action: "interact" | "throw" | "rotate_placement" | "dump_kitchen";
+  };
+  /**
+   * 收银台领了钱，请 UI 放金币飞行演出。
+   *
+   * `x/y` 是收银台投影到屏幕上的像素点（RoomScene 算好递过来——UI 层
+   * 拿不到相机）。**钱在发命令之前已经入账**：动画是纯演出，错过、
+   * 关掉、崩了都不丢钱，和开箱那条同一纪律。
+   */
+  coin_fly_requested: { amount: number; x: number; y: number };
+  /** 玩家按 F 请求打开某个储物家具 */
+  storage_open_requested: { instanceId: string; furnitureId: string };
+  /** 家具小店的上架面板（期 5）。从建筑管理面板那一颗按钮发出 */
+  shelf_open_requested: { instanceId: string };
+  /** 寄售箱面板：玩家对着箱子按 F */
+  consign_open_requested: { instanceId: string };
+  /** 今日报纸（期 7）。出刊那天早上自动弹一次，之后从侧边栏开 */
+  newspaper_open_requested: Record<string, never>;
+  /** 门口的信箱（10） */
+  mailbox_open_requested: Record<string, never>;
+  /** 门上的条子（14）：读哪封信 */
+  note_open_requested: { letterId: string };
+  /**
+   * 玩家按 F 请求打开每日任务面板。不带 instanceId——
+   * 进度是全家一份（WorldSave.dailyBoard），哪台机器打开的都一样。
+   */
+  daily_board_open_requested: Record<string, never>;
+  /** 剧情效果 show_guide：弹这一块引导面板（Components/Guide） */
+  guide_open_requested: {
+    guideId: string;
+    /** 玩家自己点的（攻略查询器）：立刻开在最上面，不排队 */
+    immediate?: boolean;
+  };
+};
+
 type Listener<T> = (payload: T) => void;
 
 const listeners = new Map<keyof GameEvents, Set<Listener<never>>>();
+const handlers = new Map<keyof GameCommands, Listener<never>>();
 
-/*
- * 开发期探针：`window.__bus.count("building_completed")` 数某个事件挂了
- * 几个监听。查"一次操作被记了两遍"这类问题时，第一件要分清的就是
- * **事件发了两次**还是**监听挂了两个**，而从外面完全看不出来。
+const DEV = import.meta.env.DEV;
+
+/**
+ * 开发期探针。挂在 `window.__bus` 上：
+ *
+ * - `count("building_completed")`：某个事件挂了几个监听。查"一次操作被记了
+ *   两遍"这类问题时，第一件要分清的就是**事件发了两次**还是**监听挂了两个**。
+ * - `trace = true`（或一个事件名的数组）：把每次 emit / request 连同嵌套深度
+ *   打到控制台。查"改了 A 不知道为什么 B 坏了"就开它，链条会自己浮出来。
+ * - `kinds()` / `commands()`：现在各有哪些名字挂着。
  */
-if (import.meta.env.DEV && typeof window !== "undefined") {
-  (window as unknown as Record<string, unknown>).__bus = {
-    count: (kind: string) => listeners.get(kind as keyof GameEvents)?.size ?? 0,
-    kinds: () => [...listeners.keys()],
-  };
+const probe = {
+  trace: false as boolean | readonly string[],
+  count: (kind: string) => listeners.get(kind as keyof GameEvents)?.size ?? 0,
+  kinds: () => [...listeners.keys()],
+  commands: () => [...handlers.keys()],
+};
+if (DEV && typeof window !== "undefined") {
+  (window as unknown as Record<string, unknown>).__bus = probe;
+}
+
+/** 当前 emit / request 的嵌套深度。监听器里再发事件是允许的，但深到这个数就该怀疑回环了 */
+let depth = 0;
+const DEPTH_WARN = 12;
+
+function traced(kind: string): boolean {
+  if (!DEV) return false;
+  const t = probe.trace;
+  return t === true || (Array.isArray(t) && t.includes(kind));
+}
+
+function dispatch<T>(
+  label: "emit" | "request",
+  kind: string,
+  payload: T,
+  targets: readonly Listener<T>[],
+): void {
+  if (traced(kind)) {
+    console.debug(`[bus] ${"  ".repeat(depth)}${label} ${kind}`, payload);
+  }
+  depth += 1;
+  try {
+    if (DEV && depth > DEPTH_WARN) {
+      console.warn(`[bus] ${kind}：嵌套深度 ${depth}，多半是事件回环`);
+    }
+    for (const target of targets) {
+      /*
+       * 一个监听器抛了不该拖累后面的。原来是裸 for，前面谁一抛，后面的
+       * 视图更新、自动存档全被跳过，而且没有任何日志——那是最难查的一类坏。
+       */
+      try {
+        target(payload);
+      } catch (error) {
+        console.error(
+          `[bus] ${label} ${kind} 的一个${label === "emit" ? "监听器" : "接手人"}抛了`,
+          error,
+        );
+      }
+    }
+  } finally {
+    depth -= 1;
+  }
 }
 
 export function on<K extends keyof GameEvents>(
@@ -473,7 +540,42 @@ export function emit<K extends keyof GameEvents>(
   payload: GameEvents[K],
 ): void {
   const set = listeners.get(event);
-  if (!set) return;
+  if (!set && !traced(event)) return;
+  // 先拍快照再遍历：监听器里 on / off 自己或别人，不该影响这一轮谁被叫到
+  dispatch("emit", event, payload, set ? ([...set] as Listener<GameEvents[K]>[]) : []);
+}
 
-  for (const listener of set) (listener as Listener<GameEvents[K]>)(payload);
+/**
+ * 接手一条命令。**一条命令只能有一个接手人**：第二个来挂时开发期直接抛，
+ * 生产环境后来者覆盖前者并告警。返回的函数用来卸下（面板卸载时调）。
+ */
+export function handle<K extends keyof GameCommands>(
+  command: K,
+  handler: Listener<GameCommands[K]>,
+): () => void {
+  if (handlers.has(command)) {
+    const message = `[bus] 命令 ${command} 已经有接手人了，命令只许一个`;
+    if (DEV) throw new Error(message);
+    console.warn(message);
+  }
+  handlers.set(command, handler as Listener<never>);
+  return () => {
+    if (handlers.get(command) === (handler as Listener<never>)) handlers.delete(command);
+  };
+}
+
+/**
+ * 发一条命令。没人接手在开发期告警——面板还没挂上、或者卸载时忘了把
+ * `handle` 的返回值调掉，都会走到这里，而不是像原来那样静默丢掉。
+ */
+export function request<K extends keyof GameCommands>(
+  command: K,
+  payload: GameCommands[K],
+): void {
+  const handler = handlers.get(command) as Listener<GameCommands[K]> | undefined;
+  if (!handler) {
+    if (DEV) console.warn(`[bus] 命令 ${command} 没人接手，丢了`, payload);
+    return;
+  }
+  dispatch("request", command, payload, [handler]);
 }

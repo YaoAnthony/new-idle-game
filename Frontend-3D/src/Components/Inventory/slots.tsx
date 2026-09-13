@@ -16,6 +16,7 @@ import { t } from "../../i18n/t";
 import { recordCoverUrl } from "../../Data/music/albums";
 import { blueprintIconUrl } from "../../Buildings/index";
 import { presentedItemId } from "../../Game/Systems/servedDish";
+import { itemIconUrl } from "../../Assets/icons";
 
 /**
  * 槽位式背包的共享件：物品图标（生成图 + 文字兜底）、
@@ -39,14 +40,14 @@ export function ItemIcon({
   const item = findItemDefinition(itemId);
   const sizing = fluid ? undefined : { width: size, height: size };
   /*
-   * 有两类物品的图**不在 `/icons/<id>.png`，而是从它指向的东西那儿借的**：
+   * 有两类物品的图**不在 `Assets/icons/items/<id>.png`，而是从它指向的东西那儿借的**：
    * 唱片借专辑封面（文件夹里的 curver.png），图纸借那栋楼初始等级的图。
    * 都是"加一个自动就有图标"，不用为每一件再画一张。
    */
   const src =
-    recordCoverUrl(itemId) ?? blueprintIconUrl(itemId) ?? `/icons/${itemId}.png`;
+    recordCoverUrl(itemId) ?? blueprintIconUrl(itemId) ?? itemIconUrl(itemId);
 
-  if (broken || !item) {
+  if (broken || !item || !src) {
     return (
       <span
         className={`grid place-items-center text-center leading-tight text-[#4a3020] ${

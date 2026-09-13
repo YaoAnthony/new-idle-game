@@ -1,9 +1,8 @@
-import { existsSync } from "node:fs";
-import { join } from "node:path";
 import { expect, test } from "vitest";
 
 import { itemDefinitions } from "core";
 
+import { iconUrl } from "../src/Assets/icons";
 import {
   blueprintIconUrl,
   buildingDefinitions,
@@ -12,36 +11,23 @@ import {
 } from "../src/Buildings/index";
 
 /**
- * 建筑图标：**路径是字符串，写错了只会静默 404**——`<img>` 拿不到图不报错，
- * 界面上就是一个空框，只靠玩是发现不了的。这一组把三件事钉在这儿：
+ * 建筑图标。图按约定放在 `Assets/icons/buildings/<buildingId>/<levelId>.png`，
+ * 由 `import.meta.glob` 扫成一张表（2026-09-13 从 `public/icons/` 搬进来，
+ * 目录名同日统一成 id）。这一组把三件事钉在这儿：
  *
- * - 声明的每张图在 `public/` 下真的存在；
+ * - 借图用的 `icon` 覆盖项指向的图真的存在；
  * - `buildingIcon` 按等级取图，缺图的等级退回前一个有图的；
  * - **商店只卖初始等级**（用户 2026-08-23 定："石傀儡里面能建的都是 LV1
  *   的，lv2 啥的就是升级界面里面能看到的"）。
  *
- * ## 为什么这份用例读磁盘
- *
- * `.claude/rules/test-standards.md` 写着"单元测试不得依赖外部状态（文件
- * 系统…）"，这一条是**刻意的例外**，理由和 `netBoundary.test.ts`（既有的、
- * 同样读磁盘的那份架构守卫）一样：`public/` 不是"外部状态"，它和 src 一样
- * 进版本库，读它跟读源码一样确定、一样快。
- *
- * 而且这里**没有磁盘就测不了任何东西**：要钉的正是"这个字符串指向的文件
- * 真的存在"，把 fs 换成桩之后剩下的只是"字符串等于字符串"。
+ * 搬进 import 之后不再读磁盘：图在不在，查 glob 那张表就知道。
  */
 
-/** `/icons/a/b.png` → `public/icons/a/b.png`。vitest 从 Frontend-3D 起跑 */
-function publicPath(url: string): string {
-  return join(process.cwd(), "public", url.replace(/^\//, ""));
-}
-
-test("声明的每一张建筑图都真的在 public 下", () => {
+test("借图用的 icon 覆盖项都指得到图", () => {
   const missing: string[] = [];
   for (const definition of buildingDefinitions) {
     for (const level of definition.levels) {
-      if (!level.icon) continue;
-      if (!existsSync(publicPath(level.icon))) {
+      if (level.icon && !iconUrl(level.icon)) {
         missing.push(`${definition.buildingId}/${level.levelId} → ${level.icon}`);
       }
     }
@@ -49,40 +35,34 @@ test("声明的每一张建筑图都真的在 public 下", () => {
   expect(missing).toEqual([]);
 });
 
-test("图标路径必须是 public 下的绝对路径，不能写成相对的", () => {
-  const bad: string[] = [];
-  for (const definition of buildingDefinitions) {
-    for (const level of definition.levels) {
-      if (level.icon && !level.icon.startsWith("/")) {
-        bad.push(`${definition.buildingId}/${level.levelId} → ${level.icon}`);
-      }
-    }
-  }
-  expect(bad).toEqual([]);
-});
-
 test("按等级取图：有自己那张就用自己的", () => {
-  // 金库 l1 有自己的图，取到的必须是它，不是别的等级的
-  const l1 = findBuilding("gold_jar")?.levels[0];
-  expect(l1?.icon).toBeTruthy();
-  expect(buildingIcon("gold_jar", "l1")).toBe(l1?.icon);
+  const own = iconUrl("buildings/gold_jar/l1");
+  expect(own).toBeTruthy();
+  expect(buildingIcon("gold_jar", "l1")).toBe(own);
 });
 
 test("缺图的等级退回前一个有图的——美术一级一级补，界面不能因此开洞", () => {
   const jar = findBuilding("gold_jar")!;
-  const upper = jar.levels.filter((level) => !level.icon);
-  // 前提：确实还有等级没配图（lv2/lv3 的图还没画）。哪天补齐了这条自然失效
+  const upper = jar.levels.filter(
+    (level) => !iconUrl(`buildings/gold_jar/${level.levelId}`),
+  );
+  // 前提：确实还有等级没配图（l2/l3 的图还没画）。哪天补齐了这条自然失效
   expect(upper.length).toBeGreaterThan(0);
 
   for (const level of upper) {
     // 退回去的那张必须是初始等级的图，而不是 undefined
-    expect(buildingIcon("gold_jar", level.levelId)).toBe(jar.levels[0].icon);
+    expect(buildingIcon("gold_jar", level.levelId)).toBe(
+      iconUrl("buildings/gold_jar/l1"),
+    );
   }
 });
 
+test("借图：小镇餐厅顶着玩家餐厅那张", () => {
+  expect(buildingIcon("restaurant")).toBe(iconUrl("buildings/diner/l1"));
+});
+
 test("认不出的等级当成初始等级，和 findBuildingLevel 的容错一致", () => {
-  const jar = findBuilding("gold_jar")!;
-  expect(buildingIcon("gold_jar", "l99")).toBe(jar.levels[0].icon);
+  expect(buildingIcon("gold_jar", "l99")).toBe(buildingIcon("gold_jar", "l1"));
 });
 
 test("不存在的建筑给 undefined，不抛", () => {
@@ -95,7 +75,7 @@ test("能在铺子里盖的建筑，初始等级都得有图", () => {
    * 上了架却没图的话，卡片上是一行退化的文字，读起来像没做完。
    */
   const naked = buildingDefinitions
-    .filter((definition) => !definition.levels[0].icon)
+    .filter((definition) => !buildingIcon(definition.buildingId))
     .map((definition) => definition.buildingId);
   // 房子、小镇店铺这些不在铺子里卖，没图不算问题；这里只点名上架的
   expect(naked).not.toContain("gold_jar");
@@ -114,16 +94,12 @@ test("图纸的图标就是那栋楼初始等级的图", () => {
     (item) => item.blueprint?.buildingId === "gold_jar",
   );
   expect(jarBlueprint, "金币罐得有图纸物品，否则它在铺子里上不了架").toBeTruthy();
-  expect(blueprintIconUrl(jarBlueprint!.id)).toBe(
-    findBuilding("gold_jar")!.levels[0].icon,
-  );
+  expect(blueprintIconUrl(jarBlueprint!.id)).toBe(buildingIcon("gold_jar"));
 
   const wallBlueprint = itemDefinitions.find(
     (item) => item.blueprint?.buildingId === "wood_wall",
   );
-  expect(blueprintIconUrl(wallBlueprint!.id)).toBe(
-    findBuilding("wood_wall")!.levels[0].icon,
-  );
+  expect(blueprintIconUrl(wallBlueprint!.id)).toBe(buildingIcon("wood_wall"));
 });
 
 test("不是图纸的物品不借图——番茄不该拿到某栋楼的脸", () => {
@@ -136,17 +112,12 @@ test("不是图纸的物品不借图——番茄不该拿到某栋楼的脸", ()
  *
  * 收窄过一次（期 4）：原来查的是"每一件图纸"，三位居民的房子图纸落地后
  * 当场红——那三张是**邻居送的赠品，永远不上货架**，而它们那三栋楼还是
- * 占位壳（没有 icon，等参考图）。
+ * 占位壳（没有图，等参考图）。
  *
  * 为什么收窄而不是硬凑一张图：这条守卫的真意是"图纸不该顶着一张**别的**
  * 脸"，不是"每张图纸都必须有脸"。没图时 `slots.tsx` 会退化成画名字
  * （`broken` 分支），那是诚实的降级，不是空洞。而铺子里的卡片得有脸——
  * 玩家在货架上是**看图买东西**的，那一栏不能只有字。
- *
- * 判据用"有没有人卖它"：`buildCards` 那条上架规则是"注册表里存在
- * blueprint 指向它的物品"，所以反过来问"这栋楼在不在铺子的清单里"。
- * 这和上面那条 `buildingIcon` 的豁免（房子、小镇店铺不上架所以不查）
- * 是同一条线。
  */
 test("上架出售的图纸都借得到图，没有一张是空的", () => {
   // 剧情送的图纸：不上货架，对应的楼还是占位壳（期 4/5，等参考图）

@@ -1,5 +1,6 @@
 import { findItemDefinition } from "core";
 
+import { iconUrl } from "../Assets/icons/index.js";
 import { arcane } from "./arcane.js";
 import { farmPlot } from "./farmPlot.js";
 import { woodWall } from "./woodWall.js";
@@ -99,12 +100,15 @@ export {
 } from "./placement.js";
 
 /**
- * 这一级在界面上那张图。商店卡片、升级界面共用一个口。
+ * 这一级在界面上那张图的 URL。商店卡片、升级界面共用一个口。
  *
- * **不填的等级退回前一个有图的等级**（一路退到初始等级）。理由是美术
- * 是一级一级补的：金库现在只画了 lv1，`treasury/lv2.png` 还不存在——
- * 让 lv2 顶着 lv1 的图，总好过卡片上开个洞。等 lv2 的图画好了，
- * 往那一级上加一行 `icon` 就自动生效，这里一个字不用改。
+ * 图按约定放在 `Assets/icons/buildings/<buildingId>/<levelId>.png`，
+ * 等级上写了 `icon` 的以它为准（借别家的图）。
+ *
+ * **没图的等级退回前一个有图的等级**（一路退到初始等级）。理由是美术
+ * 是一级一级补的：金库现在只画了 l1，`gold_jar/l2.png` 还不存在——
+ * 让 l2 顶着 l1 的图，总好过卡片上开个洞。等 l2 的图画好了，
+ * 文件放进目录就自动生效，这里一个字不用改。
  *
  * 全都没有 → undefined，由调用方退化成画名字。
  */
@@ -120,7 +124,9 @@ export function buildingIcon(
     : 0;
   // 认不出的等级当成初始等级，和 findBuildingLevel 的容错一致
   for (let i = index < 0 ? 0 : index; i >= 0; i -= 1) {
-    const icon = definition.levels[i]?.icon;
+    const level = definition.levels[i];
+    if (!level) continue;
+    const icon = iconUrl(level.icon ?? `buildings/${buildingId}/${level.levelId}`);
     if (icon) return icon;
   }
   return undefined;
@@ -137,7 +143,7 @@ export function buildingIcon(
  * 取初始等级是因为图纸盖出来的永远是第一级（见 BuildShopPanel）。
  *
  * 和唱片封面（`recordCoverUrl`）同一个路数：**有些物品的图不在
- * `/icons/<id>.png`，而是从它指向的东西那儿借的**。
+ * `items/<id>.png`，而是从它指向的东西那儿借的**。
  */
 export function blueprintIconUrl(itemId: string): string | undefined {
   const buildingId = findItemDefinition(itemId)?.blueprint?.buildingId;

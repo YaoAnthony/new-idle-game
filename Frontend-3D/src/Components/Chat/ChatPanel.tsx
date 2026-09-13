@@ -251,19 +251,7 @@ export function ChatPanel() {
   const faded = !open && Date.now() - lastAt > IDLE_FADE_MS;
   const shown = open ? messages : messages.slice(-IDLE_VISIBLE);
 
-  if (!open && (messages.length === 0 || faded)) {
-    /*
-     * 触摸端不显示这条提示：它讲的是"回车说话 · / 开命令"，手机上两个
-     * 键都不存在，而它正好压在摇杆的感应区上。等真做了触摸端的聊天入口
-     * （某个按钮）再把提示换成那一套说法。
-     */
-    if (isTouchMode()) return null;
-    return (
-      <div className="pointer-events-none absolute bottom-[var(--hotbar-clear)] left-3 z-20 rounded-full bg-black/40 px-2.5 py-1 font-mono text-[11px] text-white/55">
-        {t("ui.chat.closed_hint")}
-      </div>
-    );
-  }
+  if (!open && (messages.length === 0 || faded)) return null;
 
   /*
    * 关着时整个外壳都要 `pointer-events-none`，不只是里面那个列表。

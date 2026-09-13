@@ -9,7 +9,7 @@ import { materialIconUrl } from "../../Game/Systems/materials";
  * 界面——玩家在游戏里不读句子，读的是图标和数字（见 public/ui-mockups
  * 那张背包概念图：一整块界面里一句完整的话都没有）。
  *
- * 币是 `/icons/gold_icon.png`，全项目同一枚。**不画 CSS 圆点代替**：
+ * 币是 `Assets/icons/currency/gold.png`，全项目同一枚。**不画 CSS 圆点代替**：
  * 那枚八角星币是这个游戏"钱"的样子，换成一个黄圆圈，玩家得重新学一次
  * 什么是钱。
  *

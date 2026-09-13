@@ -92,6 +92,7 @@ main.tsx        DEV 下跑三个注册表体检（剧情 / 捏人 / 门）
 - `Game3D/World/` — 场景、房屋、家具、角色、宠物、远端玩家
 - `Game3D/Visual/recipes/` — **程序化建模**，没有外部 3D 资源
 - `Maps/` — **一张箱庭一个文件夹**（`base` 据点 / `town` 小镇 / 六家店铺内部）
+- `Assets/icons/` — 界面图标，走 import 不放 `public/`。按目录约定取图，不用登记：`items/<itemId>` · `buildings/<buildingId>/<levelId>` · `terrain/<地貌>` · `currency/gold`。数据里只写键（`"items/stove"`），URL 由 [`Assets/icons/index.ts`](Frontend-3D/src/Assets/icons/index.ts) 查表
 
 ---
 

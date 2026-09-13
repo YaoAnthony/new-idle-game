@@ -80,6 +80,10 @@
   z-index: 1;
 }
 
+/*
+ * 第三列是空的：原来放抽屉自己的 ✕，后来 HUD 右上角的开关钮（开着时 z-50）
+ * 正好压在它上面，✕ 就摘了（2026-09-12）。列宽留着，免得房间名跑到那颗钮底下。
+ */
 .esc-profile {
   display: grid;
   grid-template-columns: clamp(46px, 6vh, 58px) minmax(0, 1fr) clamp(30px, 4.2vh, 38px);
@@ -125,19 +129,6 @@
   white-space: nowrap;
   font-size: clamp(10px, 1.35vh, 12px);
   color: #8a9a94;
-}
-
-.esc-close {
-  display: grid;
-  place-items: center;
-  width: clamp(30px, 4.2vh, 34px);
-  height: clamp(30px, 4.2vh, 34px);
-  font-size: clamp(12px, 1.65vh, 14px);
-  border: 1px solid rgba(74, 107, 124, 0.30);
-  border-radius: 999px;
-  background: #e2ddd3;
-  color: #2b3b36;
-  cursor: var(--cursor-pointer);
 }
 
 .esc-stats {

@@ -26,7 +26,7 @@ export const achievementDefinitions: readonly AchievementDefinition[] = [
     points: 10,
     condition: { kind: "stat_at_least", key: "furniture_placed", value: 1 },
     reward: chest(),
-    icon: "/icons/furniture_fabric_sofa.png",
+    icon: "items/furniture_fabric_sofa",
   },
   {
     id: "first_plan",
@@ -36,7 +36,7 @@ export const achievementDefinitions: readonly AchievementDefinition[] = [
     points: 10,
     condition: { kind: "stat_at_least", key: "action_created", value: 1 },
     reward: chest(),
-    icon: "/icons/journal.png",
+    icon: "items/journal",
   },
   {
     id: "first_backfill",
@@ -55,7 +55,7 @@ export const achievementDefinitions: readonly AchievementDefinition[] = [
     descriptionKey: "achievement.journal_found.desc",
     points: 5,
     condition: { kind: "stat_at_least", key: "journal_taken", value: 1 },
-    icon: "/icons/journal.png",
+    icon: "items/journal",
   },
   // ---- 生活 ----
   {
@@ -77,7 +77,7 @@ export const achievementDefinitions: readonly AchievementDefinition[] = [
     points: 10,
     condition: { kind: "stat_at_least", key: "cook_completed", value: 3 },
     reward: chest(),
-    icon: "/icons/stove.png",
+    icon: "items/stove",
   },
   {
     id: "home_chef",
@@ -109,7 +109,7 @@ export const achievementDefinitions: readonly AchievementDefinition[] = [
     points: 20,
     condition: { kind: "stat_at_least", key: "action_completed", value: 5 },
     reward: chest(),
-    icon: "/icons/furniture_wall_clock.png",
+    icon: "items/furniture_wall_clock",
   },
   // ---- 收集 ----
   {

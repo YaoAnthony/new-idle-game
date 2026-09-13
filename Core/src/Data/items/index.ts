@@ -321,7 +321,7 @@ export const itemDefinitions = [
    * 实例就没了。不是道具：不进纸箱、不卖（untradableItemIds）。桌子在
    * 它被拿走之前先被收走的话，台面孤儿回收会把它退回背包，再摆回任何
    * 桌上按 F 照样能拿——那条路没断，只是绕。
-   * 图标 /icons/journal.png 同时是右上角按钮的图。
+   * 图标 items/journal.png 同时是右上角按钮的图。
    */
   {
     id: "journal",

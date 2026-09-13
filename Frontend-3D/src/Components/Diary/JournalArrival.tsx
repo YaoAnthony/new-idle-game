@@ -3,6 +3,7 @@ import { on } from "../../Game/EventBus";
 import { signal } from "../../Game/Systems/story";
 import { SparkField } from "../Effects/sparks";
 import { bumpStat } from "../../Game/State/stats";
+import journalIcon from "../../Assets/icons/items/journal.png";
 
 /**
  * 日记本飞进右上角的 DOM 段（开场二，2026-09-12）。
@@ -96,7 +97,7 @@ export function JournalArrival({ target }: { target: RefObject<HTMLElement | nul
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
       <img
         ref={imgRef}
-        src="/icons/journal.png"
+        src={journalIcon}
         alt=""
         className="absolute left-0 top-0 drop-shadow-[0_6px_10px_rgba(40,30,50,0.45)]"
         style={{

@@ -1269,9 +1269,8 @@ export const diner: BuildingDefinition = {
       levelId: "l1",
       localizationKey: "building.diner.l1",
       descriptionKey: "building.diner.l1.desc",
-      // 建模图（2026-08-30 用户提供）。管理面板的左上大图就是它；
-      // 图纸在背包里的图标也从这条链路借（blueprintIconUrl）
-      icon: "/icons/restaurant/lv1.png",
+      // 建模图（2026-08-30 用户提供）在 Assets/icons/buildings/diner/l1.png。
+      // 管理面板的左上大图就是它；图纸在背包里的图标也从这条链路借（blueprintIconUrl）
       // 稿子标的是 6×6，用户当场推翻——理由和算法见文件头
       footprint: { width: WIDTH, height: DEPTH },
       /**

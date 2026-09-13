@@ -117,7 +117,7 @@ export function buildStorageChest(): Object3D {
 }
 
 /**
- * 寄售台（4×2，室外）。照用户 2026-09-02 给的设计图（`public/icons/furniture_consign_box.png`）
+ * 寄售台（4×2，室外）。照用户 2026-09-02 给的设计图（`src/Assets/icons/items/furniture_consign_box.png`）
  * 放大成院子里的大件：**敞口长木箱**（没有盖——东西是放进去等人收走的）、
  * 四角顶上扣深色铁护角、正面顶中一块铁搭扣、正面一块浅色木牌、六只短脚；
  * 箱子**背后**立两根木柱撑一块大招牌，招牌两面各一只钱袋——隔着院子一眼

@@ -7,7 +7,6 @@ import {
   FaBoxOpen,
   FaCog,
   FaDoorOpen,
-  FaTimes,
   FaTrophy,
   FaUser,
 } from "react-icons/fa";
@@ -274,14 +273,6 @@ export function EscMenu() {
                     {clock.worldDayId} · {t(`clock.phase.${clock.phase}`)}
                   </span>
                 </div>
-                <button
-                  type="button"
-                  className="esc-close"
-                  onClick={() => setOpen(false)}
-                  aria-label={t("ui.close")}
-                >
-                  <FaTimes />
-                </button>
               </motion.header>
 
               <motion.div className="esc-stats" variants={itemVariants}>
@@ -332,7 +323,7 @@ export function EscMenu() {
 
               {/*
                 "ESC 关闭菜单"在手机上没有意义——没有 ESC 键，而关闭走的是
-                右上角那个 ✕。它还正好是这个面板在 iPhone SE 横屏上多出来的
+                右上角那颗开关钮。它还正好是这个面板在 iPhone SE 横屏上多出来的
                 那 21px，摘掉就不用滑了。
               */}
               {!isTouchMode() && (

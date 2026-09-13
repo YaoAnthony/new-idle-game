@@ -6,6 +6,7 @@ import { isFeatureUnlocked } from "../../Game/Systems/events";
 import { JournalArrival } from "./JournalArrival";
 import BookPlanner, { type BookNavApi } from "../../BookPlanner";
 import { TodayRewards } from "./TodayRewards";
+import journalIcon from "../../Assets/icons/items/journal.png";
 import { Modal } from "../Modal/Modal";
 import { usePanel } from "../PanelStack/usePanel";
 
@@ -277,8 +278,8 @@ export function DiaryPanel() {
         whileTap={hasDiary ? { scale: 0.9 } : undefined}
         onClick={() => setOpen((value) => !value)}
       >
-        {/* 按钮图就是桌上那本书（/icons/journal.png，和 3D 模型同一张参考图） */}
-        <img src="/icons/journal.png" alt="" className="h-[78%] w-[78%] object-contain" draggable={false} />
+        {/* 按钮图就是桌上那本书（和 3D 模型同一张参考图） */}
+        <img src={journalIcon} alt="" className="h-[78%] w-[78%] object-contain" draggable={false} />
       </motion.button>
       <JournalArrival target={buttonRef} />
 

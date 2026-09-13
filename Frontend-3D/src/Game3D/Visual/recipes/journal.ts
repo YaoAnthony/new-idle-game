@@ -2,7 +2,7 @@ import { Object3D } from "three";
 import { box, cylinder, group, sphere } from "../primitives.js";
 
 /**
- * 魔女留在桌上的日记本（开场二，2026-09-12）。**照右上角按钮的图 /icons/journal.png 做的**：
+ * 魔女留在桌上的日记本（开场二，2026-09-12）。**照右上角按钮的图 Assets/icons/items/journal.png 做的**：
  * 绿封面、深绿书脊、奶白书页、封面正中一枚奶白圆牌、牌上一片绿叶。颜色从图上采，
  * 不借色板里最接近的。
  *
@@ -33,11 +33,20 @@ export function buildJournal(): Object3D {
       castShadow: false,
     }),
   );
-  // 上下两片封面
-  parts.push(box([w, coverT, d], { color: COVER, position: [0, t - coverT / 2, 0] }));
-  parts.push(box([w, coverT, d], { color: COVER_EDGE, position: [0, coverT / 2, 0] }));
   // 书脊：包住 −X 那一侧，稍微鼓出来一点
-  parts.push(box([0.03, t, d], { color: SPINE, position: [-w / 2 + 0.008, t / 2, 0] }));
+  const spineW = 0.03;
+  const spineX = -w / 2 + 0.008;
+  parts.push(box([spineW, t, d], { color: SPINE, position: [spineX, t / 2, 0] }));
+  /*
+   * 上下两片封面从书脊右沿起步，不伸进书脊里。原来两片都是整宽 w，和书脊叠了两厘米多，
+   * 顶面、底面、前后口都跟书脊共面，桌上看整条书脊边缘闪锯齿（z-fighting）。
+   * 只共边不叠面，边缘就干净了。
+   */
+  const spineRight = spineX + spineW / 2;
+  const coverW = w / 2 - spineRight;
+  const coverX = (spineRight + w / 2) / 2;
+  parts.push(box([coverW, coverT, d], { color: COVER, position: [coverX, t - coverT / 2, 0] }));
+  parts.push(box([coverW, coverT, d], { color: COVER_EDGE, position: [coverX, coverT / 2, 0] }));
   // 封面上的圆牌（奶白），压在封面上方一丁点
   const plateR = 0.075;
   parts.push(

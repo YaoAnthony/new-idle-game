@@ -1,6 +1,7 @@
 import { ACHIEVEMENT_CATEGORY_ORDER, AchievementCategory } from "core";
 import { ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
+import { iconUrl } from "../../Assets/icons";
 import { on } from "../../Game/EventBus";
 import {
   claimAchievementReward,
@@ -169,7 +170,7 @@ function AchievementCard({ view, phone }: { view: AchievementView; phone: boolea
   return (
     <div className="flex items-center gap-3 rounded-2xl border-2 border-[#EEE9DE] bg-white p-2.5 short:gap-2 short:p-2">
       <span className={`grid h-[60px] w-[60px] shrink-0 place-items-center rounded-2xl text-[30px] short:h-[46px] short:w-[46px] short:text-[24px] ${state ? "bg-[#E8F5E9]" : "bg-[#F5F5F5]"}`}>
-        {icon.startsWith("/") ? <img src={icon} alt="" className="h-[78%] w-[78%] object-contain" draggable={false} /> : icon}
+        {iconUrl(icon) ? <img src={iconUrl(icon)} alt="" className="h-[78%] w-[78%] object-contain" draggable={false} /> : icon}
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-1">
         <span className="flex items-center justify-between gap-2">

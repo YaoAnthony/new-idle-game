@@ -15,7 +15,7 @@ export function albumLabelOf(albumId: string): string {
 /**
  * 一件物品对应的专辑封面（`<专辑文件夹>/curver.png`，见生成脚本）。
  * 非唱片物品、或专辑没放封面图时返回 null——调用方各自兜底
- * （2D 图标退回 /icons，3D 封套退回纯色）。
+ * （2D 图标退回 Assets/icons/items，3D 封套退回纯色）。
  */
 export function recordCoverUrl(itemId: string): string | null {
   const albumId = findItemDefinition(itemId)?.record?.albumId;

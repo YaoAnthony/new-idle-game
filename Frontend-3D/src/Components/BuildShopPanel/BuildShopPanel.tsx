@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 
+import { iconUrl } from "../../Assets/icons";
 import { on, handle } from "../../Game/EventBus";
 import { pushSystemMessage } from "../../Game/State/chatLog";
 import { addItem } from "../../Game/State/inventory";
@@ -486,8 +487,8 @@ function terrainCards(unlock: (plotId: string, nameKey: string) => void): Card[]
     return {
       key: plotId,
       nameKey,
-      // 图由地块表说了算（`PlotDefinition.icon`），这块面板不认识任何文件名
-      icon: byId.get(plotId)?.icon,
+      // 图由地块表说了算（`PlotDefinition.icon` 是图标键），这块面板不认识任何文件名
+      icon: iconUrl(byId.get(plotId)?.icon),
       cost: [...plotCost()],
       actionKey: "ui.build_shop.territory.buy",
       receiptKey: "ui.build_shop.territory.opened",

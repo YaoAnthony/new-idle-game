@@ -1,6 +1,7 @@
 import { ChatMessageKind } from "core";
 import { AnimatePresence, motion, useReducedMotion, type Easing } from "motion/react";
 import { useEffect, useState } from "react";
+import { iconUrl } from "../../Assets/icons";
 import { on } from "../../Game/EventBus";
 import { pushChatMessage } from "../../Game/State/chatLog";
 import { t } from "../../i18n/t";
@@ -88,7 +89,7 @@ export function StoryToast() {
           >
             {toast.icon && (
               <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#FFF8E1] text-[20px] short:h-7 short:w-7 short:text-[16px]">
-                {toast.icon.startsWith("/") ? <img src={toast.icon} alt="" className="h-[78%] w-[78%] object-contain" draggable={false} /> : toast.icon}
+                {iconUrl(toast.icon) ? <img src={iconUrl(toast.icon)} alt="" className="h-[78%] w-[78%] object-contain" draggable={false} /> : toast.icon}
               </span>
             )}
             <div className="min-w-0 flex-1">

@@ -662,7 +662,6 @@ const ZH: Record<string, string> = {
   "ui.daily.hud_title": "今日任务",
   "ui.daily.reward_ready": "机器动了一下…",
   // 消息面板
-  "ui.chat.closed_hint": "回车说话 · / 开命令",
   "ui.chat.placeholder": "说点什么，或者用 / 开头敲指令…",
   "ui.chat.dismiss": "Esc 收起",
 

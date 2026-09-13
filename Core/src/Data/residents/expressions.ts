@@ -5,7 +5,7 @@ import type { ExpressionDefinition } from "../../types/talk.js";
  *
  * 头顶冒的小图标 + 可选的一次性动作。`gesture` 是给造型层的名字：物种实现了就播，
  * 没实现就只冒图标——所以这里放心写动作名，Core 不校验它。
- * 图标先用 emoji（`expr.*` 文案键），美术图到了换成 `/icons/expr_*.png`，表不动。
+ * 图标先用 emoji（`expr.*` 文案键），美术图到了放进 Frontend 的 `Assets/icons/`，表不动。
  */
 export const expressionDefinitions = [
   { id: "happy", iconKey: "expr.happy", gesture: "bounce" },

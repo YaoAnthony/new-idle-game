@@ -30,7 +30,7 @@ allowed-tools: Read, Glob, Grep, Bash, Edit, Write
 .claude/skills/asset-prep/dewhite.sh 输入.png [fuzz百分比]     # 省略输出 = 原地覆盖（自动备份到 /tmp）
 ```
 
-**为什么要有这道工序**：白底图丢进 `public/icons/` 不会报错，只会在背包格子上
+**为什么要有这道工序**：白底图丢进 `Frontend-3D/src/Assets/icons/` 不会报错，只会在背包格子上
 显出一个白方块——`.ui-slot` 的底是 `#fffcf5→#fff4e6` 的奶油渐变，不是纯白，差得出来。
 
 **为什么不能用"接近白就透明"**：物体自己就有接近白的部分（云朵灯的灯罩 `#FFF8E0`、
@@ -100,7 +100,8 @@ python .claude/skills/asset-prep/pixel-up.py <图|目录> [--scales 2,4] [--out 
    - **深色底查白边**：边缘有一圈白/灰硬边 = alpha 没淡出 → **FAIL**，读脚本里"底噪"那段注释。
    - **奶油底**是真实观感（背包格子的底色），确认没有白方块。
 2. 再跑一次 `check`，应该 **PASS**。
-3. 动过 `public/icons/` 下建筑图的，跑 `npx vitest run tests/buildingIcons.test.ts`（在 `Frontend-3D/`）。
+3. 动过 `src/Assets/icons/` 下的图，跑 `npx vitest run tests/icons.test.ts tests/buildingIcons.test.ts`（在 `Frontend-3D/`）。
+   `check` 扫图标时要把目录传进去：`check Frontend-3D/src/Assets/icons`（默认目录是 `public/`）。
 4. **`pixel-up` 出的图**：放大看边缘。一个源像素应该是一个**实心方块**；
    边上出现两三级渐变过渡 = 采样器没走最近邻，图废了重出。
    光标另外还要**真进浏览器晃一遍**——热点（`cursor: url(x) 热点x 热点y`）
@@ -116,10 +117,18 @@ python .claude/skills/asset-prep/pixel-up.py <图|目录> [--scales 2,4] [--out 
 
 ## 7. 顺带一提：图标是按 id 拼路径取的
 
-物品图标**没有** `icon` 字段可以填，取图是一条约定：`/icons/<itemId>.png`
-（`Game/Systems/materials.ts`、`Components/Inventory/slots.tsx`、`TradePanel.tsx` 三处）。
-所以给物品配图 = **文件名必须等于物品 id**，改名就完事，不要去加映射表。
-建筑不一样，走 `level.icon` 写全路径（`Buildings/types.ts`）。
+图标在 `Frontend-3D/src/Assets/icons/`（2026-09-13 从 `public/icons/` 搬进来，
+走 import，由 `Assets/icons/index.ts` 用 `import.meta.glob` 扫成一张表）。
+**放进对的目录、起对的名字就有图，不用登记**：
+
+| 放哪 | 文件名 |
+|---|---|
+| `items/` | **必须等于物品 id**（`items/tomato.png`） |
+| `buildings/<buildingId>/` | 等级 id（`buildings/gold_jar/l1.png`，不是 `lv1`） |
+| `terrain/` | 地貌名（`terrain/forest.png`） |
+| `currency/` | 非物品资源（`currency/gold.png`） |
+
+改名就完事，不要去加映射表。放错名字 `tests/icons.test.ts` 会报"对不上物品 id 的图"。
 
 拿到一张图不知道该叫什么，先去 `Core/src/Data/items/index.ts` 查 id，别照着中文名音译
 （`cloud_deng.png` 那种名字取图链路是找不到的）。

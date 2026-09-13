@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { findItemDefinition } from "core";
+import { itemIconUrl } from "../../Assets/icons";
 import { on, handle } from "../../Game/EventBus";
 import { getGold } from "../../Game/State/gold";
 import { getCounts } from "../../Game/State/inventory";
@@ -237,6 +238,7 @@ function TradeCard({
   onAction: () => void;
 }) {
   const nameKey = findItemDefinition(itemId)?.localizationKey ?? itemId;
+  const icon = itemIconUrl(itemId);
   return (
     <button
       type="button"
@@ -271,15 +273,8 @@ function TradeCard({
         {count !== undefined && count > 1 ? ` ×${count}` : ""}
       </span>
       <span className="ui-shop-card__art grid place-items-center">
-        <img
-          src={`/icons/${itemId}.png`}
-          alt=""
-          className="h-[88%] w-[88%] object-contain"
-          onError={(event) => {
-            // 没画图的物品退化成名字，不留空洞——功能不等图
-            (event.target as HTMLImageElement).style.display = "none";
-          }}
-        />
+        {/* 没画图的物品只剩名字，不留空洞——功能不等图 */}
+        {icon && <img src={icon} alt="" className="h-[88%] w-[88%] object-contain" />}
       </span>
       <span
         className={[

@@ -67,7 +67,10 @@ export type AchievementDefinition = {
   reward?: AchievementReward;
   /** 没达成前只显示「？？？」。分类必须是 Hidden */
   hidden?: boolean;
-  /** 图标：`/icons/<itemId>.png` 这类路径，或一个 emoji。没有就按分类给默认 */
+  /**
+   * 图标：图标键（`items/<itemId>`，由 Frontend 的 `Assets/icons` 解析成 URL），
+   * 或一个 emoji。查不到图的一律当文字画。没有就按分类给默认
+   */
   icon?: string;
 };
 

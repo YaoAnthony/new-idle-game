@@ -28,7 +28,8 @@ export type PlotDefinition = {
   rect: { minX: number; maxX: number; minZ: number; maxZ: number };
 
   /**
-   * 界面上那张图（`public/` 下的路径）。不填 = 画名字。
+   * 界面上那张图的**图标键**（如 `terrain/forest`，由 Frontend 的
+   * `Assets/icons` 解析成 URL）。不填 = 画名字。
    *
    * 是**地貌**的图不是这一块地的肖像：八块地共用一套地貌图
    * （林地/草地/滩地…），谁是什么地貌由地块表说了算。

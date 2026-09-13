@@ -61,7 +61,7 @@ type Row = {
   initial?: boolean;
   lockedVisual?: { landmarkId: string; at: { x: number; z: number } };
   /**
-   * 这块地是什么地貌 → `/icons/terrain/<terrain>.png`（商店卡片上那张图）。
+   * 这块地是什么地貌 → `Assets/icons/terrain/<terrain>.png`（商店卡片上那张图）。
    *
    * 写地貌名不写整条路径，和上面 `localizationKey` 由 plotId 拼出来是同一个
    * 路数——这张表是**内容表**，读的人关心的是"这块是林子还是滩地"，
@@ -143,7 +143,7 @@ export const baseTerritory: TerritoryDefinition = {
     plotId: row.plotId,
     localizationKey: `territory.plot.${row.plotId}`,
     rect: row.rect,
-    icon: row.terrain ? `/icons/terrain/${row.terrain}.png` : undefined,
+    icon: row.terrain ? `terrain/${row.terrain}` : undefined,
     initial: row.initial,
     lockedVisual: row.lockedVisual,
   })),

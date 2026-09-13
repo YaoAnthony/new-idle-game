@@ -41,6 +41,18 @@ export type ActiveDialogue = {
 
 let active: ActiveDialogue | null = null;
 
+/**
+ * 排着等开的对话：正在说的那段说完再开。
+ *
+ * 原来 startDialogue 直接覆盖 active。剧情里带 delayMs 的对话是定时器到点就开的，
+ * 撞上正在说的那段，被顶掉的那段既不发 dialogue_ended、也走不到带 emitEventId 的
+ * 节点——挂在那一句上的剧情就此断掉，没有任何报错。排队而不是丢掉新来的：两段都是
+ * 剧情要说的话，丢哪一段剧情都一样会断。
+ *
+ * 不进存档：对话是演出不是状态。读档之后该重说的，由剧情规则自己再提。
+ */
+const queued: Array<{ dialogueId: string; residentId: string | null }> = [];
+
 export function getActiveDialogue(): ActiveDialogue | null {
   return active;
 }
@@ -219,7 +231,17 @@ function enterNode(nodeId: string): void {
   emit("dialogue_changed", { open: true });
 }
 
+/** 开一段对话；正有一段在说就排到它后面（返回 true = 会开，只是可能晚一点） */
 export function startDialogue(dialogueId: string, residentId: string | null): boolean {
+  if (!findDialogueDefinition(dialogueId)) return false;
+  if (active) {
+    queued.push({ dialogueId, residentId });
+    return true;
+  }
+  return openDialogue(dialogueId, residentId);
+}
+
+function openDialogue(dialogueId: string, residentId: string | null): boolean {
   const definition = findDialogueDefinition(dialogueId);
   if (!definition) return false;
 
@@ -262,8 +284,9 @@ export function giveItem(ref: SlotRef): GiftResult | null {
   if (!request || !active?.residentId) return null;
 
   const result = offerGift(active.residentId, ref);
-  // 05：交的是委托要的东西——换成道谢那段，不走口味四档
-  if (result.ok && result.favorDialogueId) startDialogue(result.favorDialogueId, active.residentId);
+  // 05：交的是委托要的东西——换成道谢那段，不走口味四档。
+  // 直接换、不排队：递东西和道谢是同一段话的前后两半，递的那段停在送礼节点上等不到"说完"
+  if (result.ok && result.favorDialogueId) openDialogue(result.favorDialogueId, active.residentId);
   else if (result.ok) enterNode(request.onTierNodeId[result.tier]);
   return result;
 }
@@ -283,4 +306,12 @@ export function end(): void {
   active = null;
   emit("dialogue_changed", { open: false });
   if (finished) signal("dialogue_ended", finished);
+  /*
+   * 说完了，开排着的下一段。**先看 active**：接 dialogue_ended 的规则可能当场开了
+   * 一段新的，它已经在 active 上了，排着的继续等——这里再 shift 出来就又是覆盖。
+   */
+  if (!active) {
+    const next = queued.shift();
+    if (next) openDialogue(next.dialogueId, next.residentId);
+  }
 }

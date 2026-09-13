@@ -55,11 +55,43 @@ const firedRules = new Set<string>();
  */
 let blockingPanelOpen = false;
 
+/**
+ * 世界换过几次。`restoreFiredStoryRules` 每调一次加一：读档、开新档、回自己家
+ * 都会经存档注册表把这片整份灌一遍，用例的 beforeEach 也走它。
+ *
+ * 带延迟的效果（delayMs、等面板关掉）挂在定时器上，到点时世界可能已经不是排它
+ * 的那个：回了标题、读了另一个档、进了别人家。原来不管，到点照跑，登场和对话就
+ * 落进了当时的那个世界。
+ *
+ * 不在 detach 里清定时器：Game3D 的 bootstrap effect 会在**同一个世界里**拆了
+ * 立刻重挂（依赖一变整个重跑），清掉等于把正排着的登场、对话白白丢了。所以到点
+ * 时判"还是不是那个世界、系统还挂没挂着"，而不是"中间拆没拆过"。进别人家那次
+ * 注册表可能不灌这片（不同步的片跳过），但那时剧情系统本来就不挂，detach 那道挡住。
+ */
+let worldGeneration = 0;
+
+function stillSameWorld(generation: number): boolean {
+  return detach !== null && generation === worldGeneration;
+}
+
+/** 排一个延迟效果：到点时世界没换、系统还挂着才跑 */
+function later(run: () => void, delayMs: number): void {
+  const generation = worldGeneration;
+  setTimeout(() => {
+    if (stillSameWorld(generation)) run();
+  }, delayMs);
+}
+
 /** 等到没有面板挡着再执行；已经空着就直接跑 */
 function whenPanelsClear(run: () => void): void {
   if (!blockingPanelOpen) return run();
 
+  const generation = worldGeneration;
   const poll = setInterval(() => {
+    if (!stillSameWorld(generation)) {
+      clearInterval(poll);
+      return;
+    }
     if (blockingPanelOpen) return;
     clearInterval(poll);
     run();
@@ -139,7 +171,7 @@ function runEffect(effect: StoryEffect): void {
       break;
     case "show_guide": {
       const run = () => request("guide_open_requested", { guideId: effect.guideId });
-      if (effect.delayMs) setTimeout(run, effect.delayMs);
+      if (effect.delayMs) later(run, effect.delayMs);
       else run();
       break;
     }
@@ -158,7 +190,7 @@ function runEffect(effect: StoryEffect): void {
 
       // 先等面板关掉，再等这段时间——"突然出现"要发生在玩家看得见屋子的时候
       whenPanelsClear(() => {
-        if (wait > 0) setTimeout(() => spawnResident(residentId, definitionId), wait);
+        if (wait > 0) later(() => spawnResident(residentId, definitionId), wait);
         else spawnResident(residentId, definitionId);
       });
       break;
@@ -167,7 +199,7 @@ function runEffect(effect: StoryEffect): void {
     case "start_dialogue": {
       const run = () =>
         startDialogue(effect.dialogueId, effect.residentId ?? null);
-      if (effect.delayMs) setTimeout(run, effect.delayMs);
+      if (effect.delayMs) later(run, effect.delayMs);
       else run();
       break;
     }
@@ -414,6 +446,8 @@ export function getFiredStoryRuleIds(): string[] {
 }
 
 export function restoreFiredStoryRules(ids: string[]): void {
+  // 整份换 = 换世界了：还排着的延迟效果作废（见 worldGeneration）
+  worldGeneration += 1;
   firedRules.clear();
   for (const id of ids) firedRules.add(id);
 }

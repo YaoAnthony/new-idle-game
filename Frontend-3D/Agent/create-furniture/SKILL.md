@@ -78,7 +78,7 @@ Crafting / Cooking / Storage / Sleep / Sitting / Ambience / WaterSource / Unpack
 
 **发明新能力的完整清单**（浴缸那次走过一遍）：Core `FurnitureCapability` + 需要的实例状态字段 → 需要联机同步的状态加
 `WorldOp` + `NET_PROTOCOL_VERSION`+1 + `Backend/src/multiplayer/validate.ts` 白名单 + `contracts/multiplayer_protocol.md` +
-`Game/Multiplayer/opApply.ts` → `EventBus.StationCapability` → `RoomScene` 交互链/分派/气泡覆盖 → 需要的话 `Game/Systems/<x>.ts`
+`Game/Multiplayer/opApply.ts` → `EventBus.StationCapability` → `Game/Systems/stationCapability.ts` 交互链 → `RoomScene` 分派/气泡覆盖 → 需要的话 `Game/Systems/<x>.ts`
 （`index.tsx` 里 start/stop）+ `World/<X>Animator.ts` → i18n。
 
 **已有件参考尺寸**（对齐用）：椅 1×1 座高 0.49；凳 1×1 0.565；坐垫 1×1 0.24 不挡路；沙发 3×1 座 0.42（3 锚点 x=−0.92/0/0.92）；

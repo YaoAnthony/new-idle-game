@@ -205,7 +205,12 @@ export type InteractHint = {
   /** 提示正文的 localizationKey，例如 "hint.workbench" */
   localizationKey: LocalizationKey;
 
-  /** 要按的动作；不填表示纯说明性提示（如"这是房东留下的"） */
+  /**
+   * 要按的动作；不填表示纯说明性提示（如"这是房东留下的"）。
+   *
+   * `pickup` 也是交互键（F），F 会把这件家具收进背包——给剧情道具用。
+   * 任何家具都能右键收走，那是摆设操作，不需要气泡替它说。
+   */
   action?: "interact" | "pickup" | "sleep";
 
   /** 气泡挂在家具原点上方多高（世界单位）。不填由表现层按占地估算 */

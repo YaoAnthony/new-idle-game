@@ -19,6 +19,8 @@
  * 困在面板里）和**数字键 1-0**（快捷栏，位置即语义）。老设计也是这么划的。
  */
 
+import type { InteractHint } from "core";
+
 export type InputAction =
   | "moveUp"
   | "moveDown"
@@ -284,6 +286,27 @@ export function isActionDown(
 /** UI 显示用 */
 export function labelsForAction(action: InputAction): string[] {
   return [...active[action].labels];
+}
+
+/**
+ * 交互气泡上的 action（Core `InteractHint.action`）按的是哪个输入动作。
+ *
+ * 三种现在都是交互键：sleep 是躺下之后再按一下 F；pickup 原来印"右键"，
+ * 2026-09-13 起剧情道具也改成按 F 捡（分派见 Systems/stationCapability）。
+ * 留成一张表而不是直接写 "interact"：Core 哪天加了第四种 action，这里
+ * 类型检查当场报缺，不会默默印出一颗空键。
+ */
+const HINT_ACTION_INPUT: Record<NonNullable<InteractHint["action"]>, InputAction> = {
+  interact: "interact",
+  sleep: "interact",
+  pickup: "interact",
+};
+
+/** 气泡上该印哪颗键。跟当前绑定走，玩家把交互改到 E 气泡就印 E */
+export function labelForHintAction(
+  action: NonNullable<InteractHint["action"]>,
+): string {
+  return labelsForAction(HINT_ACTION_INPUT[action])[0] ?? "";
 }
 
 /**

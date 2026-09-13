@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import type { InteractHint } from "core";
 import type { RoomScene } from "../../Game3D/World/RoomScene";
+import { labelForHintAction } from "../../Game/Input/bindings";
 import { t } from "../../i18n/t";
 
 /**
@@ -11,20 +13,16 @@ import { t } from "../../i18n/t";
  * 每帧从场景拉取投影后的屏幕坐标，用 transform 定位（不触发重排）。
  */
 
-/**
- * 动作 → 按键标签。V0.2 要求键位可重映射，
- * 接入 InputMap 后这张表改成查当前绑定即可。
+/*
+ * 动作 → 按键标签查的是当前键位绑定（labelForHintAction）。原来这里是一张
+ * 写死的表，pickup 印"右键"——而 F 那边根本没有捡的分支，于是石傀儡的头
+ * 成了全场唯一一件气泡和手感对不上的东西。
  */
-const ACTION_KEY: Record<string, string> = {
-  interact: "F",
-  sleep: "F",
-  pickup: "右键",
-};
 
 type BubbleState = {
   instanceId: string;
   localizationKey: string;
-  action?: string;
+  action?: InteractHint["action"];
   x: number;
   y: number;
 };
@@ -65,7 +63,7 @@ export function InteractBubble({ scene }: { scene: RoomScene | null }) {
 
   if (!bubble) return null;
 
-  const keyLabel = bubble.action ? ACTION_KEY[bubble.action] : null;
+  const keyLabel = bubble.action ? labelForHintAction(bubble.action) : null;
 
   return (
     <div

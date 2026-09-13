@@ -120,6 +120,7 @@ import {
   tickItemPickup,
 } from "../../Game/Systems/dropping";
 import { emit, on, request, handle, type StationCapability } from "../../Game/EventBus";
+import { stationCapabilityOf } from "../../Game/Systems/stationCapability";
 import {
   getResident,
   getResidents,
@@ -1335,23 +1336,33 @@ export class RoomScene {
       let node: typeof hit.object | null = hit.object;
       while (node && !node.userData.instanceId) node = node.parent;
       if (node?.userData.instanceId) {
-        const result = pickupFurniture(node.userData.instanceId as string);
-        // 被挡要说话：右键一张摆着东西的桌子毫无反应，玩家只会以为坏了
-        if (result.ok === false && result.reason === "not_empty") {
-          pushChatMessage({
-            kind: ChatMessageKind.System,
-            text: t("placement.not_empty"),
-          });
-        } else if (result.ok === false && result.reason === "fixed") {
-          pushChatMessage({
-            kind: ChatMessageKind.System,
-            text: t("placement.fixed"),
-          });
-        }
+        this.pickupWithFeedback(node.userData.instanceId as string);
         return true;
       }
     }
     return false;
+  }
+
+  /**
+   * 把一件家具收回背包，被拒就说为什么。
+   *
+   * 右键、触摸长按、F 捡剧情道具三条路共用：同一件东西从哪个入口拿，
+   * 结果和说法都该一样。
+   */
+  private pickupWithFeedback(instanceId: string): void {
+    const result = pickupFurniture(instanceId);
+    // 被挡要说话：右键一张摆着东西的桌子毫无反应，玩家只会以为坏了
+    if (result.ok === false && result.reason === "not_empty") {
+      pushChatMessage({
+        kind: ChatMessageKind.System,
+        text: t("placement.not_empty"),
+      });
+    } else if (result.ok === false && result.reason === "fixed") {
+      pushChatMessage({
+        kind: ChatMessageKind.System,
+        text: t("placement.fixed"),
+      });
+    }
   }
 
   /**
@@ -2059,39 +2070,8 @@ export class RoomScene {
       const definition = getDefinition(placed.furnitureId);
       if (!definition) continue;
 
-      // 日记本排最前：它只有这一种交互，而且拿走之后实例就没了
-      const capability = definition.placement.capabilities.includes(FurnitureCapability.Journal)
-        ? ("journal" as const)
-        : definition.placement.capabilities.includes(
-        FurnitureCapability.Unpack,
-      )
-        ? ("unpack" as const)
-        : definition.placement.capabilities.includes(FurnitureCapability.DailyBoard)
-        ? ("daily_board" as const)
-        : definition.placement.capabilities.includes(FurnitureCapability.MusicPlayer)
-        ? ("music_player" as const)
-        : // 灯排在做工的前面：带灯的工作台还不存在，真出现了也该是
-          // "先开灯再干活"（灯是一按就完、随时可逆的那种交互）
-          definition.placement.capabilities.includes(FurnitureCapability.Lighting)
-        ? ("lighting" as const)
-        : definition.placement.capabilities.includes(FurnitureCapability.Crafting)
-        ? ("crafting" as const)
-        : definition.placement.capabilities.includes(FurnitureCapability.Cooking)
-          ? ("cooking" as const)
-          : // 寄售箱不是储物箱：放进去的东西隔夜就没了，开的是寄售面板
-            definition.placement.capabilities.includes(FurnitureCapability.Consign)
-            ? ("consign" as const)
-          : definition.placement.capabilities.includes(FurnitureCapability.Storage)
-            ? ("storage" as const)
-            : // 浴缸自己管"注水/泡"两步，比坐卧优先（它的锚点只在满缸时才给坐）
-              definition.placement.capabilities.includes(FurnitureCapability.Bath)
-              ? ("bath" as const)
-            : // 床优先当"躺"处理；沙发这类只有 Sitting 的落到坐
-              definition.placement.capabilities.includes(FurnitureCapability.Sleep)
-              ? ("sleep" as const)
-              : definition.placement.capabilities.includes(FurnitureCapability.Sitting)
-                ? ("sitting" as const)
-                : null;
+      // 按优先级取一个能力（链条和各级的理由见 stationCapabilityOf）
+      const capability = stationCapabilityOf(definition.placement);
       if (!capability) continue;
 
       // 坐具坐满了就别再抢交互目标，否则走近沙发按 F 毫无反应还不知道为什么
@@ -2349,7 +2329,10 @@ export class RoomScene {
         return;
       }
       if (this.interactTarget.kind === "station") {
-        if (this.interactTarget.capability === "sleep") {
+        if (this.interactTarget.capability === "pickup") {
+          // 剧情道具（石傀儡的头）：和右键走同一条路，被拒的说法也一样
+          this.pickupWithFeedback(this.interactTarget.instanceId);
+        } else if (this.interactTarget.capability === "sleep") {
           // 床先躺下，躺着再按 F 才睡觉（睡觉是躺着之后的第二步）
           this.restAtTarget(BodyPosture.Lie);
         } else if (this.interactTarget.capability === "storage") {
@@ -2817,7 +2800,7 @@ export class RoomScene {
   getHintBubble(): {
     instanceId: string;
     localizationKey: string;
-    action?: string;
+    action?: InteractHint["action"];
     x: number;
     y: number;
   } | null {

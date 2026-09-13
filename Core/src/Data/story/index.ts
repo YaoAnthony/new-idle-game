@@ -103,8 +103,11 @@ export const storyRules: StoryRule[] = [
   /*
    * 条子是一只信封（2026-09-09）。按 F 不再直接摊开信纸，而是：
    * 门上拿下来 → 进背包（第一个空格就是快捷栏）→ 一句旁白问"拆开 / 再看看"。
-   * 拆开弹信纸；再看看就留在手上，拿着按 F 随时再问一遍——所以后两条
-   * `once: false`，信封也不消耗（用户定：信不会丢）。
+   * 拆开弹信纸；再看看就留在手上。信封不消耗（用户定：信不会丢）。
+   *
+   * 旁白只在取下那一拍问一次（2026-09-13 用户定）。原先拿着信封按 F 也重放这段，
+   * 可"门上拿下来了一个信封"说的是取下那一刻，第二遍起就不对了——而且想重读
+   * 的人每次都得多点一下"拆开"。所以之后按 F 直接摊开信纸，`once: false` 留在这两条上。
    */
   {
     id: "opening_envelope_taken",
@@ -118,7 +121,7 @@ export const storyRules: StoryRule[] = [
     id: "opening_envelope_reopen",
     once: false,
     triggers: [{ signal: "item_used", subject: "witch_letter" }],
-    effects: [{ kind: "start_dialogue", dialogueId: "opening_envelope" }],
+    effects: [{ kind: "open_letter", letterId: "witch_first" }],
   },
   {
     id: "opening_envelope_opened",

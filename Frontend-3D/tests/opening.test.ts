@@ -15,7 +15,8 @@ import { getCount, restoreInventory } from "../src/Game/State/inventory";
 
 /**
  * 居民系统 14 · 开场：新档 game_started → 大门上有条子；按 F 拿下来就没了；读档（不发 game_started）和老档（没旗子）都没有。
- * 2026-09-09：条子是一只信封——拿下来进背包 + 弹"拆开 / 再看看"；拆开才摊信纸；信封不消耗，按 F 能再问。
+ * 2026-09-09：条子是一只信封——拿下来进背包 + 弹"拆开 / 再看看"；拆开才摊信纸；信封不消耗。
+ * 2026-09-13：旁白只在取下时问一次，之后拿着信封按 F 直接摊开信纸。
  */
 let stop: (() => void) | null = null;
 
@@ -68,13 +69,17 @@ test("opening_新档_门上有条子_三行原文_读一次就没了_其他门�
   expect(opened).toEqual([]);
   expect(getCount("witch_letter")).toBe(1);
 
-  // 拿着信封按 F → 同一段旁白再来；拆开 → 信纸摊开，信封不消耗
+  // 拿着信封按 F → 旁白不再出（只在取下那一拍问一次），信纸直接摊开；信封不消耗
   emit("story_signal", { kind: "item_used", subject: "witch_letter" });
-  expect(getActiveDialogue()?.dialogueId).toBe("opening_envelope");
-  choose("open");
-  off();
+  expect(getActiveDialogue(), "按 F 又弹了「门上拿下来了一个信封」——旁白应该只出一次").toBeNull();
   expect(opened).toEqual(["witch_first"]);
   expect(getCount("witch_letter")).toBe(1);
+
+  // 再按一次还是直接摊开，照样不弹旁白
+  emit("story_signal", { kind: "item_used", subject: "witch_letter" });
+  off();
+  expect(getActiveDialogue()).toBeNull();
+  expect(opened).toEqual(["witch_first", "witch_first"]);
   expect(letterText({ letterId: "witch_first" })).toBe("徒弟，我出门了哈，屋子你随便用\n\n但要是房子给我搞成猪窝的话，那你就完蛋了");
 });
 

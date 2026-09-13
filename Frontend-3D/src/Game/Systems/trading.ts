@@ -1,7 +1,9 @@
 import {
+  COMMAND_SKILL_ID,
   drawDeterministic,
   findItemDefinition,
   findMerchantDefinition,
+  findSkillPriority,
   hashSeed,
   itemDefinitions,
   residentIdOf,
@@ -23,8 +25,10 @@ import {
 import { isIndoors } from "../State/world/walkable";
 import { getCurrentMap } from "../State/worldRuntime";
 import { visitorEntranceOf } from "./residents/moveIn";
-import { outsideFrontDoor } from "./residents/visits";
+import { finishStoryKnock, outsideFrontDoor } from "./residents/visits";
 import { getEventStage, isEventCompleted, isFeatureUnlocked } from "./events";
+import { getFlag, setFlag } from "./flags";
+import { isRemoteWorld } from "../Multiplayer/worldLock";
 import { recordGoldFact } from "./dayRecord";
 
 /**
@@ -270,8 +274,80 @@ export function isTravelerScheduledOn(worldDayId: string): boolean {
   return epochDayOf(worldDayId) % tradingTuning.travelerVisitEveryDays === 0;
 }
 
+/** 见过小鱼人的那天（居民系统 20）。值是 worldDayId：他说了"下次再来"，这天不再出摊 */
+export const TRAVELER_INTRO_DAY_FLAG = "traveler_intro_day";
+
+/**
+ * 这一天他在不在：班表 + 剧情。面板、交互、在场对齐都经这里。
+ *
+ * - 门口那段还没演完（`traveler_intro` 停在 knocking）：人得在，读档 / 跨天的对齐不能把他送走；
+ * - 那天他说过"下次再来"：就算正好是班表日也不回摊位，读档对齐时也不把他请回来。
+ *
+ * 读剧情阶段和水獭的 `storyKeepsOtter` 同一个路子：在场是交易系统管的，剧情只是其中一个理由。
+ */
+export function isTravelerHereOn(worldDayId: string): boolean {
+  if (getEventStage("traveler_intro") === "knocking") return true;
+  if (getFlag(TRAVELER_INTRO_DAY_FLAG) === worldDayId) return false;
+  return isTravelerScheduledOn(worldDayId);
+}
+
 export function isTravelerHereToday(): boolean {
-  return isTravelerScheduledOn(getClock().worldDayId);
+  return isTravelerHereOn(getClock().worldDayId);
+}
+
+/**
+ * 他说完"下次再来"往哪儿走（20）。桥头入口排得出路就去入口；排不出——开局领地还没扩到桥头，
+ * 新档里正是这样——就沿着朝入口的方向挑**最远的一个走得到的点**，走到了再消失。
+ *
+ * 原来直接走入口、排不出路就原地消失：说完最后一句，人和车当着开着的门凭空没了
+ * （2026-09-13 真游戏走查抓到的；单测的世界里入口走得到，所以没暴露）。离门几米都走不到才原地消失。
+ */
+export function travelerExitPoint(
+  agent: { x: number; z: number; routeTo: (x: number, z: number) => unknown },
+  entry: { x: number; z: number },
+): { x: number; z: number } | null {
+  const dx = entry.x - agent.x;
+  const dz = entry.z - agent.z;
+  const total = Math.hypot(dx, dz);
+  if (total < 0.5) return null;
+  const distances = [total, total * 0.8, total * 0.6, total * 0.45, total * 0.3, 12, 8, 5, 3]
+    .filter((distance) => distance <= total)
+    .sort((a, b) => b - a);
+  for (const distance of distances) {
+    const point = { x: agent.x + (dx / total) * distance, z: agent.z + (dz / total) * distance };
+    if (agent.routeTo(point.x, point.z)) return point;
+  }
+  return null;
+}
+
+/**
+ * 小鱼人说完"那我下次再来"（20，效果 traveler_leave）：敲门收场，拖车往桥头走，走远了消失。
+ * 今天记成见过他的日子。
+ */
+export function leaveTravelerAfterIntro(): void {
+  if (isRemoteWorld()) return;
+  setFlag(TRAVELER_INTRO_DAY_FLAG, getClock().worldDayId);
+  finishStoryKnock(FISH_RESIDENT_ID);
+  const agent = getResident(FISH_RESIDENT_ID);
+  if (!agent) return;
+  const gone = (): void => {
+    removeResident(FISH_RESIDENT_ID);
+  };
+  const exit = travelerExitPoint(agent, visitorEntranceOf(getCurrentMap().mapId));
+  if (!exit) {
+    gone();
+    return;
+  }
+  const accepted = agent.perform({
+    skillId: COMMAND_SKILL_ID,
+    priority: findSkillPriority(COMMAND_SKILL_ID)?.priority ?? 1000,
+    interruptible: false,
+    steps: [{ verb: "walk_to", x: exit.x, z: exit.z }],
+    idleAfter: 0,
+    onDone: gone,
+    onInterrupted: gone,
+  });
+  if (!accepted) gone();
 }
 
 /** 他的全部货单（注册表里那份），今天摆哪几件从这里抽 */

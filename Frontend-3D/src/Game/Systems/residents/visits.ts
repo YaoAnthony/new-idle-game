@@ -3,6 +3,7 @@ import {
   drawFromPool,
   evaluateHouseComments,
   findPlaceableItem,
+  findResidentDefinition,
   findSkillPriority,
   hashSeed,
   houseCommentKey,
@@ -18,7 +19,7 @@ import { isRemoteWorld } from "../../Multiplayer/worldLock";
 import { getClock } from "../../State/clock";
 import { frontDoorAgent } from "../../State/doorsRuntime";
 import { getLocalParticipant } from "../../State/participants";
-import { getResident, getResidents } from "../../State/residentsRuntime";
+import { getResident, getResidents, spawnResidentAt } from "../../State/residentsRuntime";
 import type { ResidentAgent } from "../../State/residentAgent";
 import type { ActionStep } from "../../State/actions";
 import { getCurrentMap, getWorld } from "../../State/worldRuntime";
@@ -40,7 +41,21 @@ import { nearestFreeSpot } from "./spots";
 type VisitState = {
   residentId: string;
   phase: "knocking" | "inside";
+  /** 门上按 F 时门先真的打开再说话（20：剧情叫来的小鱼人）。07 的邻居没有：隔着门说 */
+  opensDoor?: boolean;
 };
+
+/**
+ * 剧情叫来敲门的（20，效果 knock_at_front_door）。敲下第一下时 onKnocked 从这里认出"这是剧情的"：
+ * 带上 opensDoor，而且不占 07"今天来过一位"的额度——那是邻居串门的额度，不是剧情的。
+ */
+const storyKnockers = new Map<string, { opensDoor: boolean }>();
+
+/**
+ * 剧情敲门等多久：说是"不限时"，写成一整天。不用 Infinity——Intent 要原样发给房客的木偶，
+ * JSON 里 Infinity 会变成 null，木偶那边就按默认的 45 秒走人了。
+ */
+const STORY_KNOCK_SECONDS = 24 * 60 * 60;
 
 let current: VisitState | null = null;
 /** 今天谁来过 / 敲过（一天最多一位；不开门也算今天来过） */
@@ -140,8 +155,9 @@ export function visitInProgress(): VisitState | null {
 function onKnocked(residentId: string): void {
   if (isRemoteWorld()) return;
   if (current) return;
-  current = { residentId, phase: "knocking" };
-  todaySet().add(residentId);
+  const story = storyKnockers.get(residentId);
+  current = { residentId, phase: "knocking", ...(story?.opensDoor ? { opensDoor: true } : {}) };
+  if (!story) todaySet().add(residentId);
   const definitionId = getResident(residentId)?.definitionId ?? residentId.replace(/^resident-/, "");
   signal("resident_knocked", definitionId);
   emit("visit_changed", { residentId, phase: "knocking" });
@@ -321,6 +337,7 @@ export function startVisitSystem(): () => void {
 /** 用例用 */
 export function resetVisits(): void {
   current = null;
+  storyKnockers.clear();
   visitedToday = { dayId: "", residentIds: new Set() };
   visitorToday = { dayId: "", residentId: null };
   visitMisses = 0;
@@ -379,6 +396,70 @@ export function knockIntent(
     idleAfter: 2,
     onInterrupted: () => giveUpKnocking(agent.residentId),
   };
+}
+
+/**
+ * 剧情叫他来门口敲门（居民系统 20，效果 knock_at_front_door）。
+ *
+ * 和 07 的来访是两个入口、同一个敲门动作：不看时段、不看你在不在屋里、不占"今天来过一位"——
+ * 剧情说此刻有人敲门，就是此刻。不在场就直接生成在敲门站位上（用户定：不从桥头走过来），
+ * 在场就走过去。指令优先级、不限时，敲到有人开为止。
+ *
+ * **幂等**：已经在门口敲着就什么都不做——"读档接着演"的规则会反复发它。
+ * 门口正有邻居在来访就先不来（返回 false），等下一次信号（次日早上 / 读档）再叫。
+ */
+export function knockAtFrontDoor(residentId: string, options: { opensDoor?: boolean } = {}): boolean {
+  if (isRemoteWorld()) return false;
+  if (current?.residentId === residentId && current.phase === "knocking") return true;
+  if (current) return false;
+  // 主屋的门在 base 图上；人在镇上时不叫，回到这张图的信号会再叫一次
+  if (getCurrentMap().mapId !== "base") return false;
+  const outside = outsideFrontDoor();
+  if (!outside) return false;
+
+  storyKnockers.set(residentId, { opensDoor: options.opensDoor ?? false });
+  let agent = getResident(residentId);
+  if (!agent) {
+    const definitionId = residentDefinitionIdOf(residentId);
+    const at = knockSpot({ radius: findResidentDefinition(definitionId)?.collisionRadius ?? 0 }, outside);
+    agent = spawnResidentAt(residentId, definitionId, at, at);
+  }
+  const at = knockSpot(agent, outside);
+  const knock = {
+    verb: "knock",
+    seconds: STORY_KNOCK_SECONDS,
+    every: visitTuning.knockRepeatSeconds,
+    facing: { x: outside.doorX, z: outside.doorZ },
+  } as const;
+  const perform = (steps: import("../../State/actions").ActionStep[]): boolean =>
+    agent.perform({
+      skillId: COMMAND_SKILL_ID,
+      priority: findSkillPriority(COMMAND_SKILL_ID)?.priority ?? 1000,
+      interruptible: false,
+      steps,
+      idleAfter: 1,
+    });
+
+  perform([{ verb: "walk_to", x: at.x, z: at.z, state: "approach" }, knock]);
+  if (agent.currentIntent) return true;
+  /*
+   * walk_to 当场作废了：要么已经站在站位那一格上（刚生成在这儿、读档回来原地没动——寻路对"原地"
+   * 排不出两点的路，整条 Intent 就被丢掉），要么真的排不出路。两种都直接站到门口敲：
+   * 一个在摊位边对着空气敲门的商人，比一次挪位糟得多（spawnResidentAt"走不到就落在驻地"同一个规矩）。
+   */
+  agent.debugPlace(at.x, at.z);
+  perform([knock]);
+  return agent.currentIntent !== null;
+}
+
+/** 剧情那边收场（20）：敲门状态清掉、身上的 knock 撤掉。之后他去哪由调用方下指令 */
+export function finishStoryKnock(residentId: string): void {
+  storyKnockers.delete(residentId);
+  if (current?.residentId === residentId) {
+    current = null;
+    emit("visit_changed", { residentId, phase: "left", reason: "story" });
+  }
+  getResident(residentId)?.cancelKnock();
 }
 
 export function residentDefinitionIdOf(residentId: string): string {

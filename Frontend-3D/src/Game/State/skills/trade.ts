@@ -1,3 +1,4 @@
+import { COMMAND_SKILL_ID } from "core";
 import type { Skill } from "./types";
 
 /**
@@ -18,6 +19,11 @@ export const tradeSkill: Skill = {
   id: "trade",
   interact: ({ agent }) => {
     if (agent.dormant) return null;
+    /*
+     * 身上有指令的时候不开店（居民系统 20）：剧情叫小鱼人来门口敲门、说完"下次再来"拖车走人，
+     * 都是指令。敲门时按 F 由 visitPlayer 答那段对话；走的路上开店，就和刚说的话自相矛盾。
+     */
+    if (agent.currentIntent?.skillId === COMMAND_SKILL_ID) return null;
     const merchantId = MERCHANT_OF[agent.definitionId];
     return merchantId ? { kind: "trade", merchantId } : null;
   },

@@ -14,6 +14,13 @@ export const expressionDefinitions = [
   { id: "sleepy", iconKey: "expr.sleepy", gesture: "nod_off" },
   { id: "surprised", iconKey: "expr.surprised", gesture: "hop" },
   { id: "sad", iconKey: "expr.sad" },
+  /*
+   * 20（小鱼人找魔女扑了个空）。三条都**不带动作**：生气不一定跺脚——那段第 3 句生气不跺、
+   * 第 6 句才跺，跺脚由节点自己的 residentGesture 挂，表情只管头顶那个图标。
+   */
+  { id: "angry", iconKey: "expr.angry" },
+  { id: "speechless", iconKey: "expr.speechless" },
+  { id: "resigned", iconKey: "expr.resigned" },
   /** 有事求你（05 的委托挂着时头顶那个"！"） */
   { id: "exclaim", iconKey: "expr.exclaim", gesture: "hop" },
 ] as const satisfies readonly ExpressionDefinition[];

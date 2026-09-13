@@ -1,4 +1,4 @@
-import { outsideFrontDoor, visitorAtDoor } from "../../Game/Systems/residents/visits";
+import { outsideFrontDoor, visitInProgress, visitorAtDoor } from "../../Game/Systems/residents/visits";
 import { hasUnread } from "../../Game/Systems/mail";
 import { isFeatureUnlocked } from "../../Game/Systems/events";
 import { doorNoteOf, readDoorNote } from "../../Game/Systems/doorNote";
@@ -2294,6 +2294,8 @@ export class RoomScene {
         if (visitor && refId === frontDoorAgent()?.refId) {
           const definitionId = getResident(visitor)?.definitionId;
           if (definitionId) {
+            // 20：这次敲门说好了"开门见人"（剧情叫来的小鱼人）→ 门先真的打开再说话。07 的邻居照旧隔着门说
+            if (visitInProgress()?.opensDoor && agent && !agent.open && agent.interact() === "locked") agent.open = true;
             startDialogue(`${definitionId.replace(/_neighbor$/, "")}_knocks`, visitor);
             return;
           }

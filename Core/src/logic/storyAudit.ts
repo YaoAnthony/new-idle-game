@@ -711,6 +711,7 @@ export function auditStoryContent(options: AuditOptions = {}): string[] {
           if (!findFavorDefinition(effect.favorId)) problems.push(`${where}：favor_decline 指向不存在的委托 "${effect.favorId}"`);
           break;
 
+        case "knock_at_front_door":
         case "visit_admit":
         case "visit_refuse":
         case "porch_nameplate":

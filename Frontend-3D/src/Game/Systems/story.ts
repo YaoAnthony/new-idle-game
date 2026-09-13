@@ -32,7 +32,8 @@ import { setDecoration } from "./residents/porch";
 import { recordHeadlineFact } from "./dayRecord";
 import { evaluateCondition } from "./dialogue";
 import { pickPresentFor } from "./residents/presents";
-import { beginHouseVisit, refuseVisit } from "./residents/visits";
+import { beginHouseVisit, knockAtFrontDoor, refuseVisit } from "./residents/visits";
+import { leaveTravelerAfterIntro } from "./trading";
 import { presentItems } from "./unpack";
 import { getEventStage, isFeatureUnlocked, setEventStage, unlockFeature } from "./events";
 
@@ -243,6 +244,18 @@ function runEffect(effect: StoryEffect): void {
     // 剧情直接提一件委托（13）：绕过抽签。挂着 / 做客中提不了就算了
     case "offer_favor":
       offerFavor(effect.favorId);
+      break;
+
+    // ---- 小鱼人第一次来（20）----
+    // 叫他来门口敲门。幂等：读档接着演的规则会反复发，已经在敲就不重来
+    case "knock_at_front_door": {
+      const run = () => knockAtFrontDoor(effect.residentId, { opensDoor: effect.opensDoor });
+      if (effect.delayMs) later(run, effect.delayMs);
+      else run();
+      break;
+    }
+    case "traveler_leave":
+      leaveTravelerAfterIntro();
       break;
 
     // 来访（07）：开门放人 / 回绝

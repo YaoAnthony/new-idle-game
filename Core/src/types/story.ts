@@ -428,7 +428,15 @@ export type StoryEffect =
   /** 记一条报纸事实（11："下周三是阿茜的生日"） */
   | { kind: "record_fact"; factKind: string; subject?: string }
   /** 剧情直接提出一件委托（13），绕过每天早上的抽签。挂着 / 做客中提不了就算了，不报错 */
-  | { kind: "offer_favor"; favorId: string };
+  | { kind: "offer_favor"; favorId: string }
+  /**
+   * 叫一位来主屋门口敲门（居民系统 20）。不在场就直接生成在敲门站位上，在场就走过去；敲到有人开为止，不限时。
+   * `opensDoor`：门上按 F 时门先真的打开再说话（小鱼人那段）。不填 = 07 那样隔着关着的门说。
+   * **幂等**：他已经在门口敲着就什么都不做——"读档接着演"的规则会反复发它。做客时不执行。
+   */
+  | { kind: "knock_at_front_door"; residentId: ResidentId; delayMs?: number; opensDoor?: boolean }
+  /** 小鱼人说完"那我下次再来"（20）：敲门收场、拖车走回入口消失；今天记成见过他的日子，当天不再出摊 */
+  | { kind: "traveler_leave" };
 
 export type StoryRuleId = string;
 

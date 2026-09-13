@@ -33,4 +33,29 @@ function knocks(who: (typeof WHO)[number]): DialogueDefinition {
   };
 }
 
-export const residentVisitDialogues: DialogueDefinition[] = WHO.map(knocks);
+/**
+ * 小鱼人第一次来敲门（居民系统 20）：来找魔女做交易，魔女不在。一条线，没有分支，
+ * "你"的台词是 speaker: "player" 的节点而不是选项——这段玩家没有可选的回答。
+ * 说完由规则接 `dialogue_ended fish_trader_knocks` 让他走；对话本身不写效果。
+ * id 沿用 `<谁>_knocks`：门上按 F 那条路（RoomScene）和 visitPlayer 技能都按这个名字找。
+ */
+const fishTraderKnocks: DialogueDefinition = {
+  id: "fish_trader_knocks",
+  localizationKey: "dlg.fish_trader_knocks",
+  speakerNameKey: "pet.fish_trader",
+  entryNodeId: "n1",
+  nodes: {
+    n1: { nodeId: "n1", speaker: "npc", localizationKey: "dlg.fish_trader_knocks.n1", nextNodeId: "n2" },
+    n2: { nodeId: "n2", speaker: "player", localizationKey: "dlg.fish_trader_knocks.n2", nextNodeId: "n3" },
+    n3: { nodeId: "n3", speaker: "npc", localizationKey: "dlg.fish_trader_knocks.n3", expression: "angry", nextNodeId: "n4" },
+    n4: { nodeId: "n4", speaker: "npc", localizationKey: "dlg.fish_trader_knocks.n4", nextNodeId: "n5" },
+    n5: { nodeId: "n5", speaker: "player", localizationKey: "dlg.fish_trader_knocks.n5", nextNodeId: "n6" },
+    n6: { nodeId: "n6", speaker: "npc", localizationKey: "dlg.fish_trader_knocks.n6", expression: "angry", residentGesture: "stomp", nextNodeId: "n7" },
+    n7: { nodeId: "n7", speaker: "npc", localizationKey: "dlg.fish_trader_knocks.n7", nextNodeId: "n8" },
+    n8: { nodeId: "n8", speaker: "player", localizationKey: "dlg.fish_trader_knocks.n8", nextNodeId: "n9" },
+    n9: { nodeId: "n9", speaker: "npc", localizationKey: "dlg.fish_trader_knocks.n9", expression: "speechless", nextNodeId: "n10" },
+    n10: { nodeId: "n10", speaker: "npc", localizationKey: "dlg.fish_trader_knocks.n10", expression: "resigned" },
+  },
+};
+
+export const residentVisitDialogues: DialogueDefinition[] = [...WHO.map(knocks), fishTraderKnocks];

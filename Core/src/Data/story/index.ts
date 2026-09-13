@@ -1,5 +1,7 @@
 import { affectionTuning, theftTuning } from "../economy/index.js";
-import { findBlueprintForBuilding } from "../items/index.js";
+import { findBlueprintForBuilding, findItemDefinition } from "../items/index.js";
+import { findLootTable } from "../loot/index.js";
+import { DEFAULT_MAP_ID } from "../../types/map.js";
 import { favorDefinitions } from "../residents/favors.js";
 import { RESIDENT_FACT_KINDS, findResidentDefinition, residentIdOf } from "../residents/index.js";
 import { tripPool } from "../residents/trips.js";
@@ -34,6 +36,27 @@ const NEIGHBORS = ["slime_neighbor", "fox_neighbor", "spirit_neighbor"] as const
 
 /** 开场：两箱都拆了。进度键只增不减，收拾屋子那条规则拿它当前置 */
 const OPENING_BOXES_FEATURE = "opening.boxes_unpacked";
+
+/** 开场那两个纸箱的战利品表（seedInitialFurniture 摆在屋里的那两箱） */
+const OPENING_BOX_LOOT_TABLES = ["moving_tools", "moving_furniture"] as const;
+
+/**
+ * 箱里能摆的家具，按件数合并（居民系统 20）。**从两张战利品表推，不手抄**：箱子里换了东西，
+ * 小鱼人来敲门的门槛自己跟着变。锅和盘子不能摆，不算。
+ */
+function openingBoxFurniture(): Array<{ itemId: string; quantity: number }> {
+  const totals = new Map<string, number>();
+  for (const tableId of OPENING_BOX_LOOT_TABLES) {
+    for (const entry of findLootTable(tableId)?.entries ?? []) {
+      if (!findItemDefinition(entry.itemId)?.placement) continue;
+      totals.set(entry.itemId, (totals.get(entry.itemId) ?? 0) + entry.quantity);
+    }
+  }
+  return [...totals].map(([itemId, quantity]) => ({ itemId, quantity }));
+}
+
+/** 小鱼人第一次来：门口那段还没演完 */
+const TRAVELER_KNOCKING = { eventId: "traveler_intro", stageId: "knocking" } as const;
 
 export const storyRules: StoryRule[] = [
   /*
@@ -149,6 +172,47 @@ export const storyRules: StoryRule[] = [
     effects: [
       { kind: "unlock_feature", featureId: OPENING_BOXES_FEATURE },
       { kind: "start_dialogue", dialogueId: "opening_boxes_done" },
+    ],
+  },
+
+  /*
+   * ==== 小鱼人第一次来（居民系统 20）====
+   *
+   * 箱里的家具都摆进屋那一刻，他来敲门找魔女——魔女约了他今天交易，又不在。说完"那我下次再来"就走。
+   * 敲门和门口那段对话都不进存档：阶段还停在 knocking 就说明没演完，读档进来 / 次日早上 /
+   * 从镇上回到这张图时再叫他来敲一次（效果幂等，正敲着就不重来）。
+   */
+  {
+    id: "traveler_intro_knock",
+    triggers: [
+      {
+        signal: "furniture_placed",
+        requiresEventUntriggered: "traveler_intro",
+        requires: openingBoxFurniture().map(({ itemId, quantity }) => ({ kind: "furniture_at_home" as const, itemId, quantity })),
+      },
+    ],
+    effects: [
+      { kind: "set_event_stage", eventId: "traveler_intro", stageId: "knocking" },
+      // 最后一件落地那一拍手还在摆东西，隔三秒再敲
+      { kind: "knock_at_front_door", residentId: residentIdOf("fish_trader"), delayMs: 3000, opensDoor: true },
+    ],
+  },
+  {
+    id: "traveler_intro_knock_again",
+    once: false,
+    triggers: [
+      { signal: "game_resumed", requiresEventStage: TRAVELER_KNOCKING },
+      { signal: "day_started", requiresEventStage: TRAVELER_KNOCKING },
+      { signal: "map_entered", subject: DEFAULT_MAP_ID, requiresEventStage: TRAVELER_KNOCKING },
+    ],
+    effects: [{ kind: "knock_at_front_door", residentId: residentIdOf("fish_trader"), opensDoor: true }],
+  },
+  {
+    id: "traveler_intro_met",
+    triggers: [{ signal: "dialogue_ended", subject: "fish_trader_knocks", requiresEventStage: TRAVELER_KNOCKING }],
+    effects: [
+      { kind: "set_event_stage", eventId: "traveler_intro", stageId: "met", complete: true },
+      { kind: "traveler_leave" },
     ],
   },
 

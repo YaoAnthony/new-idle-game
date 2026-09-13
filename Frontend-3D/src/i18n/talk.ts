@@ -19,6 +19,9 @@ export const TALK_ZH: Record<string, string> = {
   "expr.sleepy": "😪",
   "expr.surprised": "😮",
   "expr.sad": "😢",
+  "expr.angry": "💢",
+  "expr.speechless": "😑",
+  "expr.resigned": "😮‍💨",
 
   // ---- 反应共用 ----
   "talk.common.storm": "哇……风好大！{cp}",

@@ -88,7 +88,10 @@ import {
 import { getSaveRepository } from "../src/Data/Save/SaveRepository";
 import { getActiveSlot, keysForSlot } from "../src/Data/Save/slots";
 import { SAVE_SCHEMA_VERSION } from "../src/Data/Save/types";
-import { saveNow, setBaseline } from "../src/Data/Save/autosave";
+import { saveNow, setBaseline, startAutosave } from "../src/Data/Save/autosave";
+import { restoreProgression } from "../src/Game/Systems/events";
+import { restoreFlags } from "../src/Game/Systems/flags";
+import { restoreStats } from "../src/Game/State/stats";
 import { serializeGameSave } from "../src/Data/Save/serialize";
 import { getIdIssuer } from "../src/Game/State/ids";
 import {
@@ -403,6 +406,63 @@ describe("做客（房客）", () => {
     expect(written.ownWorld.placedFurniture.map((p) => p.furnitureId)).toContain(
       "furniture_chair",
     );
+  });
+
+  /**
+   * 审计 2026-09-13 抓到的**跨世界污染**。
+   *
+   * 回家 = 卸掉合成器 → 把"自家世界 + 现在的背包"灌回运行时。灌的过程中
+   * `restoreProgression` 逐事件发 `event_progress_changed`，而那条是自动存档的
+   * **立即写**触发点：写盘同步 serialize，此刻后面二十多片（旗子、统计、信箱、
+   * 成就…）还是**房主的**。第一笔写下去的主档就是"自家家具 + 房主的旗子"，
+   * 随后正确的那笔把它挤进备份——磁盘上从此躺着一份混合档。
+   *
+   * 修法是读档事务（Data/Save/serialize 的 isRestoring）。这条用例把自动存档
+   * 真的挂上，看落盘的主档和备份两边都不许带房主的东西。
+   */
+  test("回家落盘：主档和备份里的旗子、统计都是自家的，不带房主的", async () => {
+    const stopAutosave = startAutosave();
+    try {
+      // 自家：一面旗子、一条推进过的剧情事件（回家灌它时会发 event_progress_changed）
+      restoreFlags({ my_flag: "1" });
+      restoreProgression({
+        events: {
+          test_event: {
+            currentStageId: "stage_two",
+            status: "active",
+            firstTriggeredAtUtc: "2026-09-13T00:00:00.000Z",
+            firstTriggeredWorldDayId: "2026-09-13",
+          },
+        } as never,
+        unlockedFeatureIds: [],
+      });
+      // 房主家：另一面旗子、一张统计表，都不该出现在自己档里
+      const host = hostWorld();
+      host.flags = { host_flag: "1" };
+      host.progression = { ...host.progression, stats: { host_stat: 5 } };
+      fakeApi.replies.set("join", joinReply(host));
+
+      await joinSession("ABC234");
+      // 入房时如果有一笔在飞的写盘，回家那笔会被它合并掉，bug 就藏起来了；
+      // 生产里入房和回家隔得远，这里也得让它们隔开
+      await settle();
+      await leaveSession();
+      await settle();
+    } finally {
+      stopAutosave();
+    }
+
+    const keys = keysForSlot(getActiveSlot());
+    const main = await readSaveFromDisk();
+    expect(main.ownWorld.flags).toEqual({ my_flag: "1" });
+    expect(main.ownWorld.progression.stats?.host_stat).toBeUndefined();
+
+    const backup = await store.get(keys.backup);
+    if (backup.ok && "data" in backup) {
+      const copied = (backup as { data: { value: GameSave } }).data.value;
+      expect(copied.ownWorld.flags, "备份里躺着房主的旗子——读档读到一半就写盘了").toEqual({ my_flag: "1" });
+      expect(copied.ownWorld.progression.stats?.host_stat).toBeUndefined();
+    }
   });
 
   test("房主跑了：被动结束也走同一条回家路", async () => {

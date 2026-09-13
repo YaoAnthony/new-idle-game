@@ -1,5 +1,4 @@
 import type { AvatarConfig } from "./avatar.js";
-import type { BuildingPlacement } from "./building.js";
 import type { PlayerId } from "./base.js";
 import type { ContainerContents } from "./cooking.js";
 import type { ItemId } from "./items.js";
@@ -10,10 +9,10 @@ import type {
   ParticipantGesture,
   ParticipantTransform,
 } from "./runtime.js";
-import type { WorldClockSave, WorldDayId } from "./time.js";
-import type { WeatherSave } from "./weather.js";
+import type { WorldDayId } from "./time.js";
 import type { DroppedItem, WorldSave } from "./world.js";
-import type { ResidentKeyframe, ResidentSave, ResidentWireIntent } from "./residents.js";
+import type { ResidentKeyframe, ResidentWireIntent } from "./residents.js";
+import type { WorldRefreshSlices } from "./saveSlices.js";
 
 /**
  * 联机协议的共享形状。**客户端和服务端 import 的是同一个文件**——
@@ -203,136 +202,13 @@ export type ChatMessageEvent = {
  * 5 人房、变更低频，这个流量完全付得起；等 M2 的 op 通道上线，
  * 这条就退化成兜底（掉包后的重对齐）。
  *
- * 切片全部可选：变哪片发哪片。
+ * **切片的形状和白名单不在这里写**（2026-09-13 起）：哪些片同步、线上叫什么，
+ * 由 `saveSlices.ts` 的 `WORLD_SLICE_POLICY` 一处声明，`WorldRefreshSlices` /
+ * `WORLD_REFRESH_KEYS` 都从它派生。原来这里手写的类型 + 白名单 + 三段编译期
+ * 断言，在派生之后会变成同义反复（两边永远相等），所以真正的断言挪到了
+ * 源头：`WorldSave` 有键没登记 → Core 编译不过。各切片的来历（协议 v4 唱片机、
+ * v6 灯、v7 建筑…）也搬去了那张表的 `reason` 里。
  */
-export type WorldRefreshSlices = {
-  placedFurniture?: PlacedFurniture[];
-  droppedItems?: DroppedItem[];
-  inventories?: Record<string, InventorySave>;
-  weather?: WeatherSave;
-  clock?: WorldClockSave;
-  /** 每台唱片机装着哪张唱片（协议 v4）。形状同 WorldSave.gramophones */
-  gramophones?: Record<string, { recordItemId: string }>;
-  /** 哪几盏灯被关掉了（协议 v6）。形状同 WorldSave.lamps，缺条目 = 开着 */
-  lamps?: Record<string, { on: boolean }>;
-
-  /**
-   * 玩家在领地里建的建筑（协议 v7）。形状同 WorldSave.buildings。
-   *
-   * 补这一片之前，期 2 的全部内容在联机里等于不存在：进场那一下 hydrate
-   * 房主整份世界所以看得见，但**做客期间房主盖的墙、石傀儡完工的工地、
-   * 罐里涨的钱，房客一概不会更新**——一个人在那儿盖房子，另一个人看着
-   * 一块空地。
-   *
-   * 罐子的液面也搭这趟车：`fill` 存在建筑实例的 state 里，跟着这一片走。
-   */
-  buildings?: BuildingPlacement[];
-
-  /**
-   * 已解锁的进度 id（协议 v7）。形状同 `WorldSave.progression.unlockedFeatureIds`。
-   *
-   * 领地开没开哪块地就记在这里面（`plot.*`），所以扩地要靠它同步——
-   * 不发的话房主推倒界桩、围栏往外挪一圈，房客那边纹丝不动。
-   *
-   * 发整份而不是"新开了哪块"：**只增不减**的集合整份覆盖最省心，
-   * 漏包、乱序都收敛到同一个结果。和灯那片发绝对状态是同一个道理。
-   */
-  unlockedFeatureIds?: string[];
-
-  /**
-   * 活物（协议 v8，居民系统 01c）。形状同 `WorldSave.pets`（字段名跟存档一致）。
-   *
-   * 补这一片之前，房客进场时拿到一次快照，之后两端各跑各的状态机、各掷各的
-   * 骰子——A 看见史莱姆在北边、B 看见它在南边是必然。这一片管**生灭与对账**
-   * （谁来了、谁走了、位置差太多就放回去）；逐步的行为靠 `resident_intent` op，
-   * 走路途中的偏差靠 `sync:residents` 关键帧。
-   */
-  pets?: Record<string, ResidentSave>;
-
-  /**
-   * 委托状态表（协议 v9，居民系统 05）。形状同 `WorldSave.favors`。
-   * 房客靠它画"！"气泡；委托本身是房主和邻居的事，房客按 F 只是闲聊。
-   */
-  favors?: WorldSave["favors"];
-
-  /** 门口展示位与门牌（协议 v10，居民系统 07）。形状同 `WorldSave.porch` */
-  porch?: WorldSave["porch"];
-
-  /** 居民房室内槽位（协议 v11，居民系统 08）。形状同 `WorldSave.interiors` */
-  interiors?: WorldSave["interiors"];
-
-  /** 信箱（协议 v12，居民系统 10）。房客只读：能翻信，"收下"和"写信"不给 */
-  mailbox?: WorldSave["mailbox"];
-
-  /** 通用旗子（协议 v13，居民系统 11）：今天谁过生日、哪个节日在进行 */
-  flags?: WorldSave["flags"];
-};
-
-/**
- * 刷新切片的**键白名单**。服务端拿它校验（未知键 = 坏客户端，整条拒绝）。
- *
- * ## 为什么这张表必须住在 Core
- *
- * 它原来是抄在 Backend 的 `validate.ts` 里的一份字面量，和上面这个类型
- * 各写各的。2026-08-23 的审计发现两边已经走散了：协议 v6 给客户端加了
- * `lamps` 并每次刷新都发，而 Backend 那张表没跟上——于是**每一次世界
- * 刷新都被整条打回**，房客连家具、天气都不再同步。没有任何东西报错，
- * 因为拒绝的分支就是 `return null`。
- *
- * 现在类型和表在同一个文件里，而且下面那行编译期断言把它们钉在一起：
- * 往 `WorldRefreshSlices` 加字段却忘了加进这张表，**Core 当场编译不过**。
- * 这是那次走散唯一治得住的修法——靠人记得改两处，迟早再走散一次。
- */
-export const WORLD_REFRESH_KEYS = [
-  "placedFurniture",
-  "droppedItems",
-  "inventories",
-  "weather",
-  "clock",
-  "gramophones",
-  "lamps",
-  "buildings",
-  "unlockedFeatureIds",
-  "pets",
-  "favors",
-  "porch",
-  "interiors",
-  "mailbox",
-  "flags",
-] as const;
-
-/**
- * 编译期断言：类型里的每一个键都在白名单里。
- *
- * 漏一个的话这里会报 "Type 'xxx' does not satisfy..."，指名道姓告诉你
- * 漏了哪个键。反过来（表里多一个类型没有的）由 `as const` 的字面量
- * 类型和下面的 satisfies 一起挡住。
- */
-type MissingFromKeys = Exclude<
-  keyof WorldRefreshSlices,
-  (typeof WORLD_REFRESH_KEYS)[number]
->;
-
-/**
- * `T extends never` 是这里唯一管用的写法。
- * 写成 `const x: MissingFromKeys[] = []` 是拦不住的——空数组对任何元素
- * 类型都合法，漏了键也照样编译过（第一版就这么写的，加一片假切片试出来的）。
- */
-type AssertNoMissingKeys<T extends never> = T;
-
-/**
- * 这个类型**只为报错而存在**，没有任何运行时意义：
- * `WorldRefreshSlices` 里有键不在 `WORLD_REFRESH_KEYS` 里时，它编译不过。
- *
- * 导出是因为前端那边开了 `noUnusedLocals`——不导出的话它在最严的那个
- * 消费者里会被当成"没人用的局部类型"报掉，而它恰恰是最该留着的一行。
- */
-export type WorldRefreshKeysAreComplete = AssertNoMissingKeys<MissingFromKeys>;
-
-// 反向：表里不能有类型里没有的键
-const _keysAreRealSlices: readonly (keyof WorldRefreshSlices)[] =
-  WORLD_REFRESH_KEYS;
-void _keysAreRealSlices;
 
 export type WorldRefreshEvent = {
   revision: number;

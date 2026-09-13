@@ -7,6 +7,9 @@ import {
   type ParticipantTransform,
   type ProfileDraft,
   type PublicPlayerProfile,
+  WIRE_KEY_TO_SLICE,
+  WORLD_REFRESH_KEYS,
+  writeWorldSlice,
   type WireParticipant,
   type WorldRefreshSlices,
   type WorldSave,
@@ -193,15 +196,21 @@ export class SessionManager {
   /**
    * 房主的整片刷新：切片覆盖进会话世界，revision+1。
    * 晚加入的人拿到的快照因此始终是"最后一次刷新之后"的世界。
+   *
+   * **合并哪些片由 Core 的注册表说了算**（`WORLD_REFRESH_KEYS`），这里不再
+   * 手抄一份。手抄的那份从协议 v8 之后就没人动过：v9 委托、v10 门口、
+   * v11 室内、v12 信箱、v13 旗子一片都没合并，晚进房的人拿到的全是建房
+   * 那一刻的——而且没有任何东西报错，因为漏掉的分支什么都不做。
+   * 嵌套键（`unlockedFeatureIds` 住在 progression 下面）由 `writeWorldSlice` 解。
    */
   applyRefresh(session: Session, slices: WorldRefreshSlices): number {
-    if (slices.placedFurniture) session.world.placedFurniture = slices.placedFurniture
-    if (slices.droppedItems) session.world.droppedItems = slices.droppedItems
-    if (slices.inventories) session.world.inventories = slices.inventories
-    if (slices.weather) session.world.weather = slices.weather
-    if (slices.clock) session.world.clock = slices.clock
-    // 活物（协议 v8）：晚加入的人要拿到房主此刻的活物，不是开房时的
-    if (slices.pets) session.world.pets = slices.pets
+    const raw = slices as Record<string, unknown>
+    for (const wireKey of WORLD_REFRESH_KEYS) {
+      if (raw[wireKey] === undefined) continue
+      const sliceKey = WIRE_KEY_TO_SLICE[wireKey]
+      if (!sliceKey) continue
+      writeWorldSlice(session.world, sliceKey, raw[wireKey] as never)
+    }
     session.revision += 1
     return session.revision
   }

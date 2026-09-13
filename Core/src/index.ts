@@ -25,6 +25,7 @@ export * from "./types/player.js";
 export * from "./types/roomStyle.js";
 export * from "./types/runtime.js";
 export * from "./types/save.js";
+export * from "./types/saveSlices.js";
 export * from "./types/story.js";
 export * from "./types/talk.js";
 export * from "./types/favors.js";

@@ -7,7 +7,7 @@ import { TitleScreen } from "./Components/TitleScreen";
 import { TITLE_SCREEN_CONFIG } from "./Components/TitleScreen/config";
 import {
   getSaveRepository,
-  hydrateGameSave,
+  loadSaveIntoRuntime,
   resetToPristineSave,
   setActiveSlot,
   setBaseline,
@@ -197,9 +197,16 @@ function App() {
       }
 
       if (choice === "use_cloud" && result.cloudSave && stage === "playing") {
-        // 游戏中途换档：和联机换世界同一招——灌运行时 + 重挂 GameView
-        hydrateGameSave(result.cloudSave);
-        setBaseline(result.cloudSave);
+        // 游戏中途换档：和联机换世界同一招——灌运行时 + 重挂 GameView。
+        // 走带迁移的入口：云端那份可能是旧版本的形状，直接灌等于把老档写死
+        const loaded = loadSaveIntoRuntime(result.cloudSave);
+        // `=== false` 而不是 `!ok`：这个项目没开 strict，真值收窄在联合类型上不生效
+        if (loaded.ok === false) {
+          setNotice(loaded.message);
+          setCloudConflict(null);
+          return;
+        }
+        setBaseline(loaded.save);
         setWorldEpoch((epoch) => epoch + 1);
       }
       setCloudConflict(null);
@@ -245,8 +252,9 @@ function App() {
     const outcome = await getSaveRepository().load();
 
     if (outcome.kind === "loaded") {
-      hydrateGameSave(outcome.save);
-      setBaseline(outcome.save);
+      // 仓库读出来的档已经迁移过；这里再过一遍是同一条入口的纪律（幂等），不会失败
+      const loaded = loadSaveIntoRuntime(outcome.save);
+      setBaseline(loaded.ok ? loaded.save : outcome.save);
       setLoadedFromSave(true);
 
       if (outcome.source === "backup") {

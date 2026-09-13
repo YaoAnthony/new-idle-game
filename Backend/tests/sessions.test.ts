@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { Locomotion, NET_LIMITS, type WorldSave } from 'core'
+import { Locomotion, NET_LIMITS, WORLD_REFRESH_KEYS, type WorldRefreshSlices, type WorldSave } from 'core'
 
 import { SessionManager, type Session } from '../src/multiplayer/sessions.js'
 
@@ -326,19 +326,36 @@ test('晚加入的人拿到的是最后一次刷新之后的世界', () => {
 })
 
 /**
- * 协议 v4 加了 `gramophones` 切片：`WorldRefreshSlices` 里有它，
- * `validate.ts` 的 REFRESH_KEYS 也放它进来——但 `applyRefresh` 没有对应的
- * 那一行，所以它落不进会话世界。
+ * 合并哪些片**由 Core 的注册表决定**（`WORLD_REFRESH_KEYS`）。
  *
- * 后果只打到**晚加入的人**：房里已有的人靠 `world:op` 的
- * `gramophone_record_set` 实时收到换唱片，而后进来的人拿到的快照里
- * 唱片机还装着旧唱片，从此和别人听到的不是同一张。
- *
- * 标成 todo 而不是删掉：这条是真的该成立，只是修它属于改 Backend 代码，
- * 不在"补测试"这次的范围里。修法是 applyRefresh 里补一行
- * `if (slices.gramophones) session.world.gramophones = slices.gramophones`。
+ * 这条原来是 todo：协议 v4 的 `gramophones` 在白名单里、却没有对应的合并
+ * 行，晚加入的人拿到的唱片机装着旧唱片。同一个洞后来又漏了 v9~v13 的
+ * 五片。改成按注册表遍历之后，"加了切片忘了合并"这件事在结构上不再可能，
+ * 这里守的是：白名单里的每一个键都真的落进了会话世界，嵌套键
+ * （`unlockedFeatureIds` 住在 progression 下面）也一样。
  */
-test('刷新：gramophones 切片应当落进会话世界', { todo: '见上方注释，applyRefresh 缺这一行' }, () => {
+test('刷新：白名单里的每一片都落进会话世界（含嵌套的 unlockedFeatureIds）', () => {
+  const manager = new SessionManager()
+  const session = sessionOf(manager)
+
+  const slices: Record<string, unknown> = {}
+  for (const key of WORLD_REFRESH_KEYS) slices[key] = { marker: key }
+  slices.unlockedFeatureIds = ['plot.a', 'plot.b']
+
+  manager.applyRefresh(session, slices as WorldRefreshSlices)
+
+  for (const key of WORLD_REFRESH_KEYS) {
+    if (key === 'unlockedFeatureIds') continue
+    assert.deepEqual(
+      (session.world as unknown as Record<string, unknown>)[key],
+      { marker: key },
+      `切片 ${key} 没有合并进会话世界`,
+    )
+  }
+  assert.deepEqual(session.world.progression.unlockedFeatureIds, ['plot.a', 'plot.b'])
+})
+
+test('刷新：gramophones 切片落进会话世界', () => {
   const manager = new SessionManager()
   const session = sessionOf(manager)
 

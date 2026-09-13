@@ -2,7 +2,6 @@ import {
   ChatMessageKind,
   type GameSave,
   type NetError,
-  type WorldRefreshEvent,
   type WorldSave,
 } from "core";
 /**
@@ -30,9 +29,20 @@ import {
   sendWorldRefresh,
   sendWorldOp,
 } from "../../Api/game/websocket";
+/**
+ * 世界怎么进出运行时、刷新发哪些片、听什么事件——全部从 Data/Save 的注册表
+ * 派生。这个文件不再逐片点名 restore* / snapshot*：原来三处手抄的名单
+ * （发送、应用、触发事件）各漏各的，porch / mailbox / flags 三次接入都漏过。
+ */
 import {
+  applyWorldReplica,
+  enterWorldSnapshot,
+  exitWorldSnapshot,
   getBaseline,
-  hydrateGameSave,
+  isRestoring,
+  matchTriggers,
+  refreshTriggers,
+  replicateWorldSlices,
   serializeGameSave,
   setBaseline,
   setSaveComposer,
@@ -40,32 +50,12 @@ import {
 } from "../../Data/Save";
 import { SAVE_SCHEMA_VERSION } from "../../Data/Save/types";
 import { emit, on } from "../EventBus";
-import { restoreFavors, snapshotFavors } from "../Systems/residents/favors";
-import { restorePorch, snapshotPorch } from "../Systems/residents/porch";
-import { restoreInteriors, snapshotInteriors } from "../Systems/residents/interiors";
-import { restoreMailbox, snapshotMailbox } from "../Systems/mail";
-import { restoreFlags, snapshotFlags } from "../Systems/flags";
 import { snapshotAvatar } from "../State/avatar";
 import { pushChatMessage, pushSystemMessage } from "../State/chatLog";
-import { restoreClock, snapshotClock } from "../State/clock";
-import { reconcileDroppedItems, snapshotDroppedItems } from "../State/droppedItems";
 import { setIdIssuer } from "../State/ids";
 import { LOCAL_PLAYER_ID, getLocalParticipant } from "../State/participants";
-import { restoreStorages, snapshotStorages } from "../State/storage";
-import {
-  restoreGramophones,
-  snapshotGramophones,
-} from "../State/gramophones";
-import { restoreBuildings, snapshotBuildings } from "../State/buildings";
 import { flushPendingGold } from "../State/gold";
-import {
-  getUnlockedFeatures,
-  replaceUnlockedFeatures,
-} from "../Systems/events";
-import { restoreLamps, snapshotLamps } from "../State/lamps";
 import { setRemoteWorldActive } from "./worldLock";
-import { restoreWeather, snapshotWeather } from "../State/weather";
-import { getWorld, restoreWorld } from "../State/worldRuntime";
 import { getClock } from "../State/clock";
 import { setDailyRewardShareCounter } from "../Systems/dailyTasks";
 import {
@@ -80,10 +70,8 @@ import {
 import { applyWorldOp } from "./opApply";
 import {
   applyResidentKeyframes,
-  reconcileResidents,
   setPuppetMode,
   snapshotResidentKeyframes,
-  snapshotResidents,
 } from "../State/residentsRuntime";
 import { startSyncPump, stopSyncPump } from "./sync";
 
@@ -232,14 +220,9 @@ export async function joinSession(joinCode: string): Promise<void> {
 /**
  * 把房主的世界灌进运行时。
  *
- * 复用 hydrateGameSave 而不是逐系统手灌：读档路径是全项目测得最多的
- * 一条路，换世界就该走同一条。玩家侧数据用**自己的快照**（背包、
- * 需求、形象都是自己的），只有 ownWorld 换成房主的；三个字段例外：
- *
- * - position 置空 → 回退到出生点。自己家的坐标在别人家毫无意义；
- * - restingOn 置空 → 那是自己家某件家具的引用，在这边是悬空指针；
- * - activeActionProcess 置空 → /join 入口已经挡了"行动中不能出门"，
- *   这里是双保险（它绑着自己家的家具）。
+ * 走读档同一条管线（Data/Save/runtime 的 enterWorldSnapshot）而不是逐系统
+ * 手灌：读档路径是全项目测得最多的一条路，换世界就该走同一条。玩家侧
+ * 数据用自己的快照、只有 ownWorld 换成房主的，那三个置空的字段也在那边。
  */
 function enterRemoteWorld(ownSnapshot: GameSave, hostWorld: WorldSave): void {
   /*
@@ -256,21 +239,7 @@ function enterRemoteWorld(ownSnapshot: GameSave, hostWorld: WorldSave): void {
    */
   setRemoteWorldActive(true);
 
-  const synthetic: GameSave = {
-    meta: ownSnapshot.meta,
-    player: {
-      ...ownSnapshot.player,
-      character: {
-        ...ownSnapshot.player.character,
-        position: undefined,
-        restingOn: null,
-      },
-      activeActionProcess: undefined,
-    },
-    ownWorld: hostWorld,
-  };
-
-  hydrateGameSave(synthetic);
+  enterWorldSnapshot(ownSnapshot, hostWorld);
   // 从这一刻起场上的活物全是房主的：不问技能、不掷骰子，只听 op 和关键帧
   setPuppetMode(true);
   emit("net_world_swapped", {});
@@ -304,7 +273,7 @@ function exitRemoteWorld(ownSnapshot: GameSave): void {
   resetDailyRewardShares();
   const final = composeGuestSave(ownSnapshot);
   setSaveComposer(null);
-  hydrateGameSave(final);
+  exitWorldSnapshot(final);
   // 自家的活物回来了，脑子也还给它们
   setPuppetMode(false);
 
@@ -427,7 +396,8 @@ function bindInbound(): void {
 
   onWorldRefresh((event) => {
     if (state.kind !== "guest") return;
-    applyWorldRefresh(event);
+    // 线上有哪片灌哪片，按注册表；各视图订阅着对应的 *_changed 自己会同步
+    applyWorldReplica(event.slices);
   });
 
   onResidentKeyframes((event) => {
@@ -445,49 +415,6 @@ function bindInbound(): void {
   });
 }
 
-/**
- * 房客应用房主的世界刷新：切片经现成的 restore* 灌回运行时。
- * 各视图（FurnitureView / DroppedItemView…）本来就订阅着对应的
- * *_changed 事件，restore 一跑它们自己会同步——读档和联机走同一条管线。
- */
-function applyWorldRefresh(event: WorldRefreshEvent): void {
-  const { slices } = event;
-  if (slices.placedFurniture) {
-    restoreWorld({ room: getWorld().room, placedFurniture: slices.placedFurniture });
-  }
-  // 对账而不是全量替换：正在飞的重放实体要保住运动学（见 State/droppedItems）
-  if (slices.droppedItems) reconcileDroppedItems(slices.droppedItems);
-  if (slices.inventories) restoreStorages(slices.inventories);
-  if (slices.gramophones) restoreGramophones(slices.gramophones);
-  if (slices.lamps) restoreLamps(slices.lamps);
-  if (slices.buildings) restoreBuildings(slices.buildings);
-  /*
-   * 进度整份覆盖（协议 v7）。**做客期间盖掉的是自己的进度**，这没问题：
-   * 进度是世界状态（`WorldSave.progression`），此刻运行时里装的本来就是
-   * 房主的世界；回家时 hydrate 会把自己那份灌回来。
-   *
-   * 剧情规则不会因此乱跑——做客期间世界侧的自治系统本来就按
-   * `isRemoteWorldActive` 闭嘴。
-   */
-  if (slices.unlockedFeatureIds) {
-    replaceUnlockedFeatures(slices.unlockedFeatureIds);
-  }
-  if (slices.weather) restoreWeather(slices.weather);
-  if (slices.clock) restoreClock(slices.clock);
-  // 活物（协议 v8）：对账不重建——正在走的路、正在做的动词都保住
-  if (slices.pets) reconcileResidents(slices.pets);
-  // 委托状态表（协议 v9）：房客只读——画"！"用
-  if (slices.favors !== undefined) restoreFavors(slices.favors);
-  // 门口展示位 / 门牌（协议 v10）：房客看得见摆的东西；牌上的名字读房主名（世界是房主的）
-  if (slices.porch !== undefined) restorePorch(slices.porch);
-  // 屋里的槽位（协议 v11，08）：房客进他家看到的东西和房主一样
-  if (slices.interiors !== undefined) restoreInteriors(slices.interiors);
-  // 信箱（协议 v12，10）：房客能翻信，收不了附件
-  if (slices.mailbox !== undefined) restoreMailbox(slices.mailbox);
-  // 通用旗子（协议 v13，11）：房客按 F 要知道今天是谁的生日
-  if (slices.flags !== undefined) restoreFlags(slices.flags);
-}
-
 // ---- 房主端：世界变了就整片刷给全房 ----
 
 /**
@@ -503,33 +430,9 @@ function startHostRefreshWatch(): void {
   const send = (): void => {
     if (state.kind !== "hosting") return;
     lastRefreshAt = Date.now();
-    // **全片发**。变更本来就低频（合并过），挑着发省的那点字节抵不上
-    // "漏发一片"的排查成本——期 2 的建筑就是漏了整整一片才没在联机里
-    // 出现过（协议 v7 补上）
-    sendWorldRefresh({
-      // 摊成可变数组：运行时那份是 readonly，而切片类型要可变的。
-      // 原来走无类型的 socket.emit 时这个错位是看不见的
-      placedFurniture: [...getWorld().placedFurniture],
-      droppedItems: snapshotDroppedItems(),
-      inventories: snapshotStorages(),
-      weather: snapshotWeather(),
-      clock: snapshotClock(),
-      gramophones: snapshotGramophones(),
-      lamps: snapshotLamps(),
-      // 期 2 的建筑（协议 v7）。罐子的液面也搭这趟车——fill 存在实例的
-      // state 里，跟着建筑走
-      buildings: snapshotBuildings(),
-      // 开了哪几块地（协议 v7）。领地围栏靠它跟着房主往外挪
-      unlockedFeatureIds: [...getUnlockedFeatures()],
-      // 活物（协议 v8）：谁在场、在哪。房客拿它对账生灭
-      pets: snapshotResidents(),
-      // 委托（协议 v9，居民系统 05）：房客要看到谁头顶挂着"！"
-      favors: snapshotFavors() ?? {},
-      porch: snapshotPorch() ?? {},
-      interiors: snapshotInteriors() ?? {},
-      mailbox: snapshotMailbox() ?? { letters: [], outbox: [], sentOnce: [], lastSent: {}, scheduled: [], replies: {} },
-      flags: snapshotFlags() ?? {},
-    });
+    // 发哪些片、每片怎么抓，由注册表说了算（Data/Save/registry）。全片发——
+    // 变更本来就低频（合并过），挑着发省的那点字节抵不上"漏发一片"的排查成本
+    sendWorldRefresh(replicateWorldSlices());
   };
 
   const schedule = (): void => {
@@ -545,25 +448,27 @@ function startHostRefreshWatch(): void {
     }, REFRESH_COALESCE_MS - sinceLast);
   };
 
-  const offs = [
-    on("world_changed", ({ reason }) => reason !== "restored" && schedule()),
-    on("dropped_items_changed", ({ reason }) => reason !== "restored" && schedule()),
-    on("storage_changed", () => schedule()),
-    on("gramophone_changed", () => schedule()),
-    on("lamp_changed", () => schedule()),
-    on("weather_changed", () => schedule()),
-    on("kitchen_changed", () => schedule()),
-    // 活物的生灭（登场、移除、读档）才值得整片刷；吃睡走这类每秒好几条的不刷，
-    // 那些由 op 和关键帧管
-    on("resident_changed", ({ reason }) =>
-      ["spawn", "removed", "seeded", "restored", "entered"].includes(reason) && schedule()),
-    // 委托状态表变了（05）：房客那边的"！"要跟着挂上 / 摘掉
-    on("favors_changed", () => schedule()),
-    on("porch_changed", () => schedule()),
-    on("interiors_changed", () => schedule()),
-    on("mail_changed", () => schedule()),
-    on("flags_changed", () => schedule()),
-  ];
+  /*
+   * 听什么事件也从注册表派生（各片的 replicateOn，缺省 changedBy）。
+   * 读档事务期间一律不听：房主在会话中读档（云冲突选"用云端"）时，各片
+   * restore 连锁发出的 *_changed 原来会把整份世界当成一次次刷新推出去；
+   * 现在等事务结束那条 save_applied 再整片推一次。
+   */
+  const table = refreshTriggers();
+  const offs: Array<() => void> = [];
+  for (const event of table.keys()) {
+    offs.push(
+      on(event, (payload: unknown) => {
+        if (isRestoring()) return;
+        if (matchTriggers(table, event, payload).matched) schedule();
+      }),
+    );
+  }
+  offs.push(
+    on("save_applied", ({ mode }) => {
+      if (mode !== "replica") schedule();
+    }),
+  );
   stopRefreshWatch = () => {
     for (const off of offs) off();
     if (refreshTimer) {
@@ -666,6 +571,8 @@ function resetKeyframeFilter(): void {
 // 所以收到别人的 op 不会被再广播回去（无回环）。
 on("world_op", ({ op }) => {
   if (state.kind === "idle") return;
+  // 读档事务期间的突变是"灌进来的"，不是"我做的"，不广播
+  if (isRestoring()) return;
   // 连接断了就丢——disconnect 处理会把整场收掉（丢弃在 Api 那一层做）
   sendWorldOp(op);
 });
@@ -698,7 +605,7 @@ on("ui_return_to_title", () => {
   if (leaving.kind === "guest") {
     const final = composeGuestSave(leaving.ownSnapshot);
     setSaveComposer(null);
-    hydrateGameSave(final);
+    exitWorldSnapshot(final);
     setBaseline(final);
   }
   disconnect();

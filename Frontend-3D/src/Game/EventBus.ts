@@ -40,6 +40,18 @@ export type StationCapability =
   | "consign"
   | "journal";
 
+/**
+ * 读档 / 换世界事务的种类（`save_applied` 的 mode）：
+ * 读自己的档、开新档、做客进别人家、回家、做客期间房主推来的整片刷新。
+ * 定义在总线这层是为了让 Data/Save 之外的听众不用反向 import 存档模块。
+ */
+export type SaveApplyMode =
+  | "load"
+  | "new_game"
+  | "enter_remote_world"
+  | "exit_remote_world"
+  | "replica";
+
 export type GameEvents = {
   /** 世界数据变化（家具增删等），渲染层据此同步场景图 */
   world_changed: { reason: string };
@@ -326,6 +338,19 @@ export type GameEvents = {
    */
   daily_board_ticked_locally: { progress: number };
   daily_board_claimed_locally: Record<string, never>;
+
+  // ---- 存档（Data/Save）----
+
+  /**
+   * 一次完整的读档 / 换世界事务**结束了**（Data/Save/registry 的 runRestore）。
+   *
+   * 事务期间各 restore 连锁发出的 `*_changed` 一律不算"世界变了"：自动存档、
+   * 房主刷新、op 出站都在事务里静默（`isRestoring()`）。这条是它们唯一该听的
+   * "读档完了"信号，取代过去满地的 `reason !== "restored"` / `"restore"` /
+   * 空 instanceId 判断——三种写法各漏各的，`restoreProgression` 那串
+   * `event_progress_changed` 就是从缝里漏出去、读到一半触发落盘的。
+   */
+  save_applied: { mode: SaveApplyMode; keys: readonly string[] };
 
   // ---- 联机（Game/Net）----
 

@@ -576,7 +576,9 @@ const channelGains = new Map<string, number>();
  */
 const MIXER_STORAGE_KEY = "idle-home:mixer";
 
-function loadChannelGains(): void {
+/** 从存储整份重读。开机调一次；导出是给用例往存储里放老数据再读 */
+export function reloadChannelGains(): void {
+  channelGains.clear();
   try {
     const raw = localStorage.getItem(MIXER_STORAGE_KEY);
     if (!raw) return;
@@ -591,7 +593,20 @@ function loadChannelGains(): void {
     // 存储被禁用或内容坏了：全按"没调过"处理，不影响出声
   }
 }
-loadChannelGains();
+reloadChannelGains();
+
+/**
+ * 老版本白噪音台给「音乐」单独存的倍率：取走并从存储里删掉。
+ * 那一层退役了（音乐那一行现在就是设置里的 music），值由 audioSettings 并进设置里，
+ * 这里只负责交出来一次——第二次问就是 null。
+ */
+export function takeLegacyMusicMixerGain(): number | null {
+  const legacy = channelGains.get(MUSIC_MIXER_CHANNEL);
+  if (legacy === undefined) return null;
+  channelGains.delete(MUSIC_MIXER_CHANNEL);
+  persistChannelGains();
+  return legacy;
+}
 
 function persistChannelGains(): void {
   try {
@@ -637,17 +652,17 @@ export function setChannelGain(channel: string, value: number): void {
     // 拖滑块要立刻听到反应，和总线滑块用同一个时长
     handle.userGain.gain.linearRampToValueAtTime(clamped, now + 0.08);
   }
-  // 音乐那条推子：所有在播的曲子共享一个节点，一次拧到位
-  if (channel === MUSIC_MIXER_CHANNEL && musicUserGain) {
-    musicUserGain.gain.cancelScheduledValues(now);
-    musicUserGain.gain.setValueAtTime(musicUserGain.gain.value, now);
-    musicUserGain.gain.linearRampToValueAtTime(clamped, now + 0.08);
-  }
   emit("mixer_changed", { channel });
 }
 
 export type MixerChannelView = {
   channel: string;
+  /**
+   * 这一行拧的是什么：`loop` 是一条循环声自己的推子（channelGains），
+   * `bus` 是整条总线的音量——「音乐」那一行就是设置面板里的音乐滑块，
+   * 面板按这个字段决定写到哪本账上去，不认识任何具体的行。
+   */
+  kind: "loop" | "bus";
   /** 这条推子上现在响着的那条声音（同组可能换素材，比如昼夜） */
   profileId: string;
   localizationKey: string | undefined;
@@ -672,14 +687,19 @@ export type MixerChannelView = {
 export function describeMixerChannels(): MixerChannelView[] {
   const rows = new Map<string, MixerChannelView>();
 
-  // 正在放歌就有"音乐"一行。它不来自 loops（另一条管线），单独挂
+  /*
+   * 正在放歌就有"音乐"一行。它不来自 loops（另一条管线），单独挂；
+   * 拧的是 Music **总线**——和设置面板里的音乐滑块同一个数（2026-09-13 之前
+   * 是另一层 musicUserGain，两边各记一份，拖 A 不动 B）。
+   */
   if (musicPlaybacks.size > 0) {
     rows.set(MUSIC_MIXER_CHANNEL, {
       channel: MUSIC_MIXER_CHANNEL,
+      kind: "bus",
       profileId: MUSIC_MIXER_CHANNEL,
       localizationKey: "audio.music",
       busId: AudioBusId.Music,
-      gain: getChannelGain(MUSIC_MIXER_CHANNEL),
+      gain: getBusVolume(AudioBusId.Music),
       ambient: 1,
     });
   }
@@ -697,6 +717,7 @@ export function describeMixerChannels(): MixerChannelView[] {
 
     rows.set(channel, {
       channel,
+      kind: "loop",
       profileId: handle.profileId,
       localizationKey: definition?.localizationKey,
       busId: definition?.busId ?? AudioBusId.Ambience,
@@ -726,32 +747,21 @@ export function describeMixerChannels(): MixerChannelView[] {
 export type MusicPlayback = {
   url: string;
   element: HTMLAudioElement;
-  /** 淡入淡出的包络（引擎/导播用）。玩家的推子在共享的 musicUserGain 上，两层相乘 */
+  /** 淡入淡出的包络（引擎/导播用）。玩家的音量在 Music 总线上，两层相乘 */
   gain: GainNode;
   source: MediaElementAudioSourceNode;
   disposed: boolean;
 };
 
 /**
- * 白噪音台上"音乐"那条推子的频道名。所有曲子共用一条——
- * 曲库是脚本扫出来的，不在 Core 注册表里，mixerGroup 那条路走不到，
- * 所以这里直接归到一个固定频道（这就是它的"分组"，同样是数据不是分支）。
+ * 白噪音台上"音乐"那一行的行 id。所有曲子共用一行——
+ * 曲库是脚本扫出来的，不在 Core 注册表里，mixerGroup 那条路走不到。
+ * 这一行拧的是 Music 总线本身（kind: "bus"），不在 channelGains 里记；
+ * 存储里若还留着老版本给它单独存的倍率，由 takeLegacyMusicMixerGain 收走。
  */
 export const MUSIC_MIXER_CHANNEL = "music";
 
-/** 交叉淡化时短暂有两条在播，全部汇到这一个玩家推子 */
-let musicUserGain: GainNode | null = null;
 const musicPlaybacks = new Set<MusicPlayback>();
-
-function ensureMusicUserGain(ctx: AudioContext): GainNode {
-  if (musicUserGain) return musicUserGain;
-
-  musicUserGain = ctx.createGain();
-  musicUserGain.gain.value = getChannelGain(MUSIC_MIXER_CHANNEL);
-  const bus = buses.get(AudioBusId.Music);
-  if (bus) musicUserGain.connect(bus);
-  return musicUserGain;
-}
 
 export type PlayMusicOptions = {
   /** 淡入时长（秒）。0 = 直接起 */
@@ -781,7 +791,9 @@ export function playMusic(
   element.crossOrigin = "anonymous";
 
   const gain = ctx.createGain();
-  gain.connect(ensureMusicUserGain(ctx));
+  // 包络直接汇进 Music 总线：玩家的音量就是总线音量，中间不再夹一层
+  const musicBus = buses.get(AudioBusId.Music);
+  if (musicBus) gain.connect(musicBus);
 
   const playback: MusicPlayback = {
     url,

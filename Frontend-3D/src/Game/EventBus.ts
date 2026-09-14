@@ -285,6 +285,12 @@ export type GameEvents = {
    * 等下一轮轮询会有半拍延迟。轮询管"有哪些"，事件管"我刚改的这一条"。
    */
   mixer_changed: { channel: string };
+  /**
+   * 音量设置（Game3D/Engine/audioSettings 那本账）变了：设置面板拖了、
+   * 白噪音台的「音乐」拧了、进游戏重读了。两块面板都听它回显——原来各记一份，
+   * 拖 A 不动 B。
+   */
+  audio_settings_changed: Record<string, never>;
   /** 换曲或切模式。唱片旋转动画、提示气泡的文案听这条 */
   music_changed: { mode: string; trackLabel: string | null };
   /** 某台唱片机里的唱片换了（本地或远端）。instanceId 为空串 = 整表重灌（读档） */

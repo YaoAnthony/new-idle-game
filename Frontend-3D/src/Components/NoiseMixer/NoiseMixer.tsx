@@ -6,6 +6,7 @@ import {
   setChannelGain,
   type MixerChannelView,
 } from "../../Game3D/Engine/AudioEngine";
+import { setBusSetting } from "../../Game3D/Engine/audioSettings";
 import { t } from "../../i18n/t";
 import { HudPanel } from "../Hud/HudPanel";
 
@@ -45,11 +46,13 @@ export function NoiseMixer() {
     refresh();
 
     const timer = setInterval(refresh, POLL_MS);
-    // 拖滑块要即刻回显，等下一轮轮询会有半拍延迟
-    const off = on("mixer_changed", refresh);
+    // 拖滑块要即刻回显，等下一轮轮询会有半拍延迟。「音乐」那一行走的是设置那本账，也听它
+    const offMixer = on("mixer_changed", refresh);
+    const offSettings = on("audio_settings_changed", refresh);
     return () => {
       clearInterval(timer);
-      off();
+      offMixer();
+      offSettings();
     };
   }, [active]);
 
@@ -99,6 +102,15 @@ function MixerRow({ channel }: { channel: MixerChannelView }) {
   const [restore, setRestore] = useState(1);
 
   /*
+   * 写到哪本账由行的 kind 定：循环声写它自己的推子；「音乐」那一行是整条
+   * Music 总线，写进设置——和设置面板里的音乐滑块是同一个数（2026-09-13）。
+   */
+  const write = (value: number) => {
+    if (channel.kind === "bus") setBusSetting(channel.busId, value);
+    else setChannelGain(channel.channel, value);
+  };
+
+  /*
    * 一行装下：静音钮 + 名字 + 响度点 + 滑块。
    *
    * 第一版把滑块换了一行，桌面上好看，但 667x375 的横屏上这一列扣掉
@@ -115,10 +127,10 @@ function MixerRow({ channel }: { channel: MixerChannelView }) {
           aria-label={t(muted ? "ui.mixer.unmute" : "ui.mixer.mute")}
           onClick={() => {
             if (muted) {
-              setChannelGain(channel.channel, restore > 0 ? restore : 1);
+              write(restore > 0 ? restore : 1);
             } else {
               setRestore(channel.gain);
-              setChannelGain(channel.channel, 0);
+              write(0);
             }
           }}
         >
@@ -150,9 +162,7 @@ function MixerRow({ channel }: { channel: MixerChannelView }) {
           min={0}
           max={100}
           value={Math.round(channel.gain * 100)}
-          onChange={(event) =>
-            setChannelGain(channel.channel, Number(event.target.value) / 100)
-          }
+          onChange={(event) => write(Number(event.target.value) / 100)}
         />
       </div>
     </div>

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { on } from "../../Game/EventBus";
 import { unlockAudio } from "../../Game3D/Engine/AudioEngine";
 import {
-  applyAudioSettings,
-  loadAudioSettings,
-  saveAudioSettings,
+  getAudioSettings,
+  updateAudioSettings,
   type AudioChannel,
   type StoredAudioSettings,
 } from "../../Game3D/Engine/audioSettings";
@@ -67,8 +67,17 @@ export function GameSettingsModal() {
   // 挡屏面板，开关挂在全局面板栈上；入口是 ESC 抽屉里的「设置」格（2026-09-12 加回）
   const [open, setOpen] = usePanel("settings");
   const [tab, setTab] = useState<SettingsTabId>("world");
+  /*
+   * 音量是 audioSettings 那本账的一份镜像，不是这里的状态：白噪音台的「音乐」
+   * 推子也写同一本账，这里只在账变了的时候重读回显。原来是本地状态 + effect
+   * 落账，白噪音台改的这里看不见。
+   */
   const [settings, setSettings] = useState<StoredAudioSettings>(() =>
-    loadAudioSettings(),
+    getAudioSettings(),
+  );
+  useEffect(
+    () => on("audio_settings_changed", () => setSettings(getAudioSettings())),
+    [],
   );
   const [bindings, setLocalBindings] = useState<InputBindingsState>(() =>
     getBindings(),
@@ -82,12 +91,6 @@ export function GameSettingsModal() {
   );
   /** 改完键位/语言要重启或重进才全生效的提示 */
   const [notice, setNotice] = useState<string | null>(null);
-
-  // 改了就立刻作用到音频总线并落盘——没有"确定"按钮，拖着就能听见
-  useEffect(() => {
-    applyAudioSettings(settings);
-    saveAudioSettings(settings);
-  }, [settings]);
 
   useEffect(() => subscribeBindings(setLocalBindings), []);
 
@@ -134,7 +137,8 @@ export function GameSettingsModal() {
   const update = (patch: Partial<StoredAudioSettings>): void => {
     // 拖滑块 / 点开关都是真实手势，正好用来解锁音频上下文
     unlockAudio();
-    setSettings((current) => ({ ...current, ...patch }));
+    // 改了就立刻作用到音频总线并落盘——没有"确定"按钮，拖着就能听见；回显走上面那条订阅
+    updateAudioSettings(patch);
   };
 
   const chooseWeather = (id: string): void => {

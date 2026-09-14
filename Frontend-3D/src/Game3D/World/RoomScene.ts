@@ -86,6 +86,28 @@ const INTERACT_RADIUS = 1.9;
  */
 const HINT_RADIUS = 2.4;
 
+/** 出门时先站到门里多远的地方再开门（米）。太近会站在门板转开的弧里 */
+const OUTING_DOOR_STEP = 1.0;
+
+/** 开门之后等门板让开再往外走（秒） */
+const OUTING_DOOR_PAUSE_SECONDS = 0.5;
+
+/** 一条路（从起点依次经过各路点）有多长 */
+function routeLength(
+  from: { x: number; z: number },
+  route: ReadonlyArray<readonly [number, number]>,
+): number {
+  let length = 0;
+  let px = from.x;
+  let pz = from.z;
+  for (const [x, z] of route) {
+    length += Math.hypot(x - px, z - pz);
+    px = x;
+    pz = z;
+  }
+  return length;
+}
+
 /** 提示气泡的附着目标：家具实例 + 提示数据 + 世界锚点 */
 type HintTarget = {
   instanceId: string;
@@ -94,6 +116,7 @@ type HintTarget = {
 };
 import { PlacementSurface } from "core";
 import { ChatMessageKind } from "core";
+import { autoLifeTuning } from "core";
 import { getAvatar } from "../../Game/State/avatar";
 import { pushChatMessage } from "../../Game/State/chatLog";
 import { t } from "../../i18n/t";
@@ -153,6 +176,7 @@ import {
 } from "../../Buildings/furnitureShopInterior";
 import { houseDressingOf, outdoorTerrainOf } from "../../Maps/index";
 import { buildGroundFixtures } from "./groundFixtures.js";
+import { getHeld } from "../../Game/State/heldItem";
 import { getActiveAction } from "../../Game/Systems/actions";
 import {
   cancelAutoWalk,
@@ -180,9 +204,11 @@ import { eatHeldItem } from "../../Game/Systems/itemUse";
 import { openUnpack } from "../../Game/Systems/unpack";
 import {
   findAnchor,
+  findFreeAnchorNear,
   hasFreeAnchor,
   reconcileResting,
   restAtNearest,
+  restOn,
   standUp,
 } from "../../Game/Systems/resting";
 import { startSleep } from "../../Game/Systems/sleep";
@@ -243,7 +269,7 @@ import {
   slotWorldPosition,
 } from "./FurnitureView.js";
 import { FACING_ROTATION, furnitureFloorDistance, interactProbe } from "./furnitureMath.js";
-import { HeldItemView } from "./HeldItemView.js";
+import { HeldItemView, buildHeldVisual } from "./HeldItemView.js";
 import {
   DoorView,
   PlankDoor,
@@ -740,7 +766,9 @@ export class RoomScene {
      * import——以后加浇水、NPC 慰问，这里 switch 多一个 case 而已。
      */
     this.offEventListeners.push(
-      on("auto_step_changed", ({ step }) => this.performAutoStep(step)),
+      on("auto_step_changed", ({ step, umbrella }) =>
+        this.performAutoStep(step, umbrella === true),
+      ),
     );
 
     /*
@@ -1372,13 +1400,25 @@ export class RoomScene {
    * `endFocusSequence` 是同一批动作，但**不能直接调它**——那个函数还会
    * `enabled = true` 把输入还给玩家、`exitFocus` 把镜头拉回去，而自动
    * 生活期间行动还在跑：输入必须仍旧锁着，镜头也不该抽搐。
+   *
+   * **每种步子一支，认不出的原地视同到位**（2026-09-13 起）。原来是 else 兜底
+   * 当溜达：表里加一行、场景没跟上，角色就开始乱走——而且看着像是"会走了"，
+   * 没人会发现那一行其实没接上。
    */
-  private performAutoStep(step: AutoStepKind): void {
+  private performAutoStep(step: AutoStepKind, umbrella = false): void {
     const action = getActiveAction();
     if (!action) return;
 
+    // 上一步的小剧本（几段路、几次停顿、撑着的伞）不管演到哪儿都作废：新的一步说了算
+    this.cancelAutoTour();
+
     if (step === "work") {
-      // 回工位：走的就是行动开始那条路（寻路 + 坐下 + desk 活动层）
+      /*
+       * 回工位：走的就是行动开始那条路（寻路 + 坐下 + desk 活动层）。
+       * **先起身**：小睡回来人还躺在床上，beginFocusSequence 不管姿势——
+       * 不起来就是保持躺姿被拖到桌前，到了也坐不下（restAtNearest 见人在躺就不动）。
+       */
+      if (isResting()) standUp("action");
       this.beginFocusSequence();
       return;
     }
@@ -1388,72 +1428,369 @@ export class RoomScene {
     this.controller.activity = null;
     standUp("action");
 
-    const from = { x: this.controller.x, z: this.controller.z };
     const arrived = () => emit("auto_step_arrived", { step });
 
-    if (step === "eat") {
-      /*
-       * 去炊具旁。目标 = 最近一件带 Cooking 能力的家具；一件都没有就
-       * 原地视同到位——吃这个动作的**效果**不依赖走位（计划器结算），
-       * 走位只是演出，缺了演出不能缺了饭。
-       */
-      const { placedFurniture, room } = getWorld();
-      let goal: { x: number; z: number } | null = null;
-      let goalDistance = Number.POSITIVE_INFINITY;
-      for (const placed of placedFurniture) {
-        const definition = getDefinition(placed.furnitureId);
-        if (
-          !definition?.placement.capabilities.includes(
-            FurnitureCapability.Cooking,
-          )
-        ) {
-          continue;
-        }
-        const world = roomCellToWorld(
-          room,
-          placed.placement.gridPosition.x,
-          placed.placement.gridPosition.y,
-        );
-        const distance = Math.hypot(world.x - from.x, world.z - from.z);
-        if (distance < goalDistance) {
-          goalDistance = distance;
-          goal = world;
-        }
-      }
-      if (!goal) {
-        arrived();
+    switch (step) {
+      case "eat":
+        this.autoWalkToStove(arrived);
         return;
-      }
-      const points = findRoute(from, goal);
-      if (!points) {
-        arrived();
+      case "nap":
+        this.autoLieDown(arrived);
         return;
-      }
-      const face = goal;
-      this.controller.walkAlong(points, () => {
-        this.controller.faceToward(face.x, face.z);
+      case "outing":
+        this.autoOuting(umbrella, arrived);
+        return;
+      case "stroll":
+        this.autoStroll(arrived);
+        return;
+      default:
         arrived();
+    }
+  }
+
+  /**
+   * 吃饭：去炊具旁。目标 = 最近一件带 Cooking 能力的家具；一件都没有就
+   * 原地视同到位——吃这个动作的**效果**不依赖走位（计划器结算），
+   * 走位只是演出，缺了演出不能缺了饭。
+   */
+  private autoWalkToStove(arrived: () => void): void {
+    const from = { x: this.controller.x, z: this.controller.z };
+    const { placedFurniture, room } = getWorld();
+    let stove: { instanceId: string; x: number; z: number } | null = null;
+    let stoveDistance = Number.POSITIVE_INFINITY;
+    for (const placed of placedFurniture) {
+      const definition = getDefinition(placed.furnitureId);
+      if (
+        !definition?.placement.capabilities.includes(FurnitureCapability.Cooking)
+      ) {
+        continue;
+      }
+      const world = roomCellToWorld(
+        room,
+        placed.placement.gridPosition.x,
+        placed.placement.gridPosition.y,
+      );
+      const distance = Math.hypot(world.x - from.x, world.z - from.z);
+      if (distance < stoveDistance) {
+        stoveDistance = distance;
+        stove = { instanceId: placed.instanceId, x: world.x, z: world.z };
+      }
+    }
+    // 站位：灶台跟前、和它在墙同一侧的一格（见 approachPoint）
+    const spot = stove ? this.approachPoint(stove.instanceId) : null;
+    const points = spot ? findRoute(from, spot) : null;
+    if (!stove || !points) {
+      arrived();
+      return;
+    }
+    const face = stove;
+    this.controller.walkAlong(points, () => {
+      this.controller.faceToward(face.x, face.z);
+      arrived();
+    });
+  }
+
+  /**
+   * 小睡：走到离人最近的空床位（床、地铺的"躺"锚点）旁边，躺下，回报到位。
+   *
+   * 躺下走的是按 F 躺床同一条路（restOn → posture_changed → applyResting 把人
+   * 摆到床上）；起来归下一个 work（它先 standUp）。没床、床边站不到就原地算到：
+   * 回精力由计划器结算，不依赖躺没躺成。
+   */
+  private autoLieDown(arrived: () => void): void {
+    const from = { x: this.controller.x, z: this.controller.z };
+    const bed = findFreeAnchorNear(BodyPosture.Lie, from);
+    // 床边站哪：床跟前、和床在墙同一侧的一格。不拿锚点那格去吸附——见 approachPoint
+    const spot = bed ? this.approachPoint(bed.instanceId) : null;
+    const points = spot ? findRoute(from, spot) : null;
+    if (!bed || !points) {
+      arrived();
+      return;
+    }
+    this.controller.walkAlong(points, () => {
+      restOn(bed.instanceId, bed.anchorId, {
+        x: this.controller.x,
+        z: this.controller.z,
       });
+      arrived();
+    });
+  }
+
+  /**
+   * 走到一件家具跟前站的那一点：占地矩形外紧贴的一圈格子里，**和家具在墙的同一侧**、
+   * 走得到、路最短的那一格。一格都没有返回 null。
+   *
+   * 不能拿家具（或它的锚点）那一格直接寻路：那一格站不住，findRoute 会吸附到最近的
+   * 可走格——而"最近"不看墙。新档那张床贴着西墙摆，墙外那一格比床边的地板近，
+   * 人就从大门出去、沿着外墙绕到床的另一面，隔着墙躺上去，出门时门还关着
+   * （2026-09-13 走查的页面追踪抓到的）。灶台贴墙摆是同一个坑。
+   */
+  private approachPoint(instanceId: string): { x: number; z: number } | null {
+    const { placedFurniture, room, occupancy } = getWorld();
+    const placed = placedFurniture.find((item) => item.instanceId === instanceId);
+    const definition = placed ? getDefinition(placed.furnitureId) : undefined;
+    if (!placed || !definition || placed.placement.kind !== PlacementSurface.Floor) {
+      return null;
+    }
+
+    // 院子里的家具按院子那张格换算；占用表只有主屋那一张，院子里不查它
+    const cellRoom =
+      (placed.placement.roomId && getRoom(placed.placement.roomId)) || room;
+    const inPrimaryRoom = cellRoom === room;
+
+    const { gridPosition, facing } = placed.placement;
+    const rotated = facing === Facing.East || facing === Facing.West;
+    const { footprint } = definition.placement;
+    const w = rotated ? footprint.height : footprint.width;
+    const h = rotated ? footprint.width : footprint.height;
+    const center = roomCellToWorld(
+      cellRoom,
+      gridPosition.x + (w - 1) / 2,
+      gridPosition.y + (h - 1) / 2,
+    );
+    const indoors = isIndoors(center.x, center.z);
+
+    // 紧贴占地的一圈，不要四个角：斜站在家具角上不像"在跟前"
+    const ring: Array<{ x: number; y: number }> = [];
+    for (let dx = 0; dx < w; dx += 1) {
+      ring.push({ x: gridPosition.x + dx, y: gridPosition.y - 1 });
+      ring.push({ x: gridPosition.x + dx, y: gridPosition.y + h });
+    }
+    for (let dy = 0; dy < h; dy += 1) {
+      ring.push({ x: gridPosition.x - 1, y: gridPosition.y + dy });
+      ring.push({ x: gridPosition.x + w, y: gridPosition.y + dy });
+    }
+
+    const from = { x: this.controller.x, z: this.controller.z };
+    let best: { x: number; z: number } | null = null;
+    let bestLength = Number.POSITIVE_INFINITY;
+    for (const cell of ring) {
+      if (inPrimaryRoom && occupancy.blocked.has(`${cell.x},${cell.y}`)) continue;
+      const spot = roomCellToWorld(cellRoom, cell.x, cell.y);
+      if (isIndoors(spot.x, spot.z) !== indoors) continue;
+      const route = findRoute(from, spot);
+      const end = route?.[route.length - 1];
+      // 终点也要判：这一格站不住时 findRoute 照样会吸附，吸过墙的不要
+      if (!route || !end || isIndoors(end[0], end[1]) !== indoors) continue;
+      const length = routeLength(from, route);
+      if (length < bestLength) {
+        bestLength = length;
+        best = { x: end[0], z: end[1] };
+      }
+    }
+    return best;
+  }
+
+  /**
+   * 出门：走到门里一步 → 开大门 → 出去（下雨撑伞）→ 院子里走几处、每处站一会儿
+   * → 回到门里 → 收伞 → 关门 → 回报到位。
+   *
+   * **门要自己开**：脚本走路不看门（walkAlong 没有碰撞，寻路又按"没锁的门都开着"
+   * 采样），不开就是穿门而过。**只关自己开的门**——门本来就开着（玩家开的、
+   * 访客留的）回来不替人关。院子点抽不到就只到门外一步站一会儿；这张图没有
+   * 大门、门锁着、连门里一步都走不到，就原地算到。
+   *
+   * 半路被打断（提前结束、下一步来了）伞收起来；门可能留着开——下一次看到开着
+   * 就照走、回来不关它，不算坏。
+   */
+  private autoOuting(umbrella: boolean, arrived: () => void): void {
+    const door = frontDoorAgent();
+    const outside = outsideFrontDoor();
+    if (!door || door.locked || !outside) {
+      arrived();
       return;
     }
 
-    /*
-     * 溜达：驻地（当前位置）周围抽一个能走的点。抽不中就原地站会儿——
-     * 溜达本来就没有目的地，"没走成"也是一种溜达。
-     */
-    for (let attempt = 0; attempt < 8; attempt += 1) {
+    const dx = outside.x - outside.doorX;
+    const dz = outside.z - outside.doorZ;
+    const length = Math.hypot(dx, dz) || 1;
+    const outward = { x: dx / length, z: dz / length };
+    const inStep = {
+      x: outside.doorX - outward.x * OUTING_DOOR_STEP,
+      z: outside.doorZ - outward.z * OUTING_DOOR_STEP,
+    };
+    const inside = isIndoors(inStep.x, inStep.z)
+      ? inStep
+      : { x: outside.doorX, z: outside.doorZ };
+
+    const stops = this.pickYardStops(outside, outward, autoLifeTuning.outingPoints);
+    if (stops.length === 0) stops.push({ x: outside.x, z: outside.z });
+
+    let openedDoor = false;
+    this.autoTourCleanups.push(() => this.setUmbrellaOpen(false));
+
+    const comeHome = () => {
+      const settleIn = () => {
+        this.setUmbrellaOpen(false);
+        if (openedDoor && door.open) door.interact();
+        arrived();
+      };
+      if (!this.tourWalk(inside, settleIn)) settleIn();
+    };
+    const visit = (index: number) => {
+      if (index >= stops.length) {
+        comeHome();
+        return;
+      }
+      const linger = () =>
+        this.tourWait(autoLifeTuning.outingPointSeconds, () => visit(index + 1));
+      if (!this.tourWalk(stops[index], linger)) linger();
+    };
+    const stepOut = () => {
+      if (!door.open && door.interact() === "opened") openedDoor = true;
+      if (umbrella) this.setUmbrellaOpen(true);
+      // 门板转开要一小会儿，别贴着还没让开的门板走出去
+      this.tourWait(OUTING_DOOR_PAUSE_SECONDS, () => visit(0));
+    };
+
+    if (!this.tourWalk(inside, stepOut)) arrived();
+  }
+
+  /**
+   * 院子里抽几处走得到的落脚点：从门外一步朝外、左右各偏一些，2.5~7 米。
+   *
+   * 要真在屋外、真走得到——判的是**寻路吸附之后的终点**，抽中的点落在房子或
+   * 家具里时会被吸到别处，吸回屋里的不要。几处之间隔开一点，叠在一起就是
+   * 原地站两回。
+   */
+  private pickYardStops(
+    outside: { x: number; z: number },
+    outward: { x: number; z: number },
+    count: number,
+  ): Array<{ x: number; z: number }> {
+    const stops: Array<{ x: number; z: number }> = [];
+    const facing = Math.atan2(outward.z, outward.x);
+    for (let attempt = 0; attempt < 24 && stops.length < count; attempt += 1) {
+      const angle = facing + (Math.random() - 0.5) * Math.PI * 0.9;
+      const radius = 2.5 + Math.random() * 4.5;
+      const goal = {
+        x: outside.x + Math.cos(angle) * radius,
+        z: outside.z + Math.sin(angle) * radius,
+      };
+      if (isIndoors(goal.x, goal.z)) continue;
+      const route = findRoute(outside, goal);
+      const end = route?.[route.length - 1];
+      if (!end || isIndoors(end[0], end[1])) continue;
+      const spot = { x: end[0], z: end[1] };
+      if (Math.hypot(spot.x - outside.x, spot.z - outside.z) < 1.2) continue;
+      if (stops.some((stop) => Math.hypot(stop.x - spot.x, stop.z - spot.z) < 1.5)) {
+        continue;
+      }
+      stops.push(spot);
+    }
+    return stops;
+  }
+
+  /**
+   * 溜达：在人现在这一侧（屋里就屋里、院里就院里）走几处，每处站一会儿。
+   *
+   * 原来是抽一个 2~5 米的点走过去：桌子多半靠墙，抽到墙里的点被吸回脚边，
+   * 于是"晃一下就坐回去"。现在判寻路吸附之后的终点——离上一处够远才算一处；
+   * 一处都抽不中就原地站一会儿，溜达本来就没有目的地。
+   */
+  private autoStroll(arrived: () => void): void {
+    const origin = { x: this.controller.x, z: this.controller.z };
+    const indoors = isIndoors(origin.x, origin.z);
+    const stops: Array<{ x: number; z: number }> = [];
+    let from = origin;
+    for (
+      let attempt = 0;
+      attempt < 24 && stops.length < autoLifeTuning.strollPoints;
+      attempt += 1
+    ) {
       const angle = Math.random() * Math.PI * 2;
-      const radius = 2 + Math.random() * 3;
+      const radius = 1.5 + Math.random() * 3.5;
       const goal = {
         x: from.x + Math.cos(angle) * radius,
         z: from.z + Math.sin(angle) * radius,
       };
-      const points = findRoute(from, goal);
-      if (!points) continue;
-      this.controller.walkAlong(points, arrived);
+      if (isIndoors(goal.x, goal.z) !== indoors) continue;
+      const route = findRoute(from, goal);
+      const end = route?.[route.length - 1];
+      if (!end || isIndoors(end[0], end[1]) !== indoors) continue;
+      const spot = { x: end[0], z: end[1] };
+      if (Math.hypot(spot.x - from.x, spot.z - from.z) < 1.2) continue;
+      stops.push(spot);
+      from = spot;
+    }
+
+    if (stops.length === 0) {
+      this.tourWait(autoLifeTuning.strollPointSeconds, arrived);
       return;
     }
-    arrived();
+    const visit = (index: number) => {
+      if (index >= stops.length) {
+        arrived();
+        return;
+      }
+      const linger = () =>
+        this.tourWait(autoLifeTuning.strollPointSeconds, () => visit(index + 1));
+      if (!this.tourWalk(stops[index], linger)) linger();
+    };
+    visit(0);
+  }
+
+  /**
+   * 自动生活小剧本（出门、溜达）挂着的东西：几段停顿的计时器、收尾动作（收伞）。
+   *
+   * 新的一步来了、行动结束、场景销毁，都要一把清掉——不清的话，一个旧计时器
+   * 会在人已经坐回桌前之后把他又拽去院子里。走路那一段不用记：
+   * `cancelScriptedWalk` 会连回调一起丢掉。
+   */
+  private autoTourTimers: Array<ReturnType<typeof setTimeout>> = [];
+  private autoTourCleanups: Array<() => void> = [];
+  /** 出门撑着的那把伞（挂在身体上）。null = 没撑 */
+  private umbrellaProp: Object3D | null = null;
+
+  private cancelAutoTour(): void {
+    for (const timer of this.autoTourTimers) clearTimeout(timer);
+    this.autoTourTimers = [];
+    const cleanups = this.autoTourCleanups;
+    this.autoTourCleanups = [];
+    for (const cleanup of cleanups) cleanup();
+  }
+
+  /** 剧本里的一段停顿 */
+  private tourWait(seconds: number, next: () => void): void {
+    const timer = setTimeout(() => {
+      this.autoTourTimers = this.autoTourTimers.filter((entry) => entry !== timer);
+      next();
+    }, seconds * 1000);
+    this.autoTourTimers.push(timer);
+  }
+
+  /** 剧本里的一段路：从人此刻站的地方寻路过去。没路返回 false，收场由调用方定 */
+  private tourWalk(target: { x: number; z: number }, next: () => void): boolean {
+    const points = findRoute({ x: this.controller.x, z: this.controller.z }, target);
+    if (!points) return false;
+    this.controller.walkAlong(points, next);
+    return true;
+  }
+
+  /**
+   * 把伞撑起来 / 收起来。
+   *
+   * 造型和挂法跟"快捷栏选中伞、拿在手上"是**同一个**：buildHeldVisual 按
+   * `carry: "overhead"` 举过头顶，挂在 heldAnchor 上——出门撑的这把和手上拿的那把
+   * 长一个样、在一个位置。手上已经拿着伞就不再挂：那一把本来就举在头上，
+   * 再挂就是两把叠在一起。
+   *
+   * 联机时别人看不见剧本挂的这把：自动生活只在自己家演（做客不自动），参与者
+   * 外观里也就不必多一个字段；手上真拿着的那把照常同步。
+   */
+  private setUmbrellaOpen(open: boolean): void {
+    if (!open) {
+      this.umbrellaProp?.removeFromParent();
+      this.umbrellaProp = null;
+      return;
+    }
+    if (this.umbrellaProp) return;
+    if (getHeld()?.itemId === autoLifeTuning.umbrellaItemId) return;
+    const prop = buildHeldVisual(autoLifeTuning.umbrellaItemId);
+    if (!prop) return;
+    prop.name = "auto-life-umbrella";
+    this.characterRig.heldAnchor.add(prop);
+    this.umbrellaProp = prop;
   }
 
   /** 行动开始：A* 走到支撑家具旁的空格，面向家具，进入专注 */
@@ -1513,9 +1850,15 @@ export class RoomScene {
 
     this.controller.enabled = false;
 
+    const furnitureIndoors = isIndoors(centerX, centerZ);
     for (const cell of candidates) {
       if (occupancy.blocked.has(`${cell.x},${cell.y}`)) continue;
       const goal = roomCellToWorld(room, cell.x, cell.y);
+      /*
+       * 贴墙摆的桌子，占地外一圈有的格子在墙外：从那一格"坐到桌前"要出大门绕墙。
+       * 专注里每回一次工位就走一趟这条路，所以和床边、灶台前同一条规矩（见 approachPoint）。
+       */
+      if (isIndoors(goal.x, goal.z) !== furnitureIndoors) continue;
       // findRoute 出来的路点已经拉直（视线测试去掉锯齿），walkAlong 照走
       const points = findRoute(from, goal);
       if (!points) continue;
@@ -1591,6 +1934,8 @@ export class RoomScene {
   }
 
   private endFocusSequence(): void {
+    // 出门、溜达演到一半行动结束：挂着的停顿作废、伞收起来
+    this.cancelAutoTour();
     this.pendingSoak = null;
     this.controller.cancelScriptedWalk();
     this.controller.activity = null;
@@ -3725,6 +4070,7 @@ export class RoomScene {
   }
 
   dispose(): void {
+    this.cancelAutoTour();
     this.detachInput();
     setDebugProbe(null);
     for (const off of this.offEventListeners) off();

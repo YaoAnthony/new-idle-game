@@ -1,3 +1,4 @@
+import { findItemDefinition } from "core";
 import { Object3D } from "three";
 import { on } from "../../Game/EventBus";
 import { getHeld } from "../../Game/State/heldItem";
@@ -33,7 +34,27 @@ import {
 const HELD_SCALE = 0.72;
 
 /**
- * "手上端着的东西"的完整造型（含锅里的内容），缩放已按手持比例调好。
+ * 举过头顶拿的东西（`ItemDefinition.carry === "overhead"`，现在只有伞）挂在哪、多大。
+ * 这一类不吃上面那个捧在身前的缩放。
+ *
+ * **写成相对 heldAnchor 的偏移**：本地手持和联机别人看到的都挂在 heldAnchor 上，
+ * 两边就不用各认一个挂点。heldAnchor 在 body 上 (0, 0.16, 0.34)（body 原点在胯部）。
+ *
+ * 伞的造型原点在伞柄，伞面中心在柄上 0.86、半径 0.42（按 1 米高的居民定的）；
+ * 角色头顶离胯 1.08。柄放到身体右侧 0.2、离胯 0.38（相对 heldAnchor 就是
+ * 0.22 高、往回收 0.28），放大 1.15，伞面下沿才在头顶之上；朝头那边歪 0.14 弧度，
+ * 伞面罩在头顶正上方而不是右肩上。
+ */
+export const OVERHEAD_CARRY = {
+  x: 0.2,
+  y: 0.22,
+  z: -0.28,
+  tilt: 0.14,
+  scale: 1.15,
+};
+
+/**
+ * "手上端着的东西"的完整造型（含锅里的内容），缩放和挂法已按手持调好。
  * 本地的 HeldItemView 和联机的 RemotePlayersView 共用——两边各画一份的话，
  * 迟早出现"自己看是一锅汤、别人看是空锅"。找不到造型返回 null。
  */
@@ -46,7 +67,13 @@ export function buildHeldVisual(
 
   const root = new Object3D();
   root.name = `held:${itemId}`;
-  root.scale.setScalar(HELD_SCALE);
+  if (findItemDefinition(itemId)?.carry === "overhead") {
+    root.position.set(OVERHEAD_CARRY.x, OVERHEAD_CARRY.y, OVERHEAD_CARRY.z);
+    root.rotation.z = OVERHEAD_CARRY.tilt;
+    root.scale.setScalar(OVERHEAD_CARRY.scale);
+  } else {
+    root.scale.setScalar(HELD_SCALE);
+  }
   root.add(visual);
 
   for (const mesh of buildHeldContents(itemId, containerItems)) {

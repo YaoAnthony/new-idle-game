@@ -1379,8 +1379,11 @@ export const itemDefinitions = [
      * 雨伞（2026-09-13，专注模式 01·乙）。
      *
      * 下雨天自动生活要出门，得背包里有它（`autoLifeTuning.umbrellaItemId`），
-     * 出门那几步撑在头上。它**只被查"有没有"**，不是拿在手上用的工具——所以
-     * 没有 tool 块；撑起来是出门剧本自己挂的演出，不占手。
+     * 出门那几步撑在头上。自动生活**只查"有没有"**，不是拿在手上用的工具——
+     * 所以没有 tool 块。
+     *
+     * 快捷栏选中它就是拿在手上：`carry: "overhead"` 举过头顶（动森那样撑着走），
+     * 而不是像锅一样捧在胸前——第一版没这一行，撑开的伞糊在脸前面。
      *
      * 小鱼人卖（`traveling_peddler`），和广口水壶同一类：一次买断、永远有。
      * 价 30 是占位，≈ 打满一天每日任务（32）：想要就攒一天。造型直接借居民
@@ -1394,6 +1397,7 @@ export const itemDefinitions = [
     origin: ItemOrigin.Otherworld,
     value: 30,
     visual: { id: "prop_umbrella" },
+    carry: "overhead",
   },
   {
     /*

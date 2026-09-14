@@ -136,6 +136,15 @@ export type ItemDefinition = {
   readable?: { letterId: string };
 
   /**
+   * 拿在手上时**怎么拿**。不填 = 捧在身前（锅、盘子、食材、家具都是）。
+   *
+   * `"overhead"` = 举过头顶：伞。动森里拿着伞就是撑开举在头上、走哪撑到哪，
+   * 捧在胸前的一把撑开的伞只会糊在脸上。表现层（本地手持和联机别人看到的
+   * 同一个 buildHeldVisual）按这个字段换挂法，不点名物品 id。
+   */
+  carry?: "overhead";
+
+  /**
    * **一张图纸**：拿在手上按 F 就进入选址，落下去开工。
    *
    * 和 placement / seed / golemPart 同一个路数：能力块而不是新类型。

@@ -2,6 +2,7 @@ import { motion } from "motion/react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { on } from "../../Game/EventBus";
+import { getActiveAction } from "../../Game/Systems/actions";
 import { isFeatureUnlocked } from "../../Game/Systems/events";
 import { JournalArrival } from "./JournalArrival";
 import BookPlanner, { type BookNavApi } from "../../BookPlanner";
@@ -155,6 +156,25 @@ export function DiaryPanel() {
    */
   const [hasDiary, setHasDiary] = useState(() => isFeatureUnlocked("diary"));
   useEffect(() => on("event_progress_changed", () => setHasDiary(isFeatureUnlocked("diary"))), []);
+  /*
+   * 专注中按钮收起来（用户 2026-09-13）：行动一开始，本子就翻不开了，直到做完
+   * 或者按顶上那张卡的「提前结束」。专注是角色自己过日子的时段，翻本子改计划
+   * 是坐下来之前的事。和原来「行动」钮在专注时收起是同一条规矩。
+   * 本子正开着时开始行动（播放键在本子里）也一并合上——不只靠 BookPlanner 的
+   * onEnterFocus：指令、别的入口开的行动也得合。
+   */
+  const [focusing, setFocusing] = useState(() => getActiveAction() !== null);
+  useEffect(
+    () =>
+      on("action_changed", ({ status }) => {
+        const started = status === "started";
+        setFocusing(started);
+        if (started) setOpen(false);
+      }),
+    [setOpen],
+  );
+  /** 按钮此刻该不该在：拿到了本子、而且没在专注 */
+  const shown = hasDiary && !focusing;
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [nav, setNav] = useState({ canPrev: false, canNext: false });
   /** 外壳（书皮）实测的宽度和上沿。牌子照它收、并且贴着它的上边摆 */
@@ -254,8 +274,8 @@ export function DiaryPanel() {
         ref={buttonRef}
         type="button"
         aria-label="日记本"
-        aria-hidden={!hasDiary}
-        tabIndex={hasDiary ? 0 : -1}
+        aria-hidden={!shown}
+        tabIndex={shown ? 0 : -1}
         className="hud-corner-btn hud-corner-tile hud-corner-btn--inner z-10 grid place-items-center"
         /* 皮抽进了 .hud-corner-tile（index.css），这里只给颜色——角落钮
            同一套形状，靠颜色区分 */
@@ -264,18 +284,19 @@ export function DiaryPanel() {
             "--tile-face": COVER_DEEP,
             "--tile-rim": COVER_EDGE,
             "--tile-edge": "#4CAF50",
-            pointerEvents: hasDiary ? "auto" : "none",
+            pointerEvents: shown ? "auto" : "none",
           } as CSSProperties
         }
         /*
          * initial={false}：老档一进来键就是开的，按钮直接在，不演"弹出"。
-         * 新档拿到本子那一拍 hasDiary 翻真，才播这段 0 → 1.18 → 1 的弹出。
+         * 新档拿到本子那一拍 hasDiary 翻真，才播这段 0 → 1.18 → 1 的弹出；
+         * 专注结束按钮回来也走同一段——做完一件事本子弹回来，正好是"该记一笔了"。
          */
         initial={false}
-        animate={{ scale: hasDiary ? [0.001, 1.18, 1] : 0.001 }}
+        animate={{ scale: shown ? [0.001, 1.18, 1] : 0.001 }}
         transition={{ duration: 0.38, ease: "easeOut", times: [0, 0.6, 1] }}
-        whileHover={hasDiary ? { scale: 1.1 } : undefined}
-        whileTap={hasDiary ? { scale: 0.9 } : undefined}
+        whileHover={shown ? { scale: 1.1 } : undefined}
+        whileTap={shown ? { scale: 0.9 } : undefined}
         onClick={() => setOpen((value) => !value)}
       >
         {/* 按钮图就是桌上那本书（和 3D 模型同一张参考图） */}

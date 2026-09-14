@@ -153,6 +153,8 @@ export function PlanFolders({ diary, tasks, onStart, readonly }: Props) {
         const open = expanded.has(group.id);
         const shown = open ? members : members.slice(0, 1);
         const hot = hover === group.id;
+        // 整串加起来要多久（用户 2026-09-13）：折叠时只露一条，总量得在头上说
+        const totalMinutes = members.reduce((sum, task) => sum + task.durationMinutes, 0);
 
         return (
           <div
@@ -202,7 +204,7 @@ export function PlanFolders({ diary, tasks, onStart, readonly }: Props) {
                   </span>
                 )}
                 <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[12px] font-bold text-[#8D6E63] shadow-[inset_0_-2px_0_#EEEEEE]">
-                  {members.length} 件
+                  {members.length} 件{members.length > 0 ? ` · 共 ${totalMinutes} 分` : ""}
                 </span>
               </button>
               {!readonly && (

@@ -465,6 +465,20 @@ export class CharacterController {
         const arrive = this.onScriptedArrive;
         this.cancelScriptedWalk();
         arrive?.();
+        /*
+         * 到站就收手，**这一拍不再往下贴地**。
+         *
+         * 到站回调常常是"坐下 / 躺下"：restOn 经 posture_changed 同步把人摆到
+         * 椅面 / 床上，supportY 写成承托面高度。下面那行贴地要是照跑，刚写好的
+         * 高度当场被改回地面；之后的帧走坐姿分支，坐着躺着不碰 supportY，
+         * 于是人一直陷在床里（2026-09-13 自动生活小睡：姿势 lie、在床的锚点上、
+         * 高度 0，从卧室里渲一帧只看得到被子）。专注开始走到桌边坐下也是这条路，
+         * 只是新档桌边没有椅子，一直没露出来。
+         *
+         * 收手不丢东西：这一拍人没挪步，位置上一拍已经写过；回调里要是传送了、
+         * 又开了一段新路，也都是它自己写好的。
+         */
+        return;
       }
     } else {
       const step = Math.min(SPEED * deltaSeconds, distance);

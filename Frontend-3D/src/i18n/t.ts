@@ -784,6 +784,14 @@ const ZH: Record<string, string> = {
   "ui.action.cancelled": "行动已取消",
   "ui.action.completed": "完成了！",
   "ui.action.companion_suffix": "一直在旁边陪着你",
+  // 做完了问要不要接着做（专注模式 01·甲）：「还没做完？ 再来 [30] 分钟 ▶ 够了」
+  "ui.action.extend_ask": "还没做完？",
+  "ui.action.extend_again": "再来",
+  "ui.action.extend_minutes": "分钟",
+  "ui.action.extend_minutes_label": "再来几分钟",
+  "ui.action.extend_start": "接着专注",
+  "ui.action.extend_enough": "够了",
+  "ui.action.extend_tired": "精力不够了，歇一会儿再接着做",
 
   // 箱庭地图（①B）
   "map.base": "玩家据点",

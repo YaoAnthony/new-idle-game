@@ -6,6 +6,7 @@ import {
   findActionDefinition,
   findActionPriority,
   actionLogTuning,
+  actionExtendTuning,
   actionChestScore,
   type Rarity,
   type ActionDefinition,
@@ -68,6 +69,11 @@ export type ActionEnd = {
   completed: boolean;
   rewards: Array<{ itemId: string; quantity: number }>;
   residentCompanion: boolean;
+  /**
+   * 是不是读档时补结算的（离线期间到的点）。
+   * 这种不问"还没做完？"：到点那会儿人不在，回来再问是隔了几个小时的问题
+   */
+  settledOnLoad: boolean;
 };
 
 let active: ActiveAction | null = null;
@@ -211,7 +217,7 @@ export function cancelAction(): void {
   finish(false);
 }
 
-function finish(completed: boolean): void {
+function finish(completed: boolean, settledOnLoad = false): void {
   if (!active) return;
   if (timer) clearTimeout(timer);
   timer = null;
@@ -273,7 +279,13 @@ function finish(completed: boolean): void {
 
   // 标题要在 setActive(null) **之前**抓走：下面那条开箱事件在清空之后才发
   const title = active.customName;
-  lastEnd = { action: active, completed, rewards, residentCompanion };
+  lastEnd = {
+    action: active,
+    completed,
+    rewards,
+    residentCompanion,
+    settledOnLoad,
+  };
   setActive(null);
   emit("action_changed", { status: completed ? "completed" : "cancelled" });
   /*
@@ -362,6 +374,93 @@ function settleActionRewards(
     rewards.push({ itemId: reward.itemId, quantity });
   }
   return { rewards, chestRarity: undefined };
+}
+
+// ---- 做完了接着做（专注模式 01·甲，2026-09-13）----
+//
+// 到点之后问一句"还没做完？再来 N 分钟"。接着做的那一轮是**一条新行动**，
+// 不是把刚才那条的时长往后拉：刚才那条已经结算、开过箱、进了日记，往回改
+// 它就是改一个已经发生的事实（箱子收回来？日记那行改成 45 分？）。新开一条，
+// 箱子、名额、日记就全按现有规矩各算各的——用户定的"延长算另一个箱子"
+// 正是这个语义。
+
+export type ExtendResult =
+  | "ok"
+  /** 没有能接的：还没做完过、上一条是取消的、或者是读档时补结算的 */
+  | "nothing"
+  | "busy"
+  | "tired"
+  | "bad_duration"
+  | "unknown_action";
+
+/** 分钟框的合法区间和预填的数 */
+export type ExtendOffer = { min: number; max: number; defaultMinutes: number };
+
+/**
+ * 刚结束的那条**问不问**、问的话框里填什么。不问就是 null。
+ *
+ * 区间用那类行动自己的 `durationMinutes`：接着做的一轮就是一条普通行动，
+ * 合法时长不该因为"是接着做的"而变。
+ */
+export function extendOffer(): ExtendOffer | null {
+  if (!lastEnd?.completed || lastEnd.settledOnLoad) return null;
+  const definition = findActionDefinition(lastEnd.action.definitionId);
+  if (!definition) return null;
+
+  const { min, max } = definition.durationMinutes;
+  return {
+    min,
+    max,
+    defaultMinutes: Math.min(max, Math.max(min, actionExtendTuning.defaultMinutes)),
+  };
+}
+
+/**
+ * 接不上的原因。不给分钟就只看"人"（忙不忙、累不累），给了再看分钟对不对。
+ *
+ * 精力和分钟无关：`fatigueCostOf` 按一条行动收，不按时长——所以卡上能在
+ * 玩家填数之前就说"精力不够了"。
+ */
+export function whyCannotExtend(minutes?: number): ExtendResult {
+  if (!lastEnd?.completed || lastEnd.settledOnLoad) return "nothing";
+  if (active) return "busy";
+
+  const definition = findActionDefinition(lastEnd.action.definitionId);
+  if (!definition) return "unknown_action";
+
+  if (minutes !== undefined) {
+    const whole = Math.floor(minutes);
+    const { min, max } = definition.durationMinutes;
+    // 系统层不替人夹：夹是 UI 对"填了 999"的善意，命令行进来的错数就该报错
+    if (!Number.isFinite(whole) || whole < min || whole > max) {
+      return "bad_duration";
+    }
+  }
+
+  if (!canAfford(definition, lastEnd.action.priority)) return "tired";
+  return "ok";
+}
+
+/**
+ * 接着做 `minutes` 分钟：同一个名字、同一类、同一个重要级开一条新行动。
+ *
+ * **不带 entryId**——那条计划在第一轮完成时已经划掉了。走 `startAction`，
+ * 所以精力照扣、到点照结算、今天的奖励名额照占，没有任何一条是为延长
+ * 另开的口子。
+ */
+export function extendLastAction(minutes: number): ExtendResult {
+  const why = whyCannotExtend(minutes);
+  if (why !== "ok" || !lastEnd) return why;
+
+  const { action } = lastEnd;
+  const started = startAction(
+    action.definitionId,
+    action.customName,
+    Math.floor(minutes) * 60,
+    action.priority,
+  );
+  // startAction 的三道门（忙、没这类行动、精力）上面都问过了，走不到 false
+  return started ? "ok" : "busy";
 }
 
 // ---- 事后补记（P 路径，2026-08-25）----
@@ -655,7 +754,7 @@ export function restoreAction(saved: ActionProcessSave | undefined): void {
 
   const remainingMs = startedAtMs + durationMs - nowMs();
   if (remainingMs <= 0) {
-    finish(true);
+    finish(true, true);
     return;
   }
 

@@ -67,6 +67,9 @@ export function eatInventoryItem(itemId: string): ItemUseOutcome {
 function eat(itemId: string): ItemUseOutcome {
   if (!findItemDefinition(itemId)?.food) return "none";
 
-  eatFood(itemId);
-  return "eaten";
+  /*
+   * 按真实结果报。背包里已经没有这一份时 eatFood 什么都不做——原来这里照样报
+   * "eaten"，自动生活据此开了吃饭冷却：一口没吃着，还得饿着等冷却过去。
+   */
+  return eatFood(itemId) ? "eaten" : "none";
 }

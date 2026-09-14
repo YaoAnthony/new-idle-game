@@ -257,7 +257,11 @@ export type GameEvents = {
    * 决策和执行隔一条事件总线是用户点名的形状：以后 NPC 慰问、浇水
    * 都是"表里加一行 + 场景多认一种步子"，两头独立生长。
    */
-  auto_step_changed: { step: import("core").AutoStepKind };
+  auto_step_changed: {
+    step: import("core").AutoStepKind;
+    /** 出门撑不撑伞（只有 outing 会带）。场景据此在出门那几步把伞挂上 */
+    umbrella?: boolean;
+  };
   /** 日记本的历史变了（记了一笔/补发了奖励/读档）。UI 整棵重读 */
   diary_changed: Record<string, never>;
 

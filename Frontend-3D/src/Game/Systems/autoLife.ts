@@ -1,4 +1,5 @@
 import {
+  BodyPosture,
   autoLifeTuning,
   decideBreak,
   findAutoBehavior,
@@ -8,11 +9,15 @@ import {
   type AutoStepPlan,
 } from "core";
 import { emit, on } from "../EventBus";
+import { getClock } from "../State/clock";
+import { frontDoorAgent } from "../State/doorsRuntime";
 import { getCounts } from "../State/inventory";
-import { getNeeds } from "../State/needs";
+import { getNeeds, restoreFatigue } from "../State/needs";
+import { getWeather } from "../State/weather";
 import { isRemoteWorldActive } from "../Multiplayer/session";
 import { getActiveAction } from "./actions";
 import { eatInventoryItem } from "./itemUse";
+import { findFreeAnchorNear } from "./resting";
 
 /**
  * 自动生活的计划器：专注期间接管角色的日程。
@@ -33,9 +38,9 @@ import { eatInventoryItem } from "./itemUse";
  *
  * ---- 效果结算的位置 ----
  *
- * 吃饭在**演出结束那一刻**扣真库存、回饱食（`eatInventoryItem`）。
- * 放在到位那一刻的话，玩家提前结束会出现"炉子边站了两秒就吃完了"；
- * 放在演出后，中断 = 这顿没吃成，符合直觉。
+ * 吃饭、小睡都在**演出结束那一刻**结算（扣真库存回饱食 / 回精力）。
+ * 放在到位那一刻的话，玩家提前结束会出现"炉子边站了两秒就吃完了"
+ * "刚沾床就睡够了"；放在演出后，中断 = 这顿没吃成、这觉没睡成，符合直觉。
  *
  * **不写 dayFacts。** 试过要写——但日记本右页把每条 action 事实都渲染成
  * "做完了"的条目，没有 `gained` 的还会长出「领取」按钮：一顿饭变成一次
@@ -59,11 +64,15 @@ let replanTimer: ReturnType<typeof setInterval> | null = null;
 let dwellTimer: ReturnType<typeof setTimeout> | null = null;
 let arrivalGuard: ReturnType<typeof setTimeout> | null = null;
 
-/** 身体部分的兜底时限：路断了/场景没挂载时别让计划器永远卡在 walking */
-const ARRIVAL_GUARD_MS = 30_000;
+/** 行为表里查不到到位时限时的兜底 */
+const FALLBACK_ARRIVAL_SECONDS = 30;
 
-/** 上一次吃完饭的时刻（毫秒墙钟）。eatCooldown 用 */
-let lastAteAtMs = 0;
+/**
+ * 每种步子上次**结束**的墙钟时刻。冷却按它算——Core 的决策读的是"过了多少秒"。
+ *
+ * 跨行动保留：上一段专注里刚睡过，下一段开头不该又去躺。
+ */
+const lastStepEndedAtMs: Partial<Record<AutoStepKind, number>> = {};
 
 /** 背包里带 food 块的物品总数（保险丝的分子） */
 function edibleCount(): number {
@@ -89,21 +98,45 @@ function pickEdible(): string | null {
 }
 
 function snapshot(): AutoLifeSnapshot {
-  const sinceMs = phase.at === "working" ? Date.now() - phase.sinceMs : 0;
+  const now = Date.now();
+  const clock = getClock();
+  const needs = getNeeds();
+  const door = frontDoorAgent();
+
+  const secondsSinceStep: Partial<Record<AutoStepKind, number>> = {};
+  for (const [kind, endedAt] of Object.entries(lastStepEndedAtMs)) {
+    secondsSinceStep[kind as AutoStepKind] = (now - endedAt) / 1000;
+  }
+
   return {
-    hunger: getNeeds().hunger,
+    hunger: needs.hunger,
+    fatigue: needs.fatigue,
     edibleCount: edibleCount(),
-    secondsSinceBreak: sinceMs / 1000,
+    secondsSinceBreak: phase.at === "working" ? (now - phase.sinceMs) / 1000 : 0,
+    minuteOfDay: clock.local.minuteOfDay,
+    dayPhase: clock.phase,
+    weatherKind: getWeather().kind,
+    hasUmbrella: (getCounts()[autoLifeTuning.umbrellaItemId] ?? 0) > 0,
+    // 大门在、没锁。开场锁门那段、剧情锁门都挡在这里；没有大门的地图也出不去
+    canGoOutside: door !== undefined && !door.locked,
+    // 离哪儿近不重要，有一张空着的就行——找离人最近的那张是场景的事
+    hasFreeBed: findFreeAnchorNear(BodyPosture.Lie, { x: 0, z: 0 }) !== undefined,
+    secondsSinceStep,
   };
+}
+
+/** 清掉这一步挂着的计时（演出、到位兜底），不动节拍器 */
+function clearStepTimers(): void {
+  if (dwellTimer) clearTimeout(dwellTimer);
+  if (arrivalGuard) clearTimeout(arrivalGuard);
+  dwellTimer = null;
+  arrivalGuard = null;
 }
 
 function clearTimers(): void {
   if (replanTimer) clearInterval(replanTimer);
-  if (dwellTimer) clearTimeout(dwellTimer);
-  if (arrivalGuard) clearTimeout(arrivalGuard);
   replanTimer = null;
-  dwellTimer = null;
-  arrivalGuard = null;
+  clearStepTimers();
 }
 
 function beginWork(): void {
@@ -116,22 +149,24 @@ function replanTick(): void {
   if (phase.at !== "working") return;
 
   const plan = decideBreak(snapshot(), Math.random());
-  if (!plan) return;
-  if (
-    plan.kind === "eat" &&
-    Date.now() - lastAteAtMs < autoLifeTuning.eatCooldownSeconds * 1000
-  ) {
-    return;
-  }
+  if (plan) beginStep(plan);
+}
 
+/** 排上一步：发给场景，挂上到位兜底 */
+function beginStep(plan: AutoStepPlan): void {
+  clearStepTimers();
   phase = { at: "walking", step: plan };
-  emit("auto_step_changed", { step: plan.kind });
+  emit("auto_step_changed", { step: plan.kind, umbrella: plan.umbrella });
   /*
    * 场景不在（headless、地图切换中）或路被家具堵死时，arrived 永远不来。
    * 到时限就当到了：演出丢了效果不丢——反过来"演出丢了就不吃"会让
    * 角色在路断的房型里饿一整晚。
+   *
+   * 时限按步子查表：出门那一整圈要一分多钟，一个全局 30 秒会把人截在院子里。
    */
-  arrivalGuard = setTimeout(() => onArrived(plan.kind), ARRIVAL_GUARD_MS);
+  const seconds =
+    findAutoBehavior(plan.kind)?.arriveTimeoutSeconds ?? FALLBACK_ARRIVAL_SECONDS;
+  arrivalGuard = setTimeout(() => onArrived(plan.kind), seconds * 1000);
 }
 
 /** 身体到位（或兜底视同到位）：开演出计时，到点结算效果、回工位 */
@@ -149,12 +184,31 @@ function onArrived(step: AutoStepKind): void {
   }, plan.dwellSeconds * 1000);
 }
 
-/** 演出结束时的数值效果。溜达没有效果，吃饭动真库存 */
+/**
+ * 演出结束时的数值效果，顺手记下这一步结束的时刻（冷却从这里起算）。
+ *
+ * 吃饭**吃成了才记**：这份在演出期间被玩家挪走了，不算吃过，不该白开冷却。
+ */
 function settle(plan: AutoStepPlan): void {
-  if (plan.kind !== "eat") return;
-  const itemId = pickEdible();
-  if (itemId && eatInventoryItem(itemId) === "eaten") {
-    lastAteAtMs = Date.now();
+  const now = Date.now();
+  switch (plan.kind) {
+    case "eat": {
+      const itemId = pickEdible();
+      if (itemId && eatInventoryItem(itemId) === "eaten") {
+        lastStepEndedAtMs.eat = now;
+      }
+      return;
+    }
+    case "nap":
+      restoreFatigue(autoLifeTuning.napRestore);
+      lastStepEndedAtMs.nap = now;
+      return;
+    case "outing":
+    case "stroll":
+      lastStepEndedAtMs[plan.kind] = now;
+      return;
+    case "work":
+      return;
   }
 }
 
@@ -203,6 +257,32 @@ export function startAutoLife(): () => void {
   };
 }
 
+/**
+ * 跳过决策、立刻来这一步（`/autolife <步子>`：验收用，调手感也用）。专注中才有效。
+ *
+ * 伞按真实条件给——这会儿的天气写着"有伞才出"、背包里也真有伞。调试不另造
+ * 一套规矩：要看撑伞出门，就先把雨和伞备齐。
+ */
+export function forceAutoStep(kind: AutoStepKind): boolean {
+  if (phase.at === "idle") return false;
+  if (kind === "work") {
+    clearStepTimers();
+    beginWork();
+    return true;
+  }
+
+  const behavior = findAutoBehavior(kind);
+  if (!behavior) return false;
+
+  const current = snapshot();
+  const umbrella =
+    kind === "outing" &&
+    autoLifeTuning.outingWeather[current.weatherKind] === "umbrella" &&
+    current.hasUmbrella;
+  beginStep({ kind, dwellSeconds: behavior.dwellSeconds, umbrella });
+  return true;
+}
+
 /** 测试和调试探针用：现在处于哪一步 + 决策正看着的快照 */
 export function describeAutoLife(): {
   phase: string;
@@ -214,10 +294,3 @@ export function describeAutoLife(): {
   }
   return { phase: phase.at, snapshot: snapshot() };
 }
-
-/*
- * findAutoBehavior 暂时只被 Data 层内部用（dwell 已随 plan 传来），
- * 但声景生命周期（行为进开退停）落地时这里会按它读 soundscape——
- * 那一步归用户接线，入口先留着。
- */
-void findAutoBehavior;

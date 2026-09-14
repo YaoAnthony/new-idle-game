@@ -1376,6 +1376,27 @@ export const itemDefinitions = [
   },
   {
     /*
+     * 雨伞（2026-09-13，专注模式 01·乙）。
+     *
+     * 下雨天自动生活要出门，得背包里有它（`autoLifeTuning.umbrellaItemId`），
+     * 出门那几步撑在头上。它**只被查"有没有"**，不是拿在手上用的工具——所以
+     * 没有 tool 块；撑起来是出门剧本自己挂的演出，不占手。
+     *
+     * 小鱼人卖（`traveling_peddler`），和广口水壶同一类：一次买断、永远有。
+     * 价 30 是占位，≈ 打满一天每日任务（32）：想要就攒一天。造型直接借居民
+     * 手里那把 `prop_umbrella`（居民系统 12），不另建模。
+     */
+    id: "umbrella",
+    localizationKey: "item.umbrella",
+    category: ItemCategory.Tool,
+    stackLimit: 1,
+    rarity: Rarity.Uncommon,
+    origin: ItemOrigin.Otherworld,
+    value: 30,
+    visual: { id: "prop_umbrella" },
+  },
+  {
+    /*
      * 番茄种子。本期只做这一对（种子 → 作物）——作物表和"商店卖种子"
      * 是以后的事。数值走 Core/Data/buildings 的 farmTuning，不写在这儿：
      * 内容注册表记"是什么"，平衡表记"多少"。

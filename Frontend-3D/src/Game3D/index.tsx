@@ -135,7 +135,11 @@ import {
   factsOfYesterday,
   startDayRecord,
 } from "../Game/Systems/dayRecord";
-import { startAutoLife } from "../Game/Systems/autoLife";
+import {
+  describeAutoLife,
+  forceAutoStep,
+  startAutoLife,
+} from "../Game/Systems/autoLife";
 import { startAchievementSystem } from "../Game/Systems/achievements";
 import { startNoiseClock } from "../Game/Systems/noiseTime";
 import { listResidents, startResidents } from "../Game/Systems/residents/moveIn";
@@ -1385,6 +1389,31 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
           return ok(
             `开始「${name}」：${definition.id} / ${priority} / ${seconds} 秒`,
           );
+        },
+      }),
+      registerCommand({
+        name: "autolife",
+        usage: "autolife [work|eat|nap|outing|stroll]",
+        description:
+          "自动生活：不带参数看现在哪一步和决策快照；带步子名立刻来这一步（专注中才有效）",
+        arguments: [
+          {
+            name: "步子",
+            suggest: () =>
+              asSuggestions(["work", "eat", "nap", "outing", "stroll"]),
+          },
+        ],
+        handler: (args) => {
+          if (!args[0]) return ok(JSON.stringify(describeAutoLife(), null, 1));
+          const kind = parseEnum(
+            args[0],
+            ["work", "eat", "nap", "outing", "stroll"] as const,
+            "步子",
+          );
+          if (!forceAutoStep(kind)) {
+            return fail("没在专注：先开一条行动（act 或日记本），自动生活才在跑");
+          }
+          return ok(`自动生活：立刻来一步 ${kind}`);
         },
       }),
       registerCommand({

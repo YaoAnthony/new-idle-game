@@ -245,6 +245,8 @@ const ZH: Record<string, string> = {
   "building.furniture_shop.l2": "家具小店（扩建）",
   "item.blueprint_furniture_shop": "家具小店图纸",
   "item.watering_can_wide": "广口水壶",
+  "item.umbrella": "雨伞",
+  "item.umbrella.desc": "收起来不占地方的一把伞。下雨天想出门，就靠它了。",
   "item.furniture_news_printer": "报纸打印机",
   "ui.news": "今日报纸",
   "ui.news.none": "还没有报纸。把打印机送给薇尔，明天早上就有第一期。",

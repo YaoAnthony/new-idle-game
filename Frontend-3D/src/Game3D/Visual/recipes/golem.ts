@@ -199,9 +199,11 @@ export function buildStoneGolem(): Object3D {
 
   root.userData.animate = (
     deltaSeconds: number,
-    resident: { state: string; moving: boolean },
+    resident: { state: string; moving: boolean; headYaw?: number },
   ): void => {
     elapsed += deltaSeconds;
+    // 注视（21）：头朝着在看的那位（相对身体的角度，身体那边算好夹好了）
+    head.rotation.y = resident.headYaw ?? 0;
 
     const asleep = resident.state === "sleeping";
     // 第一帧直接对齐：开场它本来就坐着，不该先站起来再坐下演一遍

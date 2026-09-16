@@ -161,6 +161,19 @@ test("traveler_门口那段说完_阶段met_拖车走回入口消失_当天不�
   expect(getResident(FISH)).toBeUndefined();
 });
 
+test("traveler_门口按F开始说话_头顶的叩叩收掉_不会整段对话一直挂着_人还在门口等", () => {
+  bringHimToDoor();
+  const fish = getResident(FISH)!;
+  // 敲下去那一拍冒「叩叩……」（3 秒）；整段对话他不 tick，不收的话会一直挂到说完
+  expect(fish.speech).not.toBeNull();
+
+  expect(startDialogue("fish_trader_knocks", FISH)).toBe(true);
+
+  expect(fish.speech).toBeNull();
+  // 只收气泡，不动敲门那条 Intent：门口的来访状态还在
+  expect(visitorAtDoor()).toBe(FISH);
+});
+
 test("traveler_离开的去处_入口走得到就去入口_走不到挑朝入口方向最远的走得到的点_都走不到才原地消失", () => {
   const entry = { x: 40, z: 0 };
   const reachableUpTo = (limit: number) => ({

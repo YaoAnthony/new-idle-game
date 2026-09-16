@@ -361,6 +361,21 @@ export type ResidentActivity =
 export type ResidentFacingTarget = { x: number; z: number } | number;
 
 /**
+ * 注意力目标（居民系统 21）：这一位此刻在看谁。身体的转向和头的偏转都从它推。
+ *
+ * 对话、居民之间聊天、走近打招呼各是一个**来源**——同一个人同时只看一个目标，
+ * 来源按 `attentionTuning.sources` 的先后取胜；关掉自己那个来源不会把别人设的清掉
+ * （关对话不该让正在和邻居聊天的那位把头转回来）。
+ * 运行时量，不进存档；结果（身体朝向 + 头的偏转 `headYaw`）走关键帧给房客。
+ */
+export type AttentionTarget =
+  | { kind: "player" }
+  | { kind: "resident"; residentId: ResidentId }
+  | { kind: "point"; x: number; z: number };
+
+export type AttentionSource = "dialogue" | "pair" | "greet";
+
+/**
  * 动词表：一只活物**能做的全部事**。技能只能用这张表里的词说"去哪、做什么"，
  * 身体负责把词变成位置、计时器和动画钩子。
  *
@@ -440,6 +455,8 @@ export type ResidentKeyframe = {
   expression?: string;
   speaking?: string;
   heldProp?: string;
+  /** 头相对身体的偏转（弧度，注视用，21）。0 省略——大多数时候没人在看谁 */
+  headYaw?: number;
 };
 
 // ---- 性格与场所（居民系统 02，2026-09-06）----

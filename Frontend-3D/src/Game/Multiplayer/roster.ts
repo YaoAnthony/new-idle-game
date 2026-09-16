@@ -159,6 +159,8 @@ export function sampleRemoteTransform(playerId: string): ParticipantTransform | 
       x: a.transform.x + (b.transform.x - a.transform.x) * t,
       y: a.transform.y + (b.transform.y - a.transform.y) * t,
       heading: lerpAngle(a.transform.heading, b.transform.heading, t),
+      // 头的偏转（注视，21）：相对身体、限角内的小角度，线性插就够
+      headYaw: (a.transform.headYaw ?? 0) + ((b.transform.headYaw ?? 0) - (a.transform.headYaw ?? 0)) * t,
       // 离地高度也插值：跳跃弧线就是靠它平滑回放的
       liftHeight:
         a.transform.liftHeight +

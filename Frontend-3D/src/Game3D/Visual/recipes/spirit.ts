@@ -311,9 +311,11 @@ export function buildSpirit(): Object3D {
 
   root.userData.animate = (
     dt: number,
-    resident: { state: string; moving: boolean },
+    resident: { state: string; moving: boolean; headYaw?: number },
   ): void => {
     elapsed += dt;
+    // 注视（21）：头朝着在看的那位；待机的左右看一眼叠在它上面
+    const look = resident.headYaw ?? 0;
     const asleep = resident.state === "sleeping";
     const speed = resident.moving ? 6.2 : 1.5;
     const wave = Math.sin(elapsed * speed);
@@ -323,6 +325,7 @@ export function buildSpirit(): Object3D {
       body.position.y = -HEIGHT * 0.2;
       body.rotation.x = 0.12;
       head.rotation.x = 0.5;
+      head.rotation.y = look;
       for (const eye of eyes) eye.scale.y = 0.12;
       legs[0].rotation.x = -1.2;
       legs[1].rotation.x = -1.2;
@@ -342,7 +345,7 @@ export function buildSpirit(): Object3D {
       arms[0].rotation.x = -wave * 0.5;
       arms[1].rotation.x = wave * 0.5;
       body.position.y = Math.abs(wave) * 0.008;
-      head.rotation.y = 0;
+      head.rotation.y = look;
     } else {
       const breath = 1 + Math.sin(elapsed * 1.5) * 0.015;
       body.scale.set(1, breath, 1);
@@ -351,7 +354,7 @@ export function buildSpirit(): Object3D {
       arms[0].rotation.x = 0;
       arms[1].rotation.x = 0;
       // 站着的时候偶尔左右看一眼——静止的人形最容易读成雕像
-      head.rotation.y = Math.sin(elapsed * 0.42) * 0.3;
+      head.rotation.y = look + Math.sin(elapsed * 0.42) * 0.3;
     }
     head.rotation.x = 0;
 

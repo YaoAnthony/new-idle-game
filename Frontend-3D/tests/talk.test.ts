@@ -289,10 +289,14 @@ test("dialogue_开着他面向你站住_关掉恢复", () => {
   expect(getActiveDialogue()?.dialogueId).toBe("slime_chat_any_1");
   expect(slime.currentIntent?.skillId).toBe("command");
   expect(slime.currentIntent?.steps[0]?.verb).toBe("stand");
+  // 看着你（21）：注意力挂上；站的指令不再带开对话那一拍的坐标快照
+  expect(slime.attentionTarget()).toEqual({ kind: "player" });
+  expect(slime.currentIntent?.steps[0]).not.toHaveProperty("facing");
 
   end();
   expect(getActiveDialogue()).toBeNull();
   expect(slime.currentIntent).toBeNull();
+  expect(slime.attentionTarget()).toBeNull();
 });
 
 test("dialogue_节点上的表情进节点就冒出来", () => {

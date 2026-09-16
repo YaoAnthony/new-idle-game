@@ -108,6 +108,9 @@ test("social_friends碰面_发起方站住_对方被邀站住_轮流说话_说�
   expect(activePairTalk(key)).toBeDefined();
   expect(pairChatsToday(key)).toBe(1);
   expect(factsOfToday()?.headlines.some((h) => h.kind === "residents_chatted" && h.subject === key)).toBe(true);
+  // 互相看着（21）
+  expect(fox.attentionTarget()).toEqual({ kind: "resident", residentId: SLIME });
+  expect(slime.attentionTarget()).toEqual({ kind: "resident", residentId: FOX });
 
   // 第一句：谁说、有 pair 标记、关键帧带上
   tickPairTalks(0.01);
@@ -130,6 +133,9 @@ test("social_friends碰面_发起方站住_对方被邀站住_轮流说话_说�
   expect(activePairTalk(key)).toBeUndefined();
   expect(fox.currentIntent).toBeNull();
   expect(slime.currentIntent).toBeNull();
+  // 聊完不再看着对方（21）
+  expect(fox.attentionTarget()).toBeNull();
+  expect(slime.attentionTarget()).toBeNull();
 });
 
 test("social_对方正做着不可打断的事_邀请失败_发起方不停", () => {

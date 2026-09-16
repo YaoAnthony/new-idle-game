@@ -319,9 +319,11 @@ export function buildFox(): Object3D {
 
   root.userData.animate = (
     dt: number,
-    resident: { state: string; moving: boolean },
+    resident: { state: string; moving: boolean; headYaw?: number },
   ): void => {
     elapsed += dt;
+    // 注视（21）：头朝着在看的那位（相对身体的角度，身体那边算好夹好了）
+    head.rotation.y = resident.headYaw ?? 0;
     const asleep = resident.state === "sleeping";
     const speed = resident.moving ? 7.5 : 1.6;
     const wave = Math.sin(elapsed * speed);

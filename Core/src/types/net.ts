@@ -46,8 +46,9 @@ import type { WorldRefreshSlices } from "./saveSlices.js";
  * v4（2026-08-05）：加唱片机换唱片（gramophone_record_set）+ gramophones 刷新切片。
  * v5（2026-08-19）：加浴缸水位转折（bath_water_set）。
  * v6（2026-08-23）：加灯的开关（lamp_switched）+ lamps 刷新切片。
+ * v14（2026-09-15）：transform 和活物关键帧加 `headYaw`（注视，居民系统 21）。
  */
-export const NET_PROTOCOL_VERSION = 13;
+export const NET_PROTOCOL_VERSION = 14;
 
 /** 服务端强制的上限。放在共享类型里，客户端可以在发送前先自查 */
 export const NET_LIMITS = {

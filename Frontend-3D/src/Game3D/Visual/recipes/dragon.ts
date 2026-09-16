@@ -360,9 +360,11 @@ export function buildCoinDragon(): Object3D {
 
   root.userData.animate = (
     dt: number,
-    resident: { state: string; moving: boolean },
+    resident: { state: string; moving: boolean; headYaw?: number },
   ): void => {
     elapsed += dt;
+    // 注视（21）：头朝着在看的那位；摇头叠在它上面
+    const look = resident.headYaw ?? 0;
     const asleep = resident.state === "sleeping";
     if (!initialized) {
       sleepBlend = asleep ? 1 : 0;
@@ -413,13 +415,14 @@ export function buildCoinDragon(): Object3D {
     eyesOpen.visible = eased < 0.5;
     eyesClosed.visible = eased >= 0.5;
 
+    headPivot.rotation.y = look;
     if (gestureName) {
       gestureElapsed += dt;
       const t = Math.min(1, gestureElapsed / GESTURE_DURATION[gestureName]);
-      headPivot.rotation.y = Math.sin(t * Math.PI * 4) * 0.4 * Math.sin(t * Math.PI);
+      headPivot.rotation.y = look + Math.sin(t * Math.PI * 4) * 0.4 * Math.sin(t * Math.PI);
       if (t >= 1) {
         gestureName = null;
-        headPivot.rotation.y = 0;
+        headPivot.rotation.y = look;
       }
     }
   };

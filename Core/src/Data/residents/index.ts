@@ -17,6 +17,7 @@ export * from "./birthday.js";
 export * from "./decorations.js";
 export * from "./activities.js";
 export * from "./arcs.js";
+export * from "./attention.js";
 
 import {
   CreatureRole,

@@ -21,6 +21,7 @@ import {
 } from "three";
 import { OpeningIntro } from "./OpeningIntro";
 import { JournalFlight } from "./JournalFlight";
+import { ResidentCutscene } from "./ResidentCutscene";
 import { JOURNAL_SIZE } from "../Visual/recipes/journal.js";
 import {
   matchesAction,
@@ -381,8 +382,8 @@ export class RoomScene {
   private outlineEnabled = true;
 
   private readonly residentView = new ResidentView();
-  /** 过场镜头：非空表示正在跟拍某只宠物 */
-  private cutsceneResidentId: string | null = null;
+  /** 过场镜头：跟拍正在走进来的那位。拍谁、什么时候收归它定，镜头和输入怎么变见 onResidentCutscene */
+  private readonly residentCutscene = new ResidentCutscene((active) => this.onResidentCutscene(active));
   private readonly offEventListeners: Array<() => void> = [];
 
   /** 附近可交互目标（按 F 提示） */
@@ -683,23 +684,9 @@ export class RoomScene {
       }),
     );
 
-    // 宠物首次进屋：镜头接管跟拍（V0.2 第一天流程的"镜头开始移动"）
-    this.offEventListeners.push(
-      on("resident_changed", ({ residentId, reason }) => {
-        if (reason === "spawn") {
-          this.cutsceneResidentId = residentId;
-          this.rig.mode = "cutscene";
-          this.controller.enabled = false;
-          emit("cutscene_changed", { active: true });
-        }
-        if (reason === "entered" && this.cutsceneResidentId === residentId) {
-          this.cutsceneResidentId = null;
-          this.rig.mode = "follow";
-          this.controller.enabled = true;
-          emit("cutscene_changed", { active: false });
-        }
-      }),
-    );
+    // 宠物首次进屋：镜头接管跟拍（V0.2 第一天流程的"镜头开始移动"）。
+    // 只拍真在走进来的那段——剧情里直接出现在门口敲门的小鱼人不拍（见 ResidentCutscene）
+    this.offEventListeners.push(this.residentCutscene.listen());
 
     /**
      * 手上拿着能摆的东西 → 虚影跟着鼠标；换成别的 → 收起来。
@@ -726,25 +713,14 @@ export class RoomScene {
     // 对话期间锁移动 + 镜头推近（动森式，说话的人占满画面）
     this.offEventListeners.push(
       on("dialogue_changed", ({ open }) => {
-        // 过场自己管镜头，别抢
-        if (this.cutsceneResidentId) return;
+        // 过场自己管镜头，别抢（过场收的时候对话还开着的话，onResidentCutscene 会补上）
+        if (this.residentCutscene.residentId) return;
 
-        this.controller.enabled = !open;
         if (open) {
-          /**
-           * 对话对象体型比人宽得多的话，默认距离（3.4）会把镜头怼进
-           * 它身体里——舒舒体宽 1.6 米，贴着玩家取景时人和它站得又近
-           * （交互半径本来就够不到 1.9 米外），画面下半部分全是它的肚子。
-           * 按碰撞半径放宽距离；没有半径的小家伙（wisp）不变。
-           */
-          const dialogueResidentId = getActiveDialogue()?.residentId;
-          const dialogueResident = dialogueResidentId ? getResident(dialogueResidentId) : undefined;
-          const distance =
-            dialogueResident && dialogueResident.radius > 0
-              ? 3.4 + dialogueResident.radius * 2.4
-              : undefined;
-          this.rig.enterDialogue(distance);
+          this.enterDialogueView();
         } else {
+          this.controller.enabled = true;
+          this.controller.unattend();
           this.rig.exitDialogue();
         }
       }),
@@ -967,6 +943,35 @@ export class RoomScene {
     if (options.seedFurniture !== false) this.prepareOpening();
 
     this.renderer.start((delta) => this.update(delta));
+  }
+
+  /** 登场跟拍开 / 收（什么时候由 ResidentCutscene 定）：镜头模式、移动锁、HUD */
+  private onResidentCutscene(active: boolean): void {
+    this.rig.mode = active ? "cutscene" : "follow";
+    this.controller.enabled = !active;
+    emit("cutscene_changed", { active });
+    // 过场期间开的对话被 dialogue_changed 那边让过去了：收场时对话还开着，就把它的锁和推近补上
+    if (!active && getActiveDialogue()) this.enterDialogueView();
+  }
+
+  /** 对话开着：锁移动、镜头推近 */
+  private enterDialogueView(): void {
+    this.controller.enabled = false;
+    /**
+     * 对话对象体型比人宽得多的话，默认距离（3.4）会把镜头怼进
+     * 它身体里——舒舒体宽 1.6 米，贴着玩家取景时人和它站得又近
+     * （交互半径本来就够不到 1.9 米外），画面下半部分全是它的肚子。
+     * 按碰撞半径放宽距离；没有半径的小家伙（wisp）不变。
+     */
+    const dialogueResidentId = getActiveDialogue()?.residentId;
+    const dialogueResident = dialogueResidentId ? getResident(dialogueResidentId) : undefined;
+    const distance =
+      dialogueResident && dialogueResident.radius > 0
+        ? 3.4 + dialogueResident.radius * 2.4
+        : undefined;
+    this.rig.enterDialogue(distance);
+    // 你也看着他（21）：站着转过去，坐着只转头。旁白（没有对象）不看谁
+    if (dialogueResidentId) this.controller.attend({ kind: "resident", residentId: dialogueResidentId });
   }
 
   /** 床在屋里西北角（seedInitialFurniture 的格 (7,0)）：人站在床东侧，面朝屋里 */
@@ -3418,12 +3423,14 @@ export class RoomScene {
     tickItemPickup({ x: this.controller.x, z: this.controller.z });
     this.droppedItemView.update(deltaSeconds);
 
-    // 过场：镜头跟拍进屋的宠物；平时跟随角色。
+    // 过场：镜头跟拍进屋的宠物；平时跟随角色。先对一次账：没在走进来的不拍，
+    // 走到一半被顶掉 / 被移除的这一帧就收（见 ResidentCutscene）。
     // 第三个参数是被拍者**脚下**的高度——世界里不再只有一个地面了，
     // 不传的话人走进院子（-floorLevel）会被框低一截
-    if (this.cutsceneResidentId) {
-      const resident = getResident(this.cutsceneResidentId);
-      if (resident) this.rig.lookAtPoint(resident.x, resident.z, groundHeightAt(resident.x, resident.z));
+    this.residentCutscene.sync();
+    const filmed = this.residentCutscene.residentId ? getResident(this.residentCutscene.residentId) : undefined;
+    if (filmed) {
+      this.rig.lookAtPoint(filmed.x, filmed.z, groundHeightAt(filmed.x, filmed.z));
     } else {
       const dialogueResidentId = getActiveDialogue()?.residentId;
       const dialogueResident = dialogueResidentId ? getResident(dialogueResidentId) : undefined;

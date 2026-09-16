@@ -180,6 +180,7 @@ function describeAgent(agent: ResidentAgent): string {
     `${agent.residentId}（${agent.definitionId}）`,
     `  位置 ${agent.x.toFixed(1)}, ${agent.z.toFixed(1)} 朝向 ${agent.heading.toFixed(2)} 驻地 ${agent.homeX.toFixed(1)}, ${agent.homeZ.toFixed(1)}`,
     `  状态 ${agent.state}${agent.moving ? "（走路中）" : ""}  手里 ${agent.heldProp ?? "空"}`,
+    `  注视 ${agent.attentionTarget() ? JSON.stringify(agent.attentionTarget()) : "无"}  头 ${agent.headYaw.toFixed(2)}`,
     intent
       ? `  Intent 来自 ${intent.skillId}（优先级 ${intent.priority}${intent.interruptible ? "，可打断" : "，不可打断"}）第 ${agent.currentStepIndex + 1}/${intent.steps.length} 步：${step ? JSON.stringify(step) : "-"}`
       : `  没有 Intent，${agent.idleTimer.toFixed(1)} 秒后再问技能`,

@@ -105,7 +105,7 @@ const ZH: Record<string, string> = {
   "item.golem_head": "石傀儡的头",
   "item.witch_letter": "魔女的信",
   "item.witch_letter.desc": "门上拿下来的。紫色的蜡封上是一弯月牙。拿在手上按 F 可以再读。",
-  "hint.golem_head": "捡起来",
+  "hint.golem_head": "头",
   "golem.hint.attach": "装上头",
   "golem.hint.dormant": "一尊没有头的石像",
   "golem.hint.build": "看看能盖什么",

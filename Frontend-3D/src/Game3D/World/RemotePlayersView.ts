@@ -120,6 +120,8 @@ export class RemotePlayersView {
         animateCharacter(view.rig, view.walkPhase, moving, view.elapsed, carrying, airborne);
       }
       applyPose(view.rig, appearance.posture, moving ? null : appearance.activity ?? null);
+      // 注视（21）：头的偏转照 transform 里的，盖在姿势之上（和本地玩家同一条规则）
+      view.rig.parts.head.rotation.y = sampled.headYaw ?? 0;
     }
   }
 

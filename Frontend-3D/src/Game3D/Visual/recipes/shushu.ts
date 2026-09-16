@@ -359,9 +359,11 @@ export function buildShuShu(): Object3D {
 
   root.userData.animate = (
     deltaSeconds: number,
-    resident: { state: string; moving: boolean },
+    resident: { state: string; moving: boolean; headYaw?: number },
   ): void => {
     elapsed += deltaSeconds;
+    // 注视（21）：头朝着在看的那位；摇头叠在它上面
+    const look = resident.headYaw ?? 0;
 
     const asleep = resident.state === "sleeping";
     // 第一帧直接对齐状态：读档时它本来就睡着，不该表演一遍"进门躺下"
@@ -434,7 +436,7 @@ export function buildShuShu(): Object3D {
         gestureYaw = Math.sin(t * Math.PI * 4) * 0.32 * envelope;
       }
     }
-    headPivot.rotation.y = gestureYaw;
+    headPivot.rotation.y = look + gestureYaw;
 
     // 耳朵：偶尔抖一下（左右不同周期，免得像机械钟）。睡着大幅收敛
     const flickL = elapsed % 6.4;

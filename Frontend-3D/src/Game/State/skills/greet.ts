@@ -1,4 +1,4 @@
-import { findTalkPool, pickTalkEntry } from "core";
+import { attentionTuning, findTalkPool, pickTalkEntry } from "core";
 import { evaluateCondition } from "../../Systems/dialogue";
 import { talkClock } from "../../Systems/residents/talk";
 import { signal } from "../../Systems/story";
@@ -45,6 +45,8 @@ export const greetSkill: Skill = {
     if (!entry) return;
 
     agent.say(entry.key);
+    // 抬头看你一眼（21）：只转头不转身，几秒后自己收回——正在和你说话的话对话的注意力压着它
+    agent.attend("greet", { kind: "player" }, attentionTuning.greetLookSeconds);
     agent.lastGreetDayId = worldDayId;
     if (entry.expression) agent.showExpression(entry.expression);
     signal("resident_greeted", agent.definitionId);

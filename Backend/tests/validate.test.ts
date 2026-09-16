@@ -56,6 +56,13 @@ test('transform：不是对象、缺字段、类型不对都拒', () => {
   assert.equal(parseTransform({ ...goodTransform, x: '1.5' }), null)
 })
 
+test('transform：headYaw 可选，带了得是有限的小角度（注视，协议 v14）', () => {
+  assert.deepEqual(parseTransform({ ...goodTransform, headYaw: 0.5 }), { ...goodTransform, headYaw: 0.5 })
+  assert.equal(parseTransform({ ...goodTransform, headYaw: Number.NaN }), null)
+  assert.equal(parseTransform({ ...goodTransform, headYaw: 7 }), null)
+  assert.equal(parseTransform({ ...goodTransform, headYaw: '0.5' }), null)
+})
+
 test('transform：NaN / Infinity 不能进来', () => {
   // 这类值会一路渗进渲染和物理，表现成"某个人不见了"，最难查
   assert.equal(parseTransform({ ...goodTransform, x: Number.NaN }), null)

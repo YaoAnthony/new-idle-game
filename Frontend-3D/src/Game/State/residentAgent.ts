@@ -12,6 +12,12 @@ import {
   findResidentDefinition,
   findSkillPriority,
   navBoundsOf,
+  approachAngle,
+  attentionTuning,
+  headYawToward,
+  wrapAngle,
+  type AttentionSource,
+  type AttentionTarget,
   type ResidentActivity,
   type ResidentKeyframe,
   type ResidentSave,
@@ -156,6 +162,16 @@ export class ResidentAgent {
   x: number;
   z: number;
   heading: number;
+  /**
+   * 头相对身体的偏转（弧度），注视用（居民系统 21）。表现层读；关键帧带给木偶。
+   * 身体的转向直接写进 `heading`，这里只有头。
+   */
+  headYaw = 0;
+  private headYawTarget = 0;
+  /** 身体想转到的朝向：`face()` 一次性给的（stand / sit / knock / work_at 的 facing、木偶的关键帧）。转到就清 */
+  private desiredHeading: number | null = null;
+  /** 注意力：按来源存，生效的是优先级最高的那个（attentionTuning.sources）。`until`：到点自己撤（打招呼那一眼） */
+  private readonly attention = new Map<AttentionSource, { target: AttentionTarget; until?: number }>();
   /** 碰撞半径。0 = 不挡路的小团子 */
   readonly radius: number;
   /**
@@ -321,6 +337,14 @@ export class ResidentAgent {
         emit("story_signal", { kind: "resident_entered", subject: this.residentId });
       },
     });
+  }
+
+  /**
+   * 还在走进来：`beginEntering` 那条 Intent 没走完，也没被别的 Intent 顶掉。
+   * 登场跟拍（`ResidentCutscene`）靠它决定拍不拍、什么时候收——被顶掉的进屋不会再发 `entered`。
+   */
+  isEntering(): boolean {
+    return this.current?.skillId === "entering";
   }
 
   /** 换驻地（居民搬进自己的房子）。只挪圆心不挪人，他会自己溜达过去 */
@@ -573,8 +597,13 @@ export class ResidentAgent {
     }
   }
 
+  /**
+   * 转向（stand / sit / knock / work_at 的 facing）。**不是一帧到位**：记下想转到哪，
+   * `tickAttention` 按转速转过去（用户 2026-09-15 定：啪地转过去很诡异）。
+   * 木偶回放的 stand(facing) 和关键帧也走这条，房客看到的转身和房主一样是转的。
+   */
   private face(target: FacingTarget): void {
-    this.heading =
+    this.desiredHeading =
       typeof target === "number"
         ? target
         : Math.atan2(target.x - this.x, target.z - this.z);
@@ -814,6 +843,7 @@ export class ResidentAgent {
       return;
     }
     this.phased(() => this.tickInner(deltaSeconds, player));
+    this.tickAttention(deltaSeconds, player);
   }
 
   private tickInner(deltaSeconds: number, player: { x: number; z: number }): void {
@@ -858,6 +888,97 @@ export class ResidentAgent {
     }
   }
 
+  // ---- 注视（居民系统 21）----
+
+  /** 看着某个目标。同一来源再设就是换目标；别的来源不受影响。`seconds`：看这么久自己撤（不给 = 直到 unattend） */
+  attend(source: AttentionSource, target: AttentionTarget, seconds?: number): void {
+    this.attention.set(source, { target, ...(seconds !== undefined ? { until: this.clock + seconds } : {}) });
+  }
+
+  /** 这一来源不再要求他看了。别的来源还在就继续看别的 */
+  unattend(source: AttentionSource): void {
+    this.attention.delete(source);
+  }
+
+  /** 此刻生效的注意力（按来源优先级：正在和你说话 > 和邻居聊 > 看你走近），带这个来源转不转身 */
+  private activeAttention(): { source: AttentionSource; turnsBody: boolean; target: AttentionTarget } | null {
+    for (const source of attentionTuning.sources) {
+      const entry = this.attention.get(source.id);
+      if (entry) return { source: source.id, turnsBody: source.turnsBody, target: entry.target };
+    }
+    return null;
+  }
+
+  /** 此刻生效的注意力目标 */
+  attentionTarget(): AttentionTarget | null {
+    return this.activeAttention()?.target ?? null;
+  }
+
+  /** 目标此刻在哪。人不在场（走了 / 藏着）就当没有目标 */
+  private attentionPoint(target: AttentionTarget, player: { x: number; z: number }): { x: number; z: number } | null {
+    switch (target.kind) {
+      case "player":
+        return player;
+      case "resident": {
+        const other = peerLookup?.(target.residentId);
+        return other && other.state !== "hidden" ? { x: other.x, z: other.z } : null;
+      }
+      case "point":
+        return { x: target.x, z: target.z };
+    }
+  }
+
+  /**
+   * 注视这一层的每帧收尾：身体转向 + 头的偏转。
+   *
+   * 身体：走路的不转（走路自己管朝向）。有注意力目标、来源要转身（对话、邻居聊；打招呼不）且**站着**
+   * （不在坐、睡、干活）就一直对着目标转——目标每帧重读，你绕着他走他跟着转；否则转向 `face()`
+   * 给的那一下（坐下朝椅子、敲门朝门），转到就清。坐着不转身（用户定：椅子上原地转圈很诡异），只转头。
+   * 头：目标相对身体的角度，夹在 ±headClampRad；没目标就慢慢回正。睡着、藏着不转头。
+   * 木偶：注意力是房主的决定，这边没有目标；身体朝向和头的偏转都照关键帧（applyKeyframe 写进
+   * desiredHeading / headYawTarget），转的过程是自己的。
+   *
+   * 对话开着时 tickResidents 冻住说话的那位（不走路、不决策），但这一层照跑——转过来看你正是对话要的。
+   */
+  tickAttention(deltaSeconds: number, player: { x: number; z: number }): void {
+    for (const [source, entry] of this.attention) {
+      if (entry.until !== undefined && entry.until <= this.clock) this.attention.delete(source);
+    }
+    const active = this.puppet ? null : this.activeAttention();
+    const target = active ? this.attentionPoint(active.target, player) : null;
+    if (!this.moving) {
+      let want = this.desiredHeading;
+      if (target && active?.turnsBody && this.bodyMayTurn()) {
+        want = Math.atan2(target.x - this.x, target.z - this.z);
+        // 注意力接管了身体，一次性的 facing 就作废（对话结束不该再转回去朝门）
+        this.desiredHeading = null;
+      }
+      if (want !== null) {
+        this.heading = approachAngle(this.heading, want, attentionTuning.turnRate, deltaSeconds);
+        if (Math.abs(wrapAngle(want - this.heading)) < attentionTuning.settleRad) {
+          this.heading = want;
+          if (want === this.desiredHeading) this.desiredHeading = null;
+        }
+      }
+    }
+    if (!this.puppet) {
+      this.headYawTarget =
+        target && this.headMayTurn()
+          ? headYawToward(this.heading, this.x, this.z, target.x, target.z, attentionTuning.headClampRad)
+          : 0;
+    }
+    this.headYaw = approachAngle(this.headYaw, this.headYawTarget, attentionTuning.headRate, deltaSeconds);
+  }
+
+  /** 站着（含站着吃喝）才允许注意力转身；坐着、睡着、干活（朝着工位）、藏着都不 */
+  private bodyMayTurn(): boolean {
+    return this.state === "idle" || this.state === "eat" || this.state === "drink";
+  }
+
+  private headMayTurn(): boolean {
+    return this.state !== "sleeping" && this.state !== "hidden";
+  }
+
   // ---- 联机：关键帧 ----
 
   /** 此刻的关键帧（房主每 0.5 秒发一次有变化的） */
@@ -875,6 +996,8 @@ export class ResidentAgent {
       // 只带居民之间说的（06）；对玩家说的不同步（03）
       speaking: this.speech?.pair ? this.speech.localizationKey : undefined,
       heldProp: this.heldProp ?? undefined,
+      // 注视（21）：头的偏转。两位小数够看，0 不带——大多数时候没人在看谁
+      ...(Math.abs(this.headYaw) >= 0.005 ? { headYaw: Math.round(this.headYaw * 100) / 100 } : {}),
     };
   }
 
@@ -898,6 +1021,13 @@ export class ResidentAgent {
     } else if (distance >= 0.6) {
       this.correction = { x: frame.x, z: frame.z, remaining: 0.3 };
     }
+    /*
+     * 注视（21）：身体朝向照房主的——站着转过来看人这种朝向变化不换动词，原来只靠
+     * 换动词时重放 stand(facing) 的木偶永远看不到。走路中不照（路是自己走的，朝向跟着自己的路）。
+     * 头的偏转照抄目标值，转的过程 tickAttention 自己走。
+     */
+    if (distance <= 3 && !this.isMovingSomewhere()) this.desiredHeading = frame.heading;
+    this.headYawTarget = frame.headYaw ?? 0;
 
     // 表情跟着房主（03）：房客看得见他在做什么表情，台词第一版不同步（那是对着房主说的）
     if (frame.expression && frame.expression !== this.expression?.id) this.showExpression(frame.expression);
@@ -1002,6 +1132,13 @@ export class ResidentAgent {
   /** 和另一位居民说的一句（06）：标成 pair，关键帧会带给房客 */
   sayPair(localizationKey: string, seconds: number): void {
     this.speech = { localizationKey, until: this.clock + seconds, pair: true };
+    emit("resident_changed", { residentId: this.residentId, reason: "speak" });
+  }
+
+  /** 嘴上那句收掉。开始跟你对话时用：整段对话他不 tick，气泡不会自己到期 */
+  hush(): void {
+    if (!this.speech) return;
+    this.speech = null;
     emit("resident_changed", { residentId: this.residentId, reason: "speak" });
   }
 

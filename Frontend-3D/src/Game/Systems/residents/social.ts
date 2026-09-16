@@ -104,6 +104,9 @@ export function startPairTalk(a: ResidentAgent, b: ResidentAgent, force = false)
   if (!a.invite(b, standFacing(a, seconds, key))) return null;
   const talk: PairTalk = { key, aId: a.residentId, bId: b.residentId, chat, line: 0, timer: 0 };
   talks.set(key, talk);
+  // 互相看着（21）：站住那一下是 standFacing 给的，之后头一直跟着对方；聊完 endPairTalk 收
+  a.attend("pair", { kind: "resident", residentId: b.residentId });
+  b.attend("pair", { kind: "resident", residentId: a.residentId });
   if (bumpChats(key) === 1) recordHeadlineFact(RESIDENT_FACT_KINDS.chatted, key);
   emit("residents_chatting", { key, a: a.residentId, b: b.residentId, active: true });
   return standFacing(b, seconds, key);
@@ -155,7 +158,11 @@ export function endPairTalk(key: string, reason: "done" | "interrupted"): void {
   const talk = talks.get(key);
   if (!talk) return;
   talks.delete(key);
-  for (const id of [talk.aId, talk.bId]) agentOf(id)?.cancelSocial();
+  for (const id of [talk.aId, talk.bId]) {
+    const agent = agentOf(id);
+    agent?.unattend("pair");
+    agent?.cancelSocial();
+  }
   emit("residents_chatting", { key, a: talk.aId, b: talk.bId, active: false, reason });
 }
 

@@ -354,8 +354,9 @@ export function tickResidents(
   frozenResidentId?: string | null,
 ): void {
   for (const resident of residents.values()) {
-    if (resident.residentId === frozenResidentId) continue;
-    resident.tick(deltaSeconds, player);
+    // 正在和你说话的那位冻住（不走路、不决策），但注视照跑：转过来看你正是对话要的（21）
+    if (resident.residentId === frozenResidentId) resident.tickAttention(deltaSeconds, player);
+    else resident.tick(deltaSeconds, player);
   }
 }
 

@@ -534,7 +534,7 @@ let lastKeyframes = new Map<string, string>();
 
 /**
  * 房主每 0.5 秒把**有变化的**活物关键帧推给全房。变化 = 位置动了超过 5 cm、
- * 朝向变了、动词 / 隐身 / 台词变了。全场没变就不发。
+ * 朝向变了、头的偏转变了（注视，21）、动词 / 隐身 / 台词变了。全场没变就不发。
  */
 function startKeyframePump(): void {
   stopKeyframePump();
@@ -542,7 +542,7 @@ function startKeyframePump(): void {
     if (state.kind !== "hosting") return;
     const frames = snapshotResidentKeyframes();
     const changed = frames.filter((frame) => {
-      const key = `${frame.x.toFixed(1)}|${frame.z.toFixed(1)}|${frame.heading.toFixed(2)}|${frame.verb ?? ""}|${frame.flavor ?? ""}|${frame.hidden ? 1 : 0}|${frame.speaking ?? ""}|${frame.heldProp ?? ""}`;
+      const key = `${frame.x.toFixed(1)}|${frame.z.toFixed(1)}|${frame.heading.toFixed(2)}|${frame.verb ?? ""}|${frame.flavor ?? ""}|${frame.hidden ? 1 : 0}|${frame.speaking ?? ""}|${frame.heldProp ?? ""}|${(frame.headYaw ?? 0).toFixed(2)}`;
       const seen = lastKeyframes.get(frame.id);
       if (seen === key) return false;
       lastKeyframes.set(frame.id, key);

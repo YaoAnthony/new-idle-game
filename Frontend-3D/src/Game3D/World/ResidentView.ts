@@ -191,7 +191,8 @@ export class ResidentView {
 
       /**
        * 带骨架的生物自己动（约定：build 时把 animate 闭包挂在 userData 上，
-       * 内部只动自己的子节点，root 的位置朝向仍归这里管）。
+       * 内部只动自己的子节点，root 的位置朝向仍归这里管）。递的是 agent 本身，
+       * 造型从它读 state / moving / headYaw（注视，21：头相对身体扭多少，有头的造型贴到头上）。
        * 没有骨架的小团子沿用整体颠一颠。
        */
       const animate = view.userData.animate as

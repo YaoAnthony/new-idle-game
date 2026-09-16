@@ -1,7 +1,12 @@
 import {
+  BodyPosture,
   GestureKind,
   Locomotion,
+  approachAngle,
+  attentionTuning,
   canStep as canStepBetween,
+  headYawToward,
+  type AttentionTarget,
   type PoseId,
 } from "core";
 import { MathUtils } from "three";
@@ -11,6 +16,7 @@ import {
   pressedCodeOf,
 } from "../../Game/Input/bindings";
 import { getHeld } from "../../Game/State/heldItem";
+import { getResident } from "../../Game/State/residentsRuntime";
 import {
   LOCAL_PLAYER_ID,
   emitParticipantGesture,
@@ -105,6 +111,31 @@ export class CharacterController {
 
   /** 过场 / 对话期间锁输入 */
   enabled = true;
+
+  /**
+   * 注视（居民系统 21）：对话时看着对方。站着就转身，坐着只转头（用户定：椅子上转圈很诡异），
+   * 走路不转。目标每帧重读——他要是走开了，头跟着走。玩家不会看"玩家"，所以没有那一种。
+   */
+  private attention: Exclude<AttentionTarget, { kind: "player" }> | null = null;
+  /** 头相对身体的偏转（弧度）。写进 transform，别人看到的也是"在看着" */
+  headYaw = 0;
+
+  attend(target: Exclude<AttentionTarget, { kind: "player" }>): void {
+    this.attention = target;
+  }
+
+  unattend(): void {
+    this.attention = null;
+  }
+
+  /** 看的那位此刻在哪。人不在场（走了 / 藏着）就当没有 */
+  private attentionPoint(): { x: number; z: number } | null {
+    const target = this.attention;
+    if (!target) return null;
+    if (target.kind === "point") return { x: target.x, z: target.z };
+    const other = getResident(target.residentId);
+    return other && other.state !== "hidden" ? { x: other.x, z: other.z } : null;
+  }
 
   /** 当前朝向（弧度，从 +z 轴转向 +x）。肩后相机用它决定该转到哪 */
   get heading(): number {
@@ -363,6 +394,25 @@ export class CharacterController {
     }
 
     /*
+     * 注视（21）：站着、没在走，身体转向看的那位；坐着只转头；躺着头也不转。
+     * 头是相对身体的角度、夹在限角内，Core 算，这里只推进
+     */
+    const focus = this.attentionPoint();
+    if (focus && !moving && !seated) {
+      this.headingAngle = approachAngle(
+        this.headingAngle,
+        Math.atan2(focus.x - this.x, focus.z - this.z),
+        attentionTuning.turnRate,
+        deltaSeconds,
+      );
+    }
+    const headTarget =
+      focus && this.posture !== BodyPosture.Lie
+        ? headYawToward(this.headingAngle, this.x, this.z, focus.x, focus.z, attentionTuning.headClampRad)
+        : 0;
+    this.headYaw = approachAngle(this.headYaw, headTarget, attentionTuning.headRate, deltaSeconds);
+
+    /*
      * 站着时脚跟着地形走（缘侧那类室外平台）。**坐着躺着不碰**——
      * 那时 supportY 是 resting 系统按椅面算好的，跟地形抢会把人拽下椅子。
      *
@@ -409,6 +459,7 @@ export class CharacterController {
        * 地板架空之后，做客的人会半截陷进院子里。
        */
       this.supportY + this.jumpHeight,
+      this.headYaw,
     );
 
     // 站着才跑走路 / 待机呼吸；坐着躺着完全交给姿势
@@ -427,6 +478,8 @@ export class CharacterController {
     // 走动时不摆活动层（伏案写字），否则边走边伏案很怪
     const shownActivity = moving ? null : this.activity;
     applyPose(this.rig, this.posture, shownActivity);
+    // 注视：头的偏转盖在姿势之上。姿势表没有一条动头的 y 轴（低头归活动层的 x），这个轴归注视
+    this.rig.parts.head.rotation.y = this.headYaw;
 
     /*
      * 姿势也要进 appearance——那是别人看得见的东西（坐着 / 伏案写字）。
@@ -498,6 +551,8 @@ export class CharacterController {
     this.rig.root.position.set(this.x, this.supportY, this.z);
     this.rig.heading.rotation.y = this.headingAngle;
     setActorFootprint(this.x, this.z, RADIUS);
+    // 走路不看人：头慢慢回正（21）
+    this.headYaw = approachAngle(this.headYaw, 0, attentionTuning.headRate, deltaSeconds);
     // 剧情走位也是"在走"，远端看到的必须是走路而不是原地滑行。
     // 脚本寻路永远是走速（上面用的就是 SPEED，没有跑的分支）
     setLocalTransform(
@@ -506,7 +561,9 @@ export class CharacterController {
       this.headingAngle,
       Locomotion.Walk,
       this.supportY,
+      this.headYaw,
     );
     animateCharacter(this.rig, this.walkPhase, true, this.elapsed);
+    this.rig.parts.head.rotation.y = this.headYaw;
   }
 }

@@ -75,6 +75,12 @@ export type ParticipantTransform = {
    * 会看到他凭空往下沉。
    */
   liftHeight: number;
+
+  /**
+   * 头相对身体的偏转（弧度），注视用（居民系统 21）：对话时看着对方，别人看到的
+   * 也得是"在看着"。可选：0 就不带，老客户端不发。身体的朝向已经在 `heading` 里。
+   */
+  headYaw?: number;
 };
 
 /**

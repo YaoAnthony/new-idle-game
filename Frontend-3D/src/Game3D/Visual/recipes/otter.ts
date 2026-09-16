@@ -720,9 +720,11 @@ export function buildOtterTrader(): Object3D {
 
   root.userData.animate = (
     dt: number,
-    resident: { state: string; moving: boolean },
+    resident: { state: string; moving: boolean; headYaw?: number },
   ): void => {
     elapsed += dt;
+    // 注视（21）：头朝着在看的那位；摇头叠在它上面
+    const look = resident.headYaw ?? 0;
 
     const asleep = resident.state === "sleeping";
     // 第一帧直接对齐：读档时他本来就在，不该表演一遍"刚躺下"
@@ -787,16 +789,16 @@ export function buildOtterTrader(): Object3D {
       const t = Math.min(1, gestureElapsed / total);
       const envelope = Math.sin(t * Math.PI);
       if (gestureName === "shake_head") {
-        head.pivot.rotation.y = Math.sin(t * Math.PI * 4) * 0.4 * envelope;
+        head.pivot.rotation.y = look + Math.sin(t * Math.PI * 4) * 0.4 * envelope;
       } else {
         head.pivot.rotation.x += Math.sin(t * Math.PI * 3) * 0.3 * envelope;
       }
       if (t >= 1) {
         gestureName = null;
-        head.pivot.rotation.y = 0;
+        head.pivot.rotation.y = look;
       }
     } else {
-      head.pivot.rotation.y = 0;
+      head.pivot.rotation.y = look;
     }
   };
 

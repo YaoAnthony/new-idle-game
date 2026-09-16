@@ -135,6 +135,7 @@ export function setLocalTransform(
   heading: number,
   locomotion: Locomotion = Locomotion.Idle,
   liftHeight = 0,
+  headYaw = 0,
 ): void {
   const transform = ensure(LOCAL_PLAYER_ID).transform;
   transform.x = x;
@@ -142,6 +143,8 @@ export function setLocalTransform(
   transform.heading = heading;
   transform.locomotion = locomotion;
   transform.liftHeight = liftHeight;
+  // 注视（21）：头相对身体的偏转，别人看到的也得是"在看着"
+  transform.headYaw = headYaw;
 }
 
 /** 本地玩家现在的落脚点，换算成渲染层用的 (x, z, 弧度) */

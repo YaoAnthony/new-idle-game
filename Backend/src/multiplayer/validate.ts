@@ -61,6 +61,10 @@ export function parseTransform(value: unknown): ParticipantTransform | null {
   if (!isFiniteNumber(raw.liftHeight) || Math.abs(raw.liftHeight) > 10) {
     return null
   }
+  // 注视（协议 v14）：头相对身体的偏转，可选（0 不发）。限角 0.9，给到 π 已经是"疯了才会有"
+  if (raw.headYaw !== undefined && (!isFiniteNumber(raw.headYaw) || Math.abs(raw.headYaw) > Math.PI)) {
+    return null
+  }
 
   // 重建对象而不是透传：客户端塞的多余字段（不管是 bug 还是恶意）就地丢弃
   return {
@@ -70,6 +74,7 @@ export function parseTransform(value: unknown): ParticipantTransform | null {
     heading: raw.heading,
     locomotion: raw.locomotion,
     liftHeight: raw.liftHeight,
+    ...(raw.headYaw !== undefined ? { headYaw: raw.headYaw } : {}),
   }
 }
 

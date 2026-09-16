@@ -275,9 +275,11 @@ export function buildFishTrader(): Object3D {
 
   root.userData.animate = (
     dt: number,
-    resident: { state: string; moving: boolean },
+    resident: { state: string; moving: boolean; headYaw?: number },
   ): void => {
     elapsed += dt;
+    // 注视（21）：头朝着在看的那位。相对身体的角度，ResidentAgent 算好、夹好了，这里只贴上去
+    head.rotation.y = resident.headYaw ?? 0;
     const asleep = resident.state === "sleeping";
     const speed = resident.moving ? 7.0 : 1.5;
     const wave = Math.sin(elapsed * speed);

@@ -1,5 +1,6 @@
 export * from "./achievements.js";
 export * from "./anchors.js";
+export * from "./attention.js";
 export * from "./avatarAudit.js";
 export * from "./doorAudit.js";
 export * from "./buildings.js";

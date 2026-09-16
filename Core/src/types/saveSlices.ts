@@ -165,6 +165,7 @@ export const WORLD_SLICE_POLICY = {
   "progression.poolMisses": { sync: "join", reason: "TODO 阶段 3 翻 refresh" },
   "progression.stats": { sync: "join", reason: "TODO 阶段 3 翻 refresh：统计表。做客期间自己不记（stats.ts），看到的是房主的" },
   "progression.achievements": { sync: "join", reason: "TODO 阶段 3 翻 refresh：成就的达成日 / 领奖日" },
+  "progression.codex": { sync: "join", reason: "TODO 阶段 3 翻 refresh：图鉴的初见日。做客不记（用户 2026-09-15）" },
 
   gameRules: { sync: "none", reason: "死字段：全仓无读写（审计 2026-09-13），阶段 6 删" },
 } as const satisfies WorldPolicyTable;

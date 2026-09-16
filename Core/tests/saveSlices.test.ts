@@ -74,8 +74,8 @@ test("线上键 ↔ 存档键的映射双向一致", () => {
 test("键表没有重复、没有漏（和类型层的穷举互为备份）", () => {
   assert.equal(new Set(WORLD_SLICE_KEYS).size, WORLD_SLICE_KEYS.length);
   assert.equal(new Set(PLAYER_SLICE_KEYS).size, PLAYER_SLICE_KEYS.length);
-  // progression 展开了七片：漏一片这里的数就对不上
-  assert.equal(WORLD_SLICE_KEYS.filter((key) => key.startsWith("progression.")).length, 7);
+  // progression 展开了八片：漏一片这里的数就对不上
+  assert.equal(WORLD_SLICE_KEYS.filter((key) => key.startsWith("progression.")).length, 8);
   assert.equal(PLAYER_SLICE_KEYS.filter((key) => key.startsWith("character.")).length, 6);
 });
 

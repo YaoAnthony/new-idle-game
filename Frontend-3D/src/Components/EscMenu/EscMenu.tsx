@@ -3,6 +3,7 @@ import { AnimatePresence, motion, type Variants } from "motion/react";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import {
   FaBars,
+  FaBook,
   FaBookOpen,
   FaBoxOpen,
   FaCog,
@@ -157,6 +158,13 @@ const TILES: Tile[] = [
     icon: <FaTrophy />,
     accent: "#ffd166",
     run: () => store.dispatch(openPanel("achievements")),
+  },
+  {
+    key: "codex",
+    labelKey: "ui.esc.codex",
+    icon: <FaBook />,
+    accent: "#d7b899",
+    run: () => store.dispatch(openPanel("codex")),
   },
   {
     key: "guideBook",

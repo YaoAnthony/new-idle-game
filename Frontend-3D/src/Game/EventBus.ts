@@ -335,6 +335,10 @@ export type GameEvents = {
   achievements_changed: { reason: "unlocked" | "claimed" | "restored" };
   /** 统计表某个键变了（State/stats）。成就面板以后听它 */
   stats_changed: { key: string; value: number };
+  /** 图鉴点亮了一条（Systems/codex）。面板、音效接它 */
+  codex_discovered: { entryId: string };
+  /** 图鉴见过表变了（点亮 / 读档） */
+  codex_changed: { reason: "discovered" | "restored" };
   /**
    * 开场"睁眼"的眼皮开合度：0 全黑、1 全开、-1 = 演完了把覆盖层撤掉。
    * Game3D/World/OpeningIntro 每帧发，Components/Opening/Eyelids 画。

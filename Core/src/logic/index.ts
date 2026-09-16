@@ -45,3 +45,4 @@ export * from "./weather.js";
 export * from "./chest.js";
 export * from "./autoLife.js";
 export * from "./classifyAction.js";
+export * from "./codex.js";

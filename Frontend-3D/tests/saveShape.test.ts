@@ -97,6 +97,7 @@ const SHAPE: string[] = [
   "ownWorld.pets",
   "ownWorld.placedFurniture[]",
   "ownWorld.progression.achievements",
+  "ownWorld.progression.codex",
   "ownWorld.progression.events",
   "ownWorld.progression.firedStoryRuleIds[]",
   // v30：抽签池的保底计数。不进档的话读一次档等待就归零

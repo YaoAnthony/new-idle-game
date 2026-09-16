@@ -68,6 +68,7 @@ import { Eyelids } from "../Components/Opening/Eyelids";
 import { GuidePanel } from "../Components/Guide/GuidePanel";
 import { GuideBookPanel } from "../Components/GuideBook/GuideBookPanel";
 import { AchievementsPanel } from "../Components/Achievements/AchievementsPanel";
+import { CodexPanel } from "../Components/Codex/CodexPanel";
 import {
   parseEnum,
   registerCommand,
@@ -141,6 +142,7 @@ import {
   startAutoLife,
 } from "../Game/Systems/autoLife";
 import { startAchievementSystem } from "../Game/Systems/achievements";
+import { startCodexSystem } from "../Game/Systems/codex";
 import { startNoiseClock } from "../Game/Systems/noiseTime";
 import { listResidents, startResidents } from "../Game/Systems/residents/moveIn";
 import {
@@ -442,6 +444,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       : startStorySystem(!loadedFromSave);
     // 成就：听统计表、读档对账。做客时统计表是房主的，不落成
     const stopAchievements = isRemoteWorldActive() ? () => {} : startAchievementSystem();
+    // 图鉴：听剧情信号点亮、开局对账。做客时见到的是别人家的，不记
+    const stopCodex = isRemoteWorldActive() ? () => {} : startCodexSystem();
     const stopNoiseClock = isRemoteWorldActive() ? () => {} : startNoiseClock();
     // 水獭的班表同步（期 3）。做客时不跑：商人是世界的，归房主管
     const stopTrading = isRemoteWorldActive() ? () => {} : startTrading();
@@ -2000,6 +2004,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       offSpoil();
       stopStory();
       stopAchievements();
+      stopCodex();
       stopNoiseClock();
       stopTrading();
       stopResidents();
@@ -2165,6 +2170,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       <GuidePanel />
       <GuideBookPanel />
       <AchievementsPanel />
+      <CodexPanel />
       {/* 开场睁眼的黑幕：新档一挂就全黑，压在所有面板之上 */}
       <Eyelids initiallyShut={!loadedFromSave && mapEpoch === 0} />
       <DiaryPanel />

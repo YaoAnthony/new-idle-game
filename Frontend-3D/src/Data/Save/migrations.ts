@@ -1751,6 +1751,11 @@ export const migrations: Migration[] = [
     to: 53,
     migrate: (save) => save,
   },
+  /** v54 · 世界表 progression 加 codex（图鉴的初见日）。老档没有 = 空表，读档侧兜住；开局对账把已有的补上 */
+  {
+    to: 54,
+    migrate: (save) => save,
+  },
 ];
 
 

@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "vitest";
 
-import { achievementDefinitions, findItemDefinition } from "core";
+import { achievementDefinitions, findItemDefinition, listCodexEntries } from "core";
 
 import { iconKeys, iconUrl, itemIconUrl } from "../src/Assets/icons";
 import { materialIconUrl } from "../src/Game/Systems/materials";
@@ -35,6 +35,41 @@ test("成就里写成图标键的，都指得到图", () => {
     .filter((definition) => !iconUrl(definition.icon))
     .map((definition) => `${definition.id} → ${definition.icon}`);
   expect(missing).toEqual([]);
+});
+
+/**
+ * 图鉴每条条目的图：要么有 PNG，要么钉在名单里（画好一张就红一条，逼着删名单）。
+ * 没图的卡片退到兜底 emoji，不会空框——但图鉴是"看"的地方，缺图比背包里缺图显眼得多。
+ */
+test("图鉴条目的图：缺的都在名单里，名单里的都还缺", () => {
+  const PENDING_ICONS = [
+    "items/furniture_news_printer",
+    "items/furniture_nightstand",
+    "items/furniture_daily_board",
+    "items/furniture_moon_lamp",
+    "items/furniture_mushroom_lamp",
+    "items/furniture_lucky_bamboo",
+    "items/furniture_ofuro",
+    "items/furniture_garden_bench",
+    "items/furniture_street_lamp",
+    "items/well",
+    "items/cardboard_box",
+    "items/cardboard_stack",
+    "residents/moss_wisp",
+    "residents/foam_wisp",
+    "residents/ember_wisp",
+    "residents/otter_trader",
+    "residents/coin_dragon",
+    "residents/spirit_neighbor",
+    "residents/shushu",
+    "residents/stone_golem",
+  ];
+  const missing = listCodexEntries()
+    .map((entry) => entry.icon.iconKey)
+    .filter((key) => !iconUrl(key));
+  expect(missing.filter((key) => !PENDING_ICONS.includes(key))).toEqual([]);
+  const drawn = PENDING_ICONS.filter((key) => iconUrl(key));
+  expect(drawn, "这张图已经画好了，把它从 PENDING_ICONS 里拿掉").toEqual([]);
 });
 
 test("地块表里的地貌图都在", () => {

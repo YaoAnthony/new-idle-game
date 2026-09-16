@@ -58,6 +58,7 @@ export const RESTORE_ORDER = [
   "world.progression.poolMisses",
   "world.progression.stats",
   "world.progression.achievements",
+  "world.progression.codex",
   "world.dayFacts",
   "world.residentTrips",
   "world.tripPlans",

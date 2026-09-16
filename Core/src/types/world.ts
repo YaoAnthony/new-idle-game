@@ -1,4 +1,5 @@
 import type { AchievementStates } from "./achievements.js";
+import type { CodexState } from "./codex.js";
 import type { BuildingPlacement } from "./building.js";
 import type { ChatMessage } from "./chat.js";
 import type { DailyBoardSave } from "./dailyTasks.js";
@@ -382,6 +383,12 @@ export type WorldSave = {
      * "完成了没"随时从 stats 重算（logic/achievements）。老存档没有 = 空表（v53）。
      */
     achievements?: AchievementStates;
+
+    /**
+     * 图鉴（2026-09-15）：每条条目第一次见到那天，按 `<分区>:<id>`。只存"见过"这个事实，
+     * 条目本身从各注册表枚举（logic/codex）。老存档没有 = 空表（v54）。
+     */
+    codex?: CodexState;
   };
 
   // activeActionProcess 搬去 PlayerSave 了（save v12）。

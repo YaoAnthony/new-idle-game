@@ -9,6 +9,7 @@ import {
   restoreAchievements,
   snapshotAchievements,
 } from "../../../Game/Systems/achievements";
+import { restoreCodex, snapshotCodex } from "../../../Game/Systems/codex";
 import { restoreClock, snapshotClock } from "../../../Game/State/clock";
 import { restoreChatLog, snapshotChatLog } from "../../../Game/State/chatLog";
 import {
@@ -331,6 +332,11 @@ export const WORLD_SLICES = {
     snapshot: () => snapshotAchievements(),
     restore: (value) => restoreAchievements(value),
     changedBy: ["achievements_changed"],
+  },
+  "progression.codex": {
+    snapshot: () => snapshotCodex(),
+    restore: (value) => restoreCodex(value),
+    changedBy: ["codex_changed"],
   },
   dayFacts: {
     snapshot: () => getDayFacts(),

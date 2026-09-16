@@ -25,6 +25,8 @@ export type PanelId =
   | "guide"
   /** 成就面板（ESC 进） */
   | "achievements"
+  /** 图鉴（ESC 进）：见过的家具 / 居民 */
+  | "codex"
   /** 攻略查询器（ESC 进）：教程索引，点一条弹 guide */
   | "guideBook"
   | "chat"

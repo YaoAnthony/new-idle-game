@@ -5,6 +5,7 @@ import {
   auditStoryContent,
   expressionDefinitions,
   itemDefinitions,
+  listCodexEntries,
   reactionDefinitions,
   residentDefinitions,
   recipeDefinitions,
@@ -69,6 +70,46 @@ test("每只宠物的物种名和初见昵称都有文案", () => {
     resident.defaultNicknameKey,
   ]);
   expect(missingKeys(keys)).toEqual([]);
+});
+
+test("图鉴每条条目都有名字、每个分区和分组都有页签文案", () => {
+  const entries = listCodexEntries();
+  const keys = entries.flatMap((entry) => [entry.nameKey, entry.groupKey]);
+  expect(missingKeys(keys)).toEqual([]);
+});
+
+/**
+ * 图鉴介绍。缺的逐条钉住（同 KNOWN_MISSING 的理由）：用户自己写文案，写好一条这里就红一条，
+ * 提醒把它从名单里删掉；新加的家具 / 居民没写介绍也立刻红。面板上缺的那条显示"介绍还没写"。
+ */
+test("图鉴介绍：缺的都在名单里，名单里的都还缺", () => {
+  const PENDING_DESC = [
+    "item.journal.desc",
+    "item.furniture_news_printer.desc",
+    "item.furniture_nightstand.desc",
+    "furniture.stove.desc",
+    "item.golem_head.desc",
+    "furniture.well.desc",
+    "furniture.cardboard_box.desc",
+    "furniture.cardboard_stack.desc",
+    "pet.moss_wisp.desc",
+    "pet.foam_wisp.desc",
+    "pet.ember_wisp.desc",
+    "pet.fish_trader.desc",
+    "pet.otter_trader.desc",
+    "pet.coin_dragon.desc",
+    "pet.slime_neighbor.desc",
+    "pet.fox_neighbor.desc",
+    "pet.spirit_neighbor.desc",
+    "pet.shushu.desc",
+    "pet.stone_golem.desc",
+  ];
+  const missing = listCodexEntries()
+    .map((entry) => entry.descKey)
+    .filter((key) => !hasLocalizationKey(key));
+  expect(missing.filter((key) => !PENDING_DESC.includes(key))).toEqual([]);
+  const written = PENDING_DESC.filter((key) => hasLocalizationKey(key));
+  expect(written, "这条介绍已经写好了，把它从 PENDING_DESC 里拿掉").toEqual([]);
 });
 
 test("家具的交互提示都有文案（走近才出现的那个气泡）", () => {

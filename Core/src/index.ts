@@ -8,6 +8,7 @@ export * from "./types/avatar.js";
 export * from "./types/base.js";
 export * from "./types/building.js";
 export * from "./types/chat.js";
+export * from "./types/codex.js";
 export * from "./types/cooking.js";
 export * from "./types/dailyTasks.js";
 export * from "./types/dialogue.js";

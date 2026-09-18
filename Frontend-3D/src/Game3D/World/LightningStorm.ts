@@ -9,6 +9,7 @@ import {
   PointLight,
   ShaderMaterial,
   Vector2,
+  Vector3,
   type PerspectiveCamera,
   type Scene,
 } from "three";
@@ -47,16 +48,18 @@ export type LightningFx = {
 // ---- 节拍（秒）----
 const FLARE_SECONDS = 0.6;
 /**
- * 预兆的竖带：[起, 止, 中心 x, 半宽, 亮度]。
- * 半宽是屏幕宽的比例，shader 里软边到 3.5 倍——0.012 出来是一指宽的细线；
- * 第一版写 0.05～0.06、亮 0.6，屏幕四成宽都在往白混，成了一根大白柱（用户 2026-09-18）。
+ * 预兆的竖带：[起, 止, 相对闪电屏幕位置的偏移, 半宽, 亮度]。
+ * 竖带**围着闪电在屏幕上的位置**闪（左、右、中），闪电不在镜头里就没有耀斑——
+ * 它是打在镜头上的光，不是全场的事。半宽是屏幕宽的比例，shader 里软边到 3.5 倍：
+ * 0.03 出来约两成屏宽的一道带，亮 0.22 只是"带一点透明度"。第一版 0.06 / 0.6 是大白柱，
+ * 改过一版 0.012 / 0.3 又成了一指细线（用户 2026-09-18 两次点名）。
  */
 const FLARE_STEPS: Array<[number, number, number, number, number]> = [
-  [0, 0.12, 0.25, 0.012, 0.3],
-  [0.12, 0.24, 0.75, 0.012, 0.3],
-  [0.24, 0.36, 0.5, 0.014, 0.35],
-  [0.36, 0.5, 0.5, 0, 0],
-  [0.5, FLARE_SECONDS, 0.5, 0, 0],
+  [0, 0.12, -0.2, 0.03, 0.22],
+  [0.12, 0.24, 0.2, 0.03, 0.22],
+  [0.24, 0.36, 0, 0.035, 0.26],
+  [0.36, 0.5, 0, 0, 0],
+  [0.5, FLARE_SECONDS, 0, 0, 0],
 ];
 /** 落地那一瞬整屏白一下 */
 const LAND_FLASH_SECONDS = 0.06;
@@ -105,6 +108,7 @@ export class LightningStorm {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private readonly offs: Array<() => void>;
   private viewer: { x: number; z: number } = { x: 0, z: 0 };
+  private camera: PerspectiveCamera | null = null;
   private trauma = 0;
   private shakePhase = 0;
 
@@ -121,9 +125,25 @@ export class LightningStorm {
     this.arm(getWeather());
   }
 
-  /** 观者的位置（落点相对它挑、画布对着它）。RoomScene 每帧喂镜头位置 */
+  /** 观者的位置（落点相对它挑、画布对着它）。没给镜头时用例这么喂 */
   setViewer(x: number, z: number): void {
     this.viewer = { x, z };
+  }
+
+  /** 镜头：观者位置每帧从它取；耀斑要知道闪电落在屏幕哪儿、在不在镜头里 */
+  setCamera(camera: PerspectiveCamera): void {
+    this.camera = camera;
+  }
+
+  /**
+   * 闪电在屏幕上的横坐标（0..1）；在镜头背后或画面外返回 null。
+   * 投影的是落点上方 15 米那一点（折线的中段），比落点本身更接近人眼里"闪电在哪"。
+   */
+  private screenXOf(s: Strike): number | null {
+    if (!this.camera) return 0.5;
+    const point = new Vector3(s.x, s.ground + 15, s.z).project(this.camera);
+    if (point.z > 1 || Math.abs(point.x) > 1.15 || Math.abs(point.y) > 1.3) return null;
+    return (point.x + 1) / 2;
   }
 
   private arm(weather: WeatherDefinition): void {
@@ -161,6 +181,7 @@ export class LightningStorm {
   }
 
   update(dt: number): void {
+    if (this.camera) this.viewer = { x: this.camera.position.x, z: this.camera.position.z };
     let flare: [number, number, number] | null = null;
     let bloom: number | null = null;
     for (let i = this.strikes.length - 1; i >= 0; i -= 1) {
@@ -169,15 +190,16 @@ export class LightningStorm {
       if (!s.landed) {
         if (s.age < FLARE_SECONDS) {
           const step = FLARE_STEPS.find(([from, to]) => s.age >= from && s.age < to);
-          if (step && step[4] > 0) flare = [step[2], step[3], step[4]];
+          const screenX = step && step[4] > 0 ? this.screenXOf(s) : null;
+          if (step && screenX !== null) flare = [Math.min(0.95, Math.max(0.05, screenX + step[2])), step[3], step[4]];
           continue;
         }
         this.land(s);
       }
       const t = s.age - FLARE_SECONDS;
       const material = s.material!;
-      // 落地那一瞬整屏白一下（半宽 1 = 全屏），别太满
-      if (t < LAND_FLASH_SECONDS) flare = [0.5, 1, 0.45];
+      // 落地那一瞬整屏白一下（半宽 1 = 全屏）：看着它时 0.4，在背后只有天光那点 0.12
+      if (t < LAND_FLASH_SECONDS) flare = [0.5, 1, this.screenXOf(s) !== null ? 0.4 : 0.12];
       if (t < HOLD) {
         // 放电：bloom 和点光一起跳档；淡出等着
         s.bloom = FLICKER[Math.min(FLICKER.length - 1, Math.floor(t / FLICKER_STEP))];

@@ -79,8 +79,9 @@ test("lightning_时间线_预兆竖带_落地才有画布点光闪光事件_放�
   expect(root().children).toHaveLength(0);
   expect(flashes).toEqual([]);
   expect(struck).toEqual([]);
+  // 没给镜头时闪电算在屏幕正中：竖带在它左、右、中各闪一下
   const bands = flares.filter(([, , f]) => f > 0).map(([c]) => c);
-  expect(new Set(bands)).toEqual(new Set([0.25, 0.75, 0.5]));
+  expect(new Set(bands)).toEqual(new Set([0.3, 0.7, 0.5]));
 
   // 落地：画布 + 点光，两处闪，事件带距离，bloom 跳到第一档
   tick(storm, 0.15);
@@ -100,6 +101,32 @@ test("lightning_时间线_预兆竖带_落地才有画布点光闪光事件_放�
   expect(flares[flares.length - 1]).toEqual([0.5, 0, 0]);
   off();
   storm.dispose();
+});
+
+test("lightning_闪电在镜头背后就没有耀斑_在镜头里竖带跟着它的屏幕位置", () => {
+  const scene = new Scene();
+  const storm = new LightningStorm(scene, lighting, sky, fx, seeded(9));
+  const camera = new PerspectiveCamera(60, 1, 0.1, 500);
+  camera.position.set(0, 8, 20);
+  camera.lookAt(0, 0, 0);
+  camera.updateMatrixWorld();
+  storm.setCamera(camera);
+  // 背后：+z 方向 40 米
+  storm.strike({ x: 0, z: 60 });
+  tick(storm, 0.3);
+  expect(flares.filter(([, , f]) => f > 0)).toHaveLength(0);
+  storm.dispose();
+
+  flares.length = 0;
+  const storm2 = new LightningStorm(scene, lighting, sky, fx, seeded(9));
+  storm2.setCamera(camera);
+  // 前方偏左
+  storm2.strike({ x: -12, z: -20 });
+  tick(storm2, 0.3);
+  const lit = flares.filter(([, , f]) => f > 0);
+  expect(lit.length).toBeGreaterThan(0);
+  expect(lit.every(([c]) => c < 0.5)).toBe(true);
+  storm2.dispose();
 });
 
 test("lightning_镜头震_落地后抖_半秒平掉_rig重摆后不累积", () => {

@@ -3875,8 +3875,8 @@ export class RoomScene {
       z: this.rig.camera.position.z,
       indoors: isIndoors(this.controller.x, this.controller.z),
     });
-    // 闪电：落点相对镜头挑；余光每帧衰减（在 apply 之后写，它要盖过基准值）
-    this.lightning.setViewer(this.rig.camera.position.x, this.rig.camera.position.z);
+    // 闪电：落点相对镜头挑、耀斑看闪电在不在镜头里；余光每帧衰减（在 apply 之后写，它要盖过基准值）
+    this.lightning.setCamera(this.rig.camera);
     this.lightning.update(deltaSeconds);
     this.lighting.tickFlash(deltaSeconds);
     // 清晰度场：每帧插值，100 ms 重算一次。灯就是配方里那些 lamp-light

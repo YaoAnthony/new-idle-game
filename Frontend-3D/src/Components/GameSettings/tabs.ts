@@ -92,3 +92,42 @@ export const LANGUAGE_CHOICES: ReadonlyArray<{
     icon: "日",
   },
 ];
+
+/**
+ * 画质档位（2026-09-18）。每档是**一整套**渲染参数（像素比 / 抗锯齿 / 泛光 /
+ * 阴影 / 积水），表在 Game3D/Engine/graphicsSettings.ts；这里只管怎么摆给玩家看。
+ *
+ * 副标题写的是人话里的关键那几项——"像素比 2×" 这种。玩家不需要懂 MSAA，
+ * 但需要知道"我选的这档比上一档贵在哪"。
+ */
+export const GRAPHICS_CHOICES: ReadonlyArray<{
+  id: "smooth" | "balanced" | "high" | "ultra";
+  titleKey: string;
+  subtitleKey: string;
+  icon: string;
+}> = [
+  {
+    id: "smooth",
+    titleKey: "ui.settings.quality_smooth",
+    subtitleKey: "ui.settings.quality_smooth_desc",
+    icon: "1",
+  },
+  {
+    id: "balanced",
+    titleKey: "ui.settings.quality_balanced",
+    subtitleKey: "ui.settings.quality_balanced_desc",
+    icon: "2",
+  },
+  {
+    id: "high",
+    titleKey: "ui.settings.quality_high",
+    subtitleKey: "ui.settings.quality_high_desc",
+    icon: "3",
+  },
+  {
+    id: "ultra",
+    titleKey: "ui.settings.quality_ultra",
+    subtitleKey: "ui.settings.quality_ultra_desc",
+    icon: "4",
+  },
+];

@@ -95,11 +95,20 @@ export type PostFXHandle = {
   setLightningBloom: (intensity: number | null) => void;
   /** 闪电的预兆竖带（见 LightningFlareEffect） */
   setFlare: (centerX: number, bandWidth: number, flash: number) => void;
+  /** 多重采样档位（画质设置里换档时改）。0 = 关；上限跟着设备的 maxSamples */
+  setMultisampling: (samples: number) => void;
+  /** 泛光开关（链里最贵的一段，低档位关掉） */
+  setBloom: (enabled: boolean) => void;
+  /** F3 面板对照用：此刻链上生效的数 */
+  stats: () => { msaa: number; bloom: boolean };
   setSize: (width: number, height: number) => void;
   dispose: () => void;
 };
 
-/** 低端设备判定：WebGL1 一票否决；触屏 + 核心数少的机器默认省电 */
+/**
+ * 硬性绕过判定：WebGL1 一票否决（整条链要浮点 render target 和多重采样）；
+ * 触屏 + 核心数少的机器同理。这两种机器**画质设置也救不回来**，选了高档也走朴素渲染。
+ */
 function detectLowEnd(renderer: WebGLRenderer): boolean {
   if (!renderer.capabilities.isWebGL2) return true;
 
@@ -117,17 +126,16 @@ export function createPostFX(
   renderer: WebGLRenderer,
   scene: Scene,
   camera: Camera,
-  /** 多重采样覆盖（?msaa= 实验用）；null 走默认 */
-  msaaOverride: number | null = null,
+  /** 开场生效的那一档（画质设置解出来的；之后换档走 setMultisampling / setBloom） */
+  initial: { postFX: boolean; msaa: number; bloom: boolean },
 ): PostFXHandle {
-  const lowEnd = detectLowEnd(renderer);
+  /*
+   * WebGL1 一票否决：整条链靠浮点 render target 和多重采样，退化路径不值得维护。
+   * 这一票**压得过画质设置**——玩家在这种机器上选了"极致"也还是走朴素渲染。
+   */
+  const forceBypass = detectLowEnd(renderer);
   const maxSamples = renderer.capabilities.maxSamples ?? 0;
-  const multisampling =
-    msaaOverride !== null
-      ? Math.min(msaaOverride, maxSamples)
-      : lowEnd
-        ? 0
-        : Math.min(4, maxSamples);
+  const multisampling = Math.min(initial.msaa, maxSamples);
 
   /*
    * **MSAA 必须在 composer 上开**（2026-08-25 用户报"到处是锯齿"）。
@@ -165,6 +173,10 @@ export function createPostFX(
     darkness: VIGNETTE_DARKNESS,
   });
 
+  // 泛光是链里最贵的一段：关掉不重建 pass，把混合函数换成 SKIP（着色器重编一次，
+  // 换档才发生，不在每帧的路上）。这样 setLightningBloom 那套参数也原样留着
+  if (!initial.bloom) bloom.blendMode.blendFunction = BlendFunction.SKIP;
+
   const smaa = new SMAAEffect({ preset: SMAAPreset.MEDIUM });
   const flare = new LightningFlareEffect();
 
@@ -179,7 +191,7 @@ export function createPostFX(
   const blur = new GaussianBlurPass({ kernelSize: 35, iterations: 2, resolutionScale: 0.5 });
   let blurAttached = false;
 
-  let enabled = !lowEnd;
+  let enabled = initial.postFX && !forceBypass;
 
   return {
     get enabled() {
@@ -187,7 +199,7 @@ export function createPostFX(
     },
 
     setEnabled(value: boolean) {
-      enabled = value;
+      enabled = value && !forceBypass;
     },
 
     render(deltaSeconds: number) {
@@ -206,6 +218,22 @@ export function createPostFX(
 
     setFlare(centerX: number, bandWidth: number, flash: number) {
       flare.set(centerX, bandWidth, flash);
+    },
+
+    setMultisampling(samples: number) {
+      // composer 的 setter 自己会换掉 render target（同尺寸、同类型，只改 samples）
+      composer.multisampling = Math.min(Math.max(samples, 0), maxSamples);
+    },
+
+    setBloom(value: boolean) {
+      bloom.blendMode.blendFunction = value ? BlendFunction.SCREEN : BlendFunction.SKIP;
+    },
+
+    stats() {
+      return {
+        msaa: composer.multisampling,
+        bloom: bloom.blendMode.blendFunction !== BlendFunction.SKIP,
+      };
     },
 
     setBlur(scale: number) {

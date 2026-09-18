@@ -47,9 +47,14 @@ export type DebugProbe = () => {
   /** 上一帧的 draw call 数 / 三角形数 */
   drawCalls: number;
   triangles: number;
-  /** 当前生效的像素比和后处理开关（对照画质实验用） */
+  /** 当前生效的画质档位 id 和几项关键参数（对照画质实验用） */
+  quality: string;
   pixelRatio: number;
   postFX: boolean;
+  msaa: number;
+  shadows: boolean;
+  /** 低性能模式此刻是不是接管着（自动模式期间） */
+  lowPower: boolean;
 } | null;
 
 let probe: DebugProbe | null = null;

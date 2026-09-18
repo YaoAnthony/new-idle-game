@@ -188,6 +188,7 @@ import {
 } from "../Game/Systems/trading";
 import { unlockAudio } from "./Engine/AudioEngine";
 import { initAudioSettings } from "./Engine/audioSettings";
+import { setLowPowerActive } from "./Engine/graphicsSettings";
 import { startParticipantSync } from "../Game/Systems/participantSync";
 import {
   allPlots,
@@ -418,6 +419,18 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
     const stopDayRecord = startDayRecord();
     // 自动生活：专注开始就接管日程（脑子；身体在 RoomScene 的驱动器里）
     const stopAutoLife = startAutoLife();
+    /*
+     * 自动模式期间自动省电（设置里那个勾）：专注一开始就把画质临时压到最低档，
+     * 结束弹回玩家自己选的那档。理由和自动生活本身是同一个——这段时间玩家
+     * 人在现实里干活，游戏窗口只是旁边一块会动的风景，没必要让 GPU 满负荷
+     * 烤着笔记本（M4 的 Air 上满画质是 19 ms/帧，压到最低档 ~9 ms）。
+     *
+     * 勾没开的话 setLowPowerActive 自己会当没说，这里不判断偏好。
+     * 压档不落盘：玩家选的档位是玩家的，程序只是借用一会儿。
+     */
+    const offLowPower = on("action_changed", ({ status }) =>
+      setLowPowerActive(status === "started"),
+    );
     initAutoWalk();
     /*
      * 做客（世界是房主的）时不跑天气重掷：天气属于世界，重掷是**改世界**。
@@ -2184,6 +2197,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       stopFarming();
       stopWeather();
       stopDayRecord();
+      offLowPower();
+      setLowPowerActive(false);
       stopAutoLife();
       stopClock();
     };

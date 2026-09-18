@@ -255,6 +255,7 @@ import { Lighting } from "../Engine/Lighting.js";
 import { stepFade } from "../Engine/Fade.js";
 import { setOutlineVisible } from "../Engine/Outline.js";
 import { createRenderer, type RendererHandle } from "../Engine/Renderer.js";
+import { isLowPowerActive } from "../Engine/graphicsSettings.js";
 import { updateListener } from "../Engine/Soundscape.js";
 import { CharacterController } from "../Interaction/CharacterController.js";
 import { PlacementController } from "../Interaction/PlacementController.js";
@@ -988,8 +989,12 @@ export class RoomScene {
       fps: this.renderer.fps(),
       drawCalls: this.renderer.drawStats().calls,
       triangles: this.renderer.drawStats().triangles,
+      quality: this.renderer.quality().id,
       pixelRatio: this.renderer.quality().pixelRatio,
       postFX: this.renderer.quality().postFX,
+      msaa: this.renderer.quality().msaa,
+      shadows: this.renderer.quality().shadows,
+      lowPower: isLowPowerActive(),
     }));
 
     // 补一次初始同步。**必须在两个 placement 都建好之后**——读档进来、

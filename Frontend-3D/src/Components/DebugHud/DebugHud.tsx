@@ -57,7 +57,13 @@ export function DebugHud() {
       {row(
         "画质",
         probe && Number.isFinite(probe.pixelRatio)
-          ? `dpr ${probe.pixelRatio.toFixed(1)} · fx ${probe.postFX ? "开" : "关"}`
+          ? `${probe.quality ?? "?"}${probe.lowPower ? "(省电)" : ""} · dpr ${probe.pixelRatio.toFixed(1)}`
+          : "—",
+      )}
+      {row(
+        "后处理",
+        probe && Number.isFinite(probe.pixelRatio)
+          ? `fx ${probe.postFX ? "开" : "关"} · msaa ${int(probe.msaa)} · 影 ${probe.shadows ? "开" : "关"}`
           : "—",
       )}
       {row("x", fmt(probe?.x))}

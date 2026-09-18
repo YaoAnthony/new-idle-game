@@ -33,8 +33,13 @@ import {
 import { t } from "../../i18n/t";
 import { Modal } from "../Modal/Modal";
 import { usePanel } from "../PanelStack/usePanel";
-import { getGraphicsSettings, updateGraphicsSettings } from "../../Game3D/Engine/graphicsSettings";
 import {
+  getGraphicsPrefs,
+  setAutoLowPower,
+  setGraphicsQuality,
+} from "../../Game3D/Engine/graphicsSettings";
+import {
+  GRAPHICS_CHOICES,
   LANGUAGE_CHOICES,
   MUSIC_MODE_LABELS,
   QUICK_PHASES,
@@ -68,7 +73,8 @@ export function GameSettingsModal() {
   // 挡屏面板，开关挂在全局面板栈上；入口是 ESC 抽屉里的「设置」格（2026-09-12 加回）
   const [open, setOpen] = usePanel("settings");
   const [tab, setTab] = useState<SettingsTabId>("world");
-  const [graphics, setGraphics] = useState(() => getGraphicsSettings());
+  // 画质是"选一档"，不是勾一堆；一档打包像素比 / 抗锯齿 / 泛光 / 阴影 / 积水
+  const [graphics, setGraphics] = useState(() => getGraphicsPrefs());
   /*
    * 音量是 audioSettings 那本账的一份镜像，不是这里的状态：白噪音台的「音乐」
    * 推子也写同一本账，这里只在账变了的时候重读回显。原来是本地状态 + effect
@@ -361,16 +367,50 @@ export function GameSettingsModal() {
                   <div className="flex flex-col gap-5">
                   <section className="flex flex-col gap-2">
                     <SectionTitle>{t("ui.settings.graphics")}</SectionTitle>
+                    {GRAPHICS_CHOICES.map((choice) => (
+                      <button
+                        key={choice.id}
+                        type="button"
+                        aria-pressed={graphics.quality === choice.id}
+                        className={[
+                          "flex cursor-pointer items-center gap-3 border-2 border-[#e2ddd3] p-2.5 text-left transition-colors",
+                          graphics.quality === choice.id
+                            ? "bg-[#4a6b7c] text-[#fdfbf7]"
+                            : "bg-[#f4efe6] hover:bg-[#eae4d8]",
+                        ].join(" ")}
+                        onClick={() => setGraphics(setGraphicsQuality(choice.id))}
+                      >
+                        <span
+                          className="grid size-8 shrink-0 place-items-center border-2 border-[#e2ddd3] bg-[#fdfbf7] font-black text-[#3c4a47]"
+                          aria-hidden="true"
+                        >
+                          {choice.icon}
+                        </span>
+                        <span className="flex flex-col">
+                          <span className="font-extrabold">{t(choice.titleKey)}</span>
+                          <span
+                            className={[
+                              "text-[11px]",
+                              graphics.quality === choice.id ? "text-[#d7e3ea]" : "text-[#6b7a75]",
+                            ].join(" ")}
+                          >
+                            {t(choice.subtitleKey)}
+                          </span>
+                        </span>
+                      </button>
+                    ))}
                     <label className="flex cursor-pointer items-center justify-between font-bold">
                       <span className="flex flex-col">
-                        <span>{t("ui.settings.puddles")}</span>
-                        <span className="text-[11px] font-normal text-[#6b7a75]">{t("ui.settings.puddles_hint")}</span>
+                        <span>{t("ui.settings.auto_low_power")}</span>
+                        <span className="text-[11px] font-normal text-[#6b7a75]">
+                          {t("ui.settings.auto_low_power_hint")}
+                        </span>
                       </span>
                       <input
                         type="checkbox"
                         className="size-4 accent-[#e2ddd3]"
-                        checked={graphics.puddles}
-                        onChange={(event) => setGraphics(updateGraphicsSettings({ puddles: event.target.checked }))}
+                        checked={graphics.autoLowPower}
+                        onChange={(event) => setGraphics(setAutoLowPower(event.target.checked))}
                       />
                     </label>
                   </section>
@@ -390,7 +430,7 @@ export function GameSettingsModal() {
                         onClick={() => chooseLocale(choice.id)}
                       >
                         <span
-                          className="grid size-8 shrink-0 place-items-center border-2 border-[#e2ddd3] bg-[#fdfbf7] font-black"
+                          className="grid size-8 shrink-0 place-items-center border-2 border-[#e2ddd3] bg-[#fdfbf7] font-black text-[#3c4a47]"
                           aria-hidden="true"
                         >
                           {choice.icon}

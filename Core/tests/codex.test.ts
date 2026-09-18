@@ -65,17 +65,12 @@ test("codex_家具进背包或摆出来都点亮_不是家具的能摆物丢掉"
   assert.deepEqual(codexEntriesForSignal({ kind: "furniture_obtained" }), []);
 });
 
-test("codex_居民出现用实例id_来访和搬入用定义id_无关信号不点", () => {
-  assert.deepEqual(codexEntriesForSignal({ kind: "resident_spawned", subject: residentIdOf("shushu") }), [
-    "resident:shushu",
-  ]);
-  assert.deepEqual(codexEntriesForSignal({ kind: "resident_spawned", subject: "shushu" }), []);
-  assert.deepEqual(codexEntriesForSignal({ kind: "visitor_arrived", subject: "fox_neighbor" }), [
-    "resident:fox_neighbor",
-  ]);
-  assert.deepEqual(codexEntriesForSignal({ kind: "resident_moved_in", subject: "slime_neighbor" }), [
-    "resident:slime_neighbor",
-  ]);
+test("codex_居民只认对视_在场来访搬入都不点_无关信号不点", () => {
+  assert.deepEqual(codexEntriesForSignal({ kind: "resident_eye_contact", subject: "shushu" }), ["resident:shushu"]);
+  assert.deepEqual(codexEntriesForSignal({ kind: "resident_eye_contact", subject: residentIdOf("shushu") }), []);
+  assert.deepEqual(codexEntriesForSignal({ kind: "resident_spawned", subject: residentIdOf("shushu") }), []);
+  assert.deepEqual(codexEntriesForSignal({ kind: "visitor_arrived", subject: "fox_neighbor" }), []);
+  assert.deepEqual(codexEntriesForSignal({ kind: "resident_moved_in", subject: "slime_neighbor" }), []);
   assert.deepEqual(codexEntriesForSignal({ kind: "cook_completed", subject: "furniture_bed" }), []);
 });
 

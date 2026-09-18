@@ -10,6 +10,7 @@ import {
   snapshotAchievements,
 } from "../../../Game/Systems/achievements";
 import { restoreCodex, snapshotCodex } from "../../../Game/Systems/codex";
+import { getWorldSeed, restoreWorldSeed } from "../../../Game/State/worldSeed";
 import { restoreClock, snapshotClock } from "../../../Game/State/clock";
 import { restoreChatLog, snapshotChatLog } from "../../../Game/State/chatLog";
 import {
@@ -130,9 +131,10 @@ const noop = (): void => undefined;
 export const WORLD_SLICES = {
   worldId: { snapshot: () => WORLD_ID, restore: noop, changedBy: [] },
   seed: {
-    // 只在建档时定，之后沿用上一份存档的
-    snapshot: ({ previous }) => previous?.ownWorld.seed ?? 1,
-    restore: noop,
+    // 建档时定、之后不变：有上一份档就沿用它的（读档回来运行时那份就是它）；
+    // 没有 = 新档，用开新档时抓的那个（State/worldSeed）。随机池的抽签拌它
+    snapshot: ({ previous }) => previous?.ownWorld.seed ?? getWorldSeed(),
+    restore: (value, ctx) => restoreWorldSeed(value, ctx.mode),
     changedBy: [],
   },
   house: {

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, test } from "vitest";
-import { COMMAND_SKILL_ID, CreatureRole, DEFAULT_MAP_ID, Facing, findSkillPriority } from "core";
+import { COMMAND_SKILL_ID, CreatureRole, DEFAULT_MAP_ID, Facing, GOLEM_CONSTRUCTION_FEATURE, findSkillPriority } from "core";
+import { restoreProgression, unlockFeature } from "../src/Game/Systems/events";
 
 import { runCommand } from "../src/Game/CommandLine/commands";
 import { restoreBuildings } from "../src/Game/State/buildings";
@@ -207,7 +208,12 @@ test("skills_按F问技能_商人开交易_工头开建造_居民落回对话", 
   // seedInitialCreatures 在场上已有活物时不再种，所以这里直接召一尊
   const golem = spawnResident("resident-stone_golem", "stone_golem");
   golem.attachPart("head");
+  // 建造没解锁时他只会咔咔（对话）；解锁了才是建造面板（2026-09-16）
+  restoreProgression({ events: {}, unlockedFeatureIds: [] });
+  expect(golem.interact(PLAYER)).toEqual({ kind: "dialogue", dialogueId: "golem_first_talk" });
+  unlockFeature(GOLEM_CONSTRUCTION_FEATURE);
   expect(golem.interact(PLAYER)).toEqual({ kind: "build_shop" });
+  restoreProgression({ events: {}, unlockedFeatureIds: [] });
 
   const slime = parked("resident-a", "slime_neighbor");
   // 03 起居民挂了 talk 技能：按 F 答的是闲聊池抽出来的一段（不再落回 RoomScene 的兜底对话）

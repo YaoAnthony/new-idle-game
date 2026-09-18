@@ -36,6 +36,8 @@ import { beginHouseVisit, knockAtFrontDoor, refuseVisit } from "./residents/visi
 import { leaveTravelerAfterIntro } from "./trading";
 import { presentItems } from "./unpack";
 import { getEventStage, isFeatureUnlocked, setEventStage, unlockFeature } from "./events";
+import { isRandomPoolOpen } from "./randomPools";
+import { getWorldSeed } from "../State/worldSeed";
 
 /**
  * 剧情解释器。剧情内容全部来自 Core 的 storyRules 注册表，
@@ -395,6 +397,8 @@ function handleSignal(signal: StorySignal): void {
     if (!hit) continue;
 
     if (hit.poolId) {
+      // 池关着（教程没做完 / 调试全关）：不进候选、不掷点、不攒保底（2026-09-16）
+      if (!isRandomPoolOpen(hit.poolId)) continue;
       const group = pooled.get(hit.poolId) ?? [];
       group.push(rule);
       pooled.set(hit.poolId, group);
@@ -425,6 +429,7 @@ function handleSignal(signal: StorySignal): void {
       candidates,
       poolMisses[poolId] ?? 0,
       context.worldDayId,
+      getWorldSeed(),
     );
     poolMisses[poolId] = nextMisses;
     if (hit) fire(hit);

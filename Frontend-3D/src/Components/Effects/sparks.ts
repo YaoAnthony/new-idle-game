@@ -50,9 +50,9 @@ export class SparkField {
     x: number,
     y: number,
     count: number,
-    options: { speed?: number; big?: boolean; dir?: number; spread?: number } = {},
+    options: { speed?: number; big?: boolean; dir?: number; spread?: number; colors?: readonly string[] } = {},
   ): void {
-    const { speed = 55, big = false, dir, spread = 2.2 } = options;
+    const { speed = 55, big = false, dir, spread = 2.2, colors = COLORS } = options;
     const dpr = this.dpr;
     const now = performance.now() / 1000;
     for (let i = 0; i < count; i++) {
@@ -66,7 +66,7 @@ export class SparkField {
         born: now,
         life: (big ? 0.8 : 0.5) + Math.random() * 0.4,
         size: (big ? 5 : 2.6) * dpr * (0.8 + Math.random() * 0.5),
-        color: COLORS[Math.floor(Math.random() * COLORS.length)],
+        color: colors[Math.floor(Math.random() * colors.length)] ?? COLORS[0],
         phase: Math.random() * Math.PI * 2,
         rot: Math.random() * Math.PI,
         spin: (Math.random() - 0.5) * 6,

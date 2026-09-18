@@ -13,6 +13,8 @@ build/
 .env
 .env.*
 !.env.example
+# 部署参数（桶名、分发 id、profile），不进仓库；模板是 deploy/aws.env.example
+deploy/aws.env
 
 # Logs
 logs/

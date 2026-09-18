@@ -166,10 +166,16 @@ export function drawFromPool<T>(
   candidates: readonly T[],
   misses: number,
   worldDayId: WorldDayId,
+  /**
+   * 世界的初始 seed（`WorldSave.seed`，建档时定）。带上它两个世界同一天的抽签才不一样——
+   * 不带的话所有玩家在同一个日期看到同一批访客。不传 = 老行为（测试和没接上 seed 的调用方）。
+   */
+  worldSeed?: number,
 ): { hit: T | null; nextMisses: number } {
   if (candidates.length === 0) return { hit: null, nextMisses: misses };
 
-  const roll = seededRandom(hashSeed(`${pool.poolId}|${worldDayId}`))();
+  const salt = worldSeed === undefined ? "" : `${worldSeed}|`;
+  const roll = seededRandom(hashSeed(`${salt}${pool.poolId}|${worldDayId}`))();
   if (roll >= poolChance(pool, misses)) {
     return { hit: null, nextMisses: misses + 1 };
   }
@@ -177,7 +183,7 @@ export function drawFromPool<T>(
   const [picked] = drawDeterministic(
     candidates,
     1,
-    hashSeed(`${pool.poolId}|${worldDayId}|pick`),
+    hashSeed(`${salt}${pool.poolId}|${worldDayId}|pick`),
   );
   return { hit: picked ?? null, nextMisses: 0 };
 }

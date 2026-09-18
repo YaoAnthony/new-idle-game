@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { DAILY_LIFE_FEATURE } from "../src/Data/features/index.js";
 import { birthdayFriendOf, daysUntilBirthday, isBirthdayOn } from "../src/Data/residents/birthday.js";
 import { residentDefinitions } from "../src/Data/residents/index.js";
 import { festivalDefinitions, festivalOfDay, festivalOn } from "../src/Data/festivals/index.js";
@@ -47,7 +48,8 @@ test("story_触发门槛requires_没有holds一律不成立_规则都在", () =>
   const rule = storyRules.find((entry) => entry.id === "birthday_today_fox_neighbor");
   assert.ok(rule);
   const trigger = rule.triggers[0];
-  const context = { worldDayId: "2026-07-07", weatherId: "sunny", itemCounts: {}, signalCounts: {}, eventStage: () => null, isFeatureUnlocked: () => false };
+  // 生日 / 节日规则挂着 daily_life 的门（主线，2026-09-16）：这里当作教程早做完了
+  const context = { worldDayId: "2026-07-07", weatherId: "sunny", itemCounts: {}, signalCounts: {}, eventStage: () => null, isFeatureUnlocked: (id: string) => id === DAILY_LIFE_FEATURE };
   assert.equal(triggerMatches(trigger, { kind: "day_started" }, context), false);
   assert.equal(triggerMatches(trigger, { kind: "day_started" }, { ...context, holds: () => true }), true);
   // 撤的规则排在立的前面

@@ -190,7 +190,23 @@ export type StorySignalKind =
    * 玩家拿着一件东西按了 F（subject 是 itemId），且那件东西不是吃的。
    * 现在只有可读物（信封）发它；以后"用一下"的道具都走这一个口。
    */
-  | "item_used";
+  | "item_used"
+  /**
+   * 主线的一章做完了（subject = 章 id，见 Data/mainline）。运行时 Systems/mainline 在落成
+   * feature 的同一拍发；"教程结束弹一段旁白"这类接它。
+   */
+  | "mainline_chapter_done"
+  /**
+   * 你和一位居民对视了（subject = definitionId，居民系统 21 的注视 + 2026-09-16 的对视判定）。
+   * 两个人都朝着对方看、够近、连着看满 attentionTuning.eyeContact.holdSeconds 那一拍发，
+   * 视线断开再对上会再发一次。图鉴的居民分区靠它收录——光在场不算见过。
+   */
+  | "resident_eye_contact"
+  /**
+   * 一张信纸烧掉了（subject = letterId）。开场魔女的条子读完不是合上而是烧掉（用户 2026-09-16）：
+   * 前端 NotePanel 演完火焰那一拍发；信封怎么处理（消耗、记旗子）由规则接。之后照旧发 letter_closed。
+   */
+  | "letter_burned";
 
 export type StorySignal = {
   kind: StorySignalKind;

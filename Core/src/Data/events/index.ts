@@ -95,6 +95,15 @@ export const eventDefinitions: EventDefinition[] = [
       { stageId: "met", localizationKey: "event.traveler_intro.met" },
     ],
   },
+  /**
+   * 石傀儡醒来后第一次和他"说话"（2026-09-16）：只会咔咔。说过一遍之后他不理你（golem_silent）。
+   * 建造（feature golem_construction）什么时候解锁是后面的剧情，这里只记"聊过了"。
+   */
+  {
+    id: "golem_intro",
+    localizationKey: "event.golem_intro",
+    stages: [{ stageId: "talked", localizationKey: "event.golem_intro.talked" }],
+  },
 ];
 
 export function findEventDefinition(id: string): EventDefinition | undefined {

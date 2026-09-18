@@ -1,0 +1,8 @@
+{
+  "_comment": "单页应用：S3 找不到路径时回 index.html。放进分发的 CustomErrorResponses（控制台：Error pages）",
+  "Quantity": 2,
+  "Items": [
+    { "ErrorCode": 403, "ResponsePagePath": "/index.html", "ResponseCode": "200", "ErrorCachingMinTTL": 10 },
+    { "ErrorCode": 404, "ResponsePagePath": "/index.html", "ResponseCode": "200", "ErrorCachingMinTTL": 10 }
+  ]
+}

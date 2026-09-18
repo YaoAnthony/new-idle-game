@@ -1,6 +1,6 @@
 import type { CodexEntry, CodexSectionId } from "core";
 import { ChevronRight } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { iconUrl } from "../../Assets/icons";
 import { on } from "../../Game/EventBus";
 import { getCodexProgress, listCodex, listCodexTabs, type CodexView } from "../../Game/Systems/codex";
@@ -11,18 +11,20 @@ import { HammerSeal } from "../Modal/seals";
 import { usePanel } from "../PanelStack/usePanel";
 
 /**
- * 图鉴面板（2026-09-15，ESC 抽屉进）。照成就面板的骨架：顶上一条总览（已收录 n / 总数 + 进度条），
- * 左栏分区页签，右栏按子分组分段的方格卡片，下面一条详情。
+ * 图鉴面板（2026-09-15，ESC 抽屉进）。顶上一条总览（已收录 n / 总数 + 进度条），左栏分区导航，
+ * 右栏**所有分区按顺序连着排**（分区标题 → 子分组 → 方格卡片），下面一条详情。
+ *
+ * 左栏是**导航不是筛选**（用户 2026-09-17）：点"居民"平滑滚到居民那一段，滚动时左栏跟着高亮
+ * 当前所在的分区。原来是筛选（点了只剩那一类）+ 一个"全部"页签，切换时卡片整块跳，读起来很怪。
  *
  * **紧凑布局**（横屏矮屏 ≤500 高 = 手机基准机 667×375，或竖屏的窄窗口）走另一套骨架：
- * 桌面那套是"左栏 + 常驻详情条 + 底部按钮"，在 375 高的屏上三样一摆，卡片只剩一行。
- * 紧凑版把页签放成顶上一行小胶囊、关闭钮并进标题行、详情改成点了才浮出来的一层（盖在卡片上，
+ * 页签放成顶上一行小胶囊、关闭钮并进标题行、详情改成点了才浮出来的一层（盖在卡片上，
  * 不占常驻高度），Modal 不给 aspect——按屏幕铺开而不是硬塞一块 1.6:1 的牌子。
  *
  * 这里**不认识任何注册表**：分区、条目、分组、图、文案键全从 Systems/codex 的查询口来
  * （最终来自 Core `Data/codex` 的来源表）。加一个分区，这个文件一行不改。
  *
- * 卡片两态：没见过 = 同一张图压成黑影 + 「？？？」，点了只说还没见过；见过 = 正常图 + 名字，
+ * 卡片两态：没见过 = 同一张图压成黑影 + 「？？？」，点了详情里也只有黑影和「？？？」；见过 = 正常图 + 名字，
  * 点了下面展开介绍和初见日。介绍文案缺的显示"介绍还没写"（用户自己补文案）。
  */
 const HAND_FONT = '"Nunito", "LXGW WenKai GB", "Kaiti SC", sans-serif';
@@ -45,22 +47,30 @@ function useCompact(): boolean {
   return compact;
 }
 
-type Tab = "all" | CodexSectionId;
+type Group = { groupKey: string; views: CodexView[] };
+type SectionBlock = { section: CodexSectionId; titleKey: string; emoji: string; groups: Group[] };
 
 export function CodexPanel() {
   const [open, setOpen] = usePanel("codex");
-  const [tab, setTab] = useState<Tab>("all");
   const [views, setViews] = useState<CodexView[]>(() => listCodex());
   const [progress, setProgress] = useState(() => getCodexProgress());
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const compact = useCompact();
   const tabs = useMemo(() => listCodexTabs(), []);
+  const [active, setActive] = useState<CodexSectionId | null>(tabs[0]?.section ?? null);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const sectionRefs = useRef(new Map<CodexSectionId, HTMLElement>());
+  /** 点了导航正在平滑滚过去：这段时间滚动监听不改高亮，不然会一路闪过中间的分区 */
+  const jumping = useRef<{ section: CodexSectionId; until: number } | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setViews(listCodex());
     setProgress(getCodexProgress());
-  }, [open]);
+    setActive(tabs[0]?.section ?? null);
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [open, tabs]);
 
   useEffect(
     () =>
@@ -71,43 +81,111 @@ export function CodexPanel() {
     [],
   );
 
-  const shown = views.filter((view) => tab === "all" || view.entry.section === tab);
-  const groups = useMemo(() => {
-    const byGroup = new Map<string, CodexView[]>();
-    for (const view of shown) {
-      const list = byGroup.get(view.entry.groupKey) ?? [];
-      list.push(view);
-      byGroup.set(view.entry.groupKey, list);
-    }
-    return [...byGroup.entries()];
-  }, [shown]);
+  // 分区（按来源表顺序）→ 子分组（按条目出现顺序）
+  const blocks = useMemo<SectionBlock[]>(
+    () =>
+      tabs.map((tab) => {
+        const byGroup = new Map<string, CodexView[]>();
+        for (const view of views) {
+          if (view.entry.section !== tab.section) continue;
+          const list = byGroup.get(view.entry.groupKey) ?? [];
+          list.push(view);
+          byGroup.set(view.entry.groupKey, list);
+        }
+        return { ...tab, groups: [...byGroup.entries()].map(([groupKey, list]) => ({ groupKey, views: list })) };
+      }),
+    [tabs, views],
+  );
   const selected = views.find((view) => view.entry.id === selectedId) ?? null;
   const total = progress.all;
 
-  const tabItems = [{ section: "all" as const, titleKey: "codex.panel.all", emoji: "▦" }, ...tabs];
+  /** 分区标题离滚动区顶端多远（滚动坐标系） */
+  const offsetOf = (section: CodexSectionId): number | null => {
+    const container = scrollRef.current;
+    const el = sectionRefs.current.get(section);
+    if (!container || !el) return null;
+    return el.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
+  };
+
+  const jumpTo = (section: CodexSectionId) => {
+    const container = scrollRef.current;
+    const top = offsetOf(section);
+    if (!container || top === null) return;
+    setActive(section);
+    jumping.current = { section, until: performance.now() + 900 };
+    container.scrollTo({ top, behavior: "smooth" });
+  };
+
+  // 滚动高亮：最后一个标题已经滚到顶上的分区；滚到底就是最后一个
+  const onScroll = () => {
+    const container = scrollRef.current;
+    if (!container) return;
+    const jump = jumping.current;
+    if (jump) {
+      const top = offsetOf(jump.section) ?? 0;
+      const arrived = Math.abs(container.scrollTop - top) < 2 || container.scrollTop + container.clientHeight >= container.scrollHeight - 2;
+      if (!arrived && performance.now() < jump.until) return;
+      jumping.current = null;
+    }
+    let current = tabs[0]?.section ?? null;
+    for (const tab of tabs) {
+      const top = offsetOf(tab.section);
+      if (top !== null && top <= container.scrollTop + 12) current = tab.section;
+    }
+    if (container.scrollTop + container.clientHeight >= container.scrollHeight - 2) {
+      current = tabs[tabs.length - 1]?.section ?? current;
+    }
+    setActive(current);
+  };
 
   const grid = (
-    <div className={`ui-scroll min-h-0 flex-1 overflow-y-auto pr-1 ${compact ? "" : ""}`}>
-      {groups.map(([groupKey, list]) => (
-        <section key={groupKey} className={compact ? "mb-1.5" : "mb-2"}>
-          <h3 className={`m-0 mb-1 font-black text-[#8D7B6E] ${compact ? "text-[11px]" : "text-[12px]"}`}>{t(groupKey)}</h3>
-          <div
-            className={`grid gap-2 ${
-              compact ? "grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-1.5" : "grid-cols-[repeat(auto-fill,minmax(88px,1fr))]"
-            }`}
+    <div
+      ref={scrollRef}
+      onScroll={onScroll}
+      className="ui-scroll min-h-0 flex-1 overflow-y-auto pr-1"
+      style={{ scrollBehavior: "smooth" }}
+    >
+      {blocks.map((block) => {
+        const count = progress[block.section];
+        return (
+          <section
+            key={block.section}
+            ref={(el) => {
+              if (el) sectionRefs.current.set(block.section, el);
+              else sectionRefs.current.delete(block.section);
+            }}
+            className={compact ? "mb-3" : "mb-4"}
           >
-            {list.map((view) => (
-              <CodexCard
-                key={view.entry.id}
-                view={view}
-                active={view.entry.id === selectedId}
-                compact={compact}
-                onClick={() => setSelectedId((current) => (compact && current === view.entry.id ? null : view.entry.id))}
-              />
+            <h2
+              className={`m-0 mb-1.5 flex items-center gap-1.5 font-black text-[#4a3b33] ${compact ? "text-[13px]" : "text-[15px]"}`}
+            >
+              <span className="leading-none">{block.emoji}</span>
+              <span>{t(block.titleKey)}</span>
+              {count && <span className="text-[11px] tabular-nums text-[#9E9E9E]">{count.seen}/{count.total}</span>}
+            </h2>
+            {block.groups.map((group) => (
+              <div key={group.groupKey} className={compact ? "mb-1.5" : "mb-2"}>
+                <h3 className={`m-0 mb-1 font-black text-[#8D7B6E] ${compact ? "text-[11px]" : "text-[12px]"}`}>{t(group.groupKey)}</h3>
+                <div
+                  className={`grid gap-2 ${
+                    compact ? "grid-cols-[repeat(auto-fill,minmax(64px,1fr))] gap-1.5" : "grid-cols-[repeat(auto-fill,minmax(88px,1fr))]"
+                  }`}
+                >
+                  {group.views.map((view) => (
+                    <CodexCard
+                      key={view.entry.id}
+                      view={view}
+                      active={view.entry.id === selectedId}
+                      compact={compact}
+                      onClick={() => setSelectedId((current) => (compact && current === view.entry.id ? null : view.entry.id))}
+                    />
+                  ))}
+                </div>
+              </div>
             ))}
-          </div>
-        </section>
-      ))}
+          </section>
+        );
+      })}
     </div>
   );
 
@@ -124,7 +202,7 @@ export function CodexPanel() {
       label={t("codex.panel.title")}
     >
       {compact ? (
-        /* ---- 紧凑：标题行（含关闭）→ 页签一行 → 卡片铺满 → 详情浮层 ---- */
+        /* ---- 紧凑：标题行（含关闭）→ 导航一行 → 卡片铺满 → 详情浮层 ---- */
         <div className="absolute inset-0 flex flex-col gap-1.5 p-2.5" style={{ fontFamily: HAND_FONT }}>
           <header className="flex shrink-0 items-center gap-2">
             <span className="text-[20px] leading-none">📖</span>
@@ -143,17 +221,17 @@ export function CodexPanel() {
           </header>
 
           <nav className="ui-scroll flex shrink-0 gap-1.5 overflow-x-auto pb-0.5">
-            {tabItems.map((item) => {
-              const active = item.section === tab;
+            {tabs.map((item) => {
+              const on_ = item.section === active;
               const count = progress[item.section];
               return (
                 <button
                   key={item.section}
                   type="button"
-                  onClick={() => setTab(item.section)}
+                  onClick={() => jumpTo(item.section)}
                   className={[
-                    "flex shrink-0 items-center gap-1 rounded-full border-2 px-2.5 py-1 text-[12px] font-black text-[#4a3b33] transition-colors",
-                    active ? "border-[#BCAAA4] bg-[#EFEBE9]" : "border-[#EEE9DE] bg-white",
+                    "flex shrink-0 items-center gap-1 rounded-full border-2 px-2.5 py-1 text-[12px] font-black text-[#4a3b33] transition-colors duration-200",
+                    on_ ? "border-[#BCAAA4] bg-[#EFEBE9]" : "border-[#EEE9DE] bg-white",
                   ].join(" ")}
                 >
                   <span className="text-[14px] leading-none">{item.emoji}</span>
@@ -174,7 +252,7 @@ export function CodexPanel() {
           </div>
         </div>
       ) : (
-        /* ---- 桌面：顶栏总览 → 左栏页签 + 右栏卡片 → 常驻详情条 → 底部按钮 ---- */
+        /* ---- 桌面：顶栏总览 → 左栏导航 + 右栏卡片 → 常驻详情条 → 底部按钮 ---- */
         <div className="absolute inset-0 flex flex-col gap-2 p-4" style={{ fontFamily: HAND_FONT }}>
           <header className="flex shrink-0 items-center gap-3">
             <span className="text-[30px] leading-none">📖</span>
@@ -189,24 +267,21 @@ export function CodexPanel() {
                 </span>
               </div>
             </div>
-            <span className="hidden shrink-0 rounded-2xl bg-[#EFEBE9] px-3 py-1.5 text-[13px] font-black text-[#5D4037] lg:block">
-              {t("codex.panel.slogan")}
-            </span>
           </header>
 
           <div className="flex min-h-0 flex-1 gap-3">
             <aside className="ui-scroll flex w-[24%] min-w-0 shrink-0 flex-col gap-1.5 overflow-y-auto border-r-2 border-[#E6E0D4] pr-3">
-              {tabItems.map((item) => {
-                const active = item.section === tab;
+              {tabs.map((item) => {
+                const on_ = item.section === active;
                 const count = progress[item.section];
                 return (
                   <button
                     key={item.section}
                     type="button"
-                    onClick={() => setTab(item.section)}
+                    onClick={() => jumpTo(item.section)}
                     className={[
-                      "flex shrink-0 items-center gap-2 rounded-2xl border-2 px-3 py-2 text-left text-[15px] font-black text-[#4a3b33] transition-colors",
-                      active ? "border-[#BCAAA4] bg-[#EFEBE9]" : "border-[#EEE9DE] bg-white hover:bg-[#FAF6F2]",
+                      "flex shrink-0 items-center gap-2 rounded-2xl border-2 px-3 py-2 text-left text-[15px] font-black text-[#4a3b33] transition-colors duration-200",
+                      on_ ? "border-[#BCAAA4] bg-[#EFEBE9]" : "border-[#EEE9DE] bg-white hover:bg-[#FAF6F2]",
                     ].join(" ")}
                   >
                     <span className="text-[18px]">{item.emoji}</span>
@@ -301,11 +376,12 @@ function CodexDetail({
     );
   }
   const seen = Boolean(view.discovery);
+  // 没见过的只露黑影和"？？？"，不配说明文字（用户 2026-09-17 删的）
   const desc = seen
     ? hasLocalizationKey(view.entry.descKey)
       ? t(view.entry.descKey)
       : t("codex.panel.no_desc")
-    : t("codex.panel.unknown_desc");
+    : null;
   return (
     <div
       className={[
@@ -329,7 +405,9 @@ function CodexDetail({
             </span>
           )}
         </span>
-        <span className={`line-clamp-2 leading-snug text-[#5D4037] ${compact ? "text-[11px]" : "text-[12px]"}`}>{desc}</span>
+        {desc && (
+          <span className={`line-clamp-2 leading-snug text-[#5D4037] ${compact ? "text-[11px]" : "text-[12px]"}`}>{desc}</span>
+        )}
       </span>
       {onClose && (
         <button

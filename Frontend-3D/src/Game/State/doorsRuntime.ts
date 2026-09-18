@@ -487,6 +487,20 @@ export function initDoors(): void {
   });
   // 剧情比门先到的锁 / 开锁（见 storyLocks）
   applyStoryLocks();
+  /*
+   * 告诉"要站在门外"的系统门有了（2026-09-16）。各系统在 RoomScene 之前就启动，
+   * 商人的班表对齐那一拍还没有门，摊位算不出来——原来退回老路把人和车塞进屋里
+   * （用户报"开局小鱼人就在家里"）。现在它们等这条再对齐一次。
+   */
+  doorsInitialized = true;
+  emit("world_changed", { reason: "doors_initialized" });
+}
+
+let doorsInitialized = false;
+
+/** 门实例建好了没（RoomScene 构造时建）。没建好之前"门外"这个位置不存在 */
+export function areDoorsInitialized(): boolean {
+  return doorsInitialized;
 }
 
 /**

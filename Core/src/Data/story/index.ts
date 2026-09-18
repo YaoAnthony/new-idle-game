@@ -2,7 +2,9 @@ import { affectionTuning, theftTuning } from "../economy/index.js";
 import { findBlueprintForBuilding, findItemDefinition } from "../items/index.js";
 import { findLootTable } from "../loot/index.js";
 import { DEFAULT_MAP_ID } from "../../types/map.js";
-import { favorDefinitions } from "../residents/favors.js";
+import { favorDefinitions, favorTuning } from "../residents/favors.js";
+import { visitTuning } from "../residents/visits.js";
+import { DAILY_LIFE_FEATURE, OPENING_BOXES_FEATURE } from "../features/index.js";
 import { RESIDENT_FACT_KINDS, findResidentDefinition, residentIdOf } from "../residents/index.js";
 import { tripPool } from "../residents/trips.js";
 import { visitorTuning } from "../residents/visitors.js";
@@ -10,12 +12,14 @@ import { MAILBOX_FEATURE, letterDefinitions, mailTuning } from "../residents/let
 import { birthdayTuning } from "../residents/birthday.js";
 import { festivalDefinitions, festivalTuning } from "../festivals/index.js";
 import { DOOR_NOTE_FLAG } from "../doors/index.js";
+import { WITCH_LETTER_BURNED_FLAG } from "../mainline/index.js";
 
 /** 专属家具的 id 从定义上取，规则不抄第二遍 */
 function signatureItemOf(definitionId: string): string {
   return findResidentDefinition(definitionId)?.signatureItemId ?? "";
 }
 import type { StoryRule, TutorialDefinition } from "../../types/story.js";
+import type { DialogueCondition } from "../../types/dialogue.js";
 import type { FavorDefinition } from "../../types/favors.js";
 
 /** 委托表是 as const 的元组，逐条的字面量类型没有它没填的可选字段；按接口类型看它 */
@@ -35,7 +39,7 @@ const FAVORS: readonly FavorDefinition[] = favorDefinitions;
 const NEIGHBORS = ["slime_neighbor", "fox_neighbor", "spirit_neighbor"] as const;
 
 /** 开场：两箱都拆了。进度键只增不减，收拾屋子那条规则拿它当前置 */
-const OPENING_BOXES_FEATURE = "opening.boxes_unpacked";
+// OPENING_BOXES_FEATURE 搬去了 Data/features（主线注册表也要它）
 
 /** 开场那两个纸箱的战利品表（seedInitialFurniture 摆在屋里的那两箱） */
 const OPENING_BOX_LOOT_TABLES = ["moving_tools", "moving_furniture"] as const;
@@ -206,6 +210,25 @@ export const storyRules: StoryRule[] = [
       { signal: "map_entered", subject: DEFAULT_MAP_ID, requiresEventStage: TRAVELER_KNOCKING },
     ],
     effects: [{ kind: "knock_at_front_door", residentId: residentIdOf("fish_trader"), opensDoor: true }],
+  },
+  /*
+   * ==== 魔女的条子烧掉了（2026-09-16）====
+   * 读完不是合上而是烧掉：信封跟着没了（原来"信不会丢"的定法作废，用户定），记一面旗子给主线的节拍看。
+   */
+  {
+    id: "opening_letter_burned",
+    triggers: [{ signal: "letter_burned", subject: "witch_first" }],
+    effects: [
+      { kind: "consume_item", itemId: "witch_letter", quantity: 1 },
+      { kind: "set_flag", key: WITCH_LETTER_BURNED_FLAG, value: "1" },
+    ],
+  },
+
+  /* ==== 石傀儡醒来后的第一段"咔咔"（2026-09-16）：说完记一笔，之后他只回"...." ==== */
+  {
+    id: "golem_intro_talked",
+    triggers: [{ signal: "dialogue_ended", subject: "golem_first_talk" }],
+    effects: [{ kind: "set_event_stage", eventId: "golem_intro", stageId: "talked", complete: true }],
   },
   {
     id: "traveler_intro_met",
@@ -545,7 +568,7 @@ export const storyRules: StoryRule[] = [
   ...NEIGHBORS.map((who): StoryRule => ({
     id: `birthday_over_${who}`,
     once: false,
-    triggers: [{ signal: "day_started", requires: [{ kind: "flag_is", key: birthdayTuning.flag, value: who }] }],
+    triggers: [{ signal: "day_started", requiresFeature: DAILY_LIFE_FEATURE, requires: [{ kind: "flag_is", key: birthdayTuning.flag, value: who }] }],
     effects: [
       { kind: "set_flag", key: birthdayTuning.flag, value: null },
       { kind: "porch_decorate", residentId: residentIdOf(who), decorationId: null },
@@ -554,13 +577,13 @@ export const storyRules: StoryRule[] = [
   ...NEIGHBORS.map((who): StoryRule => ({
     id: `birthday_soon_${who}`,
     once: false,
-    triggers: [{ signal: "day_started", requires: [{ kind: "birthday_in_days", residentId: who, days: birthdayTuning.noticeDaysAhead }] }],
+    triggers: [{ signal: "day_started", requiresFeature: DAILY_LIFE_FEATURE, requires: [{ kind: "birthday_in_days", residentId: who, days: birthdayTuning.noticeDaysAhead }] }],
     effects: [{ kind: "record_fact", factKind: "birthday_soon", subject: who }],
   })),
   ...NEIGHBORS.map((who): StoryRule => ({
     id: `birthday_today_${who}`,
     once: false,
-    triggers: [{ signal: "day_started", requires: [{ kind: "is_birthday_of", residentId: who }] }],
+    triggers: [{ signal: "day_started", requiresFeature: DAILY_LIFE_FEATURE, requires: [{ kind: "is_birthday_of", residentId: who }] }],
     effects: [
       { kind: "set_flag", key: birthdayTuning.flag, value: who },
       { kind: "porch_decorate", residentId: residentIdOf(who), decorationId: birthdayTuning.decorationId },
@@ -577,7 +600,7 @@ export const storyRules: StoryRule[] = [
   ...NEIGHBORS.map((who): StoryRule => ({
     id: `player_birthday_${who}`,
     once: false,
-    triggers: [{ signal: "day_started", requires: [{ kind: "is_player_birthday" }] }],
+    triggers: [{ signal: "day_started", requiresFeature: DAILY_LIFE_FEATURE, requires: [{ kind: "is_player_birthday" }] }],
     effects: [{ kind: "send_letter", letterId: `player_birthday_${who.replace(/_neighbor$/, "")}`, fromResidentId: who }],
   })),
   // 节日：按日期立 / 拔旗子，门口挂装饰。撤在前、立在后，理由同生日
@@ -585,7 +608,7 @@ export const storyRules: StoryRule[] = [
     {
       id: `festival_end_${festival.id}`,
       once: false,
-      triggers: [{ signal: "day_started", requires: [{ kind: "flag_is", key: festivalTuning.flag, value: festival.id }] }],
+      triggers: [{ signal: "day_started", requiresFeature: DAILY_LIFE_FEATURE, requires: [{ kind: "flag_is", key: festivalTuning.flag, value: festival.id }] }],
       effects: [
         { kind: "set_flag", key: festivalTuning.flag, value: null },
         ...NEIGHBORS.map((who) => ({ kind: "porch_decorate" as const, residentId: residentIdOf(who), decorationId: null })),
@@ -594,7 +617,7 @@ export const storyRules: StoryRule[] = [
     {
       id: `festival_start_${festival.id}`,
       once: false,
-      triggers: [{ signal: "day_started", requires: [{ kind: "festival_on", festivalId: festival.id }] }],
+      triggers: [{ signal: "day_started", requiresFeature: DAILY_LIFE_FEATURE, requires: [{ kind: "festival_on", festivalId: festival.id }] }],
       effects: [
         { kind: "set_flag", key: festivalTuning.flag, value: festival.id },
         ...(festival.residents.decoration
@@ -824,10 +847,25 @@ export type StoryPoolDefinition = {
   base: number;
   /** 每连续错过一次加多少 */
   step: number;
+  /**
+   * 池的门（2026-09-16）：不成立时这个池**关着**——规则进不了候选、不掷点、不攒保底；
+   * 前端自己滚的池（委托、互访）也问它。不填 = `RANDOM_POOL_GATE`（教程章做完才开）。
+   */
+  gate?: DialogueCondition;
   /** 封顶。不填 = 1（迟早必中） */
   max?: number;
 };
 
+/**
+ * 随机池的默认门（2026-09-16，用户定）：**教程主线没做完之前，随机事件一律不算**。
+ * 挂在池上而不是每条规则上：进不了池的那些天不攒保底，门一开保底从零起。
+ */
+export const RANDOM_POOL_GATE: DialogueCondition = { kind: "feature_unlocked", featureId: DAILY_LIFE_FEATURE };
+
+/**
+ * 随机池登记表。剧情触发器写 `poolId` 的必须在这里；前端自己滚的两个池（委托 `favor_offer`、
+ * 互访 `resident_visit`）也登记进来，为的是**开关只有一处**：`poolGate` / `isPoolOpen` 对所有池一视同仁。
+ */
 export const storyPools: StoryPoolDefinition[] = [
   // 09：桥头访客 / 多日出门。数字住各自的表，这里只是挂进池子
   visitorTuning.pool,
@@ -835,7 +873,21 @@ export const storyPools: StoryPoolDefinition[] = [
   mailTuning.pool,
   // 04：伙伴档起"他送你东西"。数字住经济表，这里只是把它挂进池子
   { poolId: "resident_present", ...affectionTuning.presentPool },
+  // 05 委托、07 互访：前端每天早上自己滚，不经剧情触发器，但门是同一扇
+  favorTuning.offerPool,
+  visitTuning.pool,
 ];
+
+/** 这个池的门。不填 = 默认门 */
+export function poolGate(pool: Pick<StoryPoolDefinition, "gate">): DialogueCondition {
+  return pool.gate ?? RANDOM_POOL_GATE;
+}
+
+/** 池开着没（`holds` 按"没有对话对象"求值条件）。没登记的池当关着——数据写错不该放行 */
+export function isPoolOpen(poolId: string, holds: (condition: DialogueCondition) => boolean): boolean {
+  const pool = findStoryPool(poolId);
+  return pool !== undefined && holds(poolGate(pool));
+}
 
 export function findStoryPool(
   poolId: string,

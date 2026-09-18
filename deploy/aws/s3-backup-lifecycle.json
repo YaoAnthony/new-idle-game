@@ -1,0 +1,10 @@
+{
+  "Rules": [
+    {
+      "ID": "expire-sqlite-backups-after-30-days",
+      "Filter": { "Prefix": "sqlite/" },
+      "Status": "Enabled",
+      "Expiration": { "Days": 30 }
+    }
+  ]
+}

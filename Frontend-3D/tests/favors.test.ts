@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, expect, test } from "vitest";
-import { DEFAULT_MAP_ID, Facing, affectionTuning, residentIdOf } from "core";
+import { DAILY_LIFE_FEATURE, DEFAULT_MAP_ID, Facing, affectionTuning, residentIdOf } from "core";
+import { unlockFeature } from "../src/Game/Systems/events";
 
 import { emit } from "../src/Game/EventBus";
 import { restoreBuildings } from "../src/Game/State/buildings";
@@ -73,6 +74,8 @@ function hold(itemId: string) {
 const ctx = (agent: ReturnType<typeof parked>, player = PLAYER) => ({ agent, player, current: null });
 
 beforeEach(() => {
+  // 随机池挂着 daily_life 的门（主线，2026-09-16）：这几份测的是池子本身，当作教程早做完了
+  unlockFeature(DAILY_LIFE_FEATURE);
   if (getCurrentMapId() !== DEFAULT_MAP_ID) travelTo(DEFAULT_MAP_ID);
   setRemoteWorldActive(false);
   restoreBuildings([]);

@@ -129,6 +129,11 @@ export class CharacterController {
     this.attention = null;
   }
 
+  /** 此刻在看谁（对视判定问它） */
+  attentionTarget(): Exclude<AttentionTarget, { kind: "player" }> | null {
+    return this.attention;
+  }
+
   /** 看的那位此刻在哪。人不在场（走了 / 藏着）就当没有 */
   private attentionPoint(): { x: number; z: number } | null {
     const target = this.attention;

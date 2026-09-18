@@ -1,4 +1,5 @@
-import { isConstructionDone } from "core";
+import { GOLEM_CONSTRUCTION_FEATURE, isConstructionDone } from "core";
+import { isEventCompleted, isFeatureUnlocked } from "../../Systems/events";
 import { jitterSeconds } from "./jitter";
 import { findBuildingLevel } from "../../../Buildings/index";
 import { claimSite, finishSite, listSites, releaseSite } from "../buildings";
@@ -97,7 +98,15 @@ export const buildSkill: Skill = {
     }
     return null;
   },
-  interact: ({ agent }) => (agent.dormant ? null : { kind: "build_shop" }),
+  /*
+   * 按 F：建造解锁了才开面板。没解锁（开局就是）他只会"咔咔"——第一次是那段对话，
+   * 说过之后只回"...."（用户 2026-09-16 定；什么时候解锁是后面的剧情）。
+   */
+  interact: ({ agent }) => {
+    if (agent.dormant) return null;
+    if (isFeatureUnlocked(GOLEM_CONSTRUCTION_FEATURE)) return { kind: "build_shop" };
+    return { kind: "dialogue", dialogueId: isEventCompleted("golem_intro") ? "golem_silent" : "golem_first_talk" };
+  },
 };
 
 /**

@@ -103,12 +103,12 @@ describe("src/Api/ 之外不许碰传输层", () => {
     expect(offenders, "协议版本由 Api/game/websocket/session.ts 一处填").toEqual([]);
   });
 
-  test("不许读 VITE_BACKEND_URL（HTTP 的基址也是 Api 的私事）", () => {
+  test("不许读 VITE_BACKEND_*（HTTP 的基址也是 Api 的私事）", () => {
     const offenders = outsideApi
-      .filter((f) => /\bVITE_BACKEND_URL\b/.test(f.code))
+      .filter((f) => /\bVITE_BACKEND_(URL|TARGET)/.test(f.code))
       .map((f) => f.path);
 
-    expect(offenders, "后端地址只在 Api/ 里读——见 Api/http.ts 和 websocket/connection.ts").toEqual(
+    expect(offenders, "后端地址只在 Api/backendUrl.ts 一处解析").toEqual(
       [],
     );
   });

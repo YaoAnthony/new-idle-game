@@ -326,9 +326,14 @@ export function placeCreatureAt(
  * 现在只有石傀儡。他**没有头、坐在院子东侧休眠**——头在院子西侧
  * （由 `seedInitialFurniture` 摆），玩家得绕过房子去拿。分居两侧是有意的：
  * 走那一趟的路上会经过井，顺带把院子逛了一遍。
+ *
+ * 守卫按**他自己在不在**判，不按"场上有没有活物"（2026-09-16 用户报"石傀儡的身子不见了"）：
+ * 各系统在 RoomScene 造出来之前就启动了，旅行商人按班表当天在家的话，`startTrading` 早已
+ * 把小鱼人摆进世界——原来那句 `residents.size > 0` 就把傀儡整个跳过，而且只在他来访的
+ * 那几天才发生，看着像随机丢人。
  */
 export function seedInitialCreatures(): void {
-  if (residents.size > 0) return;
+  if (residents.has(residentIdOf("stone_golem"))) return;
   placeCreatureAt(
     "stone_golem",
     // 房子东边那条带子（房子占 x −10..−1），面朝西——正对着走出大门的人

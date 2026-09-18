@@ -1,0 +1,26 @@
+# /etc/systemd/system/idle-game-backend.service
+[Unit]
+Description=new-idle-game backend (Express + socket.io)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=idlegame
+Group=idlegame
+WorkingDirectory=/opt/new-idle-game/Backend
+EnvironmentFile=/etc/idle-game/backend.env
+ExecStart=/usr/bin/node dist/server.js
+Restart=always
+RestartSec=3
+# 联机房间在进程内存里，重启会清空——正常，房主重开一局就是了
+
+# 收紧权限：只允许写数据库目录
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/idle-game
+
+[Install]
+WantedBy=multi-user.target

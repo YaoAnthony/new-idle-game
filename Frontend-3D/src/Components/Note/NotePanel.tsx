@@ -1,305 +1,270 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
-import { handle } from "../../Game/EventBus";
+import { emit, handle } from "../../Game/EventBus";
 import { letterText } from "../../Game/Systems/mail";
 import { signal } from "../../Game/Systems/story";
 import { t } from "../../i18n/t";
 import { SparkField } from "../Effects/sparks";
 import { usePanel } from "../PanelStack/usePanel";
+import { BurnFire } from "./burnFire";
+import { NoteBurnScene } from "./NoteBurnScene";
+import { createNotePaper, DOODLE_DONE, type NotePaper } from "./notePaper";
 
 /**
- * 从信封里抽出来的那张信纸（居民系统 14）。正文，没有别的——没有寄件人栏、
- * 没有日期、没有按钮。
+ * 从信封里抽出来的那张信纸（居民系统 14）。正文，没有别的——没有寄件人栏、没有日期、没有按钮。
  *
- * ---- 2026-09-12 重做：从"报纸的纸"换成"对话框的纸" ----
+ * 历次改动（细节见 git 历史）：
+ * - 2026-09-12：纸 = 对话气泡那张纸（奶油底、粉彩描边、大圆角），手写体，顶上一枚紫蜡封，
+ *   淡横格线，没有关闭叉，点纸任何地方合上；右下角的落款是一张一笔一笔画出来的鬼脸，笔尖冒星星。
+ * - 2026-09-16：读完不是合上，是**烧掉**。火线从左上烧到右下，只剩右下角的鬼脸，停半拍 boom 掉，
+ *   信封也从快捷栏里没了（规则 opening_letter_burned）。配音 fire_letter.wav。
+ * - 2026-09-16：**信纸本身进 three.js**（用户定）。原来纸是 DOM、火是另外两张画布，三层各画各的，
+ *   接缝不自然。现在纸画成贴图（`notePaper`），烧的全部效果在一个 shader 里（`NoteBurnScene`）；
+ *   这个组件只剩：遮罩、点纸的热区、两层粒子画布（笔尖星光 / 烟和火星）、时间轴。
  *
- * 第一版借报纸那套 `news-sheet`（泛黄、衬线、直角、右上一个方框叉）。报纸
- * 是刻意反着全场语言做的版式作品，条子跟着它走等于把一份报纸的边角料
- * 拿来当信纸：放在奶油圆角的 HUD 中间，读起来像一个网页弹窗
- * （用户："一点都不游戏，也不符合目前的 UI 设计"）。
- *
- * 现在按动森的信纸来：
- *   - **纸就是对话气泡那张纸**（奶油底、3px 粉彩描边、大圆角、柔投影），
- *     玩家读它和读旁白那句「门上拿下来了一个信封」是同一种东西；字换成
- *     日记本 / 专注卡那款手写体（Nunito + 霞鹜文楷）——这是别人手写的，
- *     不是系统在说话，对话框那款正文字体放上去就是打印件；
- *   - **顶上压一枚蜡封**，骑在纸的上沿——和对话气泡左上角的名字药丸是
- *     同一种"东西骑在边上"的摆法。蜡是紫的、上面一枚金月牙，颜色从玩家
- *     刚拿在手里的那只信封（recipes/letter.ts）上采的：信纸是从它里面抽
- *     出来的，得认得出是一家；
- *   - 淡淡的横格线，每行一道，正好垫在字底下——信纸的读法靠它，不靠字体；
- *   - **没有关闭叉**。底下一枚对话框那种上下跳的三角，点纸任何地方合上，
- *     和对话框一模一样——玩家在读这张纸之前刚学会那个动作；
- *   - **落款是一个鬼脸涂鸦**（2026-09-12 加），右下角，打开 1 秒后才一笔
- *     一笔画出来，笔尖上冒星星。设计稿定了条子没有寄件人、文案一字不加，
- *     所以落款不是字，是她随手画的一张戴尖帽吐舌头的脸——懒、随手、只在意
- *     屋子，这个人的签名本来就该是这样。延迟是让玩家先把两行字读完：字和画
- *     同时出现，眼睛会先被动的东西抓走。
- *
- * 动效沿用：遮罩淡入，纸从下方浮起（0.35 s，接拆信封的动作）。不走 Modal 的
- * 印章仪式——那是"打开一块面板"的语言，这里是"摊开一张纸"。reduced-motion 即时。
+ * 触发烧：点纸、点遮罩、ESC（面板栈关掉 note）都算"读完了"。面板栈照旧关，这里看到 open 翻成 false
+ * 不卸载，先把火演完再收，收掉那一拍发 letter_burned + letter_closed（开场的叹气接后者，
+ * 所以要等火烧完再发，不然对话框会开在火上面）。reduced-motion：不演，直接收。
  */
+
 const EASE = [0.16, 1, 0.3, 1] as const;
+/** 火的时长跟用户给的音效（fire_letter.wav，5 秒：噼啪到最后 boom）对齐 */
+const BURN_SECONDS = 2.2;
+const HOLD_SECONDS = 0.55;
+const BOOM_SECONDS = 0.45;
+const DONE_SECONDS = BURN_SECONDS + HOLD_SECONDS + BOOM_SECONDS + 0.35;
+
+const easeInOut = (t: number): number => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
+
+type Phase = "reading" | "burning" | "boom";
 
 export function NotePanel() {
   const [open, setOpen] = usePanel("note");
   const [letterId, setLetterId] = useState<string | null>(null);
+  /** 面板栈关了之后纸还要留着烧完，所以显示与否自己记 */
+  const [shown, setShown] = useState(false);
+  const [phase, setPhase] = useState<Phase>("reading");
+  const [paper, setPaper] = useState<NotePaper | null>(null);
   const reduceMotion = useReducedMotion();
+
+  const sceneRef = useRef<HTMLCanvasElement>(null);
+  const penRef = useRef<HTMLCanvasElement>(null);
+  const fxRef = useRef<HTMLCanvasElement>(null);
+  /** 开烧的时刻（performance.now）；null = 还在读 */
+  const burnStart = useRef<number | null>(null);
 
   useEffect(
     () =>
       handle("note_open_requested", ({ letterId: next }) => {
+        burnStart.current = null;
         setLetterId(next);
+        setPhase("reading");
+        setShown(true);
         setOpen(true);
       }),
     [setOpen],
   );
 
-  /*
-   * 合上那一拍发 letter_closed（开场的叹气接它）。盯 open 的 true→false，
-   * 而不是挂在关闭动作上：ESC / 面板栈从外面把它关掉也算"合上"。
-   */
-  const wasOpen = useRef(false);
+  // 画纸。字体没加载完就先画一版，加载完再画一版（不然手写体会先用兜底字体顶上）
   useEffect(() => {
-    if (wasOpen.current && !open && letterId) signal("letter_closed", letterId);
-    wasOpen.current = open;
-  }, [open, letterId]);
+    if (!shown || !letterId) return;
+    let cancelled = false;
+    const build = () => {
+      if (!cancelled) setPaper(createNotePaper(letterText({ letterId })));
+    };
+    build();
+    if (document.fonts && document.fonts.status !== "loaded") void document.fonts.ready.then(build);
+    return () => {
+      cancelled = true;
+    };
+  }, [shown, letterId]);
 
-  const duration = reduceMotion ? 0 : 0.35;
+  const finish = useRef<() => void>(() => undefined);
+  finish.current = () => {
+    const id = letterId;
+    burnStart.current = null;
+    setShown(false);
+    setPaper(null);
+    if (id) {
+      signal("letter_burned", id);
+      signal("letter_closed", id);
+    }
+  };
 
-  return (
-    <AnimatePresence>
-      {open && letterId ? (
-        <motion.div
-          key="note"
-          className="ui-note-scrim absolute inset-0 z-40 grid min-h-0 place-items-center px-4 py-5"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: duration * 0.7 }}
-          onPointerDown={(event) => {
-            if (event.target === event.currentTarget) setOpen(false);
-          }}
-        >
-          {/*
-            整张纸是一个按钮：点哪儿都合上。里面的字和蜡封都不吃指针，
-            免得点在字上算"点了字"。
-          */}
-          <motion.button
-            type="button"
-            aria-label={t("ui.close")}
-            className="ui-note relative block max-h-full min-h-0 cursor-pointer overflow-visible text-left"
-            style={{ width: "min(clamp(520px, 78vmin, 680px), 88vw)" }}
-            initial={reduceMotion ? false : { opacity: 0, y: 28, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 16, scale: 0.98 }}
-            transition={{ duration, ease: EASE }}
-            onClick={() => setOpen(false)}
-          >
-            <span className="ui-note-seal pointer-events-none" aria-hidden>
-              <WaxSeal />
-            </span>
-            <span className="ui-note-body pointer-events-none whitespace-pre-line">
-              {letterText({ letterId })}
-            </span>
-            <span className="ui-note-sign pointer-events-none" aria-hidden>
-              <Doodle instant={Boolean(reduceMotion)} />
-            </span>
-            <span className="ui-dialogue-arrow pointer-events-none absolute -bottom-1 left-1/2" />
-          </motion.button>
-        </motion.div>
-      ) : null}
-    </AnimatePresence>
-  );
-}
-
-/**
- * 落款的笔画时间轴（秒）。**笔画和星光共用这一份**：星星要跟着笔尖走，
- * 两边各写一套数字，改一处忘一处，星星就会跑在笔前面。
- *
- * start 从 2 收到 1（用户 2026-09-12）：两行字一秒够扫完，等两秒像卡住了。
- */
-const DOODLE = { start: 1, step: 0.16, each: 0.34 };
-// 笔顺：脸 → 帽檐 → 帽尖 → 眨的眼 → 睁的眼 → 嘴 → 舌头
-const DOODLE_STROKES = [
-  "M60 32 C78 30 92 44 90 60 C88 78 74 90 58 88 C40 87 28 74 30 58 C32 42 44 33 62 33",
-  "M28 36 C46 29 76 29 94 36",
-  "M46 33 C50 22 55 12 60 5 C68 6 75 8 83 5 C77 13 79 24 78 33",
-  "M42 54 L52 59 L42 64",
-  "M70 55 C74 54 76 58 73 60 C70 62 67 58 70 55",
-  "M42 70 C50 82 70 82 80 68",
-  "M60 77 C59 86 68 88 70 79",
-];
-/** 画完的那一拍：最后一笔收笔 = 脸蹦一下 = 星星炸开 */
-const DOODLE_DONE = DOODLE.start + DOODLE.step * (DOODLE_STROKES.length - 1) + DOODLE.each;
-const DOODLE_INK = "#5e3a7c";
-
-/**
- * 落款的鬼脸：戴尖帽、一只眼眨着、吐舌头。
- *
- * 全是描边路径，没有填充——它要读成"用笔画上去的"，和上面实心块面的
- * 蜡封（那是按上去的）不是一种东西。每一笔用 pathLength 从 0 走到 1，
- * 按笔顺错开：先脸、再帽子、再五官，画完整张脸蹦一下，像落笔那一下的劲。
- * 路径故意不闭合、曲线故意歪，闭合的正圆是图标不是涂鸦。
- *
- * 笔尖上冒星星（`useSparkles`）：画在一块盖住整张纸的 canvas 上，不在 SVG 里
- * ——星星要飞出落款那个小框，而且几十颗每帧重画，DOM 节点做不起。
- *
- * instant（reduced-motion）：直接画好，不演，也没有星星。
- */
-function Doodle({ instant }: { instant: boolean }) {
-  const svgRef = useRef<SVGSVGElement>(null);
-  useSparkles(svgRef, !instant);
-  return (
-    <motion.svg
-      ref={svgRef}
-      viewBox="0 0 120 96"
-      width="100%"
-      height="100%"
-      fill="none"
-      stroke={DOODLE_INK}
-      strokeWidth={3.2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-      /*
-       * 这里**不能写 initial={false}**：motion 会把它沿树往下传，子路径拿到的
-       * initial 就成了 false，pathLength 直接停在 1——整张脸一打开就画好了，
-       * 延迟形同虚设（第一轮截图就是这样）。给一个显式初始值就断开传递。
-       */
-      initial={{ scale: 1, rotate: 0 }}
-      animate={instant ? undefined : { scale: [1, 1, 1.14, 1], rotate: [0, 0, -6, 0] }}
-      transition={{ delay: DOODLE_DONE, duration: 0.32, ease: "easeOut", times: [0, 0, 0.5, 1] }}
-      style={{ transformOrigin: "50% 60%", overflow: "visible" }}
-    >
-      {DOODLE_STROKES.map((d, i) => (
-        <motion.path
-          key={i}
-          d={d}
-          initial={instant ? false : { pathLength: 0, opacity: 0 }}
-          animate={{ pathLength: 1, opacity: 1 }}
-          transition={{
-            pathLength: { delay: DOODLE.start + DOODLE.step * i, duration: DOODLE.each, ease: "easeInOut" },
-            opacity: { delay: DOODLE.start + DOODLE.step * i, duration: 0.01 },
-          }}
-        />
-      ))}
-    </motion.svg>
-  );
-}
-
-/* ==============   星光   ============== */
-
-/** 和 motion 的 easeInOut（cubic-bezier(.42,0,.58,1)）够接近，笔尖差半个像素看不出 */
-const smooth = (t: number): number => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t));
-
-/**
- * 笔尖上的星光。粒子本身在 Effects/sparks（和日记本飞进右上角那条尾迹共用），
- * 这里只管"笔现在在哪"：
- *   1. 按 DOODLE 的时间轴算此刻笔在哪一笔的百分之几，`getPointAtLength`
- *      取到 SVG 坐标，经 `getScreenCTM` 换到屏幕再减 canvas 的位置——
- *      纸的入场还在 scale，每帧重算才贴得住；
- *   2. 笔尖每秒撒 90 颗（按时间计不按帧：按帧 60 fps 下密成一条线、掉帧时又稀稀拉拉）；
- *   3. 收笔那一拍（DOODLE_DONE）从脸中心炸一圈。
- * 画布盖在整张纸上（.ui-note-sparks，四边各多出 60px），星星能飞出落款那个小框。
- * 画完再等星星全灭才停 rAF；面板关掉时 effect 清理。
- */
-function useSparkles(svgRef: React.RefObject<SVGSVGElement | null>, enabled: boolean) {
+  // 面板栈把它关掉 → 开烧
   useEffect(() => {
-    const svg = svgRef.current;
-    if (!enabled || !svg) return;
-    const note = svg.closest(".ui-note");
-    if (!note) return;
+    if (open || !shown || !letterId || burnStart.current !== null) return;
+    if (reduceMotion) {
+      finish.current();
+      return;
+    }
+    burnStart.current = performance.now();
+    setPhase("burning");
+    emit("letter_burn_started", { letterId });
+  }, [open, shown, letterId, reduceMotion]);
 
-    const canvas = document.createElement("canvas");
-    canvas.className = "ui-note-sparks";
-    note.appendChild(canvas);
-    const field = new SparkField(canvas);
+  // 主循环：落款一笔一笔画、笔尖星光、烧、boom、收
+  useEffect(() => {
+    const sceneCanvas = sceneRef.current;
+    const penCanvas = penRef.current;
+    const fxCanvas = fxRef.current;
+    if (!paper || !sceneCanvas || !penCanvas || !fxCanvas) return;
 
-    const paths = Array.from(svg.querySelectorAll("path"));
-    const lengths = paths.map((p) => p.getTotalLength());
-    const t0 = performance.now();
-    let last = t0;
-    let burst = false;
+    let scene: NoteBurnScene;
+    try {
+      scene = new NoteBurnScene(sceneCanvas, paper);
+    } catch {
+      // 没有 WebGL：不演，读完直接收
+      return;
+    }
+    const pen = new SparkField(penCanvas);
+    const fx = new BurnFire(fxCanvas);
+    const opened = performance.now();
+    const signCenter = { x: paper.sign.x + paper.sign.w / 2, y: paper.sign.y + paper.sign.h / 2 };
+    let doodleDone = false;
+    let penBurst = false;
+    let boomed = false;
+    let finished = false;
+    let penBudget = 0;
+    let lastPen = opened;
     let raf = 0;
-    let spawnBudget = 0;
-
-    const toCanvas = (sx: number, sy: number) => {
-      const ctm = svg.getScreenCTM();
-      if (!ctm) return null;
-      const rect = canvas.getBoundingClientRect();
-      const pt = new DOMPoint(sx, sy).matrixTransform(ctm);
-      return { x: pt.x - rect.left, y: pt.y - rect.top };
-    };
-
-    /** 此刻笔尖在哪（SVG 坐标）；没在画返回 null */
-    const penTip = (t: number) => {
-      for (let i = paths.length - 1; i >= 0; i--) {
-        const begin = DOODLE.start + DOODLE.step * i;
-        const local = (t - begin) / DOODLE.each;
-        if (local < 0 || local > 1) continue;
-        const p = paths[i].getPointAtLength(smooth(local) * lengths[i]);
-        return { x: p.x, y: p.y };
-      }
-      return null;
-    };
 
     const frame = (now: number) => {
-      const t = (now - t0) / 1000;
-      const dt = Math.min((now - last) / 1000, 0.1);
-      last = now;
+      const s = (now - opened) / 1000;
+      const bs = burnStart.current;
 
-      const tip = penTip(t);
-      if (tip) {
-        spawnBudget += 90 * dt;
-        const c = toCanvas(tip.x, tip.y);
-        for (; spawnBudget >= 1; spawnBudget -= 1) if (c) field.emit(c.x, c.y, 1);
-      } else {
-        spawnBudget = 0;
+      // ---- 落款 ----
+      if (!doodleDone) {
+        const at = reduceMotion || bs !== null ? DOODLE_DONE + 1 : s;
+        paper.drawAt(at);
+        scene.refreshInk();
+        if (at >= DOODLE_DONE) doodleDone = true;
       }
-      if (!burst && t >= DOODLE_DONE) {
-        burst = true;
-        const c = toCanvas(60, 58);
-        if (c) field.burst(c.x, c.y);
+      const dt = Math.min((now - lastPen) / 1000, 0.1);
+      lastPen = now;
+      if (!reduceMotion && bs === null) {
+        const tip = paper.penTip(s);
+        if (tip) {
+          penBudget += 90 * dt;
+          for (; penBudget >= 1; penBudget -= 1) pen.emit(tip.x, tip.y, 1);
+        } else {
+          penBudget = 0;
+        }
+        if (!penBurst && s >= DOODLE_DONE) {
+          penBurst = true;
+          pen.burst(signCenter.x, signCenter.y);
+        }
       }
 
-      const alive = field.render(now);
-      if (t < DOODLE_DONE + 0.3 || alive > 0) raf = requestAnimationFrame(frame);
+      // ---- 烧 ----
+      if (bs !== null) {
+        const tb = (now - bs) / 1000;
+        const q = easeInOut(Math.min(1, tb / BURN_SECONDS));
+        scene.setProgress(q);
+        scene.setHeat(Math.min(1, tb / 0.15));
+        scene.setFire(tb < BURN_SECONDS ? Math.min(1, tb / 0.15) : Math.max(0, 1 - (tb - BURN_SECONDS) / 0.4));
+        fx.setFront(paper.content, q, tb < BURN_SECONDS);
+        if (tb >= BURN_SECONDS + HOLD_SECONDS) {
+          scene.setBoom(Math.min(1, (tb - BURN_SECONDS - HOLD_SECONDS) / BOOM_SECONDS));
+          if (!boomed) {
+            boomed = true;
+            fx.burst(signCenter.x, signCenter.y);
+            setPhase("boom");
+          }
+        }
+        if (!finished && tb >= DONE_SECONDS) {
+          finished = true;
+          finish.current();
+          return;
+        }
+      }
+
+      scene.render(now / 1000);
+      pen.render(now);
+      fx.render(now);
+      raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
 
     return () => {
       cancelAnimationFrame(raf);
-      canvas.remove();
+      scene.dispose();
     };
-  }, [svgRef, enabled]);
-}
+  }, [paper, reduceMotion]);
 
-/**
- * 蜡封：一团紫蜡、上面一枚金月牙和一颗小星。
- *
- * 全部实心块面（和 Modal/seals.tsx 一个路数），缩到 44px 也不糊。蜡的边
- * 不是正圆——外围再叠几粒小圆，才像按下去挤出来的一团，正圆是硬币。
- */
-function WaxSeal() {
-  const wax = "#5e3a7c";
-  const waxDark = "#472b60";
-  const gold = "#e8b93f";
-  const bumps = [0, 60, 120, 180, 240, 300].map((deg) => {
-    const rad = (deg * Math.PI) / 180;
-    return { cx: 50 + Math.cos(rad) * 33, cy: 50 + Math.sin(rad) * 33 };
-  });
+  const duration = reduceMotion ? 0 : 0.35;
+  const burning = phase !== "reading" && shown;
+  // 纸太高就整体缩小塞进屏幕（贴图是按 CSS 像素画的，缩放只是显示）。按**信纸本身**算，
+  // 四周给火留的白边允许伸出屏幕——不然留白越大纸越小
+  const fit = paper
+    ? Math.min(1, (window.innerHeight - 24) / paper.content.h, (window.innerWidth - 16) / paper.content.w)
+    : 1;
+
   return (
-    <svg viewBox="0 0 100 100" width="100%" height="100%" aria-hidden>
-      {bumps.map((b, i) => (
-        <circle key={i} cx={b.cx} cy={b.cy} r={11} fill={waxDark} />
-      ))}
-      <circle cx="50" cy="50" r="38" fill={waxDark} />
-      <circle cx="50" cy="48" r="32" fill={wax} />
-      {/* 月牙：两个圆相减，用第二个圆盖回蜡色 */}
-      <circle cx="47" cy="47" r="15" fill={gold} />
-      <circle cx="53" cy="43" r="12" fill={wax} />
-      <circle cx="63" cy="60" r="4" fill={gold} />
-    </svg>
+    <AnimatePresence>
+      {shown && letterId ? (
+        <motion.div
+          key="note"
+          className="ui-note-scrim absolute inset-0 z-40 grid min-h-0 place-items-center overflow-hidden"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: duration * 0.7 }}
+          onPointerDown={(event) => {
+            if (!burning && event.target === event.currentTarget) setOpen(false);
+          }}
+        >
+          {paper && (
+            <motion.div
+              className="relative shrink-0"
+              style={{ width: paper.width, height: paper.height, scale: fit }}
+              initial={reduceMotion ? false : { opacity: 0, y: 28 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration, ease: EASE }}
+            >
+              {/* 纸 + 火：one shader。boom 的时候整块一鼓一缩——那时只剩落款，读出来就是鬼脸在蹦 */}
+              <motion.div
+                className="absolute inset-0"
+                style={{ transformOrigin: `${paper.sign.x + paper.sign.w / 2}px ${paper.sign.y + paper.sign.h / 2}px` }}
+                animate={phase === "boom" ? { scale: [1, 1.3, 0], rotate: [0, -12, 20] } : { scale: 1, rotate: 0 }}
+                transition={{ duration: BOOM_SECONDS, ease: "easeIn", times: [0, 0.45, 1] }}
+              >
+                <canvas ref={sceneRef} className="ui-note-layer" aria-hidden />
+              </motion.div>
+              <canvas ref={penRef} className="ui-note-layer" aria-hidden />
+              <canvas ref={fxRef} className="ui-note-layer" aria-hidden />
+              {phase === "boom" && (
+                <span
+                  className="ui-note-puff"
+                  style={{ left: paper.sign.x + paper.sign.w / 2, top: paper.sign.y + paper.sign.h / 2 }}
+                  aria-hidden
+                />
+              )}
+
+              {/* 点纸任何地方 = 读完了（= 开烧）。烧着的时候失效 */}
+              <button
+                type="button"
+                aria-label={t("ui.close")}
+                disabled={burning}
+                className="absolute cursor-pointer rounded-[22px] disabled:cursor-default"
+                style={{
+                  left: paper.content.x,
+                  top: paper.content.y,
+                  width: paper.content.w,
+                  height: paper.content.h,
+                }}
+                onClick={() => {
+                  if (!burning) setOpen(false);
+                }}
+              >
+                {/* 读屏器读这段；画面上的字在贴图里 */}
+                <span className="sr-only whitespace-pre-line">{letterText({ letterId })}</span>
+                {!burning && <span className="ui-dialogue-arrow pointer-events-none absolute -bottom-1 left-1/2" />}
+              </button>
+            </motion.div>
+          )}
+        </motion.div>
+      ) : null}
+    </AnimatePresence>
   );
 }

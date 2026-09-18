@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from "vitest";
-import { tradingTuning, travelerTuning } from "core";
+import { DAILY_LIFE_FEATURE, tradingTuning, travelerTuning } from "core";
 
 import {
   buyFromTraveler,
@@ -11,6 +11,7 @@ import {
   travelerStockToday,
 } from "../src/Game/Systems/trading";
 import { restoreBuildings } from "../src/Game/State/buildings";
+import { restoreProgression, setEventStage } from "../src/Game/Systems/events";
 import { depositGoldTo, getGold, restoreBaseGold, takeGoldUpTo } from "../src/Game/State/gold";
 import { replaceCounts } from "../src/Game/State/inventory";
 import { setRemoteWorldActive } from "../src/Game/Multiplayer/worldLock";
@@ -40,6 +41,9 @@ const JAR = {
 
 beforeEach(() => {
   setRemoteWorldActive(false);
+  // 班表只在日常开始之后生效（主线：教程章做完解锁 daily_life）：这一份测的是买卖，直接当作教程早做完了
+  restoreProgression({ events: {}, unlockedFeatureIds: [DAILY_LIFE_FEATURE] });
+  setEventStage("traveler_intro", "met", "completed");
   restoreBuildings([JAR]);
   restoreBaseGold(0);
   takeGoldUpTo(getGold());

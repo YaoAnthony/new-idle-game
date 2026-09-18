@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, expect, test } from "vitest";
-import { DEFAULT_MAP_ID, Facing, affectionTuning, residentIdOf, visitTuning } from "core";
+import { DAILY_LIFE_FEATURE, DEFAULT_MAP_ID, Facing, affectionTuning, residentIdOf, visitTuning } from "core";
 
 import { emit, on } from "../src/Game/EventBus";
+import { unlockFeature } from "../src/Game/Systems/events";
 import { restoreBuildings } from "../src/Game/State/buildings";
 import { initDoors, frontDoorAgent, tickDoors } from "../src/Game/State/doorsRuntime";
 import { replaceCounts } from "../src/Game/State/inventory";
@@ -70,6 +71,8 @@ function playerInside(): void {
 }
 
 beforeEach(() => {
+  // 随机池挂着 daily_life 的门（主线，2026-09-16）：这几份测的是池子本身，当作教程早做完了
+  unlockFeature(DAILY_LIFE_FEATURE);
   if (getCurrentMapId() !== DEFAULT_MAP_ID) travelTo(DEFAULT_MAP_ID);
   setRemoteWorldActive(false);
   restoreBuildings([]);

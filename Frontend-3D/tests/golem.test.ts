@@ -1,5 +1,6 @@
 import { beforeEach, expect, test } from "vitest";
-import { CreatureRole, DEFAULT_MAP_ID, findItemDefinition } from "core";
+import { CreatureRole, DEFAULT_MAP_ID, GOLEM_CONSTRUCTION_FEATURE, findItemDefinition, residentIdOf } from "core";
+import { restoreProgression, setEventStage, unlockFeature } from "../src/Game/Systems/events";
 
 import { hydrateGameSave, serializeGameSave } from "../src/Data/Save/serialize";
 import { clearAllFurniture, seedInitialFurniture } from "../src/Game/State/world/furniture";
@@ -7,6 +8,7 @@ import {
   getResidents,
   restoreResidents,
   seedInitialCreatures,
+  spawnResident,
 } from "../src/Game/State/residentsRuntime";
 import { getCurrentMap, getCurrentMapId, getWorld } from "../src/Game/State/worldRuntime";
 import { travelTo } from "../src/Game/Systems/mapTravel";
@@ -33,6 +35,32 @@ function seedGolem() {
   seedInitialCreatures();
   return getResidents().find((resident) => resident.role === CreatureRole.Worker)!;
 }
+
+test("开场：别的活物先到场（旅行商人当天在家），石傀儡照样摆；再摆一次不重复", () => {
+  // 各系统在 RoomScene 之前启动：小鱼人按班表当天在家，startTrading 早把他摆进世界了
+  spawnResident(residentIdOf("fish_trader"), "fish_trader");
+  seedInitialCreatures();
+  const golems = getResidents().filter((resident) => resident.definitionId === "stone_golem");
+  expect(golems, "场上已有别的活物时开局漏摆了石傀儡（2026-09-16）").toHaveLength(1);
+  expect(golems[0]!.attachedParts.has("head"), "开局就该没头").toBe(false);
+
+  seedInitialCreatures();
+  expect(getResidents().filter((resident) => resident.definitionId === "stone_golem")).toHaveLength(1);
+  expect(getResidents()).toHaveLength(2);
+});
+
+test("醒来后按F：建造没解锁只会咔咔_说过一遍只回省略号_解锁了才开建造面板", () => {
+  restoreProgression({ events: {}, unlockedFeatureIds: [] });
+  const golem = seedGolem();
+  const player = { x: golem.x + 1, z: golem.z };
+  expect(golem.interact(player)).toBeNull(); // 没头：还没法说话
+  golem.attachPart("head");
+  expect(golem.interact(player)).toEqual({ kind: "dialogue", dialogueId: "golem_first_talk" });
+  setEventStage("golem_intro", "talked", "completed");
+  expect(golem.interact(player)).toEqual({ kind: "dialogue", dialogueId: "golem_silent" });
+  unlockFeature(GOLEM_CONSTRUCTION_FEATURE);
+  expect(golem.interact(player)).toEqual({ kind: "build_shop" });
+});
 
 test("开场：石傀儡坐在院子里、没有头、而且叫不醒", () => {
   const golem = seedGolem();

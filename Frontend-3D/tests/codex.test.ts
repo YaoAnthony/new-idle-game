@@ -59,9 +59,11 @@ test("codex_家具进背包的信号点亮一条_发事件_飘toast_再来一次
   offC();
 });
 
-test("codex_居民出现的信号带实例id_点亮的是定义_无关信号不动", () => {
+test("codex_居民只认对视_在场出现不点亮_无关信号不动", () => {
   stop = startCodexSystem();
   emit("story_signal", { kind: "resident_spawned", subject: residentIdOf("shushu") });
+  expect(isCodexEntrySeen("resident:shushu")).toBe(false);
+  emit("story_signal", { kind: "resident_eye_contact", subject: "shushu" });
   expect(isCodexEntrySeen("resident:shushu")).toBe(true);
   emit("story_signal", { kind: "cook_completed", subject: "furniture_bed" });
   emit("story_signal", { kind: "furniture_placed", subject: "record_minecraft" });
@@ -90,7 +92,7 @@ test("codex_挂上时对账_背包里的家具和屋里摆着的都补上_对账
 test("codex_快照与读档往返_读档发restored", () => {
   stop = startCodexSystem();
   emit("story_signal", { kind: "furniture_obtained", subject: "furniture_bed" });
-  emit("story_signal", { kind: "visitor_arrived", subject: "fox_neighbor" });
+  emit("story_signal", { kind: "resident_eye_contact", subject: "fox_neighbor" });
   const snapshot = snapshotCodex();
   expect(Object.keys(snapshot).sort()).toEqual(["furniture:furniture_bed", "resident:fox_neighbor"]);
 

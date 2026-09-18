@@ -145,6 +145,8 @@ import {
 } from "../Game/Systems/autoLife";
 import { startAchievementSystem } from "../Game/Systems/achievements";
 import { startCodexSystem } from "../Game/Systems/codex";
+import { getMainlineProgress, startMainline } from "../Game/Systems/mainline";
+import { listRandomPools, setRandomPoolsOverride, type RandomPoolsOverride } from "../Game/Systems/randomPools";
 import { startNoiseClock } from "../Game/Systems/noiseTime";
 import { listResidents, startResidents } from "../Game/Systems/residents/moveIn";
 import {
@@ -457,6 +459,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
     const stopAchievements = isRemoteWorldActive() ? () => {} : startAchievementSystem();
     // 图鉴：听剧情信号点亮、开局对账。做客时见到的是别人家的，不记
     const stopCodex = isRemoteWorldActive() ? () => {} : startCodexSystem();
+    // 主线：开机对账（老档补 daily_life）、之后跟进。要在交易系统之前——它的班表看 daily_life
+    const stopMainline = isRemoteWorldActive() ? () => {} : startMainline();
     const stopNoiseClock = isRemoteWorldActive() ? () => {} : startNoiseClock();
     // 水獭的班表同步（期 3）。做客时不跑：商人是世界的，归房主管
     const stopTrading = isRemoteWorldActive() ? () => {} : startTrading();
@@ -1934,16 +1938,49 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       registerCommand({
         name: "pool",
         usage: "pool",
-        description: "打印各抽签池的错过次数和当前命中率（保底看这里）",
+        description: "打印各抽签池开没开、错过次数和当前命中率（保底看这里）",
         handler: () => {
           const misses = getPoolMisses();
+          const open = new Map(listRandomPools().map((pool) => [pool.poolId, pool.open]));
           return ok(
             JSON.stringify(
               storyPools.map((pool) => ({
                 poolId: pool.poolId,
+                open: open.get(pool.poolId) ?? false,
                 misses: misses[pool.poolId] ?? 0,
                 chance: poolChance(pool, misses[pool.poolId] ?? 0),
               })),
+              null,
+              1,
+            ),
+          );
+        },
+      }),
+      registerCommand({
+        name: "pools",
+        usage: "pools [open|close|auto]",
+        description: "随机池总开关（调试，不进存档）：open 全开、close 全关、auto 按门判（教程章做完才开）",
+        arguments: [{ name: "开关", suggest: () => asSuggestions(["open", "close", "auto"]) }],
+        handler: (args) => {
+          const mode = args[0];
+          if (mode === "open" || mode === "close" || mode === "auto") {
+            const next: RandomPoolsOverride = mode === "open" ? "open" : mode === "close" ? "closed" : null;
+            setRandomPoolsOverride(next);
+          } else if (mode) {
+            return fail("用法：pools [open|close|auto]");
+          }
+          return ok(JSON.stringify(listRandomPools(), null, 1));
+        },
+      }),
+      registerCommand({
+        name: "mainline",
+        usage: "mainline",
+        description: "主线到哪了：当前章、当前节拍、已完成的章",
+        handler: () => {
+          const progress = getMainlineProgress();
+          return ok(
+            JSON.stringify(
+              { chapter: progress.chapter?.id ?? null, beat: progress.beat?.id ?? null, completed: progress.completed },
               null,
               1,
             ),
@@ -2064,6 +2101,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       stopStory();
       stopAchievements();
       stopCodex();
+      stopMainline();
       stopNoiseClock();
       stopTrading();
       stopResidents();

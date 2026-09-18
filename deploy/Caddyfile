@@ -1,0 +1,26 @@
+# /etc/caddy/Caddyfile —— api 子域名反代到后端。Caddy 自动申请 / 续 Let's Encrypt 证书，
+# websocket 升级（socket.io 的 /socket.io/ 路径）默认就转发，不用额外写。
+#
+# 换成你的域名；DNS 的 A 记录要先指到这台机的 Elastic IP，Caddy 才签得下证书。
+
+api.example.com {
+	encode gzip
+
+	# 云存档接口收最多 10 MB JSON（Backend express.json limit），socket 缓冲 8 MB
+	request_body {
+		max_size 12MB
+	}
+
+	reverse_proxy 127.0.0.1:3001 {
+		# 后端 TRUST_PROXY=1 只信最近一跳，这两个头 Caddy 默认就带
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	log {
+		output file /var/log/caddy/api.access.log {
+			roll_size 50MiB
+			roll_keep 5
+		}
+	}
+}

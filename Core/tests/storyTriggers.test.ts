@@ -312,3 +312,13 @@ test("drawFromPool：掷点和挑人分种子——候选变了，中不中不�
   assert.notEqual(three.hit, null);
   assert.notEqual(four.hit, null);
 });
+
+test("drawFromPool：带世界 seed 两个世界同一天不一样，不带 = 老行为", () => {
+  const pool = { poolId: "seeded", base: 0.5, step: 0.1, max: 1 };
+  const names = ["a", "b", "c", "d", "e", "f"];
+  const days = ["2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-05", "2026-09-06", "2026-09-07", "2026-09-08"];
+  const trace = (seed?: number) => days.map((day) => JSON.stringify(drawFromPool(pool, names, 0, day, seed)));
+  assert.notDeepEqual(trace(1), trace(2), "两个 seed 八天全一样，seed 没进种子");
+  assert.deepEqual(trace(7), trace(7));
+  assert.deepEqual(trace(undefined), days.map((day) => JSON.stringify(drawFromPool(pool, names, 0, day))));
+});

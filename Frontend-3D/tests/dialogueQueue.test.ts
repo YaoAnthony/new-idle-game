@@ -59,3 +59,20 @@ test("dialogue_不存在的对话_不排队_返回false", () => {
   end();
   expect(getActiveDialogue()).toBeNull();
 });
+
+test("dialogue_同一段同一个人再来一遍_不排队_说完不重播", () => {
+  const { ended, off } = collectEnded();
+  expect(startDialogue("opening_sigh", null)).toBe(true);
+  expect(startDialogue("opening_sigh", null)).toBe(true);
+  expect(startDialogue("opening_sigh", null)).toBe(true);
+  // 另一段照旧排；同一段再来还是不排
+  expect(startDialogue("opening_boxes_done", null)).toBe(true);
+  expect(startDialogue("opening_boxes_done", null)).toBe(true);
+  end();
+  expect(ended).toEqual(["opening_sigh"]);
+  expect(getActiveDialogue()?.dialogueId).toBe("opening_boxes_done");
+  end();
+  expect(ended).toEqual(["opening_sigh", "opening_boxes_done"]);
+  expect(getActiveDialogue()).toBeNull();
+  off();
+});

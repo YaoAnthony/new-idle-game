@@ -1,14 +1,12 @@
 import { getAuthToken } from "./auth/tokenStore";
+import { BACKEND_URL } from "./backendUrl";
 
 /**
  * 到 Backend 的 REST 封装。**HTTP 和 socket 一样归 Api 层管**——
- * BACKEND_URL、Bearer 头、超时这些传输细节不出这个目录
+ * BACKEND_URL（解析在 backendUrl.ts）、Bearer 头、超时这些传输细节不出这个目录
  * （netBoundary.test.ts 看门）。
  */
 
-const BACKEND_URL =
-  (import.meta.env.VITE_BACKEND_URL as string | undefined) ??
-  "http://localhost:3001";
 
 export type HttpFailureKind =
   /** 网络不可达 / 超时 / 后端挂了——调用方应该无感知退回本地 */

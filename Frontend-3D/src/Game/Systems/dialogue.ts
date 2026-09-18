@@ -244,6 +244,13 @@ function enterNode(nodeId: string): void {
 export function startDialogue(dialogueId: string, residentId: string | null): boolean {
   if (!findDialogueDefinition(dialogueId)) return false;
   if (active) {
+    /*
+     * 同一段、同一个人，正在说或者已经排着 → 不再排。排队是给"剧情撞上闲聊"这种两段不同的话准备的；
+     * 同一段连排两遍只可能来自连按 F（2026-09-16 小鱼人门口那段被排了七遍，说完不走）。
+     */
+    const same = (entry: { dialogueId: string; residentId: string | null }) =>
+      entry.dialogueId === dialogueId && entry.residentId === residentId;
+    if (same(active) || queued.some(same)) return true;
     queued.push({ dialogueId, residentId });
     return true;
   }

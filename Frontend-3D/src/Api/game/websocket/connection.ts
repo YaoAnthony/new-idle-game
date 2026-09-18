@@ -1,5 +1,7 @@
 import { io, type Socket } from "socket.io-client";
 
+import { BACKEND_URL } from "../../backendUrl";
+
 /**
  * 到 Backend 的那一条 socket。**懒建、全局一条**——会话状态机是它唯一的
  * 使用方，但连接本身要能活过 GameView 的重挂载（换世界就是靠重挂载做的，
@@ -9,9 +11,6 @@ import { io, type Socket } from "socket.io-client";
  * 类型化函数——这条边界的意义见 index.ts 的文件头。
  */
 
-const BACKEND_URL =
-  (import.meta.env.VITE_BACKEND_URL as string | undefined) ??
-  "http://localhost:3001";
 
 let socket: Socket | null = null;
 

@@ -23,12 +23,15 @@ import { favorDefinitions, findFavorDefinition } from "../Data/residents/favors.
 import { findTripDefinition, tripDefinitions } from "../Data/residents/trips.js";
 import { findLetterDefinition, letterDefinitions } from "../Data/residents/letters.js";
 import { findDecoration } from "../Data/residents/decorations.js";
+import { isKnownGesture } from "../Data/residents/gestures.js";
 import { findFestivalDefinition } from "../Data/festivals/index.js";
 import { arcDefinitions } from "../Data/residents/arcs.js";
 import { pairChats, relationDefinitions } from "../Data/residents/index.js";
 import type { RelationDefinition } from "../types/talk.js";
 import type { FavorDefinition } from "../types/favors.js";
-import { findStoryPool, storyRules, tutorialDefinition } from "../Data/story/index.js";
+import { findStoryPool, poolGate, storyPools, storyRules, tutorialDefinition } from "../Data/story/index.js";
+import { isKnownFeatureId } from "../Data/features/index.js";
+import { auditMainlineContent } from "./mainline.js";
 import { weatherDefinitions } from "../Data/weather/index.js";
 import type { StoryTrigger } from "../types/story.js";
 
@@ -127,6 +130,9 @@ export function auditCondition(where: string, condition: DialogueCondition): str
     case "festival_on":
       if (!findFestivalDefinition(condition.festivalId)) problems.push(`${where}：festival_on 指向不存在的节日 "${condition.festivalId}"`);
       break;
+    case "feature_unlocked":
+      if (!isKnownFeatureId(condition.featureId)) problems.push(`${where}：feature_unlocked 指向没登记的 feature "${condition.featureId}"（登记在 Data/features）`);
+      break;
     // 13
     case "event_stage": {
       const event = findEventDefinition(condition.eventId);
@@ -202,6 +208,8 @@ function auditTalk(checkText: (where: string, key: string) => void): string[] {
     if (seenExpression.has(expression.id)) problems.push(`表情 ${expression.id}：id 重复`);
     seenExpression.add(expression.id);
     checkText(`表情 ${expression.id}`, expression.iconKey);
+    const gesture = (expression as { gesture?: string }).gesture;
+    if (gesture && !isKnownGesture(gesture)) problems.push(`表情 ${expression.id}：手势 "${gesture}" 不在手势表里`);
   }
 
   for (const reaction of reactionDefinitions as readonly ReactionDefinition[]) {
@@ -441,6 +449,10 @@ export function auditTrigger(where: string, trigger: StoryTrigger): string[] {
     );
   }
 
+  if (trigger.requiresFeature !== undefined && !isKnownFeatureId(trigger.requiresFeature)) {
+    problems.push(`${where}：requiresFeature 指向没登记的 feature "${trigger.requiresFeature}"（登记在 Data/features）`);
+  }
+
   if (trigger.chance !== undefined && (trigger.chance <= 0 || trigger.chance > 1)) {
     problems.push(`${where}：chance ${trigger.chance} 不在 (0, 1] 内`);
   }
@@ -534,6 +546,16 @@ export function auditStoryContent(options: AuditOptions = {}): string[] {
     }
   };
 
+  // 随机池：id 唯一、门是合法条件（2026-09-16）
+  const poolIds = new Set<string>();
+  for (const pool of storyPools) {
+    if (poolIds.has(pool.poolId)) problems.push(`随机池 "${pool.poolId}" 登记了两次`);
+    poolIds.add(pool.poolId);
+    problems.push(...auditCondition(`随机池 ${pool.poolId} 的门`, poolGate(pool)));
+  }
+  // 主线（Data/mainline）
+  problems.push(...auditMainlineContent(auditCondition));
+
   const listeningSubjects = listeningDialogueEventSubjects();
   const checkEmitEventId = (where: string, emitEventId: string | undefined): void => {
     if (emitEventId && !listeningSubjects.has(emitEventId)) {
@@ -566,6 +588,9 @@ export function auditStoryContent(options: AuditOptions = {}): string[] {
       const where = `${dialogueWhere} 节点 ${node.nodeId}`;
       checkText(where, node.localizationKey);
       checkEmitEventId(where, node.emitEventId);
+      if (node.residentGesture && !isKnownGesture(node.residentGesture)) {
+        problems.push(`${where}：手势 "${node.residentGesture}" 不在手势表里（Data/residents/gestures）`);
+      }
       if (node.expression && !findExpression(node.expression)) {
         problems.push(`${where}：表情 "${node.expression}" 不在表情表里`);
       }
@@ -764,6 +789,9 @@ export function auditStoryContent(options: AuditOptions = {}): string[] {
           break;
         case "reset_pool":
           if (!findStoryPool(effect.poolId)) problems.push(`${where}：reset_pool 指向不存在的池 "${effect.poolId}"`);
+          break;
+        case "unlock_feature":
+          if (!isKnownFeatureId(effect.featureId)) problems.push(`${where}：unlock_feature 解锁了没登记的 feature "${effect.featureId}"（登记在 Data/features）`);
           break;
         case "plan_trip":
           if (!residentDefinitionOf(effect.residentId)) problems.push(`${where}：plan_trip 指向不存在的居民 "${effect.residentId}"`);

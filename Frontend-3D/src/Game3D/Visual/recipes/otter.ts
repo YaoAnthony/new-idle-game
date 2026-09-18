@@ -712,7 +712,10 @@ export function buildOtterTrader(): Object3D {
   const GESTURE_DURATION: Record<string, number> = { shake_head: 0.7, nod: 0.6 };
   let gestureName: string | null = null;
   let gestureElapsed = 0;
-  root.userData.playGesture = (name: string): void => {
+  /** 意思手势（Core Data/residents/gestures）落到这只身上怎么演 */
+  const MEANING: Record<string, string> = { yes: "nod", no: "shake_head" };
+  root.userData.playGesture = (requested: string): void => {
+    const name = MEANING[requested] ?? requested;
     if (!(name in GESTURE_DURATION)) return;
     gestureName = name;
     gestureElapsed = 0;

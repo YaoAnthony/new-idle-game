@@ -461,6 +461,7 @@ export function startSoundscape(): () => void {
       if (open) playOneShot("sfx_unpack", 0.9);
     }),
     on("storage_opened", () => playOneShot("sfx_storage_open", 0.8)),
+    on("letter_burn_started", () => playOneShot("sfx_fire_letter", 0.9)),
     /*
      * 门响。声音查的是**门种**的注册表（DoorDefinition.sounds），
      * 这里不认识任何一扇具体的门——将来加铁门只在 Core 填一行。

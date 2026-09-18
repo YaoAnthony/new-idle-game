@@ -740,77 +740,13 @@ input {
   backdrop-filter: blur(5px);
 }
 
-/*
- * 纸 = 对话气泡那张纸（同底、同描边、同投影），只是圆角小一档——气泡是
- * "说出来的话"，圆得厉害；纸是一件东西，角要方一点才拿得住。
- *
- * 尺寸全部从 vmin 算：写死 19px / 520px 在 667×375 上正好，到 1600 宽的
- * 桌面上就缩成一张便签贴在屏幕中央（第一轮截图就是这样）。下限按基准机
- * 定，上限挡住 4K。行高必须是 px 值——横格线的周期要用它。
- *
- * 上内边距给蜡封让位：蜡封骑在上沿、一半在纸外，纸内要留下半枚蜡封 + 一行呼吸。
- */
-.ui-note {
-  --note-fs: clamp(17px, 2.6vmin, 24px);
-  --note-line: calc(var(--note-fs) * 1.9);
-  --note-seal: clamp(52px, 7.2vmin, 72px);
-  --note-pad: clamp(24px, 3.6vmin, 40px);
-  border-radius: 22px;
-  padding: calc(var(--note-seal) / 2 + var(--note-pad) * 0.5) var(--note-pad) var(--note-pad);
-  background: linear-gradient(180deg, var(--cream) 0%, var(--cream-2) 100%);
-  border: 3px solid var(--line-deep);
-  box-shadow:
-    var(--soft-shadow-lg),
-    inset 0 2px 0 rgb(255 255 255 / 0.9);
-  color: var(--ink);
-  font-family: "Nunito", "LXGW WenKai GB", "Kaiti SC", sans-serif;
-}
-
-.ui-note-seal {
+/* 信纸（three.js 画的纸 + 火）和两层粒子画布：叠在同一块上，尺寸跟容器走，不吃指针 */
+.ui-note-layer {
   position: absolute;
-  top: calc(var(--note-seal) / -2 - 3px);
-  left: 50%;
-  width: var(--note-seal);
-  height: var(--note-seal);
-  transform: translateX(-50%) rotate(-8deg);
-  filter: drop-shadow(0 3px 3px rgb(70 40 90 / 0.4));
-}
-
-/*
- * 横格线画在正文自己身上，周期 = 行高，于是每一道正好垫在那一行字底下，
- * 不用另算偏移；行数变了线也跟着变。
- */
-.ui-note-body {
-  display: block;
-  font-size: var(--note-fs);
-  line-height: var(--note-line);
-  letter-spacing: 0.02em;
-  background-image: repeating-linear-gradient(
-    180deg,
-    transparent 0 calc(var(--note-line) - 1px),
-    var(--line-deep) calc(var(--note-line) - 1px) var(--note-line)
-  );
-}
-
-/*
- * 落款：正文底下靠右一块方框，装鬼脸涂鸦。高度和字号一起随 vmin 走；
- * 往右探出一点点（负外边距）是"签在边上"的读法，正正齐着正文像表格。
- */
-.ui-note-sign {
-  display: block;
-  margin: calc(var(--note-pad) * 0.25) calc(var(--note-pad) * -0.35) 0 auto;
-  width: calc(var(--note-line) * 2.1);
-  height: calc(var(--note-line) * 1.7);
-}
-
-/* 笔尖星光的画布：盖住整张纸再往外多 60px，星星能飞出纸边；不吃指针 */
-.ui-note-sparks {
-  position: absolute;
-  inset: -60px;
-  width: calc(100% + 120px);
-  height: calc(100% + 120px);
+  inset: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
-  z-index: 3;
 }
 
 /* 家具交互气泡：羊皮纸小卡 + 指向家具的尖角 */
@@ -1829,4 +1765,39 @@ input {
 .ui-shop-price--short {
   background: #ffd2c6;
   color: #a3392a;
+}
+
+/* 对话面板左边那张脸（2026-09-16）：和台词框同一套边框和纸色，脸是从造型里拍的 3D 正脸或立绘 */
+.ui-portrait {
+  background: linear-gradient(180deg, #fffdf8 0%, var(--cream-2) 100%);
+  border: 3px solid var(--line-deep);
+  box-shadow:
+    var(--soft-shadow-lg),
+    inset 0 2px 0 rgb(255 255 255 / 0.9);
+  animation: dialogue-rise 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* 烧信 boom 那一圈（NotePanel） */
+.ui-note-puff {
+  position: absolute;
+  z-index: 3;
+  width: 40px;
+  height: 40px;
+  margin: -20px 0 0 -20px;
+  border-radius: 50%;
+  border: 4px solid #ffd98d;
+  box-shadow: 0 0 24px #ffb347;
+  pointer-events: none;
+  animation: note-puff 420ms ease-out forwards;
+}
+
+@keyframes note-puff {
+  from {
+    transform: scale(0.3);
+    opacity: 1;
+  }
+  to {
+    transform: scale(3.4);
+    opacity: 0;
+  }
 }

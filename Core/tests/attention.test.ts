@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { approachAngle, headYawToward, wrapAngle } from "../src/logic/attention.js";
+import { approachAngle, gazeError, headYawToward, inEyeContact, wrapAngle } from "../src/logic/attention.js";
 
 /**
  * 注视的几何（居民系统 21）：转身走最短的一边、不一帧到位；头相对身体扭多少、夹在限角内。
@@ -42,4 +42,24 @@ test("attention_headYawToward_相对身体的角度_夹在限角内_同一点不
   assert.equal(headYawToward(0, 0, 0, -1, -1, 0.9), -0.9);
   // 目标就在脚下
   assert.equal(headYawToward(1.2, 3, 4, 3, 4, 0.9), 0);
+});
+
+test("对视：都朝着对方看且够近才算_一方扭头就不算_注意力目标是对方时不看几何_太远不算", () => {
+  const tuning = { coneRad: 0.55, maxDistance: 6 };
+  // a 在原点朝 +z，b 在 (0, 3) 朝 −z：面对面
+  const a = { x: 0, z: 0, heading: 0, headYaw: 0, attendingOther: false };
+  const b = { x: 0, z: 3, heading: Math.PI, headYaw: 0, attendingOther: false };
+  assert.equal(inEyeContact(a, b, tuning), true);
+  // b 身体转开 90°
+  assert.equal(inEyeContact(a, { ...b, heading: Math.PI / 2 }, tuning), false);
+  // 但头扭回来看 a（headYaw 把脸转回 −z）
+  assert.equal(inEyeContact(a, { ...b, heading: Math.PI / 2, headYaw: Math.PI / 2 }, tuning), true);
+  // b 转开了但注意力目标是 a（对话中）
+  assert.equal(inEyeContact(a, { ...b, heading: Math.PI / 2, attendingOther: true }, tuning), true);
+  // a 也得看着：a 背过身
+  assert.equal(inEyeContact({ ...a, heading: Math.PI }, b, tuning), false);
+  // 太远
+  assert.equal(inEyeContact(a, { ...b, z: 7 }, tuning), false);
+  assert.equal(gazeError(0, 0, 0, 0, 0, 3), 0);
+  assert.ok(Math.abs(gazeError(0, 0, 0, 0, 3, 0) - Math.PI / 2) < 1e-9);
 });

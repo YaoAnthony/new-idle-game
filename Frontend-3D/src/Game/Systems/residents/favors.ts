@@ -26,6 +26,8 @@ import type { ResidentAgent } from "../../State/residentAgent";
 import { recordHeadlineFact } from "../dayRecord";
 import { evaluateCondition } from "../dialogue";
 import { signal } from "../story";
+import { isRandomPoolOpen } from "../randomPools";
+import { getWorldSeed } from "../../State/worldSeed";
 import { homeDoorstepOf, homeInteriorOf, homeOf, insideHomeOf } from "./spots";
 import { listBuildings } from "../../State/buildings";
 import { readFarmBed } from "../../State/farmBeds";
@@ -299,12 +301,14 @@ export function expireFavors(worldDayId: string): number {
  */
 export function dailyOffer(worldDayId: string): string | null {
   if (isRemoteWorld()) return null;
+  // 池关着（教程没做完）：不提、不攒保底
+  if (!isRandomPoolOpen(favorTuning.offerPool.poolId)) return null;
   expireFavors(worldDayId);
   const offeredToday = Object.values(favors).filter((save) => save.offeredDayId === worldDayId && isActive(save)).length;
   if (offeredToday >= favorTuning.offersPerDay) return null;
   const candidate = pickFavorToOffer(definitions, pickContext(worldDayId));
   if (!candidate) return null;
-  const { hit, nextMisses } = drawFromPool(favorTuning.offerPool, [candidate], offerMisses, worldDayId);
+  const { hit, nextMisses } = drawFromPool(favorTuning.offerPool, [candidate], offerMisses, worldDayId, getWorldSeed());
   offerMisses = nextMisses;
   if (!hit) return null;
   offerMisses = 0;

@@ -250,6 +250,14 @@ export const audioProfileDefinitions = [
     audibleRadius: 16,
     pitchVariance: 0.05,
   },
+  // 魔女的信纸烧掉（2026-09-16，用户给的素材，5 秒：噼啪到最后 boom）。界面音，不定位
+  {
+    id: "sfx_fire_letter",
+    busId: AudioBusId.Effects,
+    resourcePath: "/audio/action/fire_letter.wav",
+    localizationKey: "audio.fire_letter",
+    loop: false,
+  },
 ] satisfies AudioProfileDefinition[];
 
 export function findAudioProfileDefinition(

@@ -1,0 +1,11 @@
+# /etc/systemd/system/idle-game-backup.service —— 由 idle-game-backup.timer 每晚触发
+[Unit]
+Description=Back up new-idle-game SQLite to S3
+
+[Service]
+Type=oneshot
+User=idlegame
+Group=idlegame
+EnvironmentFile=/etc/idle-game/backend.env
+EnvironmentFile=/etc/idle-game/aws.env
+ExecStart=/opt/new-idle-game/deploy/scripts/backup-db.sh

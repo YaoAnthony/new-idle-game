@@ -34,3 +34,38 @@ export function headYawToward(heading: number, x: number, z: number, toX: number
   const relative = wrapAngle(Math.atan2(dx, dz) - heading);
   return Math.max(-clamp, Math.min(clamp, relative));
 }
+
+/**
+ * 站在 (x, z)、脸朝 `heading + headYaw` 的人，看 (toX, toZ) 差多少角度（弧度，非负）。
+ * 对视判定用：差在 coneRad 之内就算"看着对方"。同一点返回 0。
+ */
+export function gazeError(heading: number, headYaw: number, x: number, z: number, toX: number, toZ: number): number {
+  const dx = toX - x;
+  const dz = toZ - z;
+  if (dx === 0 && dz === 0) return 0;
+  return Math.abs(wrapAngle(Math.atan2(dx, dz) - (heading + headYaw)));
+}
+
+export type Gazer = {
+  x: number;
+  z: number;
+  heading: number;
+  headYaw: number;
+  /** 注意力目标就是对方（对话 / 打招呼那种明确的"在看你"）。几何判不到时靠它 */
+  attendingOther: boolean;
+};
+
+/**
+ * 两个人此刻在不在对视：都在看着对方（注意力目标是对方，或脸对准对方在 cone 内）+ 够近。
+ * 纯函数；"连着看满多久"由调用方计时。
+ */
+export function inEyeContact(
+  a: Gazer,
+  b: Gazer,
+  tuning: { coneRad: number; maxDistance: number },
+): boolean {
+  if (Math.hypot(a.x - b.x, a.z - b.z) > tuning.maxDistance) return false;
+  const aLooks = a.attendingOther || gazeError(a.heading, a.headYaw, a.x, a.z, b.x, b.z) <= tuning.coneRad;
+  const bLooks = b.attendingOther || gazeError(b.heading, b.headYaw, b.x, b.z, a.x, a.z) <= tuning.coneRad;
+  return aLooks && bLooks;
+}

@@ -5,6 +5,7 @@ import { residentFavorDialogues } from "./residentFavors.js";
 import { residentVisitDialogues } from "./residentVisits.js";
 import { residentTripDialogues } from "./residentTrips.js";
 import { residentArcDialogues } from "./residentArcs.js";
+import { golemDialogues } from "./golemTalk.js";
 
 /**
  * 对话注册表。
@@ -367,7 +368,7 @@ export const dialogueDefinitions: DialogueDefinition[] = [
  * 三位居民的闲聊段（居民系统 03）由表生成，并进同一张注册表：
  * 对话引擎、审计、`/npc <谁> talk` 都只认这一张。
  */
-dialogueDefinitions.push(...residentChatDialogues, ...residentAffectionDialogues, ...residentFavorDialogues, ...residentVisitDialogues, ...residentTripDialogues, ...residentArcDialogues);
+dialogueDefinitions.push(...residentChatDialogues, ...residentAffectionDialogues, ...residentFavorDialogues, ...residentVisitDialogues, ...residentTripDialogues, ...residentArcDialogues, ...golemDialogues);
 
 export function findDialogueDefinition(
   id: string,

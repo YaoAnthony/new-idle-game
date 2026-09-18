@@ -1,0 +1,12 @@
+# /etc/systemd/system/idle-game-backup.timer
+[Unit]
+Description=Nightly SQLite backup
+
+[Timer]
+# 服务器时区是 UTC：09:30 UTC = 美东凌晨 4:30 / 5:30，玩家最少的时候
+OnCalendar=*-*-* 09:30:00
+Persistent=true
+RandomizedDelaySec=10m
+
+[Install]
+WantedBy=timers.target

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { DEFAULT_MAP_ID, Facing, residentIdOf } from "core";
+import { DAILY_LIFE_FEATURE, DEFAULT_MAP_ID, Facing, residentIdOf } from "core";
 import { emit } from "../src/Game/EventBus";
 import { restoreBuildings } from "../src/Game/State/buildings";
 import { getClock } from "../src/Game/State/clock";
@@ -10,7 +10,7 @@ import { clearAllFurniture, placeFurniture } from "../src/Game/State/world/furni
 import { getCurrentMap, getCurrentMapId } from "../src/Game/State/world/maps";
 import { setRemoteWorldActive } from "../src/Game/Multiplayer/worldLock";
 import { advance, end, getActiveDialogue, startDialogue } from "../src/Game/Systems/dialogue";
-import { getEventStage, isEventCompleted, restoreProgression, setEventStage } from "../src/Game/Systems/events";
+import { getEventStage, isEventCompleted, restoreProgression, setEventStage, unlockFeature } from "../src/Game/Systems/events";
 import { getFlag, restoreFlags, setFlag } from "../src/Game/Systems/flags";
 import { travelTo } from "../src/Game/Systems/mapTravel";
 import { invalidateNavGrid } from "../src/Game/Systems/navigation";
@@ -235,13 +235,18 @@ test("traveler_做客时不叫", () => {
   expect(getResident(FISH)).toBeUndefined();
 });
 
-test("traveler_在不在场_敲门中一定在_见过他的那天正好是班表日也不出摊", () => {
+test("traveler_在不在场_日常没开始不来_敲门中一定在_见过他的那天正好是班表日也不出摊", () => {
   const day = new Date("2026-09-01T00:00:00Z");
   while (!isTravelerScheduledOn(day.toISOString().slice(0, 10))) day.setUTCDate(day.getUTCDate() + 1);
   const scheduled = day.toISOString().slice(0, 10);
   day.setUTCDate(day.getUTCDate() + 1);
   const offDay = day.toISOString().slice(0, 10);
 
+  // 日常还没开始（教程章没做完、daily_life 没解锁）：班表日也不来（第一面是敲门那段）
+  expect(getEventStage("traveler_intro")).toBeNull();
+  expect(isTravelerHereOn(scheduled)).toBe(false);
+
+  unlockFeature(DAILY_LIFE_FEATURE);
   expect(isTravelerHereOn(scheduled)).toBe(true);
   expect(isTravelerHereOn(offDay)).toBe(false);
 

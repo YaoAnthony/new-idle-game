@@ -351,7 +351,10 @@ export function buildShuShu(): Object3D {
   let gestureName: string | null = null;
   let gestureElapsed = 0;
 
-  root.userData.playGesture = (name: string): void => {
+  /** 意思手势（Core Data/residents/gestures）："不是"就摇头；"是的"这只没有对应动作，不演 */
+  const MEANING: Record<string, string> = { no: "shake_head" };
+  root.userData.playGesture = (requested: string): void => {
+    const name = MEANING[requested] ?? requested;
     if (!(name in GESTURE_DURATION)) return;
     gestureName = name;
     gestureElapsed = 0;

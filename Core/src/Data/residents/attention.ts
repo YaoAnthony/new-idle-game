@@ -28,4 +28,17 @@ export const attentionTuning = {
   ] as const satisfies readonly { id: AttentionSource; turnsBody: boolean }[],
   /** 打招呼那一眼看多久（秒）：比气泡（3 秒）略长，话说完了眼神再收回来 */
   greetLookSeconds: 4,
+  /**
+   * 对视（2026-09-16，图鉴收录的判据）：两个人**都**朝着对方看、而且够近，连着看满 holdSeconds
+   * 才算"见过面"。"看着"= 注意力目标是对方，或者脸（身体朝向 + 头的偏转）对准对方在 coneRad 之内。
+   * 光"在场"不算——没照面的人不该出现在图鉴里（用户定）。
+   */
+  eyeContact: {
+    /** 脸对准对方的容差（弧度）≈ 32°：略窄于头的限角，斜眼瞟一下不算 */
+    coneRad: 0.55,
+    /** 超过这个距离看不清脸（米） */
+    maxDistance: 6,
+    /** 连着对视多久算数（秒）：擦肩而过那一瞬不算 */
+    holdSeconds: 0.35,
+  },
 } as const;

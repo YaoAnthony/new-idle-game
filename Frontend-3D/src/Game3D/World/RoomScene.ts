@@ -22,6 +22,8 @@ import {
 import { OpeningIntro } from "./OpeningIntro";
 import { JournalFlight } from "./JournalFlight";
 import { ResidentCutscene } from "./ResidentCutscene";
+import { tickEyeContact } from "../../Game/Systems/residents/eyeContact";
+import { GOLEM_CONSTRUCTION_FEATURE } from "core";
 import { JOURNAL_SIZE } from "../Visual/recipes/journal.js";
 import {
   matchesAction,
@@ -187,7 +189,7 @@ import {
 import { setDebugProbe } from "../../Game/State/debugMode";
 import { FogField } from "./FogField.js";
 import { weatherVisualProfileOf } from "../Visual/weatherProfiles.js";
-import { getActiveDialogue, startDialogue } from "../../Game/Systems/dialogue";
+import { advance as advanceDialogue, getActiveDialogue, startDialogue } from "../../Game/Systems/dialogue";
 import { getEventStage } from "../../Game/Systems/events";
 import { heldPreviewOf } from "../../Game/Systems/heldPreview";
 import {
@@ -1775,7 +1777,6 @@ export class RoomScene {
             visit(index + 1);
           });
         };
-
         if (!spot || !this.tourWalk(spot, pour)) visit(index + 1);
       };
       visit(0);
@@ -2441,7 +2442,11 @@ export class RoomScene {
       if (distance >= HINT_RADIUS) continue;
       const target: HintTarget = {
         instanceId: resident.residentId,
-        hint: { localizationKey: "golem.hint.build", action: "interact" },
+        // 建造没解锁时按 F 是和他"说话"（build 技能答对话），气泡也得说这个
+        hint: {
+          localizationKey: isFeatureUnlocked(GOLEM_CONSTRUCTION_FEATURE) ? "golem.hint.build" : "golem.hint.talk",
+          action: "interact",
+        },
         world: new Vector3(resident.x, 1.5, resident.z),
       };
       hintByKey.set(`pet:${resident.residentId}`, target);
@@ -2811,7 +2816,6 @@ export class RoomScene {
   /** 真正改状态（Systems），这里只管演出反馈 */
   private applyFarmInteraction(target: { instanceId: string; cell: number }): void {
     const result = interactWithFarmCell(target);
-
     if (result.ok === false) {
       if (result.why === "bag_full") {
         emit("story_toast", { localizationKey: "farm.toast.bag_full", durationMs: 2200 });
@@ -2846,6 +2850,16 @@ export class RoomScene {
     // 开场还没演完：还躺着呢，什么都不许按
     // 日记本飞着的时候也什么都不许按：那 1.4 秒是给眼睛看的
     if (this.intro || this.introHandoff || this.journalFlight) return;
+    /*
+     * 正在对话：F = **继续**（和点台词框一个意思），不再去碰面前的目标。
+     * 原来对话开着 F 照样打到门 / 居民身上，同一段对话被再排一遍——小鱼人门口那段说完
+     * 他刚要走，排队的第二段又把他叫住站定，第二段说完规则早点过火，人就永远站门口
+     * （用户 2026-09-16 报"说完话不走了"）。有选项 / 要递东西的节点 advance 什么都不做。
+     */
+    if (getActiveDialogue()) {
+      advanceDialogue();
+      return;
+    }
     if (isResting()) {
       this.interactWhileResting();
       return;
@@ -3657,6 +3671,14 @@ export class RoomScene {
       { x: this.controller.x, z: this.controller.z },
       getActiveDialogue()?.residentId,
     );
+    // 对视（图鉴收录的判据）：两个人都朝着对方看、够近、看满一小会儿
+    tickEyeContact(deltaSeconds, {
+      x: this.controller.x,
+      z: this.controller.z,
+      heading: this.controller.heading,
+      headYaw: this.controller.headYaw,
+      attention: this.controller.attentionTarget(),
+    });
     // 宠物走完再让门看一眼谁靠近了——同帧的位置，门不会慢半拍
     tickDoors();
     // 全景期间不碰镜头边界：syncCameraBounds 会按人在屋内/屋外重设

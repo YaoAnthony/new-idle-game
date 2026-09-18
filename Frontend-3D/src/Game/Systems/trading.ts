@@ -26,6 +26,8 @@ import { isIndoors } from "../State/world/walkable";
 import { getCurrentMap } from "../State/worldRuntime";
 import { visitorEntranceOf } from "./residents/moveIn";
 import { finishStoryKnock, outsideFrontDoor } from "./residents/visits";
+import { areDoorsInitialized } from "../State/doorsRuntime";
+import { isDailyLifeOpen } from "./mainline";
 import { getEventStage, isEventCompleted, isFeatureUnlocked } from "./events";
 import { getFlag, setFlag } from "./flags";
 import { isRemoteWorld } from "../Multiplayer/worldLock";
@@ -82,6 +84,13 @@ function standSpot(): { x: number; z: number } | null {
 export function arriveAtStand(residentId: string, definitionId: string): void {
   const stand = standSpot();
   if (!stand) {
+    /*
+     * 门还没建（各系统在 RoomScene 之前启动，开机那次对齐正是这样）就先不摆：
+     * 老路是把人和车塞进屋里随机一格——用户 2026-09-16 报"开局小鱼人就在家里"。
+     * `initDoors` 建完门发 world_changed(doors_initialized)，startTrading 听到再对齐一次。
+     * 门建好了还是没摊位（主屋真的没门）才走老路，别让班表日因为演出问题少一位商人。
+     */
+    if (!areDoorsInitialized()) return;
     spawnResident(residentId, definitionId);
     return;
   }
@@ -172,8 +181,15 @@ export function startTrading(): () => void {
     // 稀客也在这条上对齐（期 6）。他的班表是 8 天，水獭是 3 天
     syncTravelerPresence();
   });
+  // 开机那次对齐时门还没建、摊位算不出来（见 arriveAtStand）：门建好了补一次
+  const offDoors = on("world_changed", ({ reason }) => {
+    if (reason !== "doors_initialized") return;
+    syncTraderPresence();
+    syncTravelerPresence();
+  });
   detach = () => {
     offDay();
+    offDoors();
     detach = null;
   };
   return detach;
@@ -280,6 +296,7 @@ export const TRAVELER_INTRO_DAY_FLAG = "traveler_intro_day";
 /**
  * 这一天他在不在：班表 + 剧情。面板、交互、在场对齐都经这里。
  *
+ * - 日常还没开始（教程章没做完，`daily_life` 没解锁）：不来。第一面永远是敲门那段；
  * - 门口那段还没演完（`traveler_intro` 停在 knocking）：人得在，读档 / 跨天的对齐不能把他送走；
  * - 那天他说过"下次再来"：就算正好是班表日也不回摊位，读档对齐时也不把他请回来。
  *
@@ -287,6 +304,12 @@ export const TRAVELER_INTRO_DAY_FLAG = "traveler_intro_day";
  */
 export function isTravelerHereOn(worldDayId: string): boolean {
   if (getEventStage("traveler_intro") === "knocking") return true;
+  /*
+   * 日常还没开始（教程章没做完，主线注册表）就不按班表出摊。第一面永远是箱里四件摆齐之后
+   * 他来敲门那段（20）；不拦的话新档开在班表日，他从第一分钟就支着摊站在门口，之后剧情再让他
+   * "第一次"来敲门，前后对不上（用户 2026-09-16 报的）。
+   */
+  if (!isDailyLifeOpen()) return false;
   if (getFlag(TRAVELER_INTRO_DAY_FLAG) === worldDayId) return false;
   return isTravelerScheduledOn(worldDayId);
 }

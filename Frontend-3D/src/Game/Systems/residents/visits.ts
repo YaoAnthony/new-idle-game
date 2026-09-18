@@ -18,6 +18,8 @@ import { emit, on } from "../../EventBus";
 import { isRemoteWorld } from "../../Multiplayer/worldLock";
 import { getClock } from "../../State/clock";
 import { frontDoorAgent } from "../../State/doorsRuntime";
+import { getWorldSeed } from "../../State/worldSeed";
+import { isRandomPoolOpen } from "../randomPools";
 import { getLocalParticipant } from "../../State/participants";
 import { getResident, getResidents, spawnResidentAt } from "../../State/residentsRuntime";
 import type { ResidentAgent } from "../../State/residentAgent";
@@ -105,6 +107,11 @@ export function whyCannotVisit(residentId: string, force = false): string | null
 /** 今天抽中的来访者（伙伴档起、保底池）。指令 `/npc <谁> visit` 无视它 */
 export function rollVisitorOfDay(worldDayId: string): string | null {
   if (isRemoteWorld()) return null;
+  // 池关着（教程没做完）：今天没人来，也不攒保底
+  if (!isRandomPoolOpen(visitTuning.pool.poolId)) {
+    visitorToday = { dayId: worldDayId, residentId: null };
+    return null;
+  }
   const candidates = getResidents()
     .filter((agent) => !agent.puppet && visitTuning.requires.every((condition) => evaluateCondition(condition, agent.residentId)))
     .map((agent) => agent.residentId)
@@ -113,8 +120,8 @@ export function rollVisitorOfDay(worldDayId: string): string | null {
     visitorToday = { dayId: worldDayId, residentId: null };
     return null;
   }
-  const pick = candidates[Math.floor(seededRandom(hashSeed(`visit|${worldDayId}`))() * candidates.length)];
-  const { hit, nextMisses } = drawFromPool(visitTuning.pool, [pick], visitMisses, worldDayId);
+  const pick = candidates[Math.floor(seededRandom(hashSeed(`${getWorldSeed()}|visit|${worldDayId}`))() * candidates.length)];
+  const { hit, nextMisses } = drawFromPool(visitTuning.pool, [pick], visitMisses, worldDayId, getWorldSeed());
   visitMisses = hit ? 0 : nextMisses;
   visitorToday = { dayId: worldDayId, residentId: hit };
   return hit;

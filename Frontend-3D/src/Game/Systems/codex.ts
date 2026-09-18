@@ -15,7 +15,6 @@ import { emit, on } from "../EventBus";
 import { isRemoteWorld } from "../Multiplayer/worldLock";
 import { getClock } from "../State/clock";
 import { getInventory } from "../State/inventory";
-import { getResidents } from "../State/residentsRuntime";
 import { worldState } from "../State/world/state";
 import { t } from "../../i18n/t";
 
@@ -23,8 +22,9 @@ import { t } from "../../i18n/t";
  * 图鉴运行时（2026-09-15）。条目是注册表的投影（Core `logic/codex`），这里只管两件事：
  *
  * 1. **点亮**：听 `story_signal`，经 `codexEntriesForSignal` 变成条目 id，没见过的记下今天。
- * 2. **对账**：挂上的时候把此刻已经在我世界里的都补上——背包里的家具、屋里摆着的家具、
- *    在场的居民。老档（图鉴上线前就有的东西）和"去朋友家买了、带回家"的都靠这一步。
+ * 2. **对账**：挂上的时候把此刻已经在我世界里的家具都补上——背包里的、屋里摆着的。
+ *    老档（图鉴上线前就有的东西）和"去朋友家买了、带回家"的都靠这一步。
+ *    居民**不对账**：他们只认对视（resident_eye_contact），在场不等于见过面（用户 2026-09-16）。
  *
  * 状态进存档 `progression.codex`，跟着世界走；做客（远端世界）不记：那是别人家的东西。
  */
@@ -87,7 +87,7 @@ function discover(ids: readonly CodexEntryId[], toast: boolean): CodexEntryId[] 
   return fresh;
 }
 
-/** 此刻已经在我世界里的：背包里的家具、摆着的家具、在场的居民。对账不飘 toast */
+/** 此刻已经在我世界里的：背包里的家具、摆着的家具。对账不飘 toast */
 function reconcile(): CodexEntryId[] {
   const ids = new Set<CodexEntryId>();
   const collect = (signal: StorySignal) => {
@@ -98,9 +98,6 @@ function reconcile(): CodexEntryId[] {
   }
   for (const placed of worldState.placedFurniture) {
     collect({ kind: "furniture_placed", subject: placed.furnitureId });
-  }
-  for (const resident of getResidents()) {
-    collect({ kind: "resident_spawned", subject: resident.residentId });
   }
   return discover([...ids], false);
 }

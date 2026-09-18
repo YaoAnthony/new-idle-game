@@ -197,6 +197,22 @@ export function buildStoneGolem(): Object3D {
   let workPhase = 0;
   const smooth = (t: number): number => t * t * (3 - 2 * t);
 
+  /*
+   * 一次性手势（2026-09-16）。石傀儡不会说话，**是和不是靠手**（用户定）：
+   *   no  = 举起一只手（右手），顶上停一下再放下——"不是"
+   *   yes = 双手一起举起，在顶上往上顿两下再放下——"是的"
+   * 名字是意思不是动作（Core Data/residents/gestures），对话里只写意思，字面上不显示。
+   * 石头抬手该费劲：抬、停、放都慢。没实现的名字直接不理。
+   */
+  const GESTURE_DURATION: Record<string, number> = { no: 1.6, yes: 1.9 };
+  let gestureName: string | null = null;
+  let gestureElapsed = 0;
+  root.userData.playGesture = (name: string): void => {
+    if (!(name in GESTURE_DURATION)) return;
+    gestureName = name;
+    gestureElapsed = 0;
+  };
+
   root.userData.animate = (
     deltaSeconds: number,
     resident: { state: string; moving: boolean; headYaw?: number },
@@ -272,6 +288,28 @@ export function buildStoneGolem(): Object3D {
     // 砸下去时整个上身跟着往前送一点，力才从身体里出来
     if (working) {
       body.rotation.x += Math.abs(Math.sin(workPhase)) * 0.12;
+    }
+
+    // 不是：右臂抬到几乎竖直，顶上停一停，再放下
+    if (gestureName === "no") {
+      gestureElapsed += deltaSeconds;
+      const t = Math.min(1, gestureElapsed / GESTURE_DURATION.no);
+      const lift = t < 0.3 ? smooth(t / 0.3) : t < 0.7 ? 1 : 1 - smooth((t - 0.7) / 0.3);
+      const right = arms[1];
+      if (right) right.rotation.x -= 2.6 * lift;
+      if (t >= 1) gestureName = null;
+    }
+
+    // 是的：双臂一起举起，顶上往上顿两下（像欢呼），再放下
+    if (gestureName === "yes") {
+      gestureElapsed += deltaSeconds;
+      const t = Math.min(1, gestureElapsed / GESTURE_DURATION.yes);
+      const lift = t < 0.25 ? smooth(t / 0.25) : t < 0.75 ? 1 : 1 - smooth((t - 0.75) / 0.25);
+      // 顶上那半段顿两下：往上多抬 0.25 rad，身子跟着往上一提
+      const pump = t >= 0.25 && t < 0.75 ? Math.max(0, Math.sin(((t - 0.25) / 0.5) * Math.PI * 2)) : 0;
+      for (const arm of arms) arm.rotation.x -= 2.6 * lift + 0.25 * pump;
+      body.position.y += 0.04 * pump;
+      if (t >= 1) gestureName = null;
     }
 
     if (!asleep && resident.moving) {

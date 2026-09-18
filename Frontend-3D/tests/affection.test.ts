@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, expect, test } from "vitest";
-import { AffectionStage, DEFAULT_MAP_ID, affectionTuning, moodTuning, residentIdOf } from "core";
+import { DAILY_LIFE_FEATURE, AffectionStage, DEFAULT_MAP_ID, affectionTuning, moodTuning, residentIdOf } from "core";
 
 import { emit, on } from "../src/Game/EventBus";
+import { unlockFeature } from "../src/Game/Systems/events";
 import { restoreBuildings } from "../src/Game/State/buildings";
 import { replaceCounts } from "../src/Game/State/inventory";
 import { getResident, removeResident, restoreResidents, spawnResident } from "../src/Game/State/residentsRuntime";
@@ -41,6 +42,8 @@ function parked(residentId: string, definitionId: string) {
 }
 
 beforeEach(() => {
+  // 随机池挂着 daily_life 的门（主线，2026-09-16）：这几份测的是池子本身，当作教程早做完了
+  unlockFeature(DAILY_LIFE_FEATURE);
   if (getCurrentMapId() !== DEFAULT_MAP_ID) travelTo(DEFAULT_MAP_ID);
   setRemoteWorldActive(false);
   restoreBuildings([]);

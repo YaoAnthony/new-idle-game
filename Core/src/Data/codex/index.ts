@@ -2,7 +2,7 @@ import { CreatureRole, type ResidentDefinition } from "../../types/residents.js"
 import { ItemCategory, type PlaceableItem } from "../../types/items.js";
 import type { CodexSource } from "../../types/codex.js";
 import { placeableItems } from "../items/index.js";
-import { residentDefinitions, residentDefinitionOf } from "../residents/index.js";
+import { residentDefinitions } from "../residents/index.js";
 import { cropDefinitions } from "../crops/index.js";
 import type { CropDefinition } from "../../types/farming.js";
 
@@ -31,7 +31,7 @@ const furnitureSource: CodexSource<PlaceableItem> = {
   ],
 };
 
-/** 居民：在我的世界里出现过 / 桥头来过 / 搬进来过 */
+/** 居民：**和他对视过**（21 注视 + 对视判定）。光在场 / 来过桥头不算——没照面的人不该出现在图鉴里（用户 2026-09-16 定） */
 const residentSource: CodexSource<ResidentDefinition> = {
   section: "resident",
   titleKey: "codex.section.resident",
@@ -44,18 +44,7 @@ const residentSource: CodexSource<ResidentDefinition> = {
   descKey: (resident) => `${resident.localizationKey}.desc`,
   groupKey: (resident) => `codex.group.role.${resident.role ?? CreatureRole.Pet}`,
   icon: (resident) => ({ iconKey: `residents/${resident.id}`, fallback: "🐾" }),
-  rules: [
-    // subject 是实例 id（resident-<definitionId>），砍前缀回到定义
-    {
-      signal: "resident_spawned",
-      toEntryId: (subject) => {
-        const definition = residentDefinitionOf(subject);
-        return definition ? `resident:${definition.id}` : null;
-      },
-    },
-    { signal: "visitor_arrived", toEntryId: (subject) => `resident:${subject}` },
-    { signal: "resident_moved_in", toEntryId: (subject) => `resident:${subject}` },
-  ],
+  rules: [{ signal: "resident_eye_contact", toEntryId: (subject) => `resident:${subject}` }],
 };
 
 /** 作物（种植系统）：**收过一次**才算见过。种下去、长着都不算——图鉴记的是"拿到过的果实" */

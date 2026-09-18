@@ -345,6 +345,10 @@ export type GameEvents = {
   achievements_changed: { reason: "unlocked" | "claimed" | "restored" };
   /** 统计表某个键变了（State/stats）。成就面板以后听它 */
   stats_changed: { key: string; value: number };
+  /** 信纸开始烧了（Components/Note）。音景接它放噼啪声；剧情不接——那是烧完那一拍的 letter_burned 信号 */
+  letter_burn_started: { letterId: string };
+  /** 主线的一章落成了（Systems/mainline）。同一拍还发剧情信号 mainline_chapter_done */
+  mainline_changed: { chapterId: string };
   /** 图鉴点亮了一条（Systems/codex）。面板、音效接它 */
   codex_discovered: { entryId: string };
   /** 图鉴见过表变了（点亮 / 读档） */

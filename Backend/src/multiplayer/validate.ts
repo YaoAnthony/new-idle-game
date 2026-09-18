@@ -201,9 +201,13 @@ export function parseWorldOp(value: unknown): WorldOp | null {
  * `building_state_set` 的 patch 闸门（协议 v15）：它是唯一一种"任意键值合并进存档"的 op，
  * 所以比别的多把三条线——是对象、顶层键数有界、嵌套深度有界（体积上面那条已经管了）。
  * 仍然不查游戏规则：田里哪格种了什么是 Core 的事，服务端不复制一份内容规则。
+ *
+ * 深度从 patch 自己算第 1 层：今天最深的真实形状是田——
+ * patch → farm → cells → 某格 → plant，5 层；上限给到 6，留一层给以后往 plant 里加东西。
+ * 走查时栽过：上限写 4 时房客种下的第一颗种子就在服务端被静默丢掉。
  */
 const MAX_PATCH_KEYS = 32
-const MAX_PATCH_DEPTH = 4
+const MAX_PATCH_DEPTH = 6
 const MAX_PATCH_BYTES = 8_192
 
 function depthOf(value: unknown, limit: number): number {

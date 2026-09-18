@@ -282,9 +282,12 @@ test('op：building_state_set 的 patch 有闸——对象、键数、深度、�
   assert.equal(parseWorldOp({ kind: 'building_state_set', patch: {} }), null)
   const wide = Object.fromEntries(Array.from({ length: 33 }, (_, i) => [`k${i}`, i]))
   assert.equal(parseWorldOp({ kind: 'building_state_set', instanceId: 'b1', patch: wide }), null)
-  const deep = { a: { b: { c: { d: { e: 1 } } } } }
+  // 田的真实形状：patch → farm → cells → 格 → plant，5 层，必须过
+  const sown = { farm: { cells: [{ soil: 'tilled', plant: { cropId: 'tomato', sownUtc: 't', grownMs: 0 } }], giantRolled: true } }
+  assert.ok(parseWorldOp({ kind: 'building_state_set', instanceId: 'b1', patch: sown }))
+  const deep = { a: { b: { c: { d: { e: { f: { g: 1 } } } } } } }
   assert.equal(parseWorldOp({ kind: 'building_state_set', instanceId: 'b1', patch: deep }), null)
-  assert.ok(parseWorldOp({ kind: 'building_state_set', instanceId: 'b1', patch: { a: { b: { c: 1 } } } }))
+  assert.ok(parseWorldOp({ kind: 'building_state_set', instanceId: 'b1', patch: { a: { b: { c: { d: { e: 1 } } } } } }))
   assert.equal(parseWorldOp({ kind: 'building_state_set', instanceId: 'b1', patch: { blob: 'x'.repeat(9_000) } }), null)
 })
 

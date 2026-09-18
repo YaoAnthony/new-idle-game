@@ -370,6 +370,22 @@ export class OutdoorScene {
 
   // ---- 状态应用与逐帧更新 --------------------------------------------------
 
+  /** 闪电把天穹和雾色往白抬一下（LightningStorm 调），每帧衰减 */
+  private flashLevel = 0;
+  private readonly fogBase = new Color();
+
+  flash(strength: number): void {
+    this.flashLevel = Math.max(this.flashLevel, Math.min(1, strength));
+  }
+
+  private tickFlash(dt: number): void {
+    if (this.flashLevel <= 0 && this.skyMaterial.color.r === 1) return;
+    this.flashLevel = Math.max(0, this.flashLevel - dt * 3.4);
+    // 天穹是顶点色 × 材质色：材质色抬过 1 就是整片天亮起来（bloom 接手）
+    this.skyMaterial.color.setScalar(1 + this.flashLevel * 1.6);
+    this.fog.color.copy(this.fogBase).lerp(new Color(FOG_WHITE), this.flashLevel * 0.7);
+  }
+
   apply(phase: DayPhaseId, weather: WeatherDefinition): void {
     const look = weatherVisualProfileOf(weather);
     // 天穹渐变：按顶点高度插值。地平线附近吃 SKY_BOTTOM，天顶吃 SKY_TOP
@@ -390,6 +406,7 @@ export class OutdoorScene {
     // 成了天上开灯——两头都错过一次
     if (look.visibilityField) this.fog.color.set(SKY_BOTTOM[phase]).lerp(new Color(FOG_WHITE), FOG_LIFT[phase]);
     else this.fog.color.set(SKY_BOTTOM[phase]).multiplyScalar(0.96);
+    this.fogBase.copy(this.fog.color);
     // 全局雾距按天气档缩放（大雾把 48/190 压到 3/22）；全景期间另有一套，
     // setOverviewAtmosphere 会盖过去
     this.weatherFogScale = look.fogScale;
@@ -453,6 +470,7 @@ export class OutdoorScene {
     viewer?: { x: number; z: number; indoors: boolean },
   ): void {
     this.elapsed += deltaSeconds;
+    this.tickFlash(deltaSeconds);
 
     for (const cloud of this.clouds) {
       cloud.node.position.x += cloud.speed * deltaSeconds;

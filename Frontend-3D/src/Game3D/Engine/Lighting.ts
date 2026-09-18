@@ -227,6 +227,25 @@ export class Lighting {
     return this.windowFills;
   }
 
+  /** 闪电的余光（0..1），每帧衰减；apply 记下的基准值加上它就是此刻的强度 */
+  private flashLevel = 0;
+  private baseHemi = 0;
+  private baseAmbient = 0;
+
+  /** 全场闪一下（LightningStorm 调）。强度 0..1；连着两道取大的，不叠加 */
+  flash(strength: number): void {
+    this.flashLevel = Math.max(this.flashLevel, Math.min(1, strength));
+  }
+
+  /** 余光衰减。要在 apply 之后、渲染之前每帧调 */
+  tickFlash(dt: number): void {
+    if (this.flashLevel <= 0) return;
+    // 一拍亮到头，约 0.3 秒衰完
+    this.flashLevel = Math.max(0, this.flashLevel - dt * 3.4);
+    this.hemi.intensity = this.baseHemi + this.flashLevel * 2.2;
+    this.ambient.intensity = this.baseAmbient + this.flashLevel * 1.4;
+  }
+
   apply(phase: DayPhaseId, weather: WeatherDefinition): void {
     const profile = DAY_PROFILES[phase];
     const modifier = weatherVisualProfileOf(weather).light;
@@ -261,6 +280,7 @@ export class Lighting {
       desaturate(new Color(profile.hemiGround), modifier.desat),
     );
     this.hemi.intensity = profile.hemiIntensity * modifier.hemi;
+    this.baseHemi = this.hemi.intensity;
 
     const ambientColor = desaturate(
       new Color(profile.ambientColor).lerp(COOL_TINT, modifier.cool * 0.4),
@@ -268,6 +288,7 @@ export class Lighting {
     );
     this.ambient.color.copy(ambientColor);
     this.ambient.intensity = profile.ambientIntensity * modifier.ambient;
+    this.baseAmbient = this.ambient.intensity;
 
     // 窗口补光：随天气衰减但保留 35% 底——阴雨天窗边仍然比屋子中间亮一点
     const fills = this.ensureWindowFills();

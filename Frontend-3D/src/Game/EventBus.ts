@@ -289,6 +289,8 @@ export type GameEvents = {
   day_phase_changed: { phase: import("core").DayPhaseId };
   /** 当前天气变了（跨天重掷、或事件/道具/调试写了 override） */
   weather_changed: { weatherId: string; kind: import("core").WeatherKind };
+  /** 一道闪电劈在世界的哪一点、离观者多远（米）。雷声按它延后（340 m/s） */
+  lightning_struck: { x: number; z: number; distance: number };
   /**
    * 音频拿到播放许可了。
    * 浏览器要求首次用户交互之后才能出声，所以音景要等这条才能补播。

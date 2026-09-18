@@ -50,6 +50,8 @@ export type WeatherVisualProfile = {
    * 烧出能见的洞（见 World/FogField）。只有 low_visibility 类天气开。
    */
   visibilityField: boolean;
+  /** 打不打雷、多久一道（毫秒区间）。null = 不打。闪电的样子在 World/LightningStorm */
+  lightning: { minMs: number; maxMs: number } | null;
 };
 
 const SUNNY: WeatherVisualProfile = {
@@ -63,6 +65,7 @@ const SUNNY: WeatherVisualProfile = {
   glassGlow: false,
   fogScale: { near: 1, far: 1 },
   visibilityField: false,
+  lightning: null,
 };
 
 const RAIN_COUNT_LIGHT = 190;
@@ -103,6 +106,8 @@ export const weatherVisualProfiles: Record<string, WeatherVisualProfile> = {
     celestialDimming: 0.22,
     dustVisible: false,
     glassGlow: true,
+    // 雷：9～26 秒一道。固定间隔听起来像节拍器，连着炸又很吵（原来 Soundscape 掐的那两个数）
+    lightning: { minMs: 9000, maxMs: 26000 },
   },
   weather_visual_fog: {
     ...SUNNY,

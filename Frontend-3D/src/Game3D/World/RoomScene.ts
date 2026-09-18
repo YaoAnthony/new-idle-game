@@ -286,6 +286,7 @@ import { BuildingPlacementController } from "../Interaction/BuildingPlacementCon
 import { BuildingsView } from "./BuildingsView.js";
 import { FarmCropsView } from "./FarmCropsView.js";
 import { GroundsView } from "./GroundsView.js";
+import { LightningStorm } from "./LightningStorm.js";
 import { groundCostAt } from "../../Game/State/grounds";
 import { groundHintFor, groundTargetAt, interactWithGroundCell, type GroundTarget } from "../../Game/Systems/grounds";
 import {
@@ -377,6 +378,8 @@ export class RoomScene {
   private readonly built: BuiltHouse;
   private readonly windowViews: WindowView[] = [];
   private readonly outdoor: OutdoorScene;
+  /** 暴风雨的闪电 + 雷声节拍 */
+  private readonly lightning: LightningStorm;
   /**
    * 领地的围栏、锁定格的杂草和地标。没有领地的图（小镇、店铺）它自己
    * 空转——`hasTerritory()` 为假时一个网格都不建。
@@ -897,6 +900,7 @@ export class RoomScene {
       this.built.size.width,
       this.built.size.depth,
     );
+    this.lightning = new LightningStorm(this.scene, this.lighting, this.outdoor);
 
     this.renderer = createRenderer(container, this.scene, this.rig.camera);
     this.placement = new PlacementController(
@@ -3868,6 +3872,10 @@ export class RoomScene {
       z: this.rig.camera.position.z,
       indoors: isIndoors(this.controller.x, this.controller.z),
     });
+    // 闪电：落点相对镜头挑；余光每帧衰减（在 apply 之后写，它要盖过基准值）
+    this.lightning.setViewer(this.rig.camera.position.x, this.rig.camera.position.z);
+    this.lightning.update(deltaSeconds);
+    this.lighting.tickFlash(deltaSeconds);
     // 清晰度场：每帧插值，100 ms 重算一次。灯就是配方里那些 lamp-light
     // 点光——Lighting 已经在按昼夜/雾天点亮它们，这里只认"此刻亮着的"
     this.fogField.update(deltaSeconds, () => {
@@ -3892,6 +3900,11 @@ export class RoomScene {
       view.update(deltaSeconds);
     }
     for (const view of this.roomDoorViews.values()) view.update(deltaSeconds);
+  }
+
+  /** 调试：现在就劈一道闪电（/lightning） */
+  debugLightning(at?: { x: number; z: number }): { x: number; z: number; distance: number } {
+    return this.lightning.strike(at);
   }
 
   private applyEnvironment(): void {
@@ -4428,6 +4441,7 @@ export class RoomScene {
     this.remotePlayers.dispose();
     this.dailyBoardAnimator.dispose();
     this.furnitureView.dispose();
+    this.lightning.dispose();
     this.outdoor.dispose();
     this.territoryView.dispose();
     this.buildingsView.dispose();

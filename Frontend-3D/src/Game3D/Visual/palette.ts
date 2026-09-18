@@ -493,6 +493,9 @@ export const PALETTE = {
   groundSandTop: "#c9a86a",       // 沙土路的面
   groundSandRim: "#9a7a48",       // 沙土路的侧棱（板的厚度那一圈）
   groundCursor: "#f6ecd2",        // 对准要铺的那一格
+  // ---- 暴风雨的闪电（2026-09-18）----
+  lightningCore: "#f4f8ff",       // 芯：近白，过 bloom 发光
+  lightningGlow: "#9fc4ff",       // 晕：偏蓝的一圈
   tomatoRedDeep: "#a43d2e",       // 番茄的棱
   hoeIron: "#4c4a45",             // 锄头的铁头
 } as const;

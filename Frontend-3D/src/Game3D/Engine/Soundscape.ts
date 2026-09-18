@@ -50,10 +50,6 @@ const AMBIENCE_VOLUME_BY_PHASE: Record<DayPhaseId, number> = {
 /** 雨声比地区底噪响一点，不然听不出在下雨 */
 const WEATHER_VOLUME = 0.9;
 
-/** 雷声间隔（毫秒）。有下限，不能连着炸 */
-const THUNDER_MIN_MS = 9000;
-const THUNDER_MAX_MS = 26000;
-
 /**
  * 位置相关的音量多久重算一次。
  *
@@ -81,7 +77,6 @@ const FOOTSTEP_STRIDE = 1.5;
  */
 const TELEPORT_THRESHOLD = 1;
 
-let thunderTimer: ReturnType<typeof setTimeout> | null = null;
 let offListeners: Array<() => void> = [];
 
 /** 玩家当前位置。距离衰减和脚步声都靠它，由 RoomScene 每帧喂进来 */
@@ -344,7 +339,6 @@ function sync(): void {
     setTaggedVolume(tag, volume, positional ? POSITIONAL_RAMP_SECONDS : undefined);
   }
 
-  syncThunder();
 }
 
 /**
@@ -391,40 +385,16 @@ function stepFootsteps(moved: number): void {
 }
 
 /**
- * 暴雨时随机穿插雷声。
- *
- * 每次响完重新排下一次，间隔在 [9s, 26s] 之间随机——
- * 固定间隔听起来像节拍器，连着炸又很吵。
+ * 雷声跟着闪电走（2026-09-18）：节拍在 World/LightningStorm，那边劈一道就发
+ * `lightning_struck` 带距离，这里按 340 m/s 延后放、远的小声。
+ * 以前这里自己掐表随机放，闪电和雷声各响各的。
  */
-function syncThunder(): void {
-  // 暴雨的雷声：按 Core 的 tags 判（heavy + wet），不问 kind——加一种"雷阵雨"不用回来改这里
-  const isStorm = getWeather().intensity === "heavy" && getWeather().tags.includes("wet");
-
-  if (!isStorm) {
-    if (thunderTimer) clearTimeout(thunderTimer);
-    thunderTimer = null;
-    return;
-  }
-
-  if (thunderTimer) return;
-
-  const scheduleNext = (): void => {
-    const delay =
-      THUNDER_MIN_MS + Math.random() * (THUNDER_MAX_MS - THUNDER_MIN_MS);
-
-    thunderTimer = setTimeout(() => {
-      thunderTimer = null;
-
-      // 期间天气可能已经变了
-      if (!(getWeather().intensity === "heavy" && getWeather().tags.includes("wet"))) return;
-
-      playOneShot("sfx_thunder", 0.7);
-      scheduleNext();
-    }, delay);
-  };
-
-  scheduleNext();
-}
+const SPEED_OF_SOUND_M_PER_S = 340;
+on("lightning_struck", ({ distance }) => {
+  const delayMs = (distance / SPEED_OF_SOUND_M_PER_S) * 1000;
+  const volume = Math.max(0.3, 0.85 - distance / 120);
+  setTimeout(() => playOneShot("sfx_thunder", volume), delayMs);
+});
 
 /*
  * 这里原来有 preloadEssentialAudio()：在标题页把底噪和雨声先解码好。
@@ -481,9 +451,6 @@ export function startSoundscape(): () => void {
   return () => {
     for (const off of offListeners) off();
     offListeners = [];
-
-    if (thunderTimer) clearTimeout(thunderTimer);
-    thunderTimer = null;
 
     hasListener = false;
     strideAccumulator = 0;

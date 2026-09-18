@@ -1034,6 +1034,19 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
         },
       }),
       registerCommand({
+        name: "lightning",
+        usage: "lightning [x z]",
+        description: "现在就劈一道闪电（不用等暴风雨的节拍）；给了坐标就劈在那儿",
+        handler: (args) => {
+          const live = sceneRef.current;
+          if (!live) return fail("场景还没起来");
+          const x = Number(args[0]);
+          const z = Number(args[1]);
+          const hit = live.debugLightning(Number.isFinite(x) && Number.isFinite(z) ? { x, z } : undefined);
+          return ok(`劈在 (${hit.x.toFixed(1)}, ${hit.z.toFixed(1)})，${hit.distance.toFixed(0)} 米外`);
+        },
+      }),
+      registerCommand({
         name: "ground",
         arguments: [
           { name: "子命令", suggest: () => asSuggestions(["list", "lift", ...groundDefinitions.map((g) => g.groundId)]) },

@@ -27,7 +27,8 @@ export type WeatherVisualProfile = {
   /** 光照修正：方向光 / 半球光 / 环境光的系数，冷调和去饱和的量 */
   light: { sun: number; hemi: number; ambient: number; cool: number; desat: number };
   /** 雨滴粒子数（0 = 不下雨）和透明度 */
-  rain: { count: number; opacity: number };
+  /** 下多大：粒子池用几成（0..1，雨滴本身长什么样在 rainTuning）、透明度倍数 */
+  rain: { density: number; opacity: number };
   /** 风把雨滴/尘埃吹斜的程度 0~1（stormWind 那个开关的连续版） */
   windSlant: number;
   /** 云：是否压暗（阴天那种）、不透明度 */
@@ -56,7 +57,7 @@ export type WeatherVisualProfile = {
 
 const SUNNY: WeatherVisualProfile = {
   light: { sun: 1, hemi: 1, ambient: 1, cool: 0, desat: 0 },
-  rain: { count: 0, opacity: 0 },
+  rain: { density: 0, opacity: 0 },
   windSlant: 0,
   clouds: { overcast: false, opacity: 0.88 },
   starsVisible: true,
@@ -68,8 +69,6 @@ const SUNNY: WeatherVisualProfile = {
   lightning: null,
 };
 
-const RAIN_COUNT_LIGHT = 190;
-const RAIN_MAX = 420;
 
 export const weatherVisualProfiles: Record<string, WeatherVisualProfile> = {
   weather_visual_sunny: SUNNY,
@@ -84,7 +83,7 @@ export const weatherVisualProfiles: Record<string, WeatherVisualProfile> = {
   weather_visual_rain: {
     ...SUNNY,
     light: { sun: 0.35, hemi: 0.8, ambient: 0.95, cool: 0.45, desat: 0.45 },
-    rain: { count: RAIN_COUNT_LIGHT, opacity: 0.6 },
+    rain: { density: 0.35, opacity: 0.7 },
     clouds: { overcast: true, opacity: 0.96 },
     starsVisible: false,
     celestialDimming: 0.22,
@@ -99,7 +98,7 @@ export const weatherVisualProfiles: Record<string, WeatherVisualProfile> = {
   weather_visual_storm: {
     ...SUNNY,
     light: { sun: 0.22, hemi: 0.65, ambient: 0.85, cool: 0.6, desat: 0.55 },
-    rain: { count: RAIN_MAX, opacity: 0.85 },
+    rain: { density: 1, opacity: 1 },
     windSlant: 1,
     clouds: { overcast: true, opacity: 0.96 },
     starsVisible: false,

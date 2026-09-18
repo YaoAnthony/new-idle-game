@@ -14,9 +14,11 @@ import {
   PointsMaterial,
   Scene,
   SphereGeometry,
+  type PerspectiveCamera,
 } from "three";
 import { weatherVisualProfileOf } from "../Visual/weatherProfiles.js";
-import { getCurrentMap } from "../../Game/State/worldRuntime";
+import { RainField } from "./RainField.js";
+import { getCurrentMap, groundHeightAt } from "../../Game/State/worldRuntime";
 import {
   hash01,
   type OutdoorTerrain,
@@ -116,19 +118,7 @@ const OVERVIEW_SKY_SCALE = 3.2;
 const OVERVIEW_FOG_NEAR = 220;
 const OVERVIEW_FOG_FAR = 560;
 
-/**
- * 雨区的边长。雨滴永远待在**以镜头为心**的这个盒子里，出了边就从
- * 对面绕回来——于是走到哪儿哪儿下雨，而粒子数不用跟着地图大小涨。
- *
- * 70 米是按镜头拉到最远时的视野给的：再小会看见雨的边界，再大就是
- * 把粒子撒在看不见的地方。
- */
-const RAIN_SPAN = 70;
-/** 雨从多高开始落 */
-const RAIN_TOP = 20;
-
-/** 雨滴粒子池的上限（各天气档的 rain.count 不得超过它） */
-const RAIN_MAX = 420;
+/** 雨：见 RainField（Points + 模糊竖线贴图、圆柱雨区、shader 回收）；数在 Visual/rainTuning */
 
 export class OutdoorScene {
   readonly root = new Object3D();
@@ -151,15 +141,13 @@ export class OutdoorScene {
   private readonly cloudMaterial: MeshBasicMaterial;
   private readonly clouds: { node: Object3D; speed: number }[] = [];
 
-  private readonly rain: Points;
-  private readonly rainVelocities: Float32Array;
+  private readonly rain: RainField;
   /**
    * **天气说现在下不下雨**。和 `rain.visible` 分开记：后者还要吃"人在
    * 屋里就不下"，直接拿它当真相的话，进一次屋就把雨永久关掉了
    * （`apply` 只在换天气时才重设 visible，出屋没人把它打开）。
    */
   private raining = false;
-  private stormWind = false;
   private windy = false;
   /** 当前天气的雾距缩放（全景退出时要按它复原，不是复原到 1） */
   private weatherFogScale = { near: 1, far: 1 };
@@ -259,10 +247,8 @@ export class OutdoorScene {
     this.root.add(this.terrain.root);
 
     // ---- 雨（真的下在世界里） ----
-    const rain = this.buildRain();
-    this.rain = rain.points;
-    this.rainVelocities = rain.velocities;
-    this.root.add(this.rain);
+    this.rain = new RainField();
+    this.root.add(this.rain.points);
 
     /*
      * **整个室外世界沉到室内地板之下**（V0.13）。
@@ -330,44 +316,6 @@ export class OutdoorScene {
     }
   }
 
-  private buildRain(): { points: Points; velocities: Float32Array } {
-    const positions = new Float32Array(RAIN_MAX * 3);
-    const velocities = new Float32Array(RAIN_MAX);
-
-    /*
-     * 初始位置随便撒在一个盒子里就行——**第一帧就会被卷到镜头周围**
-     * （见 update 里的环绕）。
-     *
-     * 上一版把这盒子钉死在世界里，而且近界特意退到北墙之外
-     * （"否则有一撮雨会悬在客厅中央下个不停"）。那是镜头还锁在屋里
-     * 往北窗外看的年代：雨只要盖住那扇窗就够了。人能满据点跑之后，
-     * 那个盒子就成了**只有一小片地方在下雨**——用户报的正是这个。
-     */
-    for (let i = 0; i < RAIN_MAX; i += 1) {
-      positions[i * 3] = (Math.random() - 0.5) * RAIN_SPAN;
-      positions[i * 3 + 1] = Math.random() * RAIN_TOP;
-      positions[i * 3 + 2] = (Math.random() - 0.5) * RAIN_SPAN;
-      velocities[i] = 9 + Math.random() * 7;
-    }
-
-    const geometry = new BufferGeometry();
-    geometry.setAttribute("position", new BufferAttribute(positions, 3));
-
-    const material = new PointsMaterial({
-      color: "#cfe3f5",
-      size: 0.14,
-      transparent: true,
-      opacity: 0.7,
-      blending: AdditiveBlending,
-      depthWrite: false,
-    });
-
-    const points = new Points(geometry, material);
-    points.name = "outdoor-rain";
-    points.visible = false;
-    return { points, velocities };
-  }
-
   // ---- 状态应用与逐帧更新 --------------------------------------------------
 
   /** 闪电把天穹和雾色往白抬一下（LightningStorm 调），每帧衰减 */
@@ -420,11 +368,10 @@ export class OutdoorScene {
     this.starMaterial.opacity = this.starBaseOpacity;
 
     // 密度分级不能丢：小雨和暴雨的差别主要靠粒子数，只调透明度会让小雨也像暴雨
-    this.raining = look.rain.count > 0;
-    this.rain.geometry.setDrawRange(0, Math.min(RAIN_MAX, look.rain.count));
-    (this.rain.material as PointsMaterial).opacity = look.rain.opacity;
-    // 风：连续量。>0.9 才算暴风（雨丝横着飞），>0.3 算有风（树梢/云动）
-    this.stormWind = look.windSlant > 0.9;
+    this.raining = look.rain.density > 0;
+    // 天气档的 count / opacity 是"下多大"，雨滴长什么样在 rainTuning；风的斜度也交给它
+    this.rain.applyLook(look.rain.density, look.rain.opacity, look.windSlant);
+    // 风：连续量。>0.3 算有风（树梢/云动）；雨丝的斜度交给 RainField 按 windSlant 算
     this.windy = look.windSlant > 0.3;
 
     this.celestialDimming = look.celestialDimming;
@@ -467,7 +414,7 @@ export class OutdoorScene {
    */
   update(
     deltaSeconds: number,
-    viewer?: { x: number; z: number; indoors: boolean },
+    viewer?: { x: number; y?: number; z: number; indoors: boolean; camera?: PerspectiveCamera; viewportHeight?: number },
   ): void {
     this.elapsed += deltaSeconds;
     this.tickFlash(deltaSeconds);
@@ -491,36 +438,17 @@ export class OutdoorScene {
      * 的粒子，落在房间体积里会浮在墙前面，怎么挪都躲不干净。
      */
     const inside = viewer?.indoors ?? false;
-    this.rain.visible = this.raining && !inside;
-    if (!this.rain.visible) return;
-
-    const centerX = viewer?.x ?? 0;
-    const centerZ = viewer?.z ?? 0;
-    const half = RAIN_SPAN / 2;
-
-    const attribute = this.rain.geometry.getAttribute("position") as BufferAttribute;
-    const array = attribute.array as Float32Array;
-    for (let i = 0; i < RAIN_MAX; i += 1) {
-      const index = i * 3 + 1;
-      array[index] -= this.rainVelocities[i] * deltaSeconds;
-      if (this.stormWind) array[i * 3] -= 3.2 * deltaSeconds;
-      // 落到地面以下就回到顶上重来。−1 而不是 0：院子的地面在 −0.45，
-      // 按 0 收的话雨会在离草半米的空中消失
-      if (array[index] < -1) array[index] = RAIN_TOP;
-
-      /*
-       * 环绕：出了以镜头为心的盒子就从对面进来。**一次一格**（不用取模）
-       * ——每帧最多移动几厘米，越不过一整个盒子。
-       */
-      const dx = array[i * 3] - centerX;
-      if (dx > half) array[i * 3] -= RAIN_SPAN;
-      else if (dx < -half) array[i * 3] += RAIN_SPAN;
-
-      const dz = array[i * 3 + 2] - centerZ;
-      if (dz > half) array[i * 3 + 2] -= RAIN_SPAN;
-      else if (dz < -half) array[i * 3 + 2] += RAIN_SPAN;
-    }
-    attribute.needsUpdate = true;
+    this.rain.points.visible = this.raining && !inside;
+    if (!this.rain.points.visible) return;
+    // 雨区中心 = 镜头正下方的地面再低一米（雨从中心之上 height 米落下来，落到地里才消失），跟着镜头走
+    const cx = viewer?.x ?? 0;
+    const cz = viewer?.z ?? 0;
+    this.rain.update(
+      deltaSeconds,
+      viewer?.camera ?? null,
+      { x: cx, y: groundHeightAt(cx, cz) - 1, z: cz },
+      viewer?.viewportHeight ?? 800,
+    );
   }
 
   /** 当前全局雾色（雾毯要和它一个色，不然地上一层白、空气里一层灰） */
@@ -557,6 +485,7 @@ export class OutdoorScene {
   }
 
   dispose(): void {
+    this.rain.dispose();
     if (this.scene.fog === this.fog) this.scene.fog = null;
     this.root.removeFromParent();
     // 外景的几何体量远大于家具，不能只靠 renderer.dispose() 兜底

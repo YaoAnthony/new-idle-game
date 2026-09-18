@@ -3872,8 +3872,12 @@ export class RoomScene {
      */
     this.outdoor.update(deltaSeconds, {
       x: this.rig.camera.position.x,
+      y: this.rig.camera.position.y,
       z: this.rig.camera.position.z,
       indoors: isIndoors(this.controller.x, this.controller.z),
+      // 雨要知道镜头朝向（抬头压扁雨丝）和视口高（点精灵的像素尺度）
+      camera: this.rig.camera,
+      viewportHeight: this.renderer.renderer.domElement.clientHeight,
     });
     // 闪电：落点相对镜头挑、耀斑看闪电在不在镜头里；余光每帧衰减（在 apply 之后写，它要盖过基准值）
     this.lightning.setCamera(this.rig.camera);

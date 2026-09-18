@@ -281,6 +281,7 @@ import { BuildingPlacePanel } from "../Components/BuildingPlacePanel/BuildingPla
 import { findGroundDefinition, groundDefinitions } from "core";
 import { getGroundLayer, layGround, liftGround } from "../Game/State/grounds";
 import { getLocalParticipant } from "../Game/State/participants";
+import { toggleRainPanel } from "./Debug/rainPanel";
 
 /** /signal 的可选值。和 Core 的 StorySignalKind 一一对应 */
 const STORY_SIGNALS = [
@@ -1032,6 +1033,12 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
           }
           return fail("用法：gold [show|add <n>|spend <n>]");
         },
+      }),
+      registerCommand({
+        name: "rainpanel",
+        usage: "rainpanel",
+        description: "开 / 关雨的调参面板（临时；定了数抄回 Visual/rainTuning）",
+        handler: () => ok(toggleRainPanel() ? "雨的调参面板开了" : "面板关了"),
       }),
       registerCommand({
         name: "lightning",

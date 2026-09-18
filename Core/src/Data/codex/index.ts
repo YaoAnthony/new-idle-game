@@ -3,6 +3,8 @@ import { ItemCategory, type PlaceableItem } from "../../types/items.js";
 import type { CodexSource } from "../../types/codex.js";
 import { placeableItems } from "../items/index.js";
 import { residentDefinitions, residentDefinitionOf } from "../residents/index.js";
+import { cropDefinitions } from "../crops/index.js";
+import type { CropDefinition } from "../../types/farming.js";
 
 /**
  * 图鉴来源表：哪几张注册表进图鉴、每条怎么读、哪些信号点亮。
@@ -56,4 +58,21 @@ const residentSource: CodexSource<ResidentDefinition> = {
   ],
 };
 
-export const codexSources: readonly CodexSource<any>[] = [furnitureSource, residentSource];
+/** 作物（种植系统）：**收过一次**才算见过。种下去、长着都不算——图鉴记的是"拿到过的果实" */
+const cropSource: CodexSource<CropDefinition> = {
+  section: "crop",
+  titleKey: "codex.section.crop",
+  emoji: "🌱",
+  order: 2,
+  list: () => cropDefinitions,
+  idOf: (crop) => crop.cropId,
+  nameKey: (crop) => crop.localizationKey,
+  descKey: (crop) => `${crop.localizationKey}.desc`,
+  // 今天只有一组；分类（蔬菜 / 果树 / 花）等作物多了再从作物表上加字段
+  groupKey: () => "codex.group.crop.all",
+  // 卡片上画收获物（果实）那张图，不另画作物图
+  icon: (crop) => ({ iconKey: `items/${crop.harvest.itemId}`, fallback: "🌱" }),
+  rules: [{ signal: "crop_harvested", toEntryId: (subject) => `crop:${subject}` }],
+};
+
+export const codexSources: readonly CodexSource<any>[] = [furnitureSource, residentSource, cropSource];

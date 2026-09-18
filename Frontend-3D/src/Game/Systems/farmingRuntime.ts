@@ -15,8 +15,7 @@ import { emit, on } from "../EventBus";
 import { isRemoteWorldActive } from "../Multiplayer/session";
 import { nowUtc } from "../State/clock";
 import { farmBedsHere, readFarmBed, writeFarmBed } from "../State/farmBeds";
-import { getWeather } from "../State/weather";
-import { getWorldSeed } from "../State/worldSeed";
+import { getWeather, snapshotWeather } from "../State/weather";
 import { tf } from "../../i18n/format";
 import { t } from "../../i18n/t";
 
@@ -79,7 +78,11 @@ function isRaining(): boolean {
 /** 每块田最多掷一个窗口：一田一颗，第二个窗口和第一个共用中间一列 */
 function rollGiants(): void {
   const now = nowUtc();
-  const worldId = String(getWorldSeed());
+  /*
+   * 种子串里的"世界"取天气的随机种子：建档那一刻定、跟着世界走（做客用房主的），
+   * 两个世界同一块田同一批苗掷出来的结果才不一样。
+   */
+  const worldId = String(snapshotWeather().seed);
   for (const ref of farmBedsHere()) {
     const [candidate] = giantCandidates(ref.bed, ref.footprint, findCropDefinition, now);
     if (!candidate) continue;

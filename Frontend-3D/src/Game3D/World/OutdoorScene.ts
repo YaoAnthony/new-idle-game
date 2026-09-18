@@ -19,6 +19,7 @@ import {
 import { weatherVisualProfileOf } from "../Visual/weatherProfiles.js";
 import { RainField } from "./RainField.js";
 import { getCurrentMap, groundHeightAt } from "../../Game/State/worldRuntime";
+import { shelteredRects } from "../../Game/State/world/walkable";
 import {
   hash01,
   type OutdoorTerrain,
@@ -437,9 +438,13 @@ export class OutdoorScene {
      * 与其把雨区挪开躲着房子，不如在人进屋时直接关掉——雨滴是加法混合
      * 的粒子，落在房间体积里会浮在墙前面，怎么挪都躲不干净。
      */
-    const inside = viewer?.indoors ?? false;
-    this.rain.points.visible = this.raining && !inside;
+    /*
+     * 屋里也画雨——只是屋里那块不下（RainField 按有顶的矩形挑掉雨滴）。
+     * 老版人一进屋就把雨整个关掉，隔着窗看外面是晴的（用户 2026-09-18）。
+     */
+    this.rain.points.visible = this.raining;
     if (!this.rain.points.visible) return;
+    this.rain.setShelters(shelteredRects());
     // 雨区中心 = 镜头正下方的地面再低一米（雨从中心之上 height 米落下来，落到地里才消失），跟着镜头走
     const cx = viewer?.x ?? 0;
     const cz = viewer?.z ?? 0;

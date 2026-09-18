@@ -8,6 +8,7 @@ import {
   Points,
   ShaderMaterial,
   Vector3,
+  Vector4,
   type PerspectiveCamera,
 } from "three";
 
@@ -40,6 +41,9 @@ uniform float uWindDrift;
 uniform float uRadius;
 uniform float uNearFade;
 uniform float uFarFade;
+#define MAX_SHELTERS 16
+uniform vec4 uShelters[MAX_SHELTERS];
+uniform int uShelterCount;
 varying float vFade;
 void main() {
   // 竖直回收：落到底就回到顶，永远在落
@@ -53,6 +57,12 @@ void main() {
   gl_PointSize = uSize * aScale * uPixelScale / max(dist, 0.1);
   // 太近的一片糊、太远的是噪点，两头淡掉
   vFade = smoothstep(0.0, uNearFade, dist) * (1.0 - smoothstep(uFarFade * 0.6, uFarFade, dist));
+  // 有顶的地方（屋里、缘侧）不下雨：落在那些矩形里的雨滴整颗不画
+  for (int i = 0; i < MAX_SHELTERS; i++) {
+    if (i >= uShelterCount) break;
+    vec4 r = uShelters[i];
+    if (world.x >= r.x && world.x <= r.y && world.z >= r.z && world.z <= r.w) { vFade = 0.0; break; }
+  }
   gl_Position = projectionMatrix * mv;
 }
 `;
@@ -143,6 +153,8 @@ export class RainField {
         uRadius: { value: rainTuning.radius },
         uNearFade: { value: rainTuning.nearFade },
         uFarFade: { value: rainTuning.farFade },
+        uShelters: { value: Array.from({ length: 16 }, () => new Vector4()) },
+        uShelterCount: { value: 0 },
       },
       transparent: true,
       depthWrite: false,
@@ -211,6 +223,15 @@ export class RainField {
     u.uOpacity.value = rainTuning.opacity * opacity;
     u.uWindDrift.value = rainTuning.windDrift * windSlant;
     u.uSlant.value = (rainTuning.slantDeg * Math.PI / 180) * windSlant;
+  }
+
+  /** 头上有顶的矩形（世界 xz：minX, maxX, minZ, maxZ）：里面不下雨。最多 16 个，多的忽略 */
+  setShelters(rects: ReadonlyArray<{ minX: number; maxX: number; minZ: number; maxZ: number }>): void {
+    const u = this.material.uniforms;
+    const slots = u.uShelters.value as Vector4[];
+    const count = Math.min(slots.length, rects.length);
+    for (let i = 0; i < count; i += 1) slots[i].set(rects[i].minX, rects[i].maxX, rects[i].minZ, rects[i].maxZ);
+    u.uShelterCount.value = count;
   }
 
   /** 每帧：雨区中心、时间、抬头压扁、像素尺度 */

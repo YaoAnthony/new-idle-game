@@ -4,14 +4,14 @@
  * 镜头抬头时把 UV 横向压扁）。
  *
  * **临时可调**：`/rainpanel` 开一个面板现场拖数，定了再把数抄回这里。各天气档的
- * `rain.count / opacity`（weatherProfiles）是**乘在这上面**的：这里是雨滴长什么样，那里是下多大。
+ * `rain.density / opacity`（weatherProfiles）是**乘在这上面**的：这里是雨滴长什么样，那里是下多大。
  */
 export type RainTuning = {
   /** 粒子池上限（面板里改要重建） */
   count: number;
   /** 雨区半径（米，以镜头为心的圆柱） */
   radius: number;
-  /** 雨从多高落到多低（米，相对镜头脚下） */
+  /** 雨从多高落到多低（米，相对雨区中心） */
   height: number;
   /** 雨滴的世界高度（米）：越大越长 */
   size: number;
@@ -38,22 +38,23 @@ export type RainTuning = {
   slantDeg: number;
 };
 
+/** 2026-09-18 用户在 /rainpanel 里拖出来的一版 */
 export const rainTuning: RainTuning = {
-  count: 2600,
-  radius: 32,
-  height: 22,
-  size: 0.7,
+  count: 700,
+  radius: 29,
+  height: 20,
+  size: 0.4,
   sizeJitter: 0.4,
   streakWidth: 0.05,
-  streakSoftness: 0.3,
-  speedMin: 10,
+  streakSoftness: 0.25,
+  speedMin: 8.5,
   speedMax: 17,
   opacity: 0.42,
-  color: "#dbe9f7",
+  color: "#148aff",
   blending: "normal",
   uvSquashMin: 0.18,
   nearFade: 3,
-  farFade: 34,
+  farFade: 39,
   windDrift: 4,
   slantDeg: 18,
 };

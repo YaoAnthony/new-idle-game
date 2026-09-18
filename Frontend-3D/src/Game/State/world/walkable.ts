@@ -1,6 +1,6 @@
 import {
   BLOCKED_TO_TOP,
-  GroundKind,
+  GroundKind, type GroundRect,
   buildGroundMap,
   canPassAt,
   groundSurfaceAt,
@@ -271,6 +271,16 @@ function currentGround(): GroundMap {
  */
 export function isIndoors(x: number, z: number): boolean {
   return groundSurfaceAt(currentGround(), x, z).kind === GroundKind.Floor;
+}
+
+/**
+ * 头上有顶的那些面的矩形（室内地板、缘侧）：雨不落在里面（雨在屋外照下，
+ * 隔着窗和门看得见；老版是"人进屋就把雨整个关掉"）。世界坐标。
+ */
+export function shelteredRects(): GroundRect[] {
+  return currentGround()
+    .surfaces.filter((surface) => (surface.kind === GroundKind.Floor || surface.kind === GroundKind.Deck) && surface.rect)
+    .map((surface) => surface.rect as GroundRect);
 }
 
 /**

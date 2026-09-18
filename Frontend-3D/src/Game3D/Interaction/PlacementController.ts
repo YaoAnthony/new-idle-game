@@ -1,4 +1,6 @@
 import { Facing, PlacementSurface, worldToRoomLocal } from "core";
+import { getRoom } from "../../Game/State/world/maps";
+import { roomIdAt } from "../../Game/State/world/walkable";
 import {
   hostGeometryOf,
   surfaceChildPose,
@@ -75,6 +77,14 @@ export class PlacementController {
   private facing: Facing = Facing.North;
   private gridX = 0;
   private gridY = 0;
+  /**
+   * 虚影现在落在哪一间（地面家具）。**跟着鼠标下面的承托面走**（2026-09-18）：
+   * 原来永远取 `getWorld().room`（主屋），站在院子里瞄地面算出来的是主屋的格——
+   * 院子等于"没有网格"，家具根本摆不到外面。null = 还没瞄到过地面，退回主屋。
+   */
+  private roomId: string | null = null;
+  /** 上一次校验没过的理由（调试面板 / 走查看），过了是 null */
+  lastReason: string | null = null;
   /** 墙饰当前吸附到哪面墙；地面家具为 null */
   private wallId: string | null = null;
   /** 能上台面的物品当前吸附到哪台宿主；没指着宿主时为 null（回落地面） */
@@ -183,7 +193,7 @@ export class PlacementController {
   nudge(dx: number, dy: number): void {
     if (!this.active || this.surface === PlacementSurface.Wall) return;
 
-    const { room } = getWorld();
+    const room = this.floorRoom();
     const definition = getDefinition(this.itemId ?? "");
     if (!definition) return;
 
@@ -282,7 +292,9 @@ export class PlacementController {
 
     if (!this.aimAtGround()) return;
 
-    const { room } = getWorld();
+    // 命中点在哪一间（院子 / 主屋 / 缘侧都各有自己的网格），格就按那一间算
+    this.roomId = roomIdAt(this.hit.x, this.hit.z);
+    const room = this.floorRoom();
     const rotated = this.facing === Facing.East || this.facing === Facing.West;
     const { footprint } = definition.placement;
     const w = rotated ? footprint.height : footprint.width;
@@ -450,7 +462,13 @@ export class PlacementController {
       kind: PlacementSurface.Floor,
       gridPosition,
       facing: this.facing,
+      roomId: this.floorRoom().roomId,
     };
+  }
+
+  /** 地面家具此刻对着的房间：鼠标下面那一间；没瞄到过就是主屋 */
+  private floorRoom() {
+    return (this.roomId ? getRoom(this.roomId) : undefined) ?? getWorld().room;
   }
 
   private refresh(): void {
@@ -468,8 +486,9 @@ export class PlacementController {
 
     const check = checkPlacementTarget(this.itemId, target);
     this.valid = check.ok && getCount(this.itemId) > 0;
+    this.lastReason = check.ok === false ? check.reason : null;
 
-    const { room } = getWorld();
+    const room = target.kind === PlacementSurface.Floor ? this.floorRoom() : getWorld().room;
 
     this.ghost.visible = true;
 

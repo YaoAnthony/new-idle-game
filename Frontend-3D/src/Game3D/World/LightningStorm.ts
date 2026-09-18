@@ -46,11 +46,15 @@ export type LightningFx = {
 
 // ---- 节拍（秒）----
 const FLARE_SECONDS = 0.6;
-/** 预兆的竖带：[起, 止, 中心 x, 半宽, 亮度] */
+/**
+ * 预兆的竖带：[起, 止, 中心 x, 半宽, 亮度]。
+ * 半宽是屏幕宽的比例，shader 里软边到 3.5 倍——0.012 出来是一指宽的细线；
+ * 第一版写 0.05～0.06、亮 0.6，屏幕四成宽都在往白混，成了一根大白柱（用户 2026-09-18）。
+ */
 const FLARE_STEPS: Array<[number, number, number, number, number]> = [
-  [0, 0.12, 0.25, 0.05, 0.55],
-  [0.12, 0.24, 0.75, 0.05, 0.55],
-  [0.24, 0.36, 0.5, 0.06, 0.6],
+  [0, 0.12, 0.25, 0.012, 0.3],
+  [0.12, 0.24, 0.75, 0.012, 0.3],
+  [0.24, 0.36, 0.5, 0.014, 0.35],
   [0.36, 0.5, 0.5, 0, 0],
   [0.5, FLARE_SECONDS, 0.5, 0, 0],
 ];
@@ -172,7 +176,8 @@ export class LightningStorm {
       }
       const t = s.age - FLARE_SECONDS;
       const material = s.material!;
-      if (t < LAND_FLASH_SECONDS) flare = [0.5, 1, 0.7];
+      // 落地那一瞬整屏白一下（半宽 1 = 全屏），别太满
+      if (t < LAND_FLASH_SECONDS) flare = [0.5, 1, 0.45];
       if (t < HOLD) {
         // 放电：bloom 和点光一起跳档；淡出等着
         s.bloom = FLICKER[Math.min(FLICKER.length - 1, Math.floor(t / FLICKER_STEP))];

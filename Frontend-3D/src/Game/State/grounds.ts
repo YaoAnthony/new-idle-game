@@ -4,6 +4,7 @@ import {
   groundOfItem,
   groundTuning,
   groundWalkCost,
+  parseGroundKey,
   setGround,
   worldToRoomCell,
   roomCellToWorld,
@@ -129,6 +130,26 @@ export function groundCostAt(x: number, z: number): number {
 
 function costOfGround(groundId: GroundId): number | undefined {
   return findGroundDefinition(groundId)?.walkCost;
+}
+
+/**
+ * 铺了"不积水"地面的格的格心（世界坐标）。积水那张面把这些格挖掉（石板上雨落了就流走）。
+ * 没铺的格和会积水的地面都不在这里——积水按噪波自己长。
+ */
+export function puddleBlockedCells(): Array<{ x: number; z: number }> {
+  const roomId = getCurrentMap().outdoorRoomId;
+  const room = getRoom(roomId);
+  const cells = layer[roomId];
+  if (!room || !cells) return [];
+  const out: Array<{ x: number; z: number }> = [];
+  for (const [key, groundId] of Object.entries(cells)) {
+    if (findGroundDefinition(groundId)?.puddles !== false) continue;
+    const cell = parseGroundKey(key);
+    if (!cell) continue;
+    const at = roomCellToWorld(room, cell.x, cell.y);
+    out.push({ x: at.x, z: at.z });
+  }
+  return out;
 }
 
 // ---- 存档 / 联机切片 ----

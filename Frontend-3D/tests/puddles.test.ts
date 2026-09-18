@@ -25,6 +25,15 @@ test("puddles_下雨积_雨停干_没湿不渲倒影", () => {
   field.dispose();
 });
 
+test("puddles_不积水的格_写进屏蔽贴图_区域外忽略", () => {
+  const field = new PuddleField(new Scene(), AREA);
+  field.setBlockedCells([{ x: -9.5, z: -9.5 }, { x: 0.5, z: 0.5 }, { x: 50, z: 50 }]);
+  expect(field.blockedCount).toBe(2);
+  field.setBlockedCells([]);
+  expect(field.blockedCount).toBe(0);
+  field.dispose();
+});
+
 test("puddles_脚步波纹_动才发_区域外不发_环形缓冲不越界", () => {
   const scene = new Scene();
   const field = new PuddleField(scene, AREA);

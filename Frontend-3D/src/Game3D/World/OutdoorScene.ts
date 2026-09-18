@@ -21,6 +21,8 @@ import { RainField } from "./RainField.js";
 import { PuddleField, type PuddleViewer } from "./PuddleField.js";
 import { getCurrentMap, groundHeightAt } from "../../Game/State/worldRuntime";
 import { shelteredRects } from "../../Game/State/world/walkable";
+import { puddleBlockedCells } from "../../Game/State/grounds";
+import { on } from "../../Game/EventBus";
 import {
   hash01,
   type OutdoorTerrain,
@@ -146,6 +148,7 @@ export class OutdoorScene {
   private readonly rain: RainField;
   /** 雨天积水（这张图声明了积水区才有） */
   private readonly puddles: PuddleField | null;
+  private readonly offGround: () => void;
   /**
    * **天气说现在下不下雨**。和 `rain.visible` 分开记：后者还要吃"人在
    * 屋里就不下"，直接拿它当真相的话，进一次屋就把雨永久关掉了
@@ -255,6 +258,9 @@ export class OutdoorScene {
     this.root.add(this.rain.points);
     // 积水直接挂场景（不挂 outdoor root：root 整体压了 -floorLevel，积水面用世界标高）
     this.puddles = this.terrain.puddle ? new PuddleField(scene, this.terrain.puddle) : null;
+    // 不积水的地面（石板）：铺 / 撬 / 读档都重喂一遍
+    this.puddles?.setBlockedCells(puddleBlockedCells());
+    this.offGround = on("ground_changed", () => this.puddles?.setBlockedCells(puddleBlockedCells()));
 
     /*
      * **整个室外世界沉到室内地板之下**（V0.13）。
@@ -508,6 +514,7 @@ export class OutdoorScene {
   dispose(): void {
     this.rain.dispose();
     this.puddles?.dispose();
+    this.offGround();
     if (this.scene.fog === this.fog) this.scene.fog = null;
     this.root.removeFromParent();
     // 外景的几何体量远大于家具，不能只靠 renderer.dispose() 兜底

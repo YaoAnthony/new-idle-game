@@ -23,6 +23,11 @@ export type GroundDefinition = {
    * 放键名不放色值：Core 不该知道颜色长什么样，只知道"它有一个顶面色"。
    */
   visual: { top: string; rim: string; jitter: number };
+  /**
+   * 雨天会不会积水（2026-09-18）：泥土、沙路会（水坑照样长在上面、有倒影）；
+   * 石板这类硬地不会——雨落上去就流走了，不参与反射。
+   */
+  puddles: boolean;
 };
 
 export const groundTuning = {
@@ -41,6 +46,7 @@ export const groundDefinitions: readonly GroundDefinition[] = [
     itemId: "sandy_road",
     walkCost: 1,
     visual: { top: "groundSandTop", rim: "groundSandRim", jitter: 0.06 },
+    puddles: true,
   },
 ];
 

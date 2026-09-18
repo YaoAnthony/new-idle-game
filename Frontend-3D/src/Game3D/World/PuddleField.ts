@@ -1,5 +1,5 @@
 import { Locomotion } from "core";
-import { Color, DoubleSide, PlaneGeometry, Vector4, type Scene, type ShaderMaterial } from "three";
+import { Color, DataTexture, DoubleSide, NearestFilter, PlaneGeometry, RedFormat, Vector4, type Scene, type ShaderMaterial } from "three";
 import { Reflector } from "three/examples/jsm/objects/Reflector.js";
 
 import { GLSL_SNOISE_2D } from "../Visual/glslNoise";
@@ -58,6 +58,8 @@ uniform float uTint;
 uniform float uRippleLife;
 uniform vec4 uRipples[MAX_RIPPLES];
 uniform int uRippleCount;
+uniform sampler2D uBlock;
+uniform vec4 uArea;
 varying vec4 vRefUv;
 varying vec3 vWorld;
 ${GLSL_SNOISE_2D}
@@ -70,6 +72,10 @@ void main() {
   float mask = smoothstep(uThreshold, uThreshold + 0.05, n + edge);
   float inner = smoothstep(uThreshold + 0.1, uThreshold + 0.22, n);
   float wetFloor = uWet * uTint;
+  // 铺了不积水地面（石板）的格：一格一个纹素，挖掉水坑也不罩湿色
+  float blocked = texture2D(uBlock, (vWorld.xz - uArea.xy) / uArea.zw).r;
+  mask *= 1.0 - blocked;
+  wetFloor *= 1.0 - blocked;
   if (mask < 0.005 && wetFloor < 0.005) discard;
 
   // 波纹：扩开的一圈亮边 + 把倒影采样往外推
@@ -124,12 +130,22 @@ export class PuddleField {
   private rainAccumulator = 0;
   private footTimer = 0;
   private readonly off: () => void;
+  private readonly block: DataTexture;
+  private readonly blockCols: number;
+  private readonly blockRows: number;
 
   constructor(
     scene: Scene,
     private readonly area: { minX: number; maxX: number; minZ: number; maxZ: number; y: number },
   ) {
     this.ripples = Array.from({ length: MAX_RIPPLES }, () => new Vector4(0, 0, -1e9, 0));
+    // 屏蔽贴图：积水区一米一个纹素，255 = 这格不积水
+    this.blockCols = Math.max(1, Math.ceil(area.maxX - area.minX));
+    this.blockRows = Math.max(1, Math.ceil(area.maxZ - area.minZ));
+    this.block = new DataTexture(new Uint8Array(this.blockCols * this.blockRows), this.blockCols, this.blockRows, RedFormat);
+    this.block.magFilter = NearestFilter;
+    this.block.minFilter = NearestFilter;
+    this.block.needsUpdate = true;
     const geometry = new PlaneGeometry(area.maxX - area.minX, area.maxZ - area.minZ);
     this.reflector = new Reflector(geometry, {
       textureWidth: REFLECTION_SIZE,
@@ -153,6 +169,8 @@ export class PuddleField {
           uRippleLife: { value: puddleTuning.rippleLife },
           uRipples: { value: this.ripples },
           uRippleCount: { value: MAX_RIPPLES },
+          uBlock: { value: this.block },
+          uArea: { value: new Vector4(area.minX, area.minZ, area.maxX - area.minX, area.maxZ - area.minZ) },
         },
         vertexShader: VERTEX,
         fragmentShader: FRAGMENT,
@@ -160,7 +178,8 @@ export class PuddleField {
     });
     this.reflector.name = "puddles";
     this.reflector.rotation.x = -Math.PI / 2;
-    this.reflector.position.set((area.minX + area.maxX) / 2, area.y + 0.015, (area.minZ + area.maxZ) / 2);
+    // 抬到路板（0.04 厚）之上：泥土路、沙路上也积水；不积水的地面走屏蔽贴图挖掉
+    this.reflector.position.set((area.minX + area.maxX) / 2, area.y + 0.05, (area.minZ + area.maxZ) / 2);
     this.reflector.visible = false;
     this.reflector.userData.noCollide = true;
     this.reflector.renderOrder = 1;
@@ -191,6 +210,26 @@ export class PuddleField {
   /** 湿度 0..1（用例看） */
   get wetness(): number {
     return this.wet;
+  }
+
+  /** 哪些格不积水（世界格心）：石板这类硬地。整张重写，铺 / 撬一格就重喂一次 */
+  setBlockedCells(cells: ReadonlyArray<{ x: number; z: number }>): void {
+    const data = this.block.image.data as Uint8Array;
+    data.fill(0);
+    for (const cell of cells) {
+      const col = Math.floor(cell.x - this.area.minX);
+      const row = Math.floor(cell.z - this.area.minZ);
+      if (col < 0 || row < 0 || col >= this.blockCols || row >= this.blockRows) continue;
+      data[row * this.blockCols + col] = 255;
+    }
+    this.block.needsUpdate = true;
+  }
+
+  /** 屏蔽贴图里 255 的纹素数（用例看） */
+  get blockedCount(): number {
+    let n = 0;
+    for (const v of this.block.image.data as Uint8Array) if (v) n += 1;
+    return n;
   }
 
   /** 往水面丢一圈波纹（脚步、雨点、以后的落物都走这里） */
@@ -244,5 +283,6 @@ export class PuddleField {
     this.reflector.dispose();
     this.reflector.geometry.dispose();
     this.material.dispose();
+    this.block.dispose();
   }
 }

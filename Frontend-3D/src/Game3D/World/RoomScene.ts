@@ -285,6 +285,9 @@ import { OutdoorScene } from "./OutdoorScene.js";
 import { BuildingPlacementController } from "../Interaction/BuildingPlacementController.js";
 import { BuildingsView } from "./BuildingsView.js";
 import { FarmCropsView } from "./FarmCropsView.js";
+import { GroundsView } from "./GroundsView.js";
+import { groundCostAt } from "../../Game/State/grounds";
+import { groundHintFor, groundTargetAt, interactWithGroundCell, type GroundTarget } from "../../Game/Systems/grounds";
 import {
   bestWateringCan,
   farmActionAt,
@@ -383,6 +386,7 @@ export class RoomScene {
   private readonly buildingsView: BuildingsView;
   /** 田里的苗 + 格光标（种植系统）。苗不进建筑模型，见文件头 */
   private readonly farmCropsView: FarmCropsView;
+  private readonly groundsView: GroundsView;
   /** 建筑选址（虚影 + 两步确认）。和家具那套并存 */
   private readonly buildingPlacement: BuildingPlacementController;
   private readonly fogField: FogField;
@@ -432,6 +436,7 @@ export class RoomScene {
     | { kind: "resident"; residentId: string }
     | { kind: "door"; refId: string }
     | { kind: "farmCell"; instanceId: string; cell: number }
+    | ({ kind: "groundCell" } & GroundTarget)
     | { kind: "building"; instanceId: string }
     | { kind: "shopSpot"; instanceId: string; spot: "crate" | "register" }
     | { kind: "mailbox" }
@@ -587,6 +592,7 @@ export class RoomScene {
     this.territoryView = new TerritoryView(this.scene);
     this.buildingsView = new BuildingsView(this.scene);
     this.farmCropsView = new FarmCropsView(this.scene);
+    this.groundsView = new GroundsView(this.scene);
 
     /*
      * 清晰度场（大雾天灯和房子驱雾用的 tile 网格 + 雾毯）。
@@ -1537,7 +1543,7 @@ export class RoomScene {
     }
     // 站位：灶台跟前、和它在墙同一侧的一格（见 approachPoint）
     const spot = stove ? this.approachPoint(stove.instanceId) : null;
-    const points = spot ? findRoute(from, spot) : null;
+    const points = spot ? findRoute(from, spot, { costOf: groundCostAt }) : null;
     if (!stove || !points) {
       arrived();
       return;
@@ -1561,7 +1567,7 @@ export class RoomScene {
     const bed = findFreeAnchorNear(BodyPosture.Lie, from);
     // 床边站哪：床跟前、和床在墙同一侧的一格。不拿锚点那格去吸附——见 approachPoint
     const spot = bed ? this.approachPoint(bed.instanceId) : null;
-    const points = spot ? findRoute(from, spot) : null;
+    const points = spot ? findRoute(from, spot, { costOf: groundCostAt }) : null;
     if (!bed || !points) {
       arrived();
       return;
@@ -1627,7 +1633,7 @@ export class RoomScene {
       if (inPrimaryRoom && occupancy.blocked.has(`${cell.x},${cell.y}`)) continue;
       const spot = roomCellToWorld(cellRoom, cell.x, cell.y);
       if (isIndoors(spot.x, spot.z) !== indoors) continue;
-      const route = findRoute(from, spot);
+      const route = findRoute(from, spot, { costOf: groundCostAt });
       const end = route?.[route.length - 1];
       // 终点也要判：这一格站不住时 findRoute 照样会吸附，吸过墙的不要
       if (!route || !end || isIndoors(end[0], end[1]) !== indoors) continue;
@@ -2170,6 +2176,7 @@ export class RoomScene {
       | { kind: "resident"; residentId: string }
       | { kind: "door"; refId: string }
       | { kind: "farmCell"; instanceId: string; cell: number }
+    | ({ kind: "groundCell" } & GroundTarget)
       | { kind: "building"; instanceId: string }
       | { kind: "shopSpot"; instanceId: string; spot: "crate" | "register" }
       | { kind: "mailbox" }
@@ -2184,6 +2191,16 @@ export class RoomScene {
     if (farmCell) {
       bestDistance = 0;
       best = { kind: "farmCell", ...farmCell };
+    }
+
+    /*
+     * 院子的格（地面系统）：只有手上是地面物品、或拿着锄头对准铺过的格时才有目标
+     * （Systems/grounds 说了算）——否则院子每一格都会抢走 F。田上不铺路，田先赢。
+     */
+    const groundCell = farmCell ? null : groundTargetAt(probeX, probeZ);
+    if (groundCell) {
+      bestDistance = 0;
+      best = { kind: "groundCell", ...groundCell };
     }
 
     // 门口的信箱（10）：和门、活物平级按距离竞争
@@ -2299,6 +2316,18 @@ export class RoomScene {
         bestHintDistance = 0;
         bestHint = target;
       }
+    }
+
+    // 院子那一格的气泡（地面系统）：能铺 / 能撬 / 为什么不能
+    if (groundCell) {
+      const target: HintTarget = {
+        instanceId: `ground:${groundCell.roomId}:${groundCell.cell.x},${groundCell.cell.y}`,
+        hint: groundHintFor(groundCell),
+        world: new Vector3(groundCell.x, groundHeightAt(groundCell.x, groundCell.z) + 0.7, groundCell.z),
+      };
+      hintByKey.set(target.instanceId, target);
+      bestHintDistance = 0;
+      bestHint = target;
     }
 
     for (const placed of placedFurniture) {
@@ -2638,6 +2667,8 @@ export class RoomScene {
     const hintKeyOf = (target: NonNullable<typeof best>): string =>
       target.kind === "farmCell"
         ? `farm:${target.instanceId}#${target.cell}`
+        : target.kind === "groundCell"
+        ? `ground:${target.roomId}:${target.cell.x},${target.cell.y}`
         : target.kind === "resident"
         ? `pet:${target.residentId}`
         : target.kind === "door"
@@ -2657,6 +2688,8 @@ export class RoomScene {
         ? "none"
         : target.kind === "farmCell"
           ? `farm:${target.instanceId}#${target.cell}`
+          : target.kind === "groundCell"
+          ? `ground:${target.roomId}:${target.cell.x},${target.cell.y}:${target.action.kind}`
           : target.kind === "resident"
           ? `pet:${target.residentId}`
           : target.kind === "door"
@@ -2675,6 +2708,7 @@ export class RoomScene {
     this.farmCropsView.setCursor(
       best?.kind === "farmCell" ? { instanceId: best.instanceId, cell: best.cell } : null,
     );
+    this.groundsView.setCursor(best?.kind === "groundCell" ? { roomId: best.roomId, cell: best.cell } : null);
 
     if (best === null) {
       emit("interact_target_changed", null);
@@ -2682,7 +2716,7 @@ export class RoomScene {
       emit("interact_target_changed", { kind: "resident", residentId: best.residentId });
     } else if (best.kind === "door") {
       emit("interact_target_changed", { kind: "door", refId: best.refId });
-    } else if (best.kind === "building" || best.kind === "shopSpot" || best.kind === "mailbox" || best.kind === "farmCell") {
+    } else if (best.kind === "building" || best.kind === "shopSpot" || best.kind === "mailbox" || best.kind === "farmCell" || best.kind === "groundCell") {
       // 建筑和店内交互点不进这条事件（没有"工作站"那套载荷）。订阅方
       // 看到 null 就知道现在没有工作站可开——按 F 干什么由 interact() 分派
       emit("interact_target_changed", null);
@@ -2778,6 +2812,25 @@ export class RoomScene {
    * 优先级：坐着躺着时含义变了（起身 / 睡觉）→ **正在选址就是定点** →
    * 附近有目标就操作目标 → 都没有就用手上那件东西。
    */
+  /**
+   * 院子的格按 F（地面系统）：铺立刻铺；撬走锄头的挥锄动作，落下那一拍才撬。
+   */
+  private interactWithGround(target: GroundTarget): void {
+    const apply = () => {
+      const result = interactWithGroundCell(target);
+      if (result.ok) this.refreshInteractTarget();
+    };
+    if (target.action.kind === "lift") {
+      const tool = toolForHeld();
+      const spec = tool?.useSpecFor({ kind: "ground", action: "lift" }) ?? null;
+      if (tool && spec) {
+        this.playTool(tool, spec, { x: target.x, y: groundHeightAt(target.x, target.z), z: target.z }, apply);
+        return;
+      }
+    }
+    apply();
+  }
+
   /**
    * 田上按 F：做什么由格和手上的东西决定（Systems/farming）。手上是工具、
    * 而且它对这个动作有一套演法（期 6）→ 先演，**落下那一拍才改状态**；
@@ -3069,6 +3122,8 @@ export class RoomScene {
         }
       } else if (this.interactTarget.kind === "farmCell") {
         this.interactWithFarm(this.interactTarget);
+      } else if (this.interactTarget.kind === "groundCell") {
+        this.interactWithGround(this.interactTarget);
       } else if (this.interactTarget.kind === "building") {
         request("building_panel_open_requested", {
           instanceId: this.interactTarget.instanceId,
@@ -4377,6 +4432,7 @@ export class RoomScene {
     this.territoryView.dispose();
     this.buildingsView.dispose();
     this.farmCropsView.dispose();
+    this.groundsView.dispose();
     this.buildingPlacement.cancel();
     this.fogField.dispose();
     this.cookwareView.dispose();

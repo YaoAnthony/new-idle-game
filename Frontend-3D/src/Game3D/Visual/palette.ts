@@ -489,6 +489,10 @@ export const PALETTE = {
   farmBanner: "#3d2757",          // 弯月旗
   farmMoon: "#e7c15c",            // 旗上的月亮和星
   farmCursor: "#f2e6c4",          // 对准那一格的描边
+  // ---- 地面系统（2026-09-18）：铺的路。键名进 Core 的地面注册表（visual.top / rim）----
+  groundSandTop: "#c9a86a",       // 沙土路的面
+  groundSandRim: "#9a7a48",       // 沙土路的侧棱（板的厚度那一圈）
+  groundCursor: "#f6ecd2",        // 对准要铺的那一格
   tomatoRedDeep: "#a43d2e",       // 番茄的棱
   hoeIron: "#4c4a45",             // 锄头的铁头
 } as const;

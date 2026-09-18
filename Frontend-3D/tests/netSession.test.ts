@@ -118,6 +118,7 @@ import {
   restoreBuildings,
 } from "../src/Game/State/buildings";
 import { readFarmBed } from "../src/Game/State/farmBeds";
+import { groundAtWorld, restoreGrounds } from "../src/Game/State/grounds";
 import { resetTerritory } from "../src/Game/State/territory";
 import { interactWithFarmCell } from "../src/Game/Systems/farming";
 import { restoreStorages } from "../src/Game/State/storage";
@@ -775,5 +776,28 @@ describe("建筑状态 op（房客在房主家种地）", () => {
     expect(readFarmBed(farmId)?.bed.cells[0].wetUntilUtc).toBe(wetUntilUtc);
     expect(fakeApi.outbound.filter((entry) => entry.kind === "op")).toEqual([]);
     expect(fakeApi.outbound.filter((entry) => entry.kind === "refresh")).toEqual([]);
+  });
+});
+
+// ---- 铺地 op（地面系统，协议 v17）----
+
+describe("铺地 op", () => {
+  test("收到别人的 ground_set 在本地合并_不回环_撬掉也收敛", async () => {
+    await hostSession();
+    resetTerritory();
+    restoreGrounds(undefined);
+    fakeApi.reset();
+    const yard = getCurrentMap().outdoorRoomId;
+    const cell = worldToRoomCell(getRoom(yard)!, 3.5, 16.5);
+
+    fakeApi.inbound("worldOp", { playerId: "p-guest01", op: { kind: "ground_set", roomId: yard, cell, groundId: "sandy_road" } });
+    fakeApi.inbound("worldOp", { playerId: "p-guest01", op: { kind: "ground_set", roomId: yard, cell, groundId: "sandy_road" } });
+    await Promise.resolve();
+    expect(groundAtWorld(3.5, 16.5)).toBe("sandy_road");
+    expect(fakeApi.outbound.filter((o) => o.kind === "op")).toEqual([]);
+
+    fakeApi.inbound("worldOp", { playerId: "p-guest01", op: { kind: "ground_set", roomId: yard, cell, groundId: null } });
+    expect(groundAtWorld(3.5, 16.5)).toBeUndefined();
+    expect(fakeApi.outbound.filter((o) => o.kind === "op")).toEqual([]);
   });
 });

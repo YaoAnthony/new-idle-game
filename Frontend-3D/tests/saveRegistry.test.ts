@@ -37,6 +37,7 @@ const GOLDEN_ORDER: readonly RestoreKey[] = [
   "world.inventories",
   "world.gramophones",
   "world.lamps",
+  "world.grounds",
   "world.buildings",
   "world.baseGold",
   "world.droppedItems",

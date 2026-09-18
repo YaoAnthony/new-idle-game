@@ -306,8 +306,14 @@ const NEIGHBOURS: Array<[number, number, number]> = [
 ];
 
 /**
- * 拉直的一段是否**不比原路贵**：沿直线每半格采样一次代价，任何一点超过
- * 原路这一段的最高代价就不许拉。原路本身走过泥地（没别的路）时照样能拉直。
+ * 拉直的一段是否**不比原路贵**：比的是**积分**（每一小段的长度 × 那一点的代价），
+ * 直线的积分不能超过原路这一段的积分。
+ *
+ * 第一版比的是"最高代价"：直线上任何一点超过原路的最高代价就不许拉。那对"绕开一块泥地"
+ * 够用，对"绕上一条路"不够——原路两头站在草上（1.6），中间走在路上（1），最高代价是 1.6，
+ * 于是整段直线穿草（处处 1.6）"不超过最高代价"，A* 辛苦绕上去的路被一笔抄回草地
+ * （地面系统 2026-09-18 的用例就是这么红的）。积分比才是"这条直线真的更便宜吗"。
+ * 原路本身走过泥地（没别的路）时照样能拉直：直线的积分不会比它更大。
  */
 function costClear(
   grid: NavGrid,
@@ -316,15 +322,22 @@ function costClear(
   to: number,
   costOf: (x: number, z: number) => number,
 ): boolean {
-  let ceiling = 1;
-  for (let i = from; i <= to; i += 1) ceiling = Math.max(ceiling, costOf(raw[i][0], raw[i][1]));
+  let rawCost = 0;
+  for (let i = from; i < to; i += 1) {
+    const [x0, z0] = raw[i];
+    const [x1, z1] = raw[i + 1];
+    rawCost += Math.hypot(x1 - x0, z1 - z0) * Math.max(1, costOf(x1, z1));
+  }
   const [ax, az] = raw[from];
   const [bx, bz] = raw[to];
   const length = Math.hypot(bx - ax, bz - az);
   const steps = Math.max(1, Math.ceil(length / (grid.cell / 2)));
-  for (let k = 1; k < steps; k += 1) {
+  const step = length / steps;
+  let lineCost = 0;
+  for (let k = 1; k <= steps; k += 1) {
     const t = k / steps;
-    if (costOf(ax + (bx - ax) * t, az + (bz - az) * t) > ceiling + 1e-6) return false;
+    lineCost += step * Math.max(1, costOf(ax + (bx - ax) * t, az + (bz - az) * t));
+    if (lineCost > rawCost + 1e-6) return false;
   }
   return true;
 }

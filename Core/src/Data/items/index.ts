@@ -1452,6 +1452,18 @@ export const itemDefinitions = [
     seed: { cropId: "tomato" },
   },
   {
+    // 沙土路（地面系统 2026-09-18）：一件铺一格。测试期 /give 发；来源等两个世界定
+    id: "sandy_road",
+    localizationKey: "item.sandy_road",
+    category: ItemCategory.Material,
+    stackLimit: 99,
+    rarity: Rarity.Common,
+    value: 3,
+    origin: ItemOrigin.Otherworld,
+    visual: { id: "ground_sandy_road" },
+    ground: { groundId: "sandy_road" },
+  },
+  {
     id: "tomato",
     localizationKey: "item.tomato",
     category: ItemCategory.Food,

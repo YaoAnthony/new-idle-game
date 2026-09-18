@@ -26,6 +26,8 @@ export * from "./random.js";
 export * from "./giftRules.js";
 export * from "./grid.js";
 export * from "./groundMap.js";
+export * from "./grounds.js";
+export * from "./groundsAudit.js";
 export * from "./needs.js";
 export * from "./occupancy.js";
 export * from "./pathfinding.js";

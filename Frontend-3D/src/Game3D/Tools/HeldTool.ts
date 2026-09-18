@@ -20,7 +20,9 @@ export type { Vec3 } from "../Effects/ParticleField";
 /** 按 F 时的意图：田上 Systems 已算出会发生什么；对着家具就是它的能力 */
 export type ToolIntent =
   | { kind: "farm"; action: FarmAction["kind"] }
-  | { kind: "station"; capability: StationCapability };
+  | { kind: "station"; capability: StationCapability }
+  /** 院子里铺过的格（地面系统）：撬起来 */
+  | { kind: "ground"; action: "lift" };
 
 /** 工具相对右手挂点（`CharacterRig.handAnchor`）怎么放。工具造型的原点都在柄底、柄竖直 */
 export type ToolGrip = {

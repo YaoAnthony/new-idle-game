@@ -52,7 +52,8 @@ export class WateringCanTool extends HeldTool {
 
   useFor(intent: ToolIntent): string | null {
     if (intent.kind === "farm") return intent.action === "water" ? "pour" : null;
-    return intent.capability === "water_source" ? "fill" : null;
+    if (intent.kind === "station") return intent.capability === "water_source" ? "fill" : null;
+    return null;
   }
 
   private pour(): ToolUseSpec {

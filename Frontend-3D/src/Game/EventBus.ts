@@ -72,6 +72,8 @@ export type GameEvents = {
    * 照旧走 `building_state_changed`。
    */
   farm_cell_changed: { instanceId: string };
+  /** 铺 / 撬了一格地面（地面系统）。roomId 空串 = 整张表换了（读档） */
+  ground_changed: { roomId: string; cell: { x: number; y: number } };
   /** 田里四格并成了一颗巨大果实（节拍器掷中那一拍）。音效 / 粒子 / 剧情翻译听它 */
   farm_giant_grown: { instanceId: string; cropId: string };
   /** 余额或上限变了（存钱、花钱、建罐、升罐、拆罐） */

@@ -37,6 +37,8 @@ const PROTOCOL_V13_REFRESH_KEYS = [
   "clock",
   "gramophones",
   "lamps",
+  // 协议 v17（地面系统 2026-09-18）：铺的路
+  "grounds",
   "buildings",
   "unlockedFeatureIds",
   "pets",

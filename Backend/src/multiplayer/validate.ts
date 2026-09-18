@@ -218,7 +218,19 @@ export function parseWorldOp(value: unknown): WorldOp | null {
   if (typeof raw.kind !== 'string' || !OP_KINDS.has(raw.kind)) return null
   if (jsonBytes(value) > MAX_OP_BYTES) return null
   if (raw.kind === 'building_state_set' && !validBuildingStatePatch(raw)) return null
+  if (raw.kind === 'ground_set' && !validGroundSet(raw)) return null
   return value as WorldOp
+}
+
+/** `ground_set`（协议 v17）：roomId 非空有界、格是两个整数、groundId 字符串有界或 null */
+function validGroundSet(raw: Record<string, unknown>): boolean {
+  if (typeof raw.roomId !== 'string' || raw.roomId.length === 0 || raw.roomId.length > 64) return false
+  const cell = raw.cell
+  if (typeof cell !== 'object' || cell === null) return false
+  const { x, y } = cell as Record<string, unknown>
+  if (!Number.isInteger(x) || !Number.isInteger(y)) return false
+  if (raw.groundId === null) return true
+  return typeof raw.groundId === 'string' && raw.groundId.length > 0 && raw.groundId.length <= 64
 }
 
 /**

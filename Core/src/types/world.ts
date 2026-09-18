@@ -14,6 +14,7 @@ import type { ResidentSave } from "./residents.js";
 import type { RegionId, RoomStyleId } from "./roomStyle.js";
 import type { WorldClockSave } from "./time.js";
 import type { WeatherSave } from "./weather.js";
+import type { GroundLayer } from "./ground.js";
 
 /**
  * 一期报纸的定稿（期 7）。
@@ -340,6 +341,12 @@ export type WorldSave = {
    * "哪几盏开着"的话，每摆一盏灯就要立刻写一条永不改变的记录。
    */
   lamps?: Record<string, { on: boolean }>;
+
+  /**
+   * 玩家铺的地面（地面系统 2026-09-18）：室外房间的格 → 地面 id。没有条目 = 草地。
+   * 可选、缺省空表，老存档不用迁移。
+   */
+  grounds?: GroundLayer;
 
   progression: {
     unlockedFeatureIds: FeatureId[];

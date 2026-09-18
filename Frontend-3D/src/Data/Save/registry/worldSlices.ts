@@ -72,6 +72,7 @@ import { restoreResidentTrips, snapshotResidentTrips } from "../../../Game/Syste
 import { restoreTripPlans, snapshotTripPlans } from "../../../Game/Systems/residents/trips";
 import { restoreMailbox, snapshotMailbox } from "../../../Game/Systems/mail";
 import { restoreFlags, snapshotFlags } from "../../../Game/Systems/flags";
+import { restoreGrounds, snapshotGrounds } from "../../../Game/State/grounds";
 import {
   requireSave,
   when,
@@ -227,6 +228,11 @@ export const WORLD_SLICES = {
     finalize: (ctx) =>
       pruneOrphanLamps(requireSave(ctx).ownWorld.placedFurniture.map((item) => item.instanceId)),
     changedBy: ["lamp_changed"],
+  },
+  grounds: {
+    snapshot: () => snapshotGrounds(),
+    restore: (value) => restoreGrounds(value),
+    changedBy: ["ground_changed"],
   },
   buildings: {
     snapshot: () => snapshotBuildings(),

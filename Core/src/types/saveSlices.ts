@@ -124,6 +124,11 @@ export const WORLD_SLICE_POLICY = {
     churn: "low",
     reason: "协议 v6：哪几盏灯被关掉了。灯光是共享的物理事实，不是各人的显示偏好",
   },
+  grounds: {
+    sync: "refresh",
+    churn: "low",
+    reason: "协议 v17：铺的路。房客在房主家铺一格全房都看见，居民寻路也照它算",
+  },
   buildings: {
     sync: "refresh",
     churn: "low",

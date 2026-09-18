@@ -4,6 +4,7 @@ import { getCurrentMapId } from "../State/worldRuntime";
 import { findRoute } from "./navigation";
 import { unlockablePlotIds } from "../State/territory";
 import { findDestination, planRoute, type Destination, type RouteLeg } from "./travelPlan";
+import { groundCostAt } from "../State/grounds";
 
 /**
  * 自动跑腿：说一个地名，人自己走过去，**跨图一路走到底**。
@@ -90,7 +91,8 @@ function driveCurrentLeg(): void {
   if (leg.mapId !== getCurrentMapId()) return;
 
   const from = walker.position();
-  const points = findRoute(from, { x: leg.target.x, z: leg.target.z });
+  // 自动跑腿吃地面代价：铺了路就沿路走（玩家手操不吃，见 navigation 的 costOf）
+  const points = findRoute(from, { x: leg.target.x, z: leg.target.z }, { costOf: groundCostAt });
   if (!points) {
     /*
      * 走不过去。**领地没扩到那边**是今天最常见的原因，值得单独说一句

@@ -49,8 +49,9 @@ import type { WorldRefreshSlices } from "./saveSlices.js";
  * v14（2026-09-15）：transform 和活物关键帧加 `headYaw`（注视，居民系统 21）。
  * v15（2026-09-18）：加建筑状态 op（building_state_set）：田里的格、罐里的钱、小店抽屉即时同步（种植系统 期 5）。
  * v16（2026-09-18）：手势加 tool_use（带 itemId / use / at）：别人挥锄、倾壶看得见（种植系统 期 6）。
+ * v17（2026-09-18）：加铺地 op（ground_set）+ grounds 刷新切片（地面系统）。
  */
-export const NET_PROTOCOL_VERSION = 16;
+export const NET_PROTOCOL_VERSION = 17;
 
 /** 服务端强制的上限。放在共享类型里，客户端可以在发送前先自查 */
 export const NET_LIMITS = {
@@ -366,6 +367,16 @@ export type WorldOp =
       kind: "building_state_set";
       instanceId: string;
       patch: Record<string, unknown>;
+    }
+  | {
+      /**
+       * 有人铺 / 撬了一格地面（协议 v17，地面系统）。发的是**绝对值**（这格现在是什么，
+       * null = 草地），重复 / 乱序都收敛。
+       */
+      kind: "ground_set";
+      roomId: string;
+      cell: { x: number; y: number };
+      groundId: string | null;
     };
 
 /**
@@ -389,6 +400,7 @@ export const WORLD_OP_KINDS = [
   "bath_water_set",
   "resident_intent",
   "building_state_set",
+  "ground_set",
 ] as const;
 
 type MissingOpKinds = Exclude<WorldOp["kind"], (typeof WORLD_OP_KINDS)[number]>;

@@ -43,6 +43,7 @@ export class HoeTool extends HeldTool {
   protected readonly uses = { swing: () => this.swing() };
 
   useFor(intent: ToolIntent): string | null {
+    if (intent.kind === "ground") return "swing";
     if (intent.kind !== "farm") return null;
     return intent.action === "till" || intent.action === "flatten" ? "swing" : null;
   }

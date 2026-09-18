@@ -307,6 +307,16 @@ test('op：building_state_set 的 patch 有闸——对象、键数、深度、�
   assert.equal(parseWorldOp({ kind: 'building_state_set', instanceId: 'b1', patch: { blob: 'x'.repeat(9_000) } }), null)
 })
 
+test('op：ground_set 查形状——roomId、整数格、groundId 或 null', () => {
+  assert.ok(parseWorldOp({ kind: 'ground_set', roomId: 'yard', cell: { x: 3, y: -2 }, groundId: 'sandy_road' }))
+  assert.ok(parseWorldOp({ kind: 'ground_set', roomId: 'yard', cell: { x: 0, y: 0 }, groundId: null }))
+  assert.equal(parseWorldOp({ kind: 'ground_set', roomId: '', cell: { x: 0, y: 0 }, groundId: null }), null)
+  assert.equal(parseWorldOp({ kind: 'ground_set', roomId: 'yard', cell: { x: 0.5, y: 0 }, groundId: null }), null)
+  assert.equal(parseWorldOp({ kind: 'ground_set', roomId: 'yard', cell: { x: 0 }, groundId: null }), null)
+  assert.equal(parseWorldOp({ kind: 'ground_set', roomId: 'yard', cell: { x: 0, y: 0 }, groundId: '' }), null)
+  assert.equal(parseWorldOp({ kind: 'ground_set', roomId: 'yard', cell: { x: 0, y: 0 }, groundId: 7 }), null)
+})
+
 // ---- refresh 切片 ----
 
 test('切片：认识的键放行，一个都没有时拒绝', () => {

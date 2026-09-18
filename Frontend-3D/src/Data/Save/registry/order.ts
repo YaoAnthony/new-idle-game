@@ -36,6 +36,8 @@ export const RESTORE_ORDER = [
   "world.inventories",
   "world.gramophones",
   "world.lamps",
+  // 铺的地面：只依赖房间几何（maps 在前面）
+  "world.grounds",
   "world.buildings",
   "world.baseGold",
   "world.droppedItems",

@@ -278,6 +278,9 @@ import { startBathSystem } from "../Game/Systems/bath";
 import { RoomScene } from "./World/RoomScene";
 import { ChestOverlay } from "../Components/ChestOverlay/ChestOverlay";
 import { BuildingPlacePanel } from "../Components/BuildingPlacePanel/BuildingPlacePanel";
+import { findGroundDefinition, groundDefinitions } from "core";
+import { getGroundLayer, layGround, liftGround } from "../Game/State/grounds";
+import { getLocalParticipant } from "../Game/State/participants";
 
 /** /signal 的可选值。和 Core 的 StorySignalKind 一一对应 */
 const STORY_SIGNALS = [
@@ -1028,6 +1031,37 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
             return fail(`还差 ${r.short} 金币`);
           }
           return fail("用法：gold [show|add <n>|spend <n>]");
+        },
+      }),
+      registerCommand({
+        name: "ground",
+        arguments: [
+          { name: "子命令", suggest: () => asSuggestions(["list", "lift", ...groundDefinitions.map((g) => g.groundId)]) },
+          { name: "x" },
+          { name: "z" },
+        ],
+        usage: "ground list | ground <groundId> [x z] | ground lift [x z]",
+        description: "地面调试：list 列铺了几格；<groundId> 在脚下（或给定点）铺一格（不扣物品）；lift 撬一格",
+        handler: (args) => {
+          const sub = args[0] ?? "list";
+          if (sub === "list") {
+            const layer = getGroundLayer();
+            const lines = Object.entries(layer).flatMap(([roomId, cells]) =>
+              Object.entries(cells).map(([key, id]) => `${roomId} ${key} ${id}`),
+            );
+            return ok(lines.length > 0 ? `${lines.length} 格：\n${lines.join("\n")}` : "一格都没铺");
+          }
+          const here = getLocalParticipant().transform;
+          const x = args[1] !== undefined ? Number(args[1]) : here.x;
+          const z = args[2] !== undefined ? Number(args[2]) : here.y;
+          if (!Number.isFinite(x) || !Number.isFinite(z)) return fail("坐标要是数");
+          if (sub === "lift") {
+            const result = liftGround(x, z);
+            return result.ok === false ? fail(`撬不了：${result.why}`) : ok(`撬起 ${result.itemId}`);
+          }
+          if (!findGroundDefinition(sub)) return fail(`没有这种地面：${sub}`);
+          const result = layGround(x, z, sub);
+          return result.ok === false ? fail(`铺不了：${result.why}`) : ok(`铺了 ${sub} @(${x.toFixed(1)}, ${z.toFixed(1)})`);
         },
       }),
       registerCommand({

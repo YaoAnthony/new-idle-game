@@ -13,6 +13,7 @@ import { replayLampSwitch } from "../State/lamps";
 import { replayStorageBox } from "../State/storage";
 import { replayResidentIntent } from "../State/residentsRuntime";
 import { replayBuildingState } from "../State/buildings";
+import { replayGroundSet } from "../State/grounds";
 import {
   replayBathWater,
   replayPlaceFurniture,
@@ -85,6 +86,10 @@ export function applyWorldOp(op: WorldOp): void {
     case "building_state_set":
       // 整块合并（田是整块 farm、罐是 fill），重复 / 乱序都收敛到同一份
       replayBuildingState(op.instanceId, op.patch);
+      return;
+    case "ground_set":
+      // 绝对值（这格现在是什么），重复 / 乱序都收敛
+      replayGroundSet(op.roomId, op.cell, op.groundId);
       return;
   }
 }

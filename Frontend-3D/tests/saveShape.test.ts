@@ -93,6 +93,7 @@ const SHAPE: string[] = [
   "ownWorld.house.styleId",
   "ownWorld.inventories{}",
   "ownWorld.lamps{}",
+  "ownWorld.grounds{}",
   "ownWorld.maps",
   "ownWorld.pets",
   "ownWorld.placedFurniture[]",

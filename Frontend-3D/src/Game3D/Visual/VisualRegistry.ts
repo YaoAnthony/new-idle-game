@@ -114,6 +114,7 @@ import {
 } from "./recipes/woodenFurniture.js";
 import { buildDumbbell, buildWorkbench } from "./recipes/workbench.js";
 import { buildPropBook, buildPropBucket, buildPropCup, buildPropHammer, buildPropUmbrella } from "./recipes/props.js";
+import { buildSandyRoadTile } from "./recipes/groundTile.js";
 
 /**
  * visualId → 几何体。
@@ -258,6 +259,7 @@ const REGISTRY: Record<string, VisualEntry> = {
   // 农具与作物（种植系统）：作物每段一个 id，作物表的 stages 按名字点
   watering_can: { kind: "procedural", build: () => buildWateringCan(false) },
   wooden_hoe: { kind: "procedural", build: buildWoodenHoe },
+  ground_sandy_road: { kind: "procedural", build: buildSandyRoadTile },
   crop_sown: { kind: "procedural", build: buildCropSown },
   crop_tomato_sprout: { kind: "procedural", build: buildCropTomatoSprout },
   crop_tomato_bush: { kind: "procedural", build: buildCropTomatoBush },

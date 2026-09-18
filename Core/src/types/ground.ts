@@ -197,3 +197,23 @@ export type TerrainRecipe = {
 export type GroundMap = {
   surfaces: GroundSurface[];
 };
+
+// ---- 铺地（地面系统，2026-09-18）----
+
+export type GroundId = string;
+
+/**
+ * 玩家铺的地面：室外房间的格 → 地面 id。没有条目的格 = 原生草地。
+ * 键是 `cellKeyOf(x, y)`（"x,y"，roomCell 坐标）。稀疏表，一格一条。
+ * 住 `WorldSave.grounds`，联机走 `ground_set` op + `grounds` 刷新切片。
+ */
+export type GroundLayer = Record<RoomId, Record<string, GroundId>>;
+
+/**
+ * 对偶网格上一个**格点**周围四格的占用（画面按格点出瓦片，不按格）：
+ * bit0 西北、bit1 东北、bit2 西南、bit3 东南。0..15。
+ */
+export type CornerMask = number;
+
+/** 16 种角情形塌成 6 种形状，配一个顺时针 90° 的旋转次数 */
+export type CornerShape = "none" | "corner" | "edge" | "diagonal" | "notch" | "full";

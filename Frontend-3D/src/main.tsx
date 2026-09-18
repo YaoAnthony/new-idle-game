@@ -14,6 +14,9 @@ import {
   auditBuildings,
   auditCrops,
   auditDoorContent,
+  auditGrounds,
+  groundDefinitions,
+  groundTuning,
   auditStoryContent,
   auditTerritory,
   cropDefinitions,
@@ -112,6 +115,11 @@ if (import.meta.env.DEV) {
   })
   if (cropProblems.length > 0) {
     console.warn(`[crops] 作物表有 ${cropProblems.length} 处对不上：`, cropProblems)
+  }
+  // 地面表：代价 ≥ 1（A* 的启发按 1 估）、物品和注册表互指
+  const groundProblems = auditGrounds(groundDefinitions, itemDefinitions, groundTuning)
+  if (groundProblems.length > 0) {
+    console.warn(`[grounds] 地面表有 ${groundProblems.length} 处对不上：`, groundProblems)
   }
 
   const spawnWorld = spawnPosition()

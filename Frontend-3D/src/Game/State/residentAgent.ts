@@ -48,6 +48,7 @@ import {
   type WireIntent,
 } from "./actions";
 import type { InteractOffer, ResidentEvent, Skill, SkillContext } from "./skills/types";
+import { groundCostAt } from "./grounds";
 
 /**
  * 一只活物的**身体**（居民系统 01，2026-09-06 拆分）。
@@ -1345,10 +1346,11 @@ export class ResidentAgent {
 
   /** 排一条路但不走。`findSpotNear` 和 diagnose 用 */
   routeTo(x: number, z: number): Array<[number, number]> | null {
+    // 地面代价（地面系统）：铺了路的格便宜，居民更愿意走路上
     const route = findRoute(
       { x: this.x, z: this.z },
       { x, z },
-      { radius: this.radius, snapRings: 2, phasing: this.phasing },
+      { radius: this.radius, snapRings: 2, phasing: this.phasing, costOf: groundCostAt },
     );
     if (route && route.length >= 2) return route;
     /*
@@ -1361,7 +1363,7 @@ export class ResidentAgent {
     const rescue = findRoute(
       { x: this.x, z: this.z },
       { x, z },
-      { radius: this.radius, snapRings: RESCUE_SNAP_RINGS, phasing: this.phasing },
+      { radius: this.radius, snapRings: RESCUE_SNAP_RINGS, phasing: this.phasing, costOf: groundCostAt },
     );
     return rescue && rescue.length >= 2 ? rescue : null;
   }
@@ -1425,7 +1427,9 @@ export class ResidentAgent {
          * 他自己脚下那格不算贵：贴着人站的时候起点就在圈里，起点一贵，拉直路径时"最贵的一格"就是 30，
          * 穿过那位的直线也就过了审——绕出来的路又被拉回直线。
          */
-        costOf: (x, z) => (Math.hypot(x - blocker.x, z - blocker.z) < avoid && Math.hypot(x - this.x, z - this.z) > 0.3 ? DETOUR_CELL_COST : 1),
+        costOf: (x, z) =>
+          (Math.hypot(x - blocker.x, z - blocker.z) < avoid && Math.hypot(x - this.x, z - this.z) > 0.3 ? DETOUR_CELL_COST : 1) *
+          groundCostAt(x, z),
       },
     );
     if (!route || route.length < 2) return false;

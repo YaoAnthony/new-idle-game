@@ -171,6 +171,12 @@ export type ItemDefinition = {
   seed?: { cropId: string };
 
   /**
+   * 是一件**地面**（地面系统 2026-09-18）：拿在手上对准院子的格按 F，那格铺成
+   * `groundId` 那种地面，消耗一件。地面长什么样、走起来多贵在 `Data/grounds`。
+   */
+  ground?: { groundId: string };
+
+  /**
    * 是一张唱片（V0.12）。`albumId` 对应 public/music 下的专辑文件夹
    * （见 Frontend 的曲库生成脚本：文件夹名 slug 化就是 albumId）。
    *

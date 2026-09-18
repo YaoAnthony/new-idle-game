@@ -1756,6 +1756,11 @@ export const migrations: Migration[] = [
     to: 54,
     migrate: (save) => save,
   },
+  /** v55 · 世界表加 grounds（铺的地面：格 → 地面 id，地面系统 2026-09-18）。老档没有 = 空表，读档侧兜住 */
+  {
+    to: 55,
+    migrate: (save) => save,
+  },
 ];
 
 

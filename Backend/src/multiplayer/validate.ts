@@ -193,7 +193,36 @@ export function parseWorldOp(value: unknown): WorldOp | null {
   const raw = value as Record<string, unknown>
   if (typeof raw.kind !== 'string' || !OP_KINDS.has(raw.kind)) return null
   if (jsonBytes(value) > MAX_OP_BYTES) return null
+  if (raw.kind === 'building_state_set' && !validBuildingStatePatch(raw)) return null
   return value as WorldOp
+}
+
+/**
+ * `building_state_set` 的 patch 闸门（协议 v15）：它是唯一一种"任意键值合并进存档"的 op，
+ * 所以比别的多把三条线——是对象、顶层键数有界、嵌套深度有界（体积上面那条已经管了）。
+ * 仍然不查游戏规则：田里哪格种了什么是 Core 的事，服务端不复制一份内容规则。
+ */
+const MAX_PATCH_KEYS = 32
+const MAX_PATCH_DEPTH = 4
+const MAX_PATCH_BYTES = 8_192
+
+function depthOf(value: unknown, limit: number): number {
+  if (typeof value !== 'object' || value === null) return 0
+  let deepest = 1
+  for (const entry of Array.isArray(value) ? value : Object.values(value)) {
+    if (deepest > limit) break
+    deepest = Math.max(deepest, 1 + depthOf(entry, limit))
+  }
+  return deepest
+}
+
+function validBuildingStatePatch(raw: Record<string, unknown>): boolean {
+  if (typeof raw.instanceId !== 'string' || raw.instanceId.length === 0) return false
+  const patch = raw.patch
+  if (typeof patch !== 'object' || patch === null || Array.isArray(patch)) return false
+  if (Object.keys(patch).length > MAX_PATCH_KEYS) return false
+  if (depthOf(patch, MAX_PATCH_DEPTH) > MAX_PATCH_DEPTH) return false
+  return jsonBytes(patch) <= MAX_PATCH_BYTES
 }
 
 /**

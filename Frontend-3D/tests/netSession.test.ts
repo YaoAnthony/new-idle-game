@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { Facing, worldToRoomCell, type GameSave, type WorldSave } from "core";
+import { Facing, newFarmBed, tillCell, worldToRoomCell, type GameSave, type WorldSave } from "core";
 
 // ---- 假 Api 层。必须在 import session 之前声明 ----
 
@@ -102,14 +102,24 @@ import {
 } from "../src/Game/State/participants";
 import {
   addItem,
+  findStackRef,
   getCount,
   restoreInventory,
+  selectHotbarSlot,
 } from "../src/Game/State/inventory";
 import {
   clearAllFurniture,
   placeFurniture,
 } from "../src/Game/State/world/furniture";
 import { getCurrentMap, getRoom, getWorld } from "../src/Game/State/worldRuntime";
+import {
+  findPlacement,
+  placeBuilding,
+  restoreBuildings,
+} from "../src/Game/State/buildings";
+import { readFarmBed } from "../src/Game/State/farmBeds";
+import { resetTerritory } from "../src/Game/State/territory";
+import { interactWithFarmCell } from "../src/Game/Systems/farming";
 import { restoreStorages } from "../src/Game/State/storage";
 import { createIndexDbRepository } from "../src/Data/IndexDB";
 import { emit, on } from "../src/Game/EventBus";
@@ -678,5 +688,92 @@ describe("整片刷新", () => {
     });
 
     expect(getWorld().placedFurniture.map((p) => p.furnitureId)).toEqual(["furniture_table"]);
+  });
+});
+
+// ---- 建筑状态 op（种植系统 期 5，协议 v15）----
+
+/** 院子里一块田（开局领地 C3 内）。返回实例 id */
+function placeFarmHere(): string {
+  resetTerritory();
+  restoreBuildings([]);
+  const placed = placeBuilding("farm_plot", 3.5, 16.5, Facing.North);
+  expect(placed.ok, JSON.stringify(placed)).toBe(true);
+  return placed.ok === false ? "" : placed.instanceId;
+}
+
+/** 六格实土、第 0 格翻过且湿着——"房客刚浇完"那一刻的整块真相 */
+function wetBed(wetUntilUtc: string) {
+  const tilled = tillCell(newFarmBed(6), 0);
+  return { ...tilled, cells: tilled.cells.map((cell, i) => (i === 0 ? { ...cell, wetUntilUtc } : cell)) };
+}
+
+describe("建筑状态 op（房客在房主家种地）", () => {
+  test("房客翻一格_发一条 building_state_set_patch 是整块 farm", async () => {
+    // 房主家有一块田（先在本地摆好，抓进"房主的世界"，再以房客身份进去）
+    const farmId = placeFarmHere();
+    fakeApi.replies.set("join", joinReply(hostWorld()));
+    await joinSession("ABC234");
+    expect(findPlacement(farmId), "房客没拿到房主的田").toBeTruthy();
+    fakeApi.reset();
+    addItem("wooden_hoe", 1);
+    selectHotbarSlot(findStackRef("wooden_hoe")!);
+
+    interactWithFarmCell({ instanceId: farmId, cell: 0 });
+
+    const ops = fakeApi.outbound.filter((entry) => entry.kind === "op");
+    expect(ops).toHaveLength(1);
+    const op = ops[0].payload as { kind: string; instanceId: string; patch: { farm: { cells: Array<{ soil: string }> } } };
+    expect(op.kind).toBe("building_state_set");
+    expect(op.instanceId).toBe(farmId);
+    expect(op.patch.farm.cells).toHaveLength(6);
+    expect(op.patch.farm.cells[0].soil).toBe("tilled");
+    expect(op.patch.farm.cells[1].soil).toBe("packed");
+  });
+
+  test("房主收到房客的浇水_那格湿了_下一次刷新带着_不回环", async () => {
+    vi.useFakeTimers();
+    try {
+      const farmId = placeFarmHere();
+      await hostSession();
+      vi.advanceTimersByTime(600);
+      fakeApi.reset();
+      const wetUntilUtc = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+
+      fakeApi.inbound("worldOp", {
+        playerId: "p-guest01",
+        op: { kind: "building_state_set", instanceId: farmId, patch: { farm: wetBed(wetUntilUtc) } },
+      });
+      // 刷新有 250 ms 合并尾沿；上一个假钟用例可能把"上次刷新"留在了未来，多推一段
+      vi.advanceTimersByTime(5_000);
+
+      expect(readFarmBed(farmId)?.bed.cells[0].wetUntilUtc).toBe(wetUntilUtc);
+      const refreshes = fakeApi.outbound.filter((entry) => entry.kind === "refresh");
+      expect(refreshes.length).toBeGreaterThanOrEqual(1);
+      const slices = refreshes[refreshes.length - 1].payload as { buildings?: Array<{ instanceId: string; state: { farm?: { cells: Array<{ wetUntilUtc?: string }> } } }> };
+      expect(slices.buildings?.find((item) => item.instanceId === farmId)?.state.farm?.cells[0].wetUntilUtc).toBe(wetUntilUtc);
+      // 重放不发 op：房里没有第二条
+      expect(fakeApi.outbound.filter((entry) => entry.kind === "op")).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("房客收到房主的刷新_田照着刷新走_一个字不写回去", async () => {
+    const farmId = placeFarmHere();
+    fakeApi.replies.set("join", joinReply(hostWorld()));
+    await joinSession("ABC234");
+    fakeApi.reset();
+    const wetUntilUtc = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    const before = findPlacement(farmId)!;
+
+    fakeApi.inbound("worldRefresh", {
+      revision: 5,
+      slices: { buildings: [{ ...before, state: { farm: wetBed(wetUntilUtc) } }] },
+    });
+
+    expect(readFarmBed(farmId)?.bed.cells[0].wetUntilUtc).toBe(wetUntilUtc);
+    expect(fakeApi.outbound.filter((entry) => entry.kind === "op")).toEqual([]);
+    expect(fakeApi.outbound.filter((entry) => entry.kind === "refresh")).toEqual([]);
   });
 });

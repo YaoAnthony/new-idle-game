@@ -647,6 +647,25 @@ export function setBuildingState(
   instanceId: string,
   patch: Record<string, unknown>,
 ): void {
+  mergeBuildingState(instanceId, patch);
+  // 联机：田里的格、罐里的钱即时同步给全房（协议 v15）。单机时没人订阅，白发一条，无害
+  emit("world_op", { op: { kind: "building_state_set", instanceId, patch } });
+}
+
+/**
+ * 重放房里其他人改的建筑状态（**不发 world_op**，无回环）。幂等：整块合并，
+ * 同一条 op 送两遍结果一样。不认识的实例（对方盖的楼还没经刷新到这边）就跳过——
+ * 房主随后的整片刷新会把楼和状态一起带到。
+ */
+export function replayBuildingState(
+  instanceId: string,
+  patch: Record<string, unknown>,
+): void {
+  if (!placements.some((item) => item.instanceId === instanceId)) return;
+  mergeBuildingState(instanceId, patch);
+}
+
+function mergeBuildingState(instanceId: string, patch: Record<string, unknown>): void {
   placements = placements.map((item) =>
     item.instanceId === instanceId
       ? { ...item, state: { ...item.state, ...patch } }

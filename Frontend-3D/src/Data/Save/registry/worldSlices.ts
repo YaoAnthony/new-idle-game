@@ -231,10 +231,11 @@ export const WORLD_SLICES = {
     restore: (value) => restoreBuildings(value),
     changedBy: ["world_changed", "building_state_changed"],
     /*
-     * 刷新暂不听 building_state_changed：液面、生长每秒好几次，而今天每次刷新
-     * 是**整片全发**。阶段 4 改成只发脏切片之后再放开（阶段 3 的清单里）。
+     * 刷新也听 building_state_changed（2026-09-18，种植系统 期 5）：状态变化其实低频
+     * （浇一次、收一次、存一次钱）——原来担心的"液面每秒好几次"是液面动画的事，
+     * 那不进状态；作物的派生变化走 farm_cell_changed，也不进这里。
      */
-    replicateOn: ["world_changed"],
+    replicateOn: ["world_changed", "building_state_changed"],
   },
   baseGold: {
     snapshot: () => snapshotBaseGold(),

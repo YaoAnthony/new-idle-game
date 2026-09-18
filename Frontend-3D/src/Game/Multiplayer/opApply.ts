@@ -12,6 +12,7 @@ import { replayGramophoneRecord } from "../State/gramophones";
 import { replayLampSwitch } from "../State/lamps";
 import { replayStorageBox } from "../State/storage";
 import { replayResidentIntent } from "../State/residentsRuntime";
+import { replayBuildingState } from "../State/buildings";
 import {
   replayBathWater,
   replayPlaceFurniture,
@@ -80,6 +81,10 @@ export function applyWorldOp(op: WorldOp): void {
       // 房主那边一只活物换了 Intent，木偶照着做。非木偶（房主自己、单机）忽略——
       // 房客不会发这条，收到就是坏客户端
       replayResidentIntent(op.residentId, op.intent);
+      return;
+    case "building_state_set":
+      // 整块合并（田是整块 farm、罐是 fill），重复 / 乱序都收敛到同一份
+      replayBuildingState(op.instanceId, op.patch);
       return;
   }
 }

@@ -3,18 +3,22 @@ import { DEFAULT_MAP_ID, Facing } from "core";
 
 import { hydrateGameSave, serializeGameSave } from "../src/Data/Save/serialize";
 import {
+  findPlacement,
   goldCapacity,
   jarLevelIds,
   listBuildings,
   moveBuilding,
   placeBuilding,
   removeBuilding,
+  replayBuildingState,
   restoreBuildings,
+  setBuildingState,
   finishSite,
   upgradeBuilding,
   upgradeOptions,
   listBuildingsHere,
 } from "../src/Game/State/buildings";
+import { on } from "../src/Game/EventBus";
 import {
   placeBuildingAtCell,
   worldToYardCell,
@@ -346,4 +350,31 @@ test("建筑记在家那张图上：去小镇看不到，回来还在", () => {
 
   expect(travelTo(DEFAULT_MAP_ID).ok).toBe(true);
   expect(listBuildingsHere()).toHaveLength(1);
+});
+
+// ---- 建筑状态 op（种植系统 期 5，协议 v15）----
+
+test("buildings_setBuildingState发op带整块patch_replay合并不发op_幂等_不认识的实例跳过", () => {
+  const result = placeBuilding("farm_plot", HOME.x, HOME.z, Facing.North);
+  expect(result.ok).toBe(true);
+  if (result.ok === false) return;
+  const ops: Array<{ kind: string; instanceId?: string; patch?: unknown }> = [];
+  const changed: string[] = [];
+  const offOp = on("world_op", ({ op }) => ops.push(op as (typeof ops)[number]));
+  const offChanged = on("building_state_changed", ({ instanceId }) => changed.push(instanceId));
+
+  setBuildingState(result.instanceId, { farm: { cells: [] }, note: 1 });
+  expect(ops).toEqual([{ kind: "building_state_set", instanceId: result.instanceId, patch: { farm: { cells: [] }, note: 1 } }]);
+  expect(changed).toEqual([result.instanceId]);
+
+  replayBuildingState(result.instanceId, { note: 2 });
+  replayBuildingState(result.instanceId, { note: 2 });
+  expect(ops).toHaveLength(1);
+  expect(changed).toHaveLength(3);
+  expect(findPlacement(result.instanceId)?.state).toEqual({ farm: { cells: [] }, note: 2 });
+
+  replayBuildingState("nobody:building:x#9", { note: 3 });
+  expect(changed).toHaveLength(3);
+  offOp();
+  offChanged();
 });

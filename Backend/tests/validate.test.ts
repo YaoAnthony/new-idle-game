@@ -273,6 +273,21 @@ test('op：不逐字段校验各变体（尽力而为的转发，各端 replay �
   assert.ok(parseWorldOp({ kind: 'furniture_placed', placed: '这不是家具' }))
 })
 
+test('op：building_state_set 的 patch 有闸——对象、键数、深度、体积、instanceId', () => {
+  const ok = { kind: 'building_state_set', instanceId: 'b1', patch: { farm: { cells: [{ soil: 'tilled' }] } } }
+  assert.ok(parseWorldOp(ok))
+  assert.equal(parseWorldOp({ kind: 'building_state_set', instanceId: 'b1', patch: 'nope' }), null)
+  assert.equal(parseWorldOp({ kind: 'building_state_set', instanceId: 'b1', patch: [] }), null)
+  assert.equal(parseWorldOp({ kind: 'building_state_set', instanceId: '', patch: {} }), null)
+  assert.equal(parseWorldOp({ kind: 'building_state_set', patch: {} }), null)
+  const wide = Object.fromEntries(Array.from({ length: 33 }, (_, i) => [`k${i}`, i]))
+  assert.equal(parseWorldOp({ kind: 'building_state_set', instanceId: 'b1', patch: wide }), null)
+  const deep = { a: { b: { c: { d: { e: 1 } } } } }
+  assert.equal(parseWorldOp({ kind: 'building_state_set', instanceId: 'b1', patch: deep }), null)
+  assert.ok(parseWorldOp({ kind: 'building_state_set', instanceId: 'b1', patch: { a: { b: { c: 1 } } } }))
+  assert.equal(parseWorldOp({ kind: 'building_state_set', instanceId: 'b1', patch: { blob: 'x'.repeat(9_000) } }), null)
+})
+
 // ---- refresh 切片 ----
 
 test('切片：认识的键放行，一个都没有时拒绝', () => {

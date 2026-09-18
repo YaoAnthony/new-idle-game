@@ -47,8 +47,9 @@ import type { WorldRefreshSlices } from "./saveSlices.js";
  * v5（2026-08-19）：加浴缸水位转折（bath_water_set）。
  * v6（2026-08-23）：加灯的开关（lamp_switched）+ lamps 刷新切片。
  * v14（2026-09-15）：transform 和活物关键帧加 `headYaw`（注视，居民系统 21）。
+ * v15（2026-09-18）：加建筑状态 op（building_state_set）：田里的格、罐里的钱、小店抽屉即时同步（种植系统 期 5）。
  */
-export const NET_PROTOCOL_VERSION = 14;
+export const NET_PROTOCOL_VERSION = 15;
 
 /** 服务端强制的上限。放在共享类型里，客户端可以在发送前先自查 */
 export const NET_LIMITS = {
@@ -352,6 +353,18 @@ export type WorldOp =
       residentId: string;
       intent: ResidentWireIntent;
       atMs: number;
+    }
+  | {
+      /**
+       * 一栋楼的实例状态被改了（协议 v15，种植系统 期 5）：田里哪格翻了 / 种了 / 浇了 / 收了、
+       * 罐里存了多少、小店抽屉里的钱。`patch` 是要合并进 `BuildingPlacement.state` 的那几个键，
+       * **自带整块真相**（田是整块 `farm`，不是"哪格 +1"）——op 通道不保证不重复、不保证有序，
+       * 增量在这种通道上必然算歪；整块合并重复送达、乱序送达都收敛到同一份。
+       * 服务端只查 patch 是不是对象、键数 / 深度 / 体积有界，不查游戏规则。
+       */
+      kind: "building_state_set";
+      instanceId: string;
+      patch: Record<string, unknown>;
     };
 
 /**
@@ -374,6 +387,7 @@ export const WORLD_OP_KINDS = [
   "daily_board_claimed",
   "bath_water_set",
   "resident_intent",
+  "building_state_set",
 ] as const;
 
 type MissingOpKinds = Exclude<WorldOp["kind"], (typeof WORLD_OP_KINDS)[number]>;

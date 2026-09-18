@@ -209,8 +209,12 @@ input {
 
 /* ---- 自定义鼠标光标（2026-09-12 定稿）----
  *
- * 美术给了一套 16×16 的像素光标（源图在 `public/ui/cursor/`），这里把系统光标
+ * 美术给了一套 16×16 的像素光标（源图在 `src/Assets/ui/cursor/`），这里把系统光标
  * 换掉。默认用箭头，悬停/拖拽用猫爪那三张。
+ *
+ * **url 写相对路径**（2026-09-17 从 public/ui/cursor/ 搬进来）：Vite 会改写
+ * `image-set()` 里的相对 url，图带上 hash（几 KB 的小图直接内联），路径写错
+ * 构建当场报错；原来的 `/ui/...` 绝对路径写错只会静默退回系统光标。
  *
  * **图是预先放大好的，不是让浏览器拉的。** 16px 只有系统光标的一半大，压在
  * 白天亮堂的屋子和奶油底 HUD 上一眼找不着；而放大这件事**交不出去**——
@@ -237,26 +241,26 @@ input {
 :root {
   --cursor-default:
     image-set(
-      url("/ui/cursor/x2/arrow.png") 1x,
-      url("/ui/cursor/x4/arrow.png") 2x
+      url("./Assets/ui/cursor/x2/arrow.png") 1x,
+      url("./Assets/ui/cursor/x4/arrow.png") 2x
     )
     8 2, default;
   --cursor-pointer:
     image-set(
-      url("/ui/cursor/x2/paw-point.png") 1x,
-      url("/ui/cursor/x4/paw-point.png") 2x
+      url("./Assets/ui/cursor/x2/paw-point.png") 1x,
+      url("./Assets/ui/cursor/x4/paw-point.png") 2x
     )
     10 2, pointer;
   --cursor-grab:
     image-set(
-      url("/ui/cursor/x2/paw.png") 1x,
-      url("/ui/cursor/x4/paw.png") 2x
+      url("./Assets/ui/cursor/x2/paw.png") 1x,
+      url("./Assets/ui/cursor/x4/paw.png") 2x
     )
     12 2, grab;
   --cursor-grabbing:
     image-set(
-      url("/ui/cursor/x2/paw-hold.png") 1x,
-      url("/ui/cursor/x4/paw-hold.png") 2x
+      url("./Assets/ui/cursor/x2/paw-hold.png") 1x,
+      url("./Assets/ui/cursor/x4/paw-hold.png") 2x
     )
     14 4, grabbing;
 }

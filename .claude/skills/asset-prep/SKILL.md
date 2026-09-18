@@ -1,14 +1,20 @@
 ---
 name: asset-prep
-description: "美术出图进 public/ 之前的后处理工具箱：白底抠成透明、扫出还没处理的白底图。用户说'这张图白底''帮我抠个图''图放进去有白框''扫一下图标'就用它。每条指令对应目录里一个脚本，加新处理 = 加脚本 + 在指令表加一行。"
+description: "美术出图进 src/Assets/ 之前的后处理工具箱（图一律放 Frontend-3D/src/Assets/ 走 import，不放 public/）：白底抠成透明、扫出还没处理的白底图。用户说'这张图白底''帮我抠个图''图放进去有白框''扫一下图标'就用它。每条指令对应目录里一个脚本，加新处理 = 加脚本 + 在指令表加一行。"
 argument-hint: "dewhite <图> [输出] [fuzz] | check [目录] | pixel-up <图|目录> | list"
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash, Edit, Write
 ---
 
-# 出图后处理（public/ 门口那道工序）
+# 出图后处理（src/Assets/ 门口那道工序）
 
-美术给的图（3D 渲染、AI 出图）和 `public/` 里能用的图之间差着一道固定工序。
+美术给的图（3D 渲染、AI 出图）和 `src/Assets/` 里能用的图之间差着一道固定工序。
+
+**图放 `Frontend-3D/src/Assets/`，不放 `public/`**（图标 2026-09-13、光标 / 教程图 / 立绘
+2026-09-17 先后搬过来）：走 import 的图文件名带 hash，路径写错构建当场报错；`public/`
+里的图原样拷进产物，写错路径只会静默 404，没人引用的原图也照样被打包发出去。
+图标按 §7 的约定放 `icons/`；界面插图、光标放 `ui/`；立绘原图放 `portraits/`
+（`icons/` 以外的目录不被 glob 扫，不 import 就不进产物）。
 这份技能把每道工序做成一条指令，**指令都是这个目录下的脚本，不是临时现敲的命令**——
 现敲的东西下次就没了，今天调好的参数明天还得再调一遍。
 
@@ -52,7 +58,7 @@ done
 ## 3. `check` —— 扫白底
 
 ```bash
-.claude/skills/asset-prep/check-alpha.sh [目录]      # 默认 Frontend-3D/public
+.claude/skills/asset-prep/check-alpha.sh [目录]      # 默认 Frontend-3D/src/Assets/icons
 ```
 
 分两步判：先看**有没有真的透明像素**（有 alpha 通道但整张全 255 的图要算进来），
@@ -85,7 +91,7 @@ python .claude/skills/asset-prep/pixel-up.py <图|目录> [--scales 2,4] [--out 
 输出落在 `<out>/x2/`、`<out>/x4/` 里，**从不覆盖输入**，所以这条指令没有 dewhite
 那套备份逻辑（源图一直都在）。
 
-首个用例是 `Frontend-3D/public/ui/cursor/` 那套 16px 鼠标光标，CSS 那头怎么接
+首个用例是 `Frontend-3D/src/Assets/ui/cursor/` 那套 16px 鼠标光标（2026-09-17 从 `public/ui/cursor/` 搬来），CSS 那头怎么接
 写在 `Frontend-3D/src/index.css` 的"自定义鼠标光标"一节。
 
 ## 5. 验收（跑完必须做，不许跳）
@@ -101,7 +107,8 @@ python .claude/skills/asset-prep/pixel-up.py <图|目录> [--scales 2,4] [--out 
    - **奶油底**是真实观感（背包格子的底色），确认没有白方块。
 2. 再跑一次 `check`，应该 **PASS**。
 3. 动过 `src/Assets/icons/` 下的图，跑 `npx vitest run tests/icons.test.ts tests/buildingIcons.test.ts`（在 `Frontend-3D/`）。
-   `check` 扫图标时要把目录传进去：`check Frontend-3D/src/Assets/icons`（默认目录是 `public/`）。
+   `check` 默认扫 `Frontend-3D/src/Assets/icons`（进产物、摆在奶油格子上的那批），别的目录把路径传进去。
+   `src/Assets/portraits/` 里是没抠过的立绘原图（游戏用的是 `icons/residents/` 下抠好的那份），扫它会报白底，不用管。
 4. **`pixel-up` 出的图**：放大看边缘。一个源像素应该是一个**实心方块**；
    边上出现两三级渐变过渡 = 采样器没走最近邻，图废了重出。
    光标另外还要**真进浏览器晃一遍**——热点（`cursor: url(x) 热点x 热点y`）

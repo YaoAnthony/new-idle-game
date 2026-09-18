@@ -7,9 +7,16 @@
  * 加一条引导 = 这里加一行 + 文案表加键；触发时机写在 Core 的 storyRules 里，
  * 这张表不知道"什么时候弹"。
  *
- * 示意图放 public/ui/，存 WebP 不存 PNG：这种满幅插画 PNG 1.6 MB、WebP 质量 85
- * 只有 100 KB，肉眼看不出差别，而它是开场第一分钟就要下载的东西。
+ * 示意图放 `src/Assets/ui/`、走 import（2026-09-17 从 public/ui/ 搬进来，理由同
+ * `Assets/icons/index.ts`：文件名带 hash，路径写错构建当场报错，不再静默 404）。
+ * 存 WebP 不存 PNG：这种满幅插画 PNG 1.6 MB、WebP 质量 85 只有 100 KB，
+ * 肉眼看不出差别，而它是开场第一分钟就要下载的东西。
  */
+import tutorialFurnitureUrl from "../../Assets/ui/tutorial_furniture.webp";
+import tutorialKitchenUrl from "../../Assets/ui/tutorial_kitchen.webp";
+import tutorialMission1Url from "../../Assets/ui/tutorial_mission_1.webp";
+import tutorialMission2Url from "../../Assets/ui/tutorial_mission_2.webp";
+
 /**
  * 攻略查询器的分类（2026-09-12）。顺序即左栏顺序；**没有条目的分类不显示**
  * （白噪音 / 常见问题现在是空的，教程补进来它们自动出现）。
@@ -43,7 +50,7 @@ export type GuideDefinition = {
   thumb?: string;
   /** 图下面的一句说明。有图就别写，图说不清的才补 */
   bodyKey?: string;
-  /** public/ 下的示意图路径。没画好就不填，面板画占位 */
+  /** 示意图 URL（`Assets/ui/` 里 import 进来的）。没画好就不填，面板画占位 */
   image?: string;
   /** 多张图（一页一张，面板给翻页箭头和页码点）。和 image 二选一，都给了 images 优先 */
   images?: string[];
@@ -62,7 +69,7 @@ export const guideDefinitions: GuideDefinition[] = [
     category: "furniture",
     subtitleKey: "guide.place_furniture.subtitle",
     tag: "basic",
-    image: "/ui/tutorial_furniture.webp",
+    image: tutorialFurnitureUrl,
   },
   {
     id: "kitchen",
@@ -70,7 +77,7 @@ export const guideDefinitions: GuideDefinition[] = [
     category: "cooking",
     subtitleKey: "guide.kitchen.subtitle",
     tag: "recommended",
-    image: "/ui/tutorial_kitchen.webp",
+    image: tutorialKitchenUrl,
   },
   // 日记本（开场二）：两页——第一页从打开日记本到领奖励的五步，第二页续
   {
@@ -79,7 +86,7 @@ export const guideDefinitions: GuideDefinition[] = [
     category: "diary",
     subtitleKey: "guide.diary.subtitle",
     tag: "newbie",
-    images: ["/ui/tutorial_mission_1.webp", "/ui/tutorial_mission_2.webp"],
+    images: [tutorialMission1Url, tutorialMission2Url],
   },
   // 查询器里单列一条「P 人也能领奖励」：图就是日记本教程的第二页（设计稿里它是独立条目）
   {
@@ -88,7 +95,7 @@ export const guideDefinitions: GuideDefinition[] = [
     category: "rewards",
     subtitleKey: "guide.backfill.subtitle",
     tag: "recommended",
-    image: "/ui/tutorial_mission_2.webp",
+    image: tutorialMission2Url,
   },
 ];
 

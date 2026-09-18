@@ -72,5 +72,9 @@ test("journal_拿走一次_开功能_弹一次教程_再发不弹", () => {
   off();
   // 内容表里有这条（图可以先没有，面板画占位）
   expect(findGuideDefinition("diary")?.titleKey).toBe("guide.diary.title");
-  expect(findGuideDefinition("diary")?.images).toEqual(["/ui/tutorial_mission_1.webp", "/ui/tutorial_mission_2.webp"]);
+  // 图走 import（Assets/ui/），URL 形状归打包器管：只钉"两页、按这个顺序"
+  expect(findGuideDefinition("diary")?.images).toEqual([
+    expect.stringContaining("tutorial_mission_1"),
+    expect.stringContaining("tutorial_mission_2"),
+  ]);
 });

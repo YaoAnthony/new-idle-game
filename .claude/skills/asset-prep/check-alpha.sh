@@ -15,11 +15,14 @@
 #      ui-mockups/ 的设计稿就是这种），本来就该不透明，不要动。
 #
 # 用法:
-#   ./check-alpha.sh [目录]        # 默认 Frontend-3D/public
+#   ./check-alpha.sh [目录]        # 默认 Frontend-3D/src/Assets/icons（进产物、摆在奶油格子上的那批）
+#
+# 默认不扫整个 src/Assets/：portraits/ 里是没抠过的立绘原图（游戏用的是
+# icons/residents/ 下抠好的那份），每次都报三条白底，真问题会被淹掉。
 #
 set -euo pipefail
 
-DIR="${1:-Frontend-3D/public}"
+DIR="${1:-Frontend-3D/src/Assets/icons}"
 
 command -v magick >/dev/null 2>&1 || { echo "缺 ImageMagick：brew install imagemagick" >&2; exit 1; }
 [ -d "$DIR" ] || { echo "找不到目录：$DIR" >&2; exit 1; }

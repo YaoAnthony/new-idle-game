@@ -65,7 +65,8 @@ void main() {
   vec2 p = vWorld.xz * uScale;
   float n = fbm2(p);
   // 边缘：再采一层会动的噪波，加在阈值判断上，水坑边就在晃
-  float edge = snoise(p * 4.0 + vec2(uTime * 0.25, -uTime * 0.2)) * uEdgeNoise;
+  // 边缘那层噪波慢慢漂（0.06/秒）：只是水坑边缘微微呼吸，不是整片在动
+  float edge = snoise(p * 4.0 + vec2(uTime * 0.06, -uTime * 0.05)) * uEdgeNoise;
   float mask = smoothstep(uThreshold, uThreshold + 0.05, n + edge);
   float inner = smoothstep(uThreshold + 0.1, uThreshold + 0.22, n);
   float wetFloor = uWet * uTint;
@@ -89,8 +90,9 @@ void main() {
     push += d / max(dist, 0.001) * band * fade * 0.03;
   }
 
-  // 倒影：投影采样，噪波轻微扰动 + 波纹推一下
-  vec2 wobble = vec2(snoise(p * 3.0 + uTime * 0.35), snoise(p * 3.0 - uTime * 0.3)) * uDistort;
+  // 倒影：投影采样，**固定**的噪波纹理做扰动（不随时间走——会动的扰动看着像一块果冻在地上蠕动，
+  // 用户 2026-09-18 点名）；会动的只有波纹
+  vec2 wobble = vec2(snoise(p * 3.0), snoise(p * 3.0 + 41.0)) * uDistort;
   vec4 uv = vRefUv;
   uv.xy += (wobble + push) * uv.w;
   vec3 reflection = texture2DProj(tDiffuse, uv).rgb;

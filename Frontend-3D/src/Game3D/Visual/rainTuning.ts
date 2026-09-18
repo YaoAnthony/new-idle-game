@@ -105,7 +105,7 @@ export const puddleTuning: PuddleTuning = {
   scale: 0.09,
   thresholdDry: 1,
   thresholdWet: 0.56,
-  edgeNoise: 0.06,
+  edgeNoise: 0.04,
   reflect: 0.75,
   distort: 0.012,
   tint: 0.35,

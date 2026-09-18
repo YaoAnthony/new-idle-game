@@ -18,6 +18,7 @@ import { isRemoteWorldActive } from "../Multiplayer/session";
 import { getActiveAction } from "./actions";
 import { eatInventoryItem } from "./itemUse";
 import { findFreeAnchorNear } from "./resting";
+import { bestWateringCan, hasWaterSourceHere, thirstyCells } from "./farming";
 
 /**
  * 自动生活的计划器：专注期间接管角色的日程。
@@ -121,6 +122,13 @@ function snapshot(): AutoLifeSnapshot {
     canGoOutside: door !== undefined && !door.locked,
     // 离哪儿近不重要，有一张空着的就行——找离人最近的那张是场景的事
     hasFreeBed: findFreeAnchorNear(BodyPosture.Lie, { x: 0, z: 0 }) !== undefined,
+    // 田交出来的缺水清单只取个数：田在哪、走哪条路是剧本的事
+    thirstyCells: thirstyCells().length,
+    wateringCan: (() => {
+      const can = bestWateringCan();
+      return can ? { charges: can.charges, capacity: can.capacity } : null;
+    })(),
+    hasWaterSource: hasWaterSourceHere(),
     secondsSinceStep,
   };
 }
@@ -205,6 +213,8 @@ function settle(plan: AutoStepPlan): void {
       return;
     case "outing":
     case "stroll":
+    // 浇水的效果在剧本里当场落地（同出门开门：门的状态也是剧本里改的），这里只记冷却
+    case "water":
       lastStepEndedAtMs[plan.kind] = now;
       return;
     case "work":

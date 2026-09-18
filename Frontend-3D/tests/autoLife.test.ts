@@ -48,6 +48,9 @@ const settled: AutoLifeSnapshot = {
   hasUmbrella: false,
   canGoOutside: true,
   hasFreeBed: true,
+  thirstyCells: 0,
+  wateringCan: null,
+  hasWaterSource: true,
   secondsSinceStep: {},
 };
 
@@ -222,4 +225,48 @@ test("autoLife_每种步子在行为表里都有一行_等到位的时限是正�
     expect(behavior, kind).toBeDefined();
     expect(behavior!.arriveTimeoutSeconds, kind).toBeGreaterThan(0);
   }
+});
+
+// ---- 浇水（种植系统 期 4）----
+
+/** 田里有格缺水、背包里有把有水的壶 */
+const thirsty: AutoLifeSnapshot = {
+  ...settled,
+  thirstyCells: T.waterMinCells,
+  wateringCan: { charges: 3, capacity: 6 },
+};
+
+test("autoLife_田缺水且有壶有水_白天晴_起身浇水_不掷骰子", () => {
+  expect(decideBreak(thirsty, ROLL_NONE)?.kind).toBe("water");
+});
+
+test("autoLife_壶空但有水源_也去_壶空又没水源_不去", () => {
+  expect(decideBreak({ ...thirsty, wateringCan: { charges: 0, capacity: 6 } }, ROLL_NONE)?.kind).toBe("water");
+  expect(decideBreak({ ...thirsty, wateringCan: { charges: 0, capacity: 6 }, hasWaterSource: false }, ROLL_NONE)).toBeNull();
+});
+
+test("autoLife_没壶_田再渴也不去", () => {
+  expect(decideBreak({ ...thirsty, wateringCan: null }, ROLL_NONE)).toBeNull();
+});
+
+test("autoLife_缺水的格不够数_不去", () => {
+  expect(decideBreak({ ...thirsty, thirstyCells: T.waterMinCells - 1 }, ROLL_NONE)).toBeNull();
+});
+
+test("autoLife_雨天不去浇_雨自己会浇_暴风雨不出门_夜里不去_门锁着不去", () => {
+  expect(decideBreak({ ...thirsty, weatherKind: WeatherKind.Rain, hasUmbrella: true }, ROLL_NONE)).toBeNull();
+  expect(decideBreak({ ...thirsty, weatherKind: WeatherKind.Storm }, ROLL_NONE)).toBeNull();
+  expect(decideBreak({ ...thirsty, dayPhase: DayPhaseId.Night }, ROLL_NONE)).toBeNull();
+  expect(decideBreak({ ...thirsty, canGoOutside: false }, ROLL_NONE)).toBeNull();
+});
+
+test("autoLife_浇水冷却中_跳过往下看_骰子仍能掷出溜达", () => {
+  const cooling = { ...thirsty, secondsSinceStep: { water: 1 } };
+  expect(decideBreak(cooling, ROLL_NONE)).toBeNull();
+  expect(decideBreak(cooling, ROLL_STROLL)?.kind).toBe("stroll");
+});
+
+test("autoLife_饿了和缺水同时_吃饭先_累了也先躺", () => {
+  expect(decideBreak({ ...thirsty, hunger: T.hungerThreshold - 1 }, ROLL_NONE)?.kind).toBe("eat");
+  expect(decideBreak({ ...thirsty, fatigue: T.napFatigueThreshold - 1 }, ROLL_NONE)?.kind).toBe("nap");
 });

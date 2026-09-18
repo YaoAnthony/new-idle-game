@@ -113,6 +113,22 @@ test("autoLifePlanner_演出期间吃的被拿走了_不算吃过_不开冷却",
   expect(steps.at(-1)?.step).toBe("work");
 });
 
+test("autoLifePlanner_浇水那一步_发给场景_到位后进门喘口气就记冷却_到位时限比出门还长", () => {
+  // 效果在剧本里当场落地，计划器这边只有"发步子、等到位、记冷却"三件事
+  expect(findAutoBehavior("water")!.arriveTimeoutSeconds).toBeGreaterThan(findAutoBehavior("outing")!.arriveTimeoutSeconds);
+  expect(forceAutoStep("water")).toBe(true);
+  expect(steps.at(-1)?.step).toBe("water");
+  const snapshot = describeAutoLife().snapshot;
+  expect(snapshot).toHaveProperty("thirstyCells");
+  expect(snapshot).toHaveProperty("wateringCan");
+  expect(snapshot).toHaveProperty("hasWaterSource");
+
+  emit("auto_step_arrived", { step: "water" });
+  vi.advanceTimersByTime(findAutoBehavior("water")!.dwellSeconds * 1000 + 100);
+  expect(steps.at(-1)?.step).toBe("work");
+  expect(describeAutoLife().snapshot.secondsSinceStep.water).toBeLessThan(1);
+});
+
 test("itemUse_背包里已经没有这份_不报吃了", () => {
   // 回归：eat() 原来不看 eatFood 的返回值，一份没有也报 eaten
   replaceCounts({});

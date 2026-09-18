@@ -1456,21 +1456,21 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       }),
       registerCommand({
         name: "autolife",
-        usage: "autolife [work|eat|nap|outing|stroll]",
+        usage: "autolife [work|eat|nap|water|outing|stroll]",
         description:
           "自动生活：不带参数看现在哪一步和决策快照；带步子名立刻来这一步（专注中才有效）",
         arguments: [
           {
             name: "步子",
             suggest: () =>
-              asSuggestions(["work", "eat", "nap", "outing", "stroll"]),
+              asSuggestions(["work", "eat", "nap", "water", "outing", "stroll"]),
           },
         ],
         handler: (args) => {
           if (!args[0]) return ok(JSON.stringify(describeAutoLife(), null, 1));
           const kind = parseEnum(
             args[0],
-            ["work", "eat", "nap", "outing", "stroll"] as const,
+            ["work", "eat", "nap", "water", "outing", "stroll"] as const,
             "步子",
           );
           if (!forceAutoStep(kind)) {

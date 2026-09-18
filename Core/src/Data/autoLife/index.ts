@@ -116,6 +116,16 @@ export const autoLifeTuning = {
 
   /** 刚回到工位之后至少坐这么久才允许下一次起身（粘性） */
   minWorkSeconds: 90,
+
+  /**
+   * 自动浇水（种植系统，2026-09-17）。占位数。
+   * 缺水的格至少这么多才起身（1 = 有一格缺水就去）；一趟最多浇几站；每站站多久；
+   * 壶空了最多回井边装几次
+   */
+  waterMinCells: 1,
+  waterMaxStops: 12,
+  waterPourSeconds: 1.5,
+  waterMaxRefills: 2,
 };
 
 /**
@@ -148,6 +158,15 @@ export const autoBehaviors: AutoBehaviorDefinition[] = [
     dwellSeconds: 90,
     cooldownSeconds: 1800,
     arriveTimeoutSeconds: 30,
+    soundscape: [],
+  },
+  {
+    kind: "water",
+    // 出门 → （壶空先去井边）→ 逐格浇 → 回屋，全在剧本里；这里的停留只是进门喘口气
+    dwellSeconds: 2,
+    cooldownSeconds: 300,
+    // 井边一趟 + 十来格，比出门那一圈还长
+    arriveTimeoutSeconds: 240,
     soundscape: [],
   },
   {

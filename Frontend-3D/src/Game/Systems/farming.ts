@@ -1,4 +1,6 @@
 import {
+  FurnitureCapability,
+  autoLifeTuning,
   cropOfSeed,
   describeCell,
   farmActionFor,
@@ -31,6 +33,9 @@ import { emit } from "../EventBus";
  */
 import { nowUtc } from "../State/clock";
 import { farmBedsHere, readFarmBed, writeFarmBed } from "../State/farmBeds";
+import { getDefinition } from "../State/world/furniture";
+import { getWorld, getRoom } from "../State/worldRuntime";
+import { roomCellToWorld } from "core";
 import {
   addItem,
   canAddItems,
@@ -298,6 +303,102 @@ export function bestWateringCan():
     }
   });
   return best;
+}
+
+// ---- 给自动生活：水源和一趟浇水的路线（种植系统 期 4）----
+
+/** 世界里的水源（带 WaterSource 的家具，比如井）及其中心的世界坐标 */
+export function waterSources(): Array<{ instanceId: string; x: number; z: number }> {
+  const { placedFurniture, room } = getWorld();
+  const out: Array<{ instanceId: string; x: number; z: number }> = [];
+  for (const placed of placedFurniture) {
+    const definition = getDefinition(placed.furnitureId);
+    if (!definition?.placement.capabilities.includes(FurnitureCapability.WaterSource)) continue;
+    const cellRoom = (placed.placement.roomId && getRoom(placed.placement.roomId)) || room;
+    const { footprint } = definition.placement;
+    const center = roomCellToWorld(
+      cellRoom,
+      placed.placement.gridPosition.x + (footprint.width - 1) / 2,
+      placed.placement.gridPosition.y + (footprint.height - 1) / 2,
+    );
+    out.push({ instanceId: placed.instanceId, x: center.x, z: center.z });
+  }
+  return out;
+}
+
+export function hasWaterSourceHere(): boolean {
+  return waterSources().length > 0;
+}
+
+export type WateringStop =
+  | { kind: "fill"; instanceId: string }
+  | { kind: "pour"; target: FarmTarget; at: { x: number; z: number }; covers: FarmTarget[] };
+
+/**
+ * 一趟浇水的路线：**纯规划，不寻路**——按直线距离贪心。能不能走到由剧本的
+ * `tourWalk` 说了算，走不到就跳过那一站。两层分开，用例才不用起场景。
+ *
+ * 手上没水先去井边；每次挑离当前位置最近的缺水格，一站盖住它半径 `power` 内的
+ * 缺水格；水用完还有缺水的就再回井边，最多 `waterMaxRefills` 次；站数封顶 `waterMaxStops`。
+ */
+export function planWateringTour(
+  from: { x: number; z: number },
+  can: { charges: number; capacity: number; power: number },
+): WateringStop[] {
+  let thirsty = thirstyCells();
+  if (thirsty.length === 0) return [];
+  const sources = waterSources();
+  const nearestSource = (pos: { x: number; z: number }) =>
+    sources.reduce<{ instanceId: string; x: number; z: number } | null>(
+      (best, entry) => (!best || Math.hypot(entry.x - pos.x, entry.z - pos.z) < Math.hypot(best.x - pos.x, best.z - pos.z) ? entry : best),
+      null,
+    );
+
+  const stops: WateringStop[] = [];
+  let charges = can.charges;
+  let refills = 0;
+  let pos = from;
+  let pours = 0;
+  while (thirsty.length > 0 && pours < autoLifeTuning.waterMaxStops) {
+    if (charges <= 0) {
+      const source = nearestSource(pos);
+      if (!source || refills >= autoLifeTuning.waterMaxRefills) break;
+      stops.push({ kind: "fill", instanceId: source.instanceId });
+      charges = can.capacity;
+      refills += 1;
+      pos = source;
+    }
+    const next = thirsty.reduce((best, entry) =>
+      Math.hypot(entry.x - pos.x, entry.z - pos.z) < Math.hypot(best.x - pos.x, best.z - pos.z) ? entry : best,
+    );
+    const radius = Math.max(0, Math.round(can.power));
+    const covers = thirsty.filter(
+      (entry) => Math.max(Math.abs(Math.round(entry.x - next.x)), Math.abs(Math.round(entry.z - next.z))) <= radius,
+    );
+    stops.push({
+      kind: "pour",
+      target: { instanceId: next.instanceId, cell: next.index },
+      at: { x: next.x, z: next.z },
+      covers: covers.map((entry) => ({ instanceId: entry.instanceId, cell: entry.index })),
+    });
+    const covered = new Set(covers.map((entry) => `${entry.instanceId}#${entry.index}`));
+    thirsty = thirsty.filter((entry) => !covered.has(`${entry.instanceId}#${entry.index}`));
+    charges -= farmingTuning.chargesPerPour;
+    pours += 1;
+    pos = next;
+  }
+  return stops;
+}
+
+/** 剧本走到一站时真的做：装满 / 浇。用的壶和玩家按 F 是同一个函数、同一把壶 */
+export function performWateringStop(stop: WateringStop): number {
+  const can = bestWateringCan();
+  if (!can) return 0;
+  if (stop.kind === "fill") {
+    setStackCharges(can.ref, can.capacity);
+    return can.capacity;
+  }
+  return waterCellsAround(stop.target, { ref: can.ref, power: can.power });
 }
 
 // ---- 调试（`/farm`）----

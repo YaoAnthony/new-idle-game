@@ -42,6 +42,12 @@ export function decideBreak(
     if (plan) return plan;
   }
 
+  // 农活排在需求之后、演出之前：田缺水是"该做的事"，不掷骰子
+  if (wantsToWater(snapshot) && cooledDown(snapshot, "water")) {
+    const plan = planOf("water");
+    if (plan) return plan;
+  }
+
   // 出门和溜达共用一个骰子、切两段（见 autoLifeTuning.outingChance 的注释）
   if (roll < tuning.outingChance) {
     const plan = outingPlan(snapshot);
@@ -78,6 +84,21 @@ function wantsToEat(snapshot: AutoLifeSnapshot): boolean {
     snapshot.hunger < tuning.mealHungerThreshold &&
     inMealWindow(snapshot.minuteOfDay)
   );
+}
+
+/**
+ * 该不该去浇水：田里缺水的格够多、背包里有壶、壶里有水或者能去井边装、
+ * 出得了门、白天、天气能出门。雨天不去——雨自己会浇；暴风雨不出门。
+ * 天气规则只有 `outingWeather` 那一张表，这里不另写。
+ */
+function wantsToWater(snapshot: AutoLifeSnapshot): boolean {
+  const tuning = autoLifeTuning;
+  if (snapshot.thirstyCells < tuning.waterMinCells) return false;
+  if (!snapshot.wateringCan) return false;
+  if (snapshot.wateringCan.charges <= 0 && !snapshot.hasWaterSource) return false;
+  if (!snapshot.canGoOutside) return false;
+  if (!tuning.outingPhases.includes(snapshot.dayPhase)) return false;
+  return (tuning.outingWeather[snapshot.weatherKind] ?? "stay") === "go";
 }
 
 /** 这一拍出不出得了门；出得了的话带不带伞 */

@@ -283,7 +283,15 @@ import { OutdoorScene } from "./OutdoorScene.js";
 import { BuildingPlacementController } from "../Interaction/BuildingPlacementController.js";
 import { BuildingsView } from "./BuildingsView.js";
 import { FarmCropsView } from "./FarmCropsView.js";
-import { farmHintFor, farmTargetAt, fillWateringCan, interactWithFarmCell } from "../../Game/Systems/farming";
+import {
+  bestWateringCan,
+  farmHintFor,
+  farmTargetAt,
+  fillWateringCan,
+  interactWithFarmCell,
+  performWateringStop,
+  planWateringTour,
+} from "../../Game/Systems/farming";
 import { readFarmBed } from "../../Game/State/farmBeds";
 import { tf } from "../../i18n/format";
 import { TerritoryView } from "./TerritoryView.js";
@@ -1450,6 +1458,9 @@ export class RoomScene {
       case "nap":
         this.autoLieDown(arrived);
         return;
+      case "water":
+        this.autoWater(arrived);
+        return;
       case "outing":
         this.autoOuting(umbrella, arrived);
         return;
@@ -1595,22 +1606,26 @@ export class RoomScene {
   }
 
   /**
-   * 出门：走到门里一步 → 开大门 → 出去（下雨撑伞）→ 院子里走几处、每处站一会儿
-   * → 回到门里 → 收伞 → 关门 → 回报到位。
+   * 出门那趟的共同骨架（出门溜达 / 浇水共用）：走到门里一步 → **门没开才开，并记住是
+   * 自己开的** → 门板转开等一小会儿 → 外面的事交给 `run`，它做完调 `comeHome` →
+   * 回门里一步 → **只关自己开的门** → `settled`。
    *
    * **门要自己开**：脚本走路不看门（walkAlong 没有碰撞，寻路又按"没锁的门都开着"
-   * 采样），不开就是穿门而过。**只关自己开的门**——门本来就开着（玩家开的、
-   * 访客留的）回来不替人关。院子点抽不到就只到门外一步站一会儿；这张图没有
-   * 大门、门锁着、连门里一步都走不到，就原地算到。
-   *
-   * 半路被打断（提前结束、下一步来了）伞收起来；门可能留着开——下一次看到开着
-   * 就照走、回来不关它，不算坏。
+   * 采样），不开就是穿门而过。门本来就开着（玩家开的、访客留的）回来不替人关。
+   * 这张图没有大门、门锁着、连门里一步都走不到，就 `cantGoOut`。
    */
-  private autoOuting(umbrella: boolean, arrived: () => void): void {
+  private autoDoorTrip(
+    run: (trip: {
+      comeHome: (settled: () => void) => void;
+      outside: { x: number; z: number };
+      outward: { x: number; z: number };
+    }) => void,
+    cantGoOut: () => void,
+  ): void {
     const door = frontDoorAgent();
     const outside = outsideFrontDoor();
     if (!door || door.locked || !outside) {
-      arrived();
+      cantGoOut();
       return;
     }
 
@@ -1626,37 +1641,94 @@ export class RoomScene {
       ? inStep
       : { x: outside.doorX, z: outside.doorZ };
 
-    const stops = this.pickYardStops(outside, outward, autoLifeTuning.outingPoints);
-    if (stops.length === 0) stops.push({ x: outside.x, z: outside.z });
-
     let openedDoor = false;
-    this.autoTourCleanups.push(() => this.setUmbrellaOpen(false));
-
-    const comeHome = () => {
+    const comeHome = (settled: () => void) => {
       const settleIn = () => {
-        this.setUmbrellaOpen(false);
         if (openedDoor && door.open) door.interact();
-        arrived();
+        settled();
       };
       if (!this.tourWalk(inside, settleIn)) settleIn();
     };
-    const visit = (index: number) => {
-      if (index >= stops.length) {
-        comeHome();
-        return;
-      }
-      const linger = () =>
-        this.tourWait(autoLifeTuning.outingPointSeconds, () => visit(index + 1));
-      if (!this.tourWalk(stops[index], linger)) linger();
-    };
     const stepOut = () => {
       if (!door.open && door.interact() === "opened") openedDoor = true;
-      if (umbrella) this.setUmbrellaOpen(true);
       // 门板转开要一小会儿，别贴着还没让开的门板走出去
-      this.tourWait(OUTING_DOOR_PAUSE_SECONDS, () => visit(0));
+      this.tourWait(OUTING_DOOR_PAUSE_SECONDS, () =>
+        run({ comeHome, outside: { x: outside.x, z: outside.z }, outward }),
+      );
     };
 
-    if (!this.tourWalk(inside, stepOut)) arrived();
+    if (!this.tourWalk(inside, stepOut)) cantGoOut();
+  }
+
+  /**
+   * 出门：开门出去（下雨撑伞）→ 院子里走几处、每处站一会儿 → 回屋收伞关门 → 回报到位。
+   * 院子点抽不到就只到门外一步站一会儿。半路被打断（提前结束、下一步来了）伞收起来；
+   * 门可能留着开——下一次看到开着就照走、回来不关它，不算坏。
+   */
+  private autoOuting(umbrella: boolean, arrived: () => void): void {
+    this.autoTourCleanups.push(() => this.setAutoProp(null));
+    this.autoDoorTrip(({ comeHome, outside, outward }) => {
+      if (umbrella) this.setAutoProp(autoLifeTuning.umbrellaItemId);
+      const stops = this.pickYardStops(outside, outward, autoLifeTuning.outingPoints);
+      if (stops.length === 0) stops.push({ x: outside.x, z: outside.z });
+      const finish = () =>
+        comeHome(() => {
+          this.setAutoProp(null);
+          arrived();
+        });
+      const visit = (index: number) => {
+        if (index >= stops.length) {
+          finish();
+          return;
+        }
+        const linger = () =>
+          this.tourWait(autoLifeTuning.outingPointSeconds, () => visit(index + 1));
+        if (!this.tourWalk(stops[index], linger)) linger();
+      };
+      visit(0);
+    }, arrived);
+  }
+
+  /**
+   * 浇水（种植系统 期 4）：田把缺水的格交出来，路线由 Systems 规划（`planWateringTour`，
+   * 不寻路），这里只管走——出门 → 壶空先去井边（站到井跟前）→ 逐格站到格心浇 → 回屋。
+   * 走不到的站跳过。**浇是真浇**：和玩家按 F 同一个函数、同一把壶（`performWateringStop`）。
+   * 半路被打断：壶收起来；已经浇过的格保留（真浇了）。
+   */
+  private autoWater(arrived: () => void): void {
+    const can = bestWateringCan();
+    const stops = can
+      ? planWateringTour({ x: this.controller.x, z: this.controller.z }, can)
+      : [];
+    if (!can || stops.length === 0) {
+      arrived();
+      return;
+    }
+    this.autoTourCleanups.push(() => this.setAutoProp(null));
+    this.autoDoorTrip(({ comeHome }) => {
+      this.setAutoProp(can.itemId);
+      const finish = () =>
+        comeHome(() => {
+          this.setAutoProp(null);
+          arrived();
+        });
+      const visit = (index: number) => {
+        if (index >= stops.length) {
+          finish();
+          return;
+        }
+        const stop = stops[index];
+        // 井：站到它跟前那一格（同灶台、床）；格：站到格心（田是踩着走的）
+        const spot = stop.kind === "fill" ? this.approachPoint(stop.instanceId) : stop.at;
+        const pour = () =>
+          this.tourWait(autoLifeTuning.waterPourSeconds, () => {
+            performWateringStop(stop);
+            visit(index + 1);
+          });
+        if (!spot || !this.tourWalk(spot, pour)) visit(index + 1);
+      };
+      visit(0);
+    }, arrived);
   }
 
   /**
@@ -1752,8 +1824,8 @@ export class RoomScene {
    */
   private autoTourTimers: Array<ReturnType<typeof setTimeout>> = [];
   private autoTourCleanups: Array<() => void> = [];
-  /** 出门撑着的那把伞（挂在身体上）。null = 没撑 */
-  private umbrellaProp: Object3D | null = null;
+  /** 剧本挂在身上的道具（出门的伞、浇水的壶）。null = 没挂 */
+  private autoProp: Object3D | null = null;
 
   private cancelAutoTour(): void {
     for (const timer of this.autoTourTimers) clearTimeout(timer);
@@ -1781,29 +1853,25 @@ export class RoomScene {
   }
 
   /**
-   * 把伞撑起来 / 收起来。
+   * 把一件东西挂到手上 / 收起来（出门的伞、浇水的壶）。
    *
-   * 造型和挂法跟"快捷栏选中伞、拿在手上"是**同一个**：buildHeldVisual 按
-   * `carry: "overhead"` 举过头顶，挂在 heldAnchor 上——出门撑的这把和手上拿的那把
-   * 长一个样、在一个位置。手上已经拿着伞就不再挂：那一把本来就举在头上，
-   * 再挂就是两把叠在一起。
+   * 造型和挂法跟"快捷栏选中它、拿在手上"是**同一个**：buildHeldVisual 按物品的
+   * `carry` 举过头顶或捧在手里，挂在 heldAnchor 上——剧本挂的和手上拿的长一个样、
+   * 在一个位置。手上已经拿着这一件就不再挂：再挂就是两件叠在一起。
    *
-   * 联机时别人看不见剧本挂的这把：自动生活只在自己家演（做客不自动），参与者
-   * 外观里也就不必多一个字段；手上真拿着的那把照常同步。
+   * 联机时别人看不见剧本挂的这件：自动生活只在自己家演（做客不自动），参与者
+   * 外观里也就不必多一个字段；手上真拿着的那件照常同步。
    */
-  private setUmbrellaOpen(open: boolean): void {
-    if (!open) {
-      this.umbrellaProp?.removeFromParent();
-      this.umbrellaProp = null;
-      return;
-    }
-    if (this.umbrellaProp) return;
-    if (getHeld()?.itemId === autoLifeTuning.umbrellaItemId) return;
-    const prop = buildHeldVisual(autoLifeTuning.umbrellaItemId);
+  private setAutoProp(itemId: string | null): void {
+    this.autoProp?.removeFromParent();
+    this.autoProp = null;
+    if (!itemId) return;
+    if (getHeld()?.itemId === itemId) return;
+    const prop = buildHeldVisual(itemId);
     if (!prop) return;
-    prop.name = "auto-life-umbrella";
+    prop.name = `auto-life-${itemId}`;
     this.characterRig.heldAnchor.add(prop);
-    this.umbrellaProp = prop;
+    this.autoProp = prop;
   }
 
   /** 行动开始：A* 走到支撑家具旁的空格，面向家具，进入专注 */

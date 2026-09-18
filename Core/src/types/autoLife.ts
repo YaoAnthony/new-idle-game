@@ -32,7 +32,7 @@ import type { WeatherKind } from "./weather.js";
  * 吃饭、补精力、出门溜达。`nap` 躺床回一点精力，`outing` 开大门去院子里
  * 走一圈（下雨看背包里有没有伞）。
  */
-export type AutoStepKind = "work" | "eat" | "nap" | "outing" | "stroll";
+export type AutoStepKind = "work" | "eat" | "nap" | "water" | "outing" | "stroll";
 
 /** 计划器排进清单里的一步 */
 export type AutoStepPlan = {
@@ -71,6 +71,15 @@ export type AutoLifeSnapshot = {
   canGoOutside: boolean;
   /** 家里有没有空着的"躺"锚点（床、地铺）。没床就不小睡——不让人躺地板 */
   hasFreeBed: boolean;
+  /**
+   * 田里缺水的格数（种植系统，2026-09-17）。田把"缺水的格 + 坐标"交出来，
+   * 决策只看数——田在哪、走哪条路是剧本的事
+   */
+  thirstyCells: number;
+  /** 背包里最好的那把壶：还有几格水、装得下几格。没有 = null */
+  wateringCan: { charges: number; capacity: number } | null;
+  /** 这张图上有没有水源（带 WaterSource 的家具，比如井）：壶空了能不能去装 */
+  hasWaterSource: boolean;
   /**
    * 每种步子**上次结束**过了多少秒。没做过的不在表里（= 不在冷却）。
    *

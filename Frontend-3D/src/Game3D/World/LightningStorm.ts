@@ -83,6 +83,10 @@ const SHAKE_AMP = 0.02;
 const CLOUD_Y = 42;
 const PLANE_W = 24;
 const STROKE_M = 0.12;
+/**
+ * 场上最多同时几道。见 `strike()` 的注释——这是保险丝，不是节拍。
+ */
+const MAX_LIVE = 4;
 /** 落点离观者多远（米） */
 const STRIKE_MIN_M = 16;
 const STRIKE_MAX_M = 48;
@@ -105,7 +109,10 @@ type Strike = {
 export class LightningStorm {
   private readonly root = new Group();
   private readonly strikes: Strike[] = [];
-  private timer: ReturnType<typeof setTimeout> | null = null;
+  /** 这种天气的节拍（毫秒区间）；null = 不打雷 */
+  private beat: { minMs: number; maxMs: number } | null = null;
+  /** 距下一道还有几秒。**按帧减，不按墙钟**——见 update 里的注释 */
+  private nextIn = 0;
   private readonly offs: Array<() => void>;
   private viewer: { x: number; z: number } = { x: 0, z: 0 };
   private camera: PerspectiveCamera | null = null;
@@ -148,28 +155,35 @@ export class LightningStorm {
     return (point.x + 1) / 2;
   }
 
+  /**
+   * 换了天气就重排节拍。已经在打的不重排——`weather_changed` 在一场暴雨里
+   * 也可能因为别的原因重发，那时候不该把倒计时归零。
+   */
   private arm(weather: WeatherDefinition): void {
     const lightning = weatherVisualProfileOf(weather).lightning;
     if (!lightning) {
-      if (this.timer) clearTimeout(this.timer);
-      this.timer = null;
+      this.beat = null;
       return;
     }
-    if (this.timer) return;
-    const schedule = (): void => {
-      const delay = lightning.minMs + this.random() * (lightning.maxMs - lightning.minMs);
-      this.timer = setTimeout(() => {
-        this.timer = null;
-        if (!weatherVisualProfileOf(getWeather()).lightning) return;
-        this.strike();
-        schedule();
-      }, delay);
-    };
-    schedule();
+    if (this.beat) return;
+    this.beat = lightning;
+    this.nextIn = this.rollDelay();
   }
 
-  /** 排一道：先 0.6 秒预兆，再落地。返回落点（定时器到点调；调试指令可以指定落点） */
-  strike(at?: { x: number; z: number }): { x: number; z: number; distance: number } {
+  private rollDelay(): number {
+    const beat = this.beat!;
+    return (beat.minMs + this.random() * (beat.maxMs - beat.minMs)) / 1000;
+  }
+
+  /**
+   * 排一道：先 0.6 秒预兆，再落地。返回落点；**场上已经有 MAX_LIVE 道时拒绝，返回 null**。
+   *
+   * 上限本身不是节拍的一部分（节拍最短 9 秒，一道活 2 秒多，正常永远撞不到），
+   * 是条保险丝：`/lightning` 连敲、或者以后再有别的东西来劈，都不至于
+   * 一帧里新建几十份材质和点光。
+   */
+  strike(at?: { x: number; z: number }): { x: number; z: number; distance: number } | null {
+    if (this.strikes.length >= MAX_LIVE) return null;
     const angle = this.random() * Math.PI * 2;
     const rolled = STRIKE_MIN_M + this.random() * (STRIKE_MAX_M - STRIKE_MIN_M);
     const x = at?.x ?? this.viewer.x + Math.cos(angle) * rolled;
@@ -183,6 +197,26 @@ export class LightningStorm {
   }
 
   update(dt: number): void {
+    /*
+     * 节拍走**帧时间**，不走墙钟（2026-09-19 修）。
+     *
+     * 原来是一条 setTimeout 链：标签页切到后台之后 requestAnimationFrame 停了、
+     * update 一帧都不跑，可 setTimeout 照样响——于是 `strikes` 只进不出。
+     * 用户挂了三十分钟自动生活回来，队列里攒了上百道，全部在同一帧里
+     * 走完预兆、同时 land()：上百次 `lightning_struck`（雷声一起炸）、上百份
+     * ShaderMaterial + 点光一次性进场（点光数一变 three 要给场上每份材质
+     * 重编着色器，画面当场卡死）。headless 复现见 tests/lightningBacklog。
+     *
+     * 改成按 dt 减之后，没有帧就没有节拍：后台期间时间不走，回来接着数，
+     * 永远不会积压。dt 在 Renderer 里已经卡了 0.1 秒上限，掉帧也不会跳拍。
+     */
+    if (this.beat) {
+      this.nextIn -= dt;
+      if (this.nextIn <= 0) {
+        this.nextIn = this.rollDelay();
+        this.strike();
+      }
+    }
     if (this.camera) this.viewer = { x: this.camera.position.x, z: this.camera.position.z };
     let flare: [number, number, number] | null = null;
     let bloom: number | null = null;
@@ -312,8 +346,7 @@ export class LightningStorm {
 
   dispose(): void {
     for (const off of this.offs) off();
-    if (this.timer) clearTimeout(this.timer);
-    this.timer = null;
+    this.beat = null;
     for (const s of this.strikes) this.dispose1(s);
     this.strikes.length = 0;
     this.fx.setLightningBloom(null);

@@ -3916,8 +3916,8 @@ export class RoomScene {
     for (const view of this.roomDoorViews.values()) view.update(deltaSeconds);
   }
 
-  /** 调试：现在就劈一道闪电（/lightning） */
-  debugLightning(at?: { x: number; z: number }): { x: number; z: number; distance: number } {
+  /** 调试：现在就劈一道闪电（/lightning）。场上已经满了会返回 null */
+  debugLightning(at?: { x: number; z: number }): { x: number; z: number; distance: number } | null {
     return this.lightning.strike(at);
   }
 

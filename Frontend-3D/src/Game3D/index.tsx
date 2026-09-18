@@ -1063,6 +1063,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
           const x = Number(args[0]);
           const z = Number(args[1]);
           const hit = live.debugLightning(Number.isFinite(x) && Number.isFinite(z) ? { x, z } : undefined);
+          if (!hit) return fail("场上同时最多四道，等这几道演完再敲");
           return ok(`劈在 (${hit.x.toFixed(1)}, ${hit.z.toFixed(1)})，${hit.distance.toFixed(0)} 米外`);
         },
       }),

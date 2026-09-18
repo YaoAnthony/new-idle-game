@@ -48,6 +48,12 @@ export type SlotStack = {
    * 形状直接对上 Core 的 ItemStackState.container，存档不用另造结构。
    */
   container?: ContainerContents;
+  /**
+   * 装了几格水（水壶）。容量在物品定义上（`tool.capacity`），这里是此刻还剩几格。
+   * 是"身上带的状态"的一种，所以合堆规则自动把水量不同的两把壶分开——
+   * 壶本来 stackLimit 1，这条只是顺便成立。
+   */
+  charges?: number;
 } | null;
 
 /**
@@ -319,6 +325,73 @@ export function getCount(itemId: string): number {
 }
 
 /**
+ * 把 `quantity` 件 `itemId` 塞进 `slots`：先合进同类堆，再从 0 号格起填空格。
+ * 返回没塞进去的数量。**addItem 和 canAddItems 共用这一个函数**——"能不能放下"
+ * 和"真放"各写一遍的话，迟早一个说能一个放不进。
+ */
+function fillInto(
+  slots: SlotStack[],
+  itemId: string,
+  quantity: number,
+  quality?: ItemQuality,
+): number {
+  const definition = findItemDefinition(itemId);
+  if (!definition || quantity <= 0) return quantity;
+  let remaining = quantity;
+  const limit = stackLimit(itemId);
+
+  // 食物进背包时就把保质期算好。对齐到世界日末尾，所以同一天做的能合堆
+  const expiresAtUtc = resolveExpiry(
+    definition.food?.shelfLifeSeconds,
+    getClock().worldDayId,
+  );
+  const incoming = { itemId, count: 0, quality, expiresAtUtc };
+
+  for (const stack of slots) {
+    if (remaining <= 0) break;
+    if (!stack || !sameKind(stack, incoming)) continue;
+    const take = Math.min(limit - stack.count, remaining);
+    stack.count += take;
+    remaining -= take;
+  }
+
+  for (let i = 0; i < INVENTORY_SIZE && remaining > 0; i += 1) {
+    if (slots[i]) continue;
+    const take = Math.min(limit, remaining);
+    slots[i] = { itemId, count: take, quality, expiresAtUtc };
+    remaining -= take;
+  }
+  return remaining;
+}
+
+/**
+ * 这几样**全部**放得下吗（在一份副本上真的放一遍，不写）。
+ *
+ * 逐样单独问不行：果实和种子会抢同一个空格，各自都说"放得下"，一起放就丢一样。
+ * 收获前问它：装不下就不收，田留着——让攒的东西凭空消失会制造焦虑。
+ */
+export function canAddItems(
+  entries: ReadonlyArray<{ itemId: string; quantity: number }>,
+): boolean {
+  const sim: SlotStack[] = inventory.map((stack) => (stack ? { ...stack } : null));
+  return entries.every((entry) => fillInto(sim, entry.itemId, entry.quantity) === 0);
+}
+
+/** 第一格装着这件东西的槽位；没有 = null */
+export function findStackRef(itemId: string): SlotRef | null {
+  const index = inventory.findIndex((stack) => stack?.itemId === itemId);
+  return index >= 0 ? index : null;
+}
+
+/** 改某一格的水量（浇水扣、井边装满）。格空着就什么都不做 */
+export function setStackCharges(ref: SlotRef, charges: number): void {
+  const stack = inventory[ref];
+  if (!stack) return;
+  inventory[ref] = { ...stack, charges: Math.max(0, charges) };
+  announce("charges");
+}
+
+/**
  * 合并进已有堆 → 第一个空位。
  *
  * 空位从 0 号找起，而 0 号就是快捷栏第一格——所以"优先进快捷栏、
@@ -333,30 +406,7 @@ export function addItem(
   const definition = findItemDefinition(itemId);
   if (!definition || quantity <= 0) return;
 
-  let remaining = quantity;
-  const limit = stackLimit(itemId);
-
-  // 食物进背包时就把保质期算好。对齐到世界日末尾，所以同一天做的能合堆
-  const expiresAtUtc = resolveExpiry(
-    definition.food?.shelfLifeSeconds,
-    getClock().worldDayId,
-  );
-  const incoming = { itemId, count: 0, quality, expiresAtUtc };
-
-  for (const stack of inventory) {
-    if (remaining <= 0) break;
-    if (!stack || !sameKind(stack, incoming)) continue;
-    const take = Math.min(limit - stack.count, remaining);
-    stack.count += take;
-    remaining -= take;
-  }
-
-  for (let i = 0; i < INVENTORY_SIZE && remaining > 0; i += 1) {
-    if (inventory[i]) continue;
-    const take = Math.min(limit, remaining);
-    inventory[i] = { itemId, count: take, quality, expiresAtUtc };
-    remaining -= take;
-  }
+  const remaining = fillInto(inventory, itemId, quantity, quality);
 
   announce("add");
 
@@ -562,12 +612,14 @@ export function snapshotInventory(): InventoryStack[] {
       itemId: stack.itemId,
       quantity: stack.count,
       state:
-        stack.quality || stack.expiresAtUtc || stack.container
+        stack.quality || stack.expiresAtUtc || stack.container || stack.charges !== undefined
           ? {
               quality: stack.quality,
               expiresAtUtc: stack.expiresAtUtc,
               // 锅里煮着的东西跟着格子一起进存档
               container: stack.container,
+              // 壶里的水也是
+              charges: stack.charges,
             }
           : undefined,
     });
@@ -595,6 +647,7 @@ export function restoreInventory(stacks: InventoryStack[]): void {
       quality: stack.state?.quality,
       expiresAtUtc: stack.state?.expiresAtUtc,
       container: stack.state?.container,
+      charges: stack.state?.charges,
     };
   }
 

@@ -227,6 +227,47 @@ export function buildingRectWorld(
 }
 
 /**
+ * 型号本地坐标 → 世界坐标。正面永远是本地 +z，由 `facing` 转到世界。
+ *
+ * 门口、门口展示位、室内槽位、窝的位置、田里的格都走它——旋转只算这一处
+ * （2026-09-17 从前端 `residents/spots.ts` 搬上来：田的格几何要在 Core 里算）。
+ */
+export function buildingLocalToWorld(
+  placement: Pick<BuildingPlacement, "x" | "z" | "facing">,
+  lx: number,
+  lz: number,
+): { x: number; z: number } {
+  switch (placement.facing) {
+    case Facing.South:
+      return { x: placement.x - lx, z: placement.z - lz };
+    case Facing.East:
+      return { x: placement.x + lz, z: placement.z + lx };
+    case Facing.West:
+      return { x: placement.x - lz, z: placement.z - lx };
+    default:
+      return { x: placement.x + lx, z: placement.z + lz };
+  }
+}
+
+/** `buildingLocalToWorld` 的逆：世界点落在型号本地的哪里 */
+export function buildingWorldToLocal(
+  placement: Pick<BuildingPlacement, "x" | "z" | "facing">,
+  x: number,
+  z: number,
+): { lx: number; lz: number } {
+  switch (placement.facing) {
+    case Facing.South:
+      return { lx: placement.x - x, lz: placement.z - z };
+    case Facing.East:
+      return { lx: z - placement.z, lz: x - placement.x };
+    case Facing.West:
+      return { lx: placement.z - z, lz: placement.x - x };
+    default:
+      return { lx: x - placement.x, lz: z - placement.z };
+  }
+}
+
+/**
  * 一排 1×1 实例的格心：以 `anchor` 为中点，沿朝向排开 `length` 格。
  *
  * 南北向沿 z 排、东西向沿 x 排——和 `buildingRectWorld` 里"East/West 宽深

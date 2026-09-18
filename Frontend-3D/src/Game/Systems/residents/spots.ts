@@ -1,5 +1,5 @@
 import {
-  Facing,
+  buildingLocalToWorld,
   findPlaceableItem,
   findResidentDefinition,
   findResidentOfHouse,
@@ -91,25 +91,10 @@ export function doorstepOf(placement: Pick<BuildingPlacement, "buildingId" | "x"
 }
 
 /**
- * 型号本地 (lx, lz) → 世界。本地 +z 是正面；north = 不转（+z 朝北的约定同 moveIn 原来的 OUT 表）。
- * 门口、门口展示位、室内槽位、窝的位置都走它——旋转只算这一处。
+ * 型号本地 (lx, lz) → 世界。2026-09-17 搬进 Core（田的格几何要在 Core 里算），
+ * 这里保留同名导出，调用方零改动。
  */
-export function buildingLocalToWorld(
-  placement: Pick<BuildingPlacement, "x" | "z" | "facing">,
-  lx: number,
-  lz: number,
-): { x: number; z: number } {
-  switch (placement.facing) {
-    case Facing.South:
-      return { x: placement.x - lx, z: placement.z - lz };
-    case Facing.East:
-      return { x: placement.x + lz, z: placement.z + lx };
-    case Facing.West:
-      return { x: placement.x - lz, z: placement.z - lx };
-    default:
-      return { x: placement.x + lx, z: placement.z + lz };
-  }
-}
+export { buildingLocalToWorld };
 
 /** 某位居民自己的房子（在场的话） */
 export function homeOf(definitionId: string): BuildingPlacement | undefined {

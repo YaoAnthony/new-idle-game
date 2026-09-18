@@ -12,16 +12,19 @@ import { persistor, store } from './Redux/store.ts'
 import {
   auditAvatarContent,
   auditBuildings,
+  auditCrops,
   auditDoorContent,
   auditStoryContent,
   auditTerritory,
+  cropDefinitions,
+  itemDefinitions,
 } from 'core'
 import { buildingDefinitions } from './Buildings/index.ts'
 import { baseMapDefinition } from './Maps/base/index.ts'
 import { TERRITORY_RECT } from './Maps/base/layout.ts'
 import { spawnPosition } from './Game/State/participants.ts'
 import { auditMaterials } from './Game/Systems/materials.ts'
-import { auditItemVisuals } from './Game3D/Visual/VisualRegistry.ts'
+import { auditItemVisuals, resolveVisual } from './Game3D/Visual/VisualRegistry.ts'
 import { hasLocalizationKey } from './i18n/t.ts'
 
 // 开机点一次名。全齐时一声不吭。
@@ -100,6 +103,15 @@ if (import.meta.env.DEV) {
   const materialProblems = auditMaterials()
   if (materialProblems.length > 0) {
     console.warn(`[materials] ${materialProblems.length} 处对不上：`, materialProblems)
+  }
+
+  // 作物表：种子指回来没有、几段造型都登记了没有、收获物在不在
+  const cropProblems = auditCrops(cropDefinitions, itemDefinitions, {
+    hasVisual: (visualId) => resolveVisual(visualId) !== undefined,
+    hasLocalizationKey,
+  })
+  if (cropProblems.length > 0) {
+    console.warn(`[crops] 作物表有 ${cropProblems.length} 处对不上：`, cropProblems)
   }
 
   const spawnWorld = spawnPosition()

@@ -64,6 +64,14 @@ export type GameEvents = {
    * 变化每秒可能好几次（液面涨、作物长）。听这条的只有视图，做轻量更新。
    */
   building_state_changed: { instanceId: string };
+  /**
+   * 田里某一格**算出来的样子**变了（湿→干、进入下一段、熟了），存档没变。
+   * 只给视图听；不在任何存档切片的 changedBy 里——真正的写入（耕、播、浇、收）
+   * 照旧走 `building_state_changed`。
+   */
+  farm_cell_changed: { instanceId: string };
+  /** 田里四格并成了一颗巨大果实（节拍器掷中那一拍）。音效 / 粒子 / 剧情翻译听它 */
+  farm_giant_grown: { instanceId: string; cropId: string };
   /** 余额或上限变了（存钱、花钱、建罐、升罐、拆罐） */
   gold_changed: { gold: number; capacity: number };
   /**

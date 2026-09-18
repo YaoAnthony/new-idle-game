@@ -27,7 +27,15 @@ const ZH: Record<string, string> = {
   "item.furniture_dumbbell": "哑铃",
   "item.tomato": "番茄",
   "item.tomato_seed": "番茄种子",
-  "item.tomato_seed.desc": "一小包种子。撒进田里，它自己会长。",
+  "item.tomato_seed.desc": "一小包种子。撒进翻过的田里，浇着水它就长。",
+  // ---- 种植（2026-09-17）----
+  "item.wooden_hoe": "木锄头",
+  "item.wooden_hoe.desc": "翻地用的。对着田里的实土挥一下就是耕地，对着空耕地再挥一下填平。",
+  "item.watering_can": "水壶",
+  "item.watering_can.desc": "装六格水，一次浇一格。去井边按 F 装满。",
+  "item.watering_can_wide.desc": "口子大，一次喷九格；装十二格水。",
+  "item.blueprint_farm_plot": "农田图纸",
+  "crop.tomato": "番茄",
 
   // ---- 建筑（期 2）。型号名不带等级，等级名各自带 ----
   "building.gold_jar": "金库",

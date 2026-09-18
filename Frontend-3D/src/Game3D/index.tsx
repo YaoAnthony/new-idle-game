@@ -26,6 +26,8 @@ import {
   type StorySignalKind,
   weatherDefinitions,
   residentIdOf,
+  findCropDefinition,
+  type HeldForFarm,
 } from "core";
 import { useEffect, useRef, useState } from "react";
 import { t } from "../i18n/t";
@@ -227,7 +229,14 @@ import {
   jarLevelIds,
   setDebugBuildSeconds,
 } from "../Game/State/buildings";
-import { farmStageOf, interactWithFarm } from "../Game/Systems/farming";
+import {
+  debugRipenFarm,
+  debugThirstFarm,
+  farmCellViewOf,
+  interactWithFarmCell,
+} from "../Game/Systems/farming";
+import { debugRainOnFarms, startFarming } from "../Game/Systems/farmingRuntime";
+import { farmBedsHere, readFarmBed } from "../Game/State/farmBeds";
 import { placeHouse, stowHouse } from "../Game/Systems/house";
 import { travelTo } from "../Game/Systems/mapTravel";
 import { autoWalkTo, initAutoWalk } from "../Game/Systems/autoWalk";
@@ -412,6 +421,8 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
     const stopWeather = isRemoteWorldActive() ? () => {} : startWeather();
     // 饱食/精力的自然衰减。首次 tick 就是"离线补算"
     const stopNeeds = startNeeds();
+    // 种植的节拍器：画面刷新信号、雨水、巨大判定（做客时只发信号不写）
+    const stopFarming = startFarming();
 
     // 跨天让过期食物变得不新鲜（只降品质，不删除）
     const offSpoil = on("world_day_changed", ({ worldDayId }) => {
@@ -1018,21 +1029,69 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       registerCommand({
         name: "farm",
         arguments: [
-          { name: "实例或型号", suggest: () => asSuggestions(listBuildings().filter((b) => b.buildingId === "farm_plot").map((b) => b.instanceId)) },
+          {
+            name: "田或子命令",
+            suggest: () =>
+              asSuggestions(["rain", "ripen", "thirst", ...farmBedsHere().map((bed) => bed.instanceId)]),
+          },
+          { name: "格 / 田" },
+          { name: "动作", suggest: () => asSuggestions(["till", "flatten", "sow", "water", "harvest"]) },
+          { name: "作物" },
         ],
-        usage: "farm <instanceId|farm_plot>",
-        description: "对一块田按 F（播种/浇水/收获，做什么由地里的状态定）",
+        usage:
+          "farm | farm <田> [格 till|flatten|sow <cropId>|water|harvest] | farm ripen|thirst <田> [格] | farm rain",
+        description:
+          "种植调试：不带参数列每块田每格的样子；ripen / thirst 直接改进度；rain 当场下一场雨（不用等天气）",
         handler: (args) => {
-          const target = resolveBuilding(args[0] ?? "farm_plot");
+          const describe = (instanceId: string): string[] => {
+            const ref = readFarmBed(instanceId);
+            if (!ref) return [`${instanceId}：不是一块建好的田`];
+            const giant = ref.bed.giant ? ` 巨大@${ref.bed.giant.col},${ref.bed.giant.row}` : "";
+            const lines = [
+              `${instanceId} @(${ref.placement.x}, ${ref.placement.z}) ${ref.footprint.width}×${ref.footprint.height}${giant}`,
+            ];
+            ref.bed.cells.forEach((_, cell) => {
+              lines.push(`  #${cell} ${JSON.stringify(farmCellViewOf({ instanceId, cell }))}`);
+            });
+            return lines;
+          };
+          if (!args[0]) {
+            const beds = farmBedsHere();
+            if (beds.length === 0) return ok("这张图上没有田");
+            return ok(beds.flatMap((bed) => describe(bed.instanceId)).join("\n"));
+          }
+          if (args[0] === "rain") return ok(`下了一场雨，浇了 ${debugRainOnFarms()} 格`);
+          if (args[0] === "ripen" || args[0] === "thirst") {
+            const target = resolveBuilding(args[1] ?? "farm_plot");
+            if (target.ok === false) return fail(target.message);
+            const cell = args[2] === undefined ? undefined : Number(args[2]);
+            const touched =
+              args[0] === "ripen"
+                ? debugRipenFarm(target.instanceId, cell)
+                : debugThirstFarm(target.instanceId, cell);
+            return ok(`${args[0] === "ripen" ? "催熟" : "抹水"}了 ${touched} 格`);
+          }
+          const target = resolveBuilding(args[0]);
           if (target.ok === false) return fail(target.message);
-          const stage = farmStageOf(target.instanceId);
-          const result = interactWithFarm(target.instanceId);
-          if (result.ok !== false) return ok(`${stage} → ${result.did}`);
-          return fail(
-            result.reason === "not_a_farm"
-              ? "那不是一块田"
-              : `现在没什么可做的（${stage}）——长着呢，或者手上没种子`,
+          if (args[1] === undefined) return ok(describe(target.instanceId).join("\n"));
+          const cell = Number(args[1]);
+          if (!Number.isInteger(cell)) return fail("格要是整数（从 0 起）");
+          const verb = parseEnum(
+            args[2] ?? "",
+            ["till", "flatten", "sow", "water", "harvest"] as const,
+            "动作",
           );
+          // 跳过手上的东西：浇水不扣壶、播种不扣种子（正常玩走 F）
+          let held: HeldForFarm = null;
+          if (verb === "till" || verb === "flatten") held = { kind: "hoe" };
+          if (verb === "sow") {
+            if (!findCropDefinition(args[3] ?? "")) return fail("要给作物 id（比如 tomato）");
+            held = { kind: "seed", cropId: args[3] ?? "" };
+          }
+          if (verb === "water") held = { kind: "can", charges: 1, power: 0 };
+          const result = interactWithFarmCell({ instanceId: target.instanceId, cell }, held);
+          if (result.ok === false) return fail(`没做成：${result.why}`);
+          return ok(`${verb} → ${JSON.stringify(result)}`);
         },
       }),
       registerCommand({
@@ -2030,6 +2089,7 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       stopMusic();
       stopSoundscape();
       stopNeeds();
+      stopFarming();
       stopWeather();
       stopDayRecord();
       stopAutoLife();

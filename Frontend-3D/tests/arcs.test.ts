@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { DEFAULT_MAP_ID, Facing, affectionTuning, residentIdOf } from "core";
+import { DEFAULT_MAP_ID, Facing, affectionTuning, newFarmBed, residentIdOf, sowCell, tillCell } from "core";
 import { emit, on } from "../src/Game/EventBus";
 import { restoreBuildings } from "../src/Game/State/buildings";
 import { addItem, getCount, replaceCounts } from "../src/Game/State/inventory";
@@ -26,6 +26,8 @@ import { favorSkill } from "../src/Game/State/skills/favor";
  * 居民系统 13 · 个人剧情线：三条线逐幕点火（阶段 / 委托 / 信 / 旗子 / 功能），幕序靠阶段卡住，
  * escort 跟着走、plant 看田、deliver 到图踏上就算，桥头锁着走不过去，指令 arc。
  */
+/** 一块播了一格的田（薇尔的 plant 委托看的是"任一格有苗"） */
+const SOWN_BED = sowCell(tillCell(newFarmBed(6), 0), 0, "tomato", "2026-09-06T00:00:00Z");
 const SLIME = residentIdOf("slime_neighbor");
 const FOX = residentIdOf("fox_neighbor");
 const SPIRIT = residentIdOf("spirit_neighbor");
@@ -154,7 +156,7 @@ test("arcs_薇尔_第二天她提种东西_家旁有播了种的田才算_plante
   const spirit = movedIn(SPIRIT, "spirit_neighbor", 2);
   restoreBuildings([
     { instanceId: "sh", buildingId: "spirit_house", x: 4.5, z: 12.5, elevation: 0, facing: Facing.North, levelId: "l1" },
-    { instanceId: "far", buildingId: "farm_plot", x: 4.5, z: 30, elevation: 0, facing: Facing.North, levelId: "l1", state: { seedItemId: "seed_tomato", plantedUtc: "2026-09-06T00:00:00Z" } },
+    { instanceId: "far", buildingId: "farm_plot", x: 4.5, z: 30, elevation: 0, facing: Facing.North, levelId: "l1", state: { farm: SOWN_BED } },
   ]);
   signal("resident_moved_in", "spirit_neighbor");
   signal("day_started");
@@ -170,7 +172,7 @@ test("arcs_薇尔_第二天她提种东西_家旁有播了种的田才算_plante
   expect(plantFavorFor("spirit_neighbor")).toBeNull();
   restoreBuildings([
     { instanceId: "sh", buildingId: "spirit_house", x: 4.5, z: 12.5, elevation: 0, facing: Facing.North, levelId: "l1" },
-    { instanceId: "near", buildingId: "farm_plot", x: 6.5, z: 12.5, elevation: 0, facing: Facing.North, levelId: "l1", state: { seedItemId: "seed_tomato", plantedUtc: "2026-09-06T00:00:00Z" } },
+    { instanceId: "near", buildingId: "farm_plot", x: 6.5, z: 12.5, elevation: 0, facing: Facing.North, levelId: "l1", state: { farm: SOWN_BED } },
   ]);
   expect(plantFavorFor("spirit_neighbor")?.id).toBe("spirit_plant_near_home");
   // 按 F：委托技能当场交付

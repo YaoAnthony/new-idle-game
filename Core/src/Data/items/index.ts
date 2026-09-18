@@ -1,4 +1,3 @@
-import { farmTuning } from "../buildings/index.js";
 import { Facing, Rarity } from "../../types/base.js";
 import {
   BodyPosture,
@@ -1355,10 +1354,9 @@ export const itemDefinitions = [
   /*
    * 广口水壶（期 6）——旅行商人卖的第一件**永久 QoL 升级**。
    *
-   * `tool.power: 3` 是**半径三米**。田（`farm_plot`）占地 3×2，相邻两块
-   * 田的中心距最大 3 米——半径 3 刚好装下以自己为中心的一圈邻田，
-   * 含自己 3×3 共九块，正是用户说的"第一次能喷 9 个区域"
-   * （为什么不是 1，详见 `ItemDefinition.tool.power` 的注释）。
+   * `tool.power: 1` 是**半径一格**：田里一格一株，以对准的格为心 3×3 共九格，
+   * 正是用户说的"第一次能喷 9 个区域"（单位见 `ItemDefinition.tool.power`）。
+   * `capacity: 12` 装两倍的水——它比普通壶强在两头：喷得广、跑井边的次数少。
    *
    * value 60 ≈ 满格任务打两天。定得起眼是有意的：它是"攒钱的目标"，
    * 顺手就能买的东西不构成目标。
@@ -1366,13 +1364,48 @@ export const itemDefinitions = [
   {
     id: "watering_can_wide",
     localizationKey: "item.watering_can_wide",
-    category: ItemCategory.Material,
+    category: ItemCategory.Tool,
     stackLimit: 1,
     rarity: Rarity.Rare,
     origin: ItemOrigin.Otherworld,
     value: 60,
     visual: { id: "watering_can_wide" },
-    tool: { toolType: "watering_can", power: 3 },
+    // 占位：capacity 由用户调
+    tool: { toolType: "watering_can", power: 1, capacity: 12 },
+  },
+  {
+    /*
+     * 木锄头（种植系统 2026-09-17）。石傀儡盖出来的田是实土，格要用它翻过
+     * 才能下种；对着空耕地再挥一下是填平。`power: 0` = 一次一格，升级款
+     * 以后带范围，走水壶那套 power。图标 `tools/wooden_hoe`（用户出图的名字）。
+     * 测试期从 `/give` 来，正式来源等「两个世界」定了改货架。
+     */
+    id: "wooden_hoe",
+    localizationKey: "item.wooden_hoe",
+    category: ItemCategory.Tool,
+    stackLimit: 1,
+    rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    // 占位
+    value: 20,
+    visual: { id: "wooden_hoe" },
+    tool: { toolType: "hoe", power: 0 },
+  },
+  {
+    /*
+     * 普通水壶：一次一格、装六格水。空手不能浇——壶是浇水的入口，
+     * 而水要去井边装（`FurnitureCapability.WaterSource`）。
+     */
+    id: "watering_can",
+    localizationKey: "item.watering_can",
+    category: ItemCategory.Tool,
+    stackLimit: 1,
+    rarity: Rarity.Common,
+    origin: ItemOrigin.Otherworld,
+    // 占位
+    value: 25,
+    visual: { id: "watering_can" },
+    tool: { toolType: "watering_can", power: 0, capacity: 6 },
   },
   {
     /*
@@ -1401,9 +1434,9 @@ export const itemDefinitions = [
   },
   {
     /*
-     * 番茄种子。本期只做这一对（种子 → 作物）——作物表和"商店卖种子"
-     * 是以后的事。数值走 Core/Data/buildings 的 farmTuning，不写在这儿：
-     * 内容注册表记"是什么"，平衡表记"多少"。
+     * 番茄种子。种子只写"种出什么"，多久熟、收几个、几段造型全在
+     * `Data/crops` 的作物表里（2026-09-17）：内容注册表记"是什么"，
+     * 作物表记"怎么长"。
      */
     id: "tomato_seed",
     localizationKey: "item.tomato_seed",
@@ -1413,12 +1446,7 @@ export const itemDefinitions = [
     value: 4,
     origin: ItemOrigin.Otherworld,
     visual: { id: "tomato_seed" },
-    seed: {
-      cropItemId: "tomato",
-      waterAtMinutes: farmTuning.tomato.waterAtMinutes,
-      growMinutes: farmTuning.tomato.growMinutes,
-      yield: farmTuning.tomato.yield,
-    },
+    seed: { cropId: "tomato" },
   },
   {
     id: "tomato",
@@ -1675,6 +1703,16 @@ export const itemDefinitions = [
     rarity: Rarity.Common,
     visual: { id: "blueprint" },
     blueprint: { buildingId: "gold_jar" },
+  },
+  {
+    /** 农田的图纸（种植系统 2026-09-17）。有图纸块就自动上石傀儡的建造店 */
+    id: "blueprint_farm_plot",
+    localizationKey: "item.blueprint_farm_plot",
+    category: ItemCategory.Material,
+    stackLimit: 9,
+    rarity: Rarity.Common,
+    visual: { id: "blueprint" },
+    blueprint: { buildingId: "farm_plot" },
   },
   /*
    * 三位居民的房子图纸（期 4）。**是他们送的，不是商店卖的**——

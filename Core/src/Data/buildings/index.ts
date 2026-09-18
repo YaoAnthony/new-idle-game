@@ -58,8 +58,3 @@ export const BASE_GOLD_CAPACITY = 10;
 export function totalCapacity(levelIds: readonly string[]): number {
   return levelIds.reduce((sum, id) => sum + jarCapacity(id), 0);
 }
-
-export const farmTuning = {
-  /** 番茄：种下去多久到需浇水、多久成熟、收几个。占位值 */
-  tomato: { waterAtMinutes: 30, growMinutes: 120, yield: 3 },
-};

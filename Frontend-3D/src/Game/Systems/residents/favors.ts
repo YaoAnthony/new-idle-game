@@ -1,5 +1,6 @@
 import {
   RESIDENT_FACT_KINDS,
+  bedHasPlant,
   drawFromPool,
   expiresDayIdOf,
   favorAcceptsItem,
@@ -27,6 +28,7 @@ import { evaluateCondition } from "../dialogue";
 import { signal } from "../story";
 import { homeDoorstepOf, homeInteriorOf, homeOf, insideHomeOf } from "./spots";
 import { listBuildings } from "../../State/buildings";
+import { readFarmBed } from "../../State/farmBeds";
 
 /**
  * 委托的运行时（居民系统 05）。**只改状态表和收发物品**——好感、奖励、记忆全是
@@ -129,7 +131,7 @@ export function escortFavorFor(definitionId: string): FavorDefinition | null {
 }
 
 /**
- * plant（13）：接下了，而且他家 radius 米内有一块**播了种**的田（farm_plot 的 state.seedItemId）。
+ * plant（13）：接下了，而且他家 radius 米内有一块**播了种**的田（任一格有苗，`readFarmBed`）。
  * 种没种看田的状态，不看你手里拿什么——"在她家旁边种点什么"是对土地做的事
  */
 export function plantFavorFor(definitionId: string): FavorDefinition | null {
@@ -139,9 +141,11 @@ export function plantFavorFor(definitionId: string): FavorDefinition | null {
     const home = homeOf(definitionId);
     if (!home) continue;
     const radius = definition.plantedNear?.radius ?? 6;
-    const planted = listBuildings().some(
-      (placement) => placement.buildingId === "farm_plot" && typeof placement.state?.seedItemId === "string" && Math.hypot(placement.x - home.x, placement.z - home.z) <= radius,
-    );
+    const planted = listBuildings().some((placement) => {
+      if (Math.hypot(placement.x - home.x, placement.z - home.z) > radius) return false;
+      const farm = readFarmBed(placement.instanceId);
+      return farm !== null && bedHasPlant(farm.bed);
+    });
     if (planted) return definition;
   }
   return null;

@@ -209,6 +209,13 @@ export type BuildingDefinition = {
   instantBuild?: boolean;
 
   /**
+   * **这栋楼是一块田**（种植系统 2026-09-17）：占地每格一株，格的状态住
+   * `BuildingPlacement.state.farm`。种植系统按这个标认田，不认 buildingId
+   * 字面量——以后加"温室""花坛"都是再打一个标。
+   */
+  farm?: true;
+
+  /**
    * 这张图上最多能有几栋。不填 = 不限。
    * 金币罐和农田不限（多建、容量相加），房子 1。
    */

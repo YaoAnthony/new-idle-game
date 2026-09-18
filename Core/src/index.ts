@@ -14,6 +14,7 @@ export * from "./types/dailyTasks.js";
 export * from "./types/dialogue.js";
 export * from "./types/doors.js";
 export * from "./types/events.js";
+export * from "./types/farming.js";
 export * from "./types/furniture.js";
 export * from "./types/ground.js";
 export * from "./types/inventory.js";

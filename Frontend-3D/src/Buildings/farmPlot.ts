@@ -74,6 +74,8 @@ function sprouts(color: string, height: number, fruit?: string): Object3D[] {
 
 export const farmPlot: BuildingDefinition = {
   buildingId: "farm_plot",
+  // 田：格的状态住 state.farm，种植系统按这个标认（见 BuildingDefinition.farm）
+  farm: true,
   localizationKey: "building.farm_plot",
   descriptionKey: "building.farm_plot.desc",
   doorOffset: 0,
@@ -82,8 +84,14 @@ export const farmPlot: BuildingDefinition = {
       levelId: "l1",
       localizationKey: "building.farm_plot.l1",
       descriptionKey: "building.farm_plot.l1.desc",
-      // 2×3 格：一块地，不是一片田
+      // 3×2 格：六格、一格一株（种植系统 2026-09-17）
       footprint: { width: 3, height: 2 },
+      // 占位：造价和工期由用户调。有了造价图纸才上得了建造店（materials.test 钉着）
+      buildCost: [
+        { itemId: "gold", quantity: 20 },
+        { itemId: "wood", quantity: 4 },
+      ],
+      buildDuration: { l1: 60 },
       build: () =>
         group("farm-plot-l1", [
           ...bed(),

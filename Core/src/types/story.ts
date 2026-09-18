@@ -28,6 +28,12 @@ export type StorySignalKind =
   | "unpacked"
   | "craft_completed"
   | "cook_completed"
+  /** 种植（2026-09-17）。subject 都是 cropId。收巨大果实时 crop_harvested 和 giant_crop_harvested 同一拍各发一条 */
+  | "crop_sown"
+  | "crop_harvested"
+  | "giant_crop_harvested"
+  /** 田里四格并成了一颗巨大果实（节拍器掷中那一拍，由 Systems/story 从 farm_giant_grown 翻译） */
+  | "giant_crop_grown"
   | "dialogue_ended"
   /**
    * 对话节点上的 `emitEventId` 到达。subject 是那个 EventId。

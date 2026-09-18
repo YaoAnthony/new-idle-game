@@ -7,6 +7,7 @@ export * from "./territory/index.js";
 export * from "./avatars/index.js";
 export * from "./chat/index.js";
 export * from "./cooking/index.js";
+export * from "./crops/index.js";
 export * from "./dailyTasks/index.js";
 export * from "./doors/index.js";
 export * from "./economy/index.js";

@@ -31,6 +31,10 @@ export const STAT_KEYS = [
   "journal_taken",
   /** 深夜（0~4 点，游戏时钟）开始过专注 */
   "focus_after_midnight",
+  /** 收了一格作物（巨大果实按盖住的格数记） */
+  "crops_harvested",
+  /** 收了一颗巨大果实 */
+  "giant_crops_harvested",
 ] as const;
 
 export type StatKey = (typeof STAT_KEYS)[number];

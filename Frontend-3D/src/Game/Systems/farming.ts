@@ -1,153 +1,305 @@
 import {
-  plotsWithinRadius,
-  farmActionAt,
-  farmStageAt,
+  cropOfSeed,
+  describeCell,
+  farmActionFor,
+  farmCellAt,
+  farmCellWorld,
+  farmCellsWithin,
+  farmingTuning,
+  findCropDefinition,
   findItemDefinition,
-  type FarmStage,
-  type FarmState,
+  flattenCell,
+  harvestCell,
+  harvestYield,
+  plantGrownMs,
+  sowCell,
+  thirstyCellsOf,
+  tillCell,
+  waterCell,
+  needsWater,
+  type FarmAction,
+  type FarmActionWhy,
+  type FarmCellView,
+  type HeldForFarm,
 } from "core";
 
-import { pushSystemMessage } from "../State/chatLog";
-import { addItem, consumeSelectedOne, getSelectedStack } from "../State/inventory";
-import { findPlacement, listBuildings, setBuildingState } from "../State/buildings";
+import { emit } from "../EventBus";
 /*
- * **必须用世界时钟的 nowUtc，不能 new Date()**。原来这文件自带一个裸的
- * `new Date().toISOString()`——真实时间流逝时两边一致，没人发现；但
- * `/advance` 拨的是世界时钟的调试偏移，农田的"现在"却停在墙钟上：
- * 表现为拨了三小时庄稼纹丝不动，而所有别的系统（天气、商人班表、
- * 小店结算）都已经活在三小时之后。同一个世界里必须只有一个"现在"。
+ * **必须用世界时钟的 nowUtc，不能 new Date()**。`/advance` 拨的是世界时钟的
+ * 调试偏移，田的"现在"要和天气、商人班表、小店结算活在同一个"现在"里
+ * （2026-08-25 的教训：拨了三小时庄稼纹丝不动）。
  */
 import { nowUtc } from "../State/clock";
+import { farmBedsHere, readFarmBed, writeFarmBed } from "../State/farmBeds";
+import {
+  addItem,
+  canAddItems,
+  consumeSelectedOne,
+  getInventory,
+  getSelectedHotbarIndex,
+  getSelectedStack,
+  getStackAt,
+  setStackCharges,
+  type SlotRef,
+  type SlotStack,
+} from "../State/inventory";
+import { bumpStat } from "../State/stats";
 
 /**
- * 农田的玩法：走过去按 F。**同一个键做不同的事，由地里的状态决定**——
- * 手上拿着种子就播种，干了就浇水，熟了就收获。
+ * 种植的交互（2026-09-17，设计稿 `gpt设计稿/种植系统/`）。
  *
- * 阶段本身是 Core 算的（`farmStageAt`，从时间戳推），这一层只做
- * "按下去发生什么"和"从背包里拿走 / 放回去"。
+ * 规则全在 Core（`farmActionFor` 判、`tillCell / sowCell / waterCell / harvestCell` 写），
+ * 这一层只做三件事：从背包里认出手上拿的是什么、把动作落到田和背包上、
+ * 记账（统计 + 剧情信号）。**按 F 做什么由格的状态和手上的东西一起决定**，
+ * 气泡和 F 问的是同一个 `farmActionFor`，不会出现"气泡说能按、按了没反应"。
  */
 
-function stateOf(instanceId: string): FarmState | undefined {
-  const placement = findPlacement(instanceId);
-  const state = placement?.state;
-  if (!state || typeof state.seedItemId !== "string") return undefined;
-  if (typeof state.plantedUtc !== "string") return undefined;
-  return {
-    seedItemId: state.seedItemId,
-    plantedUtc: state.plantedUtc,
-    wateredUtc: typeof state.wateredUtc === "string" ? state.wateredUtc : undefined,
-  };
+export type FarmTarget = { instanceId: string; cell: number };
+
+/** 从一格背包里认出它对田意味着什么。能力块决定，不认物品 id */
+export function heldForFarm(stack: SlotStack): HeldForFarm {
+  if (!stack) return null;
+  const definition = findItemDefinition(stack.itemId);
+  if (!definition) return null;
+  if (definition.seed) {
+    const crop = cropOfSeed(stack.itemId);
+    return crop ? { kind: "seed", cropId: crop.cropId } : null;
+  }
+  if (definition.tool?.toolType === "hoe") return { kind: "hoe" };
+  if (definition.tool?.toolType === "watering_can") {
+    return { kind: "can", charges: stack.charges ?? 0, power: definition.tool.power ?? 0 };
+  }
+  return null;
 }
 
-function seedOf(state: FarmState | undefined) {
-  return state ? findItemDefinition(state.seedItemId)?.seed : undefined;
+/** 世界点落在当前图上哪块田的哪一格。不在田上 → null */
+export function farmTargetAt(x: number, z: number): FarmTarget | null {
+  for (const ref of farmBedsHere()) {
+    const cell = farmCellAt(ref.placement, ref.footprint, x, z);
+    if (cell !== null) return { instanceId: ref.instanceId, cell };
+  }
+  return null;
 }
 
-/** 这块地现在什么样。视图和交互提示都问它 */
-export function farmStageOf(instanceId: string): FarmStage {
-  const state = stateOf(instanceId);
-  return farmStageAt(state, seedOf(state), nowUtc());
+/** 这一格此刻的样子（气泡、调试指令都只认它） */
+export function farmCellViewOf(target: FarmTarget): FarmCellView | null {
+  const ref = readFarmBed(target.instanceId);
+  if (!ref) return null;
+  return describeCell(ref.bed, ref.footprint, target.cell, findCropDefinition, nowUtc());
+}
+
+/** 手上拿着 `held`（不传 = 快捷栏选中的那格）对这一格按 F 会发生什么 */
+export function farmActionAt(target: FarmTarget, held?: HeldForFarm): FarmAction | null {
+  const ref = readFarmBed(target.instanceId);
+  if (!ref) return null;
+  const holding = held === undefined ? heldForFarm(getSelectedStack()) : held;
+  return farmActionFor(ref.bed, ref.footprint, target.cell, holding, findCropDefinition, nowUtc());
 }
 
 export type FarmResult =
-  | { ok: true; did: "sow" | "water" | "harvest"; detail?: string }
-  | { ok: false; reason: "not_a_farm" | "nothing_to_do" };
+  | { ok: true; did: "till" | "flatten" | "sow" }
+  | { ok: true; did: "water"; watered: number }
+  | { ok: true; did: "harvest"; cropId: string; items: number; seeds: number; giant: boolean }
+  | { ok: false; why: FarmActionWhy | "bag_full" | "not_a_farm" };
 
 /**
- * 按 F。**手上拿着什么会改变结果**，所以要先看选中格。
+ * 按 F。
  *
- * 收获之后回到空地（清掉状态），不是"自动补种"——补种是玩家的决定，
- * 而且他手上未必还有种子。
+ * `heldOverride`：调试指令用，跳过手上的东西直接做（浇水不扣壶、播种不扣种子）。
+ * 正常玩不传，认快捷栏选中格。
+ *
+ * 收获**先问背包**：果实和种子都装得下才收，否则田不动、报 `bag_full`——
+ * 让攒的东西凭空消失会制造焦虑，这个游戏不干这事。
  */
-export function interactWithFarm(instanceId: string): FarmResult {
-  const placement = findPlacement(instanceId);
-  if (!placement || placement.buildingId !== "farm_plot") {
-    return { ok: false, reason: "not_a_farm" };
-  }
+export function interactWithFarmCell(target: FarmTarget, heldOverride?: HeldForFarm): FarmResult {
+  const ref = readFarmBed(target.instanceId);
+  if (!ref) return { ok: false, why: "not_a_farm" };
+  const fromHand = heldOverride === undefined;
+  const held = fromHand ? heldForFarm(getSelectedStack()) : heldOverride;
+  const now = nowUtc();
+  const action = farmActionFor(ref.bed, ref.footprint, target.cell, held, findCropDefinition, now);
 
-  const held = getSelectedStack();
-  const heldSeed = held ? findItemDefinition(held.itemId)?.seed : undefined;
-  const stage = farmStageOf(instanceId);
-  const action = farmActionAt(stage, Boolean(heldSeed));
-
-  if (action === "sow" && held && heldSeed) {
-    consumeSelectedOne();
-    setBuildingState(instanceId, {
-      seedItemId: held.itemId,
-      plantedUtc: nowUtc(),
-      wateredUtc: undefined,
-      stage: "planted",
-    });
-    return { ok: true, did: "sow" };
-  }
-
-  if (action === "water") {
-    /*
-     * **手上那把壶决定浇几格**（期 6）。
-     *
-     * `tool.power` 是**半径**：缺省 0 = 只有脚下这块（空手、或者以后的
-     * 普通壶），广口壶是 1 = 含自己 3×3 共九格，正是用户说的"一次喷
-     * 9 个区域"。
-     *
-     * 只浇**真的需要浇的**：范围里已经浇过的、还空着没播种的、正在长的，
-     * 一律不碰。否则"顺手把空地也浇了"会让提示里的数字虚高，玩家以为
-     * 这把壶比实际更强。
-     */
-    const power = held ? (findItemDefinition(held.itemId)?.tool?.power ?? 0) : 0;
-    const nearby = plotsWithinRadius(
-      placement,
-      listBuildings().filter((item) => item.buildingId === "farm_plot"),
-      power,
-    );
-    const watered = nearby.filter(
-      (plot) => farmStageOf(plot.instanceId) === "thirsty",
-    );
-    const now = nowUtc();
-    for (const plot of watered) {
-      setBuildingState(plot.instanceId, { wateredUtc: now, stage: "growing" });
+  switch (action.kind) {
+    case "till":
+      writeFarmBed(ref.instanceId, tillCell(ref.bed, target.cell));
+      return { ok: true, did: "till" };
+    case "flatten":
+      writeFarmBed(ref.instanceId, flattenCell(ref.bed, target.cell));
+      return { ok: true, did: "flatten" };
+    case "sow": {
+      writeFarmBed(ref.instanceId, sowCell(ref.bed, target.cell, action.cropId, now));
+      if (fromHand) consumeSelectedOne();
+      emit("story_signal", { kind: "crop_sown", subject: action.cropId });
+      return { ok: true, did: "sow" };
     }
-    return {
-      ok: true,
-      did: "water",
-      // 只有一块时不报数——"浇了 1 块"是句废话
-      detail: watered.length > 1 ? `浇了 ${watered.length} 块` : undefined,
-    };
-  }
-
-  if (action === "harvest") {
-    const state = stateOf(instanceId);
-    const seed = seedOf(state);
-    if (state && seed) {
-      addItem(seed.cropItemId, seed.yield);
-      pushSystemMessage(`收了 ${seed.yield} 个`);
+    case "water": {
+      const power = held?.kind === "can" ? held.power : 0;
+      const watered = waterCellsAround(target, {
+        ref: fromHand ? getSelectedHotbarIndex() : undefined,
+        power,
+      });
+      return { ok: true, did: "water", watered };
     }
-    // 回到空地：状态整块清掉，不自动补种
-    setBuildingState(instanceId, {
-      seedItemId: undefined,
-      plantedUtc: undefined,
-      wateredUtc: undefined,
-      stage: "empty",
-    });
-    return { ok: true, did: "harvest" };
+    case "harvest": {
+      const plant = ref.bed.cells[target.cell]?.plant;
+      const crop = plant ? findCropDefinition(plant.cropId) : undefined;
+      // 认不出的作物（内容表删过）：清格、什么都不给
+      const yieldOf = crop ? harvestYield(crop, action.giant, Math.random) : { items: 0, seeds: 0 };
+      if (crop) {
+        const fits = canAddItems([
+          { itemId: crop.harvest.itemId, quantity: yieldOf.items },
+          { itemId: crop.seedItemId, quantity: yieldOf.seeds },
+        ]);
+        if (!fits) return { ok: false, why: "bag_full" };
+      }
+      writeFarmBed(ref.instanceId, harvestCell(ref.bed, ref.footprint, target.cell));
+      if (crop) {
+        addItem(crop.harvest.itemId, yieldOf.items);
+        addItem(crop.seedItemId, yieldOf.seeds);
+        // 巨大果实盖着几格就记几格：统计数的是"格"
+        const covered = action.giant ? (crop.giant?.size ?? 2) ** 2 : 1;
+        bumpStat("crops_harvested", covered);
+        emit("story_signal", { kind: "crop_harvested", subject: crop.cropId });
+        if (action.giant) {
+          bumpStat("giant_crops_harvested", 1);
+          emit("story_signal", { kind: "giant_crop_harvested", subject: crop.cropId });
+        }
+      }
+      return {
+        ok: true,
+        did: "harvest",
+        cropId: plant?.cropId ?? "",
+        items: yieldOf.items,
+        seeds: yieldOf.seeds,
+        giant: action.giant,
+      };
+    }
+    case "none":
+      return { ok: false, why: action.why };
   }
-
-  return { ok: false, reason: "nothing_to_do" };
 }
 
 /**
- * 把当前阶段刷进实例状态，好让视图切那一组苗。
- *
- * 阶段是算出来的，但**视图需要一个可以监听的变化**——每帧去算一遍再比
- * 也行，但那样每块田每帧都要 parse 两个时间戳。定期刷一次便宜得多，
- * 而作物生长本来就不需要逐帧精度。
+ * 以目标格为心、`power` 为半径，浇范围里所有**需要水**的格（可跨田）；
+ * 已湿的、空着的、熟了的一律不碰——否则提示里的数字虚高，玩家以为这把壶
+ * 比实际更强。浇到了才扣水（`chargesPerPour`），`ref` 不给就不扣（调试、雨）。
  */
-export function tickFarms(instances: readonly string[]): void {
-  for (const instanceId of instances) {
-    const placement = findPlacement(instanceId);
-    if (!placement || placement.buildingId !== "farm_plot") continue;
-    const stage = farmStageOf(instanceId);
-    if (placement.state?.stage !== stage) {
-      setBuildingState(instanceId, { stage });
+export function waterCellsAround(
+  target: FarmTarget,
+  can: { ref?: SlotRef; power: number },
+): number {
+  const origin = readFarmBed(target.instanceId);
+  if (!origin) return 0;
+  const center = farmCellWorld(origin.placement, origin.footprint, target.cell);
+  const beds = farmBedsHere();
+  const inRange = farmCellsWithin(beds, center, can.power);
+  const now = nowUtc();
+  let watered = 0;
+
+  for (const ref of beds) {
+    let bed = ref.bed;
+    for (const hit of inRange) {
+      if (hit.instanceId !== ref.instanceId) continue;
+      const plant = bed.cells[hit.index]?.plant;
+      const crop = plant ? findCropDefinition(plant.cropId) : undefined;
+      if (!crop || !needsWater(bed.cells[hit.index], crop, now)) continue;
+      bed = waterCell(bed, hit.index, crop, now);
+      watered += 1;
+    }
+    if (bed !== ref.bed) writeFarmBed(ref.instanceId, bed);
+  }
+
+  if (watered > 0 && can.ref !== undefined) {
+    const stack = getStackAt(can.ref);
+    if (stack) {
+      setStackCharges(can.ref, Math.max(0, (stack.charges ?? 0) - farmingTuning.chargesPerPour));
     }
   }
+  return watered;
+}
+
+export type FillResult = { ok: true; charges: number } | { ok: false; why: "no_can" | "full" };
+
+/** 站在水源跟前、手持水壶按 F：装满。水量是物品堆上的 `charges`，容量是定义上的 `tool.capacity` */
+export function fillWateringCan(): FillResult {
+  const ref = getSelectedHotbarIndex();
+  const stack = getStackAt(ref);
+  const capacity = stack ? findItemDefinition(stack.itemId)?.tool?.capacity : undefined;
+  if (!stack || capacity === undefined) return { ok: false, why: "no_can" };
+  if ((stack.charges ?? 0) >= capacity) return { ok: false, why: "full" };
+  setStackCharges(ref, capacity);
+  return { ok: true, charges: capacity };
+}
+
+/** 当前图上缺水的格和坐标。田交出来的就是这份清单，自动生活拿它想办法 */
+export function thirstyCells(): Array<{ instanceId: string; index: number; x: number; z: number }> {
+  return thirstyCellsOf(farmBedsHere(), findCropDefinition, nowUtc());
+}
+
+/** 背包里最好的那把壶：范围大的优先，其次水多的。没有 = null */
+export function bestWateringCan():
+  | { ref: SlotRef; itemId: string; charges: number; capacity: number; power: number }
+  | null {
+  let best: { ref: SlotRef; itemId: string; charges: number; capacity: number; power: number } | null = null;
+  getInventory().forEach((stack, ref) => {
+    if (!stack) return;
+    const tool = findItemDefinition(stack.itemId)?.tool;
+    if (tool?.toolType !== "watering_can" || tool.capacity === undefined) return;
+    const candidate = {
+      ref,
+      itemId: stack.itemId,
+      charges: stack.charges ?? 0,
+      capacity: tool.capacity,
+      power: tool.power ?? 0,
+    };
+    if (
+      !best ||
+      candidate.power > best.power ||
+      (candidate.power === best.power && candidate.charges > best.charges)
+    ) {
+      best = candidate;
+    }
+  });
+  return best;
+}
+
+// ---- 调试（`/farm`）----
+
+/** 把某格（不给格 = 整块田）的进度拉满：立刻成熟 */
+export function debugRipenFarm(instanceId: string, cell?: number): number {
+  const ref = readFarmBed(instanceId);
+  if (!ref) return 0;
+  const now = nowUtc();
+  let touched = 0;
+  const cells = ref.bed.cells.map((entry, index) => {
+    if (cell !== undefined && index !== cell) return entry;
+    const crop = entry.plant ? findCropDefinition(entry.plant.cropId) : undefined;
+    if (!entry.plant || !crop) return entry;
+    touched += 1;
+    return {
+      ...entry,
+      plant: { ...entry.plant, grownMs: crop.growMinutes * 60_000, settledUtc: now },
+    };
+  });
+  if (touched > 0) writeFarmBed(instanceId, { ...ref.bed, cells });
+  return touched;
+}
+
+/** 把某格（不给格 = 整块田）的水抹掉：立刻缺水（熟了的不受影响） */
+export function debugThirstFarm(instanceId: string, cell?: number): number {
+  const ref = readFarmBed(instanceId);
+  if (!ref) return 0;
+  const now = nowUtc();
+  let touched = 0;
+  const cells = ref.bed.cells.map((entry, index) => {
+    if (cell !== undefined && index !== cell) return entry;
+    if (!entry.plant || !entry.wetUntilUtc) return entry;
+    touched += 1;
+    // 先把湿着的那段结算进去再抹水，不然是把已经长的抹掉了
+    const settled = { ...entry.plant, grownMs: plantGrownMs(entry, now), settledUtc: now };
+    const { wetUntilUtc: _drop, ...rest } = entry;
+    return { ...rest, plant: settled };
+  });
+  if (touched > 0) writeFarmBed(instanceId, { ...ref.bed, cells });
+  return touched;
 }

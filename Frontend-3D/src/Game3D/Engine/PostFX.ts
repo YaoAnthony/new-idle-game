@@ -1,6 +1,7 @@
 import {
   BlendFunction,
   BloomEffect,
+  Effect,
   EffectComposer,
   EffectPass,
   GaussianBlurPass,
@@ -9,7 +10,42 @@ import {
   SMAAPreset,
   VignetteEffect,
 } from "postprocessing";
-import { HalfFloatType, type Camera, type Scene, type WebGLRenderer } from "three";
+import { HalfFloatType, Uniform, type Camera, type Scene, type WebGLRenderer } from "three";
+
+/**
+ * 闪电的预兆（照 Lightning-VFX 攻略）：屏幕上一道白色竖带，左、右、中各闪一下、
+ * 暗一拍，落地那一瞬整屏白。LightningStorm 每帧喂 `setFlare`。
+ */
+class LightningFlareEffect extends Effect {
+  constructor() {
+    super(
+      "LightningFlare",
+      /* glsl */ `
+uniform float uCenterX;
+uniform float uBandWidth;
+uniform float uFlash;
+void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
+  float band = 1.0 - smoothstep(uBandWidth, uBandWidth * 3.5, abs(uv.x - uCenterX));
+  vec3 flashed = mix(inputColor.rgb, vec3(1.0), uFlash * band);
+  outputColor = vec4(flashed, inputColor.a);
+}`,
+      {
+        blendFunction: BlendFunction.NORMAL,
+        uniforms: new Map<string, Uniform>([
+          ["uCenterX", new Uniform(0.5)],
+          ["uBandWidth", new Uniform(0)],
+          ["uFlash", new Uniform(0)],
+        ]),
+      },
+    );
+  }
+
+  set(centerX: number, bandWidth: number, flash: number): void {
+    this.uniforms.get("uCenterX")!.value = centerX;
+    this.uniforms.get("uBandWidth")!.value = bandWidth;
+    this.uniforms.get("uFlash")!.value = flash;
+  }
+}
 
 /**
  * 后处理管线（pmndrs postprocessing）。
@@ -50,6 +86,13 @@ export type PostFXHandle = {
    * 1 左右是眼前一片糊，坐起来的过程里退回 0。低端机 bypass 时没有它。
    */
   setBlur: (scale: number) => void;
+  /**
+   * 闪电落地时的 bloom：阈值抬到 1（平时 0.72 会把天穹一起晕开）、强度按闪电给的档跳；
+   * null = 恢复平时那套（LightningStorm 每帧喂）
+   */
+  setLightningBloom: (intensity: number | null) => void;
+  /** 闪电的预兆竖带（见 LightningFlareEffect） */
+  setFlare: (centerX: number, bandWidth: number, flash: number) => void;
   setSize: (width: number, height: number) => void;
   dispose: () => void;
 };
@@ -121,8 +164,9 @@ export function createPostFX(
   });
 
   const smaa = new SMAAEffect({ preset: SMAAPreset.MEDIUM });
+  const flare = new LightningFlareEffect();
 
-  composer.addPass(new EffectPass(camera, smaa, bloom, vignette));
+  composer.addPass(new EffectPass(camera, smaa, bloom, flare, vignette));
 
   /*
    * 模糊排在最后，**不用时从链上卸掉**而不是 enabled=false：composer 只让链尾
@@ -146,6 +190,20 @@ export function createPostFX(
 
     render(deltaSeconds: number) {
       composer.render(deltaSeconds);
+    },
+
+    setLightningBloom(intensity: number | null) {
+      if (intensity === null) {
+        bloom.intensity = BLOOM_INTENSITY;
+        bloom.luminanceMaterial.threshold = BLOOM_THRESHOLD;
+        return;
+      }
+      bloom.intensity = intensity;
+      bloom.luminanceMaterial.threshold = 1;
+    },
+
+    setFlare(centerX: number, bandWidth: number, flash: number) {
+      flare.set(centerX, bandWidth, flash);
     },
 
     setBlur(scale: number) {

@@ -231,6 +231,13 @@ export class Lighting {
   private flashLevel = 0;
   private baseHemi = 0;
   private baseAmbient = 0;
+  private baseSun = 0;
+  /** 放电之后天光切掉的份额（1 = 全黑），1.2 秒内回来——眼睛重新适应 */
+  private cutLevel = 0;
+
+  cutSky(): void {
+    this.cutLevel = 1;
+  }
 
   /** 全场闪一下（LightningStorm 调）。强度 0..1；连着两道取大的，不叠加 */
   flash(strength: number): void {
@@ -239,11 +246,15 @@ export class Lighting {
 
   /** 余光衰减。要在 apply 之后、渲染之前每帧调 */
   tickFlash(dt: number): void {
-    if (this.flashLevel <= 0) return;
+    if (this.flashLevel <= 0 && this.cutLevel <= 0) return;
     // 一拍亮到头，约 0.3 秒衰完
     this.flashLevel = Math.max(0, this.flashLevel - dt * 3.4);
-    this.hemi.intensity = this.baseHemi + this.flashLevel * 2.2;
-    this.ambient.intensity = this.baseAmbient + this.flashLevel * 1.4;
+    // e^(−λt) = 0.02 ⇒ 1.2 秒回到 2% 以内
+    this.cutLevel = MathUtils.damp(this.cutLevel, 0, Math.log(50) / 1.2, dt);
+    if (this.cutLevel < 0.02) this.cutLevel = 0;
+    this.sun.intensity = this.baseSun * (1 - this.cutLevel);
+    this.hemi.intensity = this.baseHemi * (1 - this.cutLevel * 0.6) + this.flashLevel * 2.2;
+    this.ambient.intensity = this.baseAmbient * (1 - this.cutLevel * 0.4) + this.flashLevel * 1.4;
   }
 
   apply(phase: DayPhaseId, weather: WeatherDefinition): void {
@@ -256,6 +267,7 @@ export class Lighting {
     );
     this.sun.color.copy(sunColor);
     this.sun.intensity = profile.sunIntensity * modifier.sun;
+    this.baseSun = this.sun.intensity;
 
     const azimuth = MathUtils.degToRad(profile.sunAzimuth);
     const elevation = MathUtils.degToRad(profile.sunElevation);

@@ -1,68 +1,114 @@
 import type { WeatherDefinition } from "core";
 import {
-  BoxGeometry,
+  Color,
+  DoubleSide,
   Group,
+  MathUtils,
   Mesh,
-  MeshBasicMaterial,
-  Object3D,
-  Quaternion,
-  Vector3,
+  PlaneGeometry,
+  PointLight,
+  ShaderMaterial,
+  Vector2,
+  type PerspectiveCamera,
   type Scene,
 } from "three";
 
 import { emit, on } from "../../Game/EventBus";
 import { getWeather } from "../../Game/State/weather";
 import { groundHeightAt } from "../../Game/State/worldRuntime";
-import { buildBolt } from "../Visual/lightningBolt";
+import { MAX_BOLT_POINTS, randomWalkBolt } from "../Visual/lightningBolt";
+import { LIGHTNING_FRAGMENT, LIGHTNING_VERTEX } from "../Visual/lightningShader";
 import { PALETTE } from "../Visual/palette";
 import { weatherVisualProfileOf } from "../Visual/weatherProfiles";
 
 /**
- * 暴风雨的闪电（2026-09-18，用户看了 three-vfx 的雷电 demo 想要的）。
+ * 暴风雨的闪电（2026-09-18，照 Lightning-VFX 那份攻略搬进我们的 WebGL 管线）。
  *
- * 一次打雷 = 三件事一起：**一道折线从天上劈到院子外的某处**（`lightningBolt` 算形状，
- * 这里挤成发光的方棍，走 bloom 就是电光）、**全场闪一下**（`Lighting.flash` 抬环境光、
- * `OutdoorScene.flash` 把天穹雾色往白抬）、**隔几秒才到的雷声**（发 `lightning_struck`
- * 带距离，Soundscape 按 340 m/s 延后放）。以前雷声是 Soundscape 自己掐的表，现在
- * 节拍在这里：闪电先到、雷后到，才像真的。
+ * 一次打雷的时间线（秒，从 `strike()` 起）：
+ *   0 ～ 0.6   **预兆**：屏幕上一道白色竖带左、右、中各闪一下、暗一拍——镜头上的耀斑
+ *   0.6        **落地**：一块对着镜头的画布立在落点，shader 把随机游走的折线描出来（颜色 ×5，
+ *              bloom 阈值临时抬到 1，只有它发光）；落点上方 1.5 m 亮一盏点光；全场闪
+ *              （`Lighting.flash` / `OutdoorScene.flash`）；镜头震；发 `lightning_struck`（雷声按距离延后）
+ *   0.6 ～ 0.8 **放电**：bloom 和点光按 [40, 10, 30, 5] 每 50 ms 跳一档
+ *   0.8 ～     **死掉**：不透明度往 0 衰（0.6 s 内衰到 2%）；每段的下端往上端收、描边收细、
+ *              抖动放到 3×——不是整体变暗，是碎掉；天光切到 0 再用 1.2 s 回来（眼睛重新适应）
  *
- * 什么天气打雷、多久一次，在 `weatherProfiles` 的 `lightning` 一栏；这里不认 kind。
- * 不用 three-vfx / WebGPU：我们是 WebGL 管线，一根折线 + bloom 足够这个画风。
+ * 什么天气打雷、多久一道，在 `weatherProfiles.lightning`；这里不认 kind。
  */
 
-export type Flashable = { flash(strength: number): void };
+export type Flashable = { flash(strength: number): void; cutSky?(): void };
+export type LightningFx = {
+  /** 落地那一拍起 bloom 的强度（阈值同时抬到 1）；null = 恢复平时 */
+  setLightningBloom(intensity: number | null): void;
+  /** 预兆的耀斑竖带：中心 x（0..1）、半宽、亮度 */
+  setFlare(centerX: number, bandWidth: number, flash: number): void;
+};
 
-/** 一道闪电活多久（秒）与它的明暗节拍：亮 → 灭一瞬 → 再亮 → 淡出 */
-const BOLT_LIFE = 0.45;
-const FLICKER: Array<[number, number]> = [
-  [0, 1],
-  [0.08, 1],
-  [0.11, 0.15],
-  [0.16, 0.9],
-  [0.26, 0.5],
-  [BOLT_LIFE, 0],
+// ---- 节拍（秒）----
+const FLARE_SECONDS = 0.6;
+/** 预兆的竖带：[起, 止, 中心 x, 半宽, 亮度] */
+const FLARE_STEPS: Array<[number, number, number, number, number]> = [
+  [0, 0.12, 0.25, 0.05, 0.55],
+  [0.12, 0.24, 0.75, 0.05, 0.55],
+  [0.24, 0.36, 0.5, 0.06, 0.6],
+  [0.36, 0.5, 0.5, 0, 0],
+  [0.5, FLARE_SECONDS, 0.5, 0, 0],
 ];
-/** 云底的高度：折线从这儿往下劈 */
+/** 落地那一瞬整屏白一下 */
+const LAND_FLASH_SECONDS = 0.06;
+/** 放电的闪烁：bloom 强度按档跳，每档 50 ms */
+/*
+ * 攻略里是 [40, 10, 30, 5]，那是它自己那套 bloom（半径小、阈值 1）的数。我们的 bloom
+ * 半径 0.72、mipmap 模糊，40 会把一根 0.12 米的折线糊成一米多宽的光柱——按我们的
+ * 管线缩到十分之一左右，形状才看得出是锯齿。
+ */
+const FLICKER = [6, 1.5, 4.5, 1];
+const FLICKER_STEP = 0.05;
+const HOLD = FLICKER.length * FLICKER_STEP;
+/** e^(−λt) = 0.02 ⇒ λ = ln(50) / t：0.6 秒内衰到 2% */
+const FADE_LAMBDA = Math.log(50) / 0.6;
+const BLOOM_RETURN_LAMBDA = Math.log(50) / 0.5;
+/** 落地时抖一下镜头，半秒内平掉 */
+const SHAKE_DECAY_PER_S = 2;
+const SHAKE_AMP = 0.02;
+
+// ---- 画布 ----
 const CLOUD_Y = 42;
+const PLANE_W = 24;
+const STROKE_M = 0.12;
 /** 落点离观者多远（米） */
 const STRIKE_MIN_M = 16;
 const STRIKE_MAX_M = 48;
-/** 多近的雷才震一下屋子（全场闪的强度按距离衰减） */
 const FLASH_NEAR_M = 14;
 
-type Bolt = { root: Group; materials: MeshBasicMaterial[]; age: number };
+type Strike = {
+  age: number;
+  x: number;
+  z: number;
+  ground: number;
+  distance: number;
+  landed: boolean;
+  skyCut: boolean;
+  mesh: Mesh | null;
+  material: ShaderMaterial | null;
+  light: PointLight | null;
+  bloom: number;
+};
 
 export class LightningStorm {
   private readonly root = new Group();
-  private readonly bolts: Bolt[] = [];
+  private readonly strikes: Strike[] = [];
   private timer: ReturnType<typeof setTimeout> | null = null;
   private readonly offs: Array<() => void>;
   private viewer: { x: number; z: number } = { x: 0, z: 0 };
+  private trauma = 0;
+  private shakePhase = 0;
 
   constructor(
     scene: Scene,
     private readonly lighting: Flashable,
     private readonly sky: Flashable,
+    private readonly fx: LightningFx,
     private readonly random: () => number = Math.random,
   ) {
     this.root.name = "lightning";
@@ -71,12 +117,11 @@ export class LightningStorm {
     this.arm(getWeather());
   }
 
-  /** 观者的位置（落点相对它挑）。RoomScene 每帧喂镜头位置 */
+  /** 观者的位置（落点相对它挑、画布对着它）。RoomScene 每帧喂镜头位置 */
   setViewer(x: number, z: number): void {
     this.viewer = { x, z };
   }
 
-  /** 这种天气打不打雷、多久一次 —— 从表现档读 */
   private arm(weather: WeatherDefinition): void {
     const lightning = weatherVisualProfileOf(weather).lightning;
     if (!lightning) {
@@ -89,7 +134,6 @@ export class LightningStorm {
       const delay = lightning.minMs + this.random() * (lightning.maxMs - lightning.minMs);
       this.timer = setTimeout(() => {
         this.timer = null;
-        // 期间天气可能已经变了
         if (!weatherVisualProfileOf(getWeather()).lightning) return;
         this.strike();
         schedule();
@@ -98,99 +142,153 @@ export class LightningStorm {
     schedule();
   }
 
-  /** 现在就劈一道（定时器到点调；调试指令可以指定落点） */
+  /** 排一道：先 0.6 秒预兆，再落地。返回落点（定时器到点调；调试指令可以指定落点） */
   strike(at?: { x: number; z: number }): { x: number; z: number; distance: number } {
     const angle = this.random() * Math.PI * 2;
     const rolled = STRIKE_MIN_M + this.random() * (STRIKE_MAX_M - STRIKE_MIN_M);
     const x = at?.x ?? this.viewer.x + Math.cos(angle) * rolled;
     const z = at?.z ?? this.viewer.z + Math.sin(angle) * rolled;
     const distance = Math.hypot(x - this.viewer.x, z - this.viewer.z);
-    const ground = groundHeightAt(x, z);
-    const branches = buildBolt(
-      { x: x + (this.random() - 0.5) * 6, y: CLOUD_Y, z: z + (this.random() - 0.5) * 6 },
-      { x, y: ground, z },
-      this.random,
-    );
-    const materials: MeshBasicMaterial[] = [];
-    const root = new Group();
-    for (const branch of branches) {
-      const core = new MeshBasicMaterial({ color: PALETTE.lightningCore, transparent: true });
-      const glow = new MeshBasicMaterial({ color: PALETTE.lightningGlow, transparent: true, opacity: 0.35, depthWrite: false });
-      materials.push(core, glow);
-      for (let i = 0; i < branch.points.length - 1; i += 1) {
-        root.add(segment(branch.points[i], branch.points[i + 1], branch.width, core));
-        root.add(segment(branch.points[i], branch.points[i + 1], branch.width * 2.6, glow));
-      }
-    }
-    root.traverse((node) => {
-      node.userData.noCollide = true;
+    this.strikes.push({
+      age: 0, x, z, ground: groundHeightAt(x, z), distance,
+      landed: false, skyCut: false, mesh: null, material: null, light: null, bloom: 1,
     });
-    this.root.add(root);
-    this.bolts.push({ root, materials, age: 0 });
-
-    // 全场闪：近的亮、远的只是天边一闪
-    const strength = Math.max(0.25, 1 - Math.max(0, distance - FLASH_NEAR_M) / (STRIKE_MAX_M - FLASH_NEAR_M) * 0.75);
-    this.lighting.flash(strength);
-    this.sky.flash(strength);
-    emit("lightning_struck", { x, z, distance });
     return { x, z, distance };
   }
 
   update(dt: number): void {
-    for (let i = this.bolts.length - 1; i >= 0; i -= 1) {
-      const bolt = this.bolts[i];
-      bolt.age += dt;
-      const level = flickerAt(bolt.age);
-      if (bolt.age >= BOLT_LIFE) {
-        this.dispose1(bolt);
-        this.bolts.splice(i, 1);
-        continue;
+    let flare: [number, number, number] | null = null;
+    let bloom: number | null = null;
+    for (let i = this.strikes.length - 1; i >= 0; i -= 1) {
+      const s = this.strikes[i];
+      s.age += dt;
+      if (!s.landed) {
+        if (s.age < FLARE_SECONDS) {
+          const step = FLARE_STEPS.find(([from, to]) => s.age >= from && s.age < to);
+          if (step && step[4] > 0) flare = [step[2], step[3], step[4]];
+          continue;
+        }
+        this.land(s);
       }
-      for (let m = 0; m < bolt.materials.length; m += 1) {
-        // 偶数是芯、奇数是晕
-        bolt.materials[m].opacity = m % 2 === 0 ? level : level * 0.35;
+      const t = s.age - FLARE_SECONDS;
+      const material = s.material!;
+      if (t < LAND_FLASH_SECONDS) flare = [0.5, 1, 0.7];
+      if (t < HOLD) {
+        // 放电：bloom 和点光一起跳档；淡出等着
+        s.bloom = FLICKER[Math.min(FLICKER.length - 1, Math.floor(t / FLICKER_STEP))];
+        if (s.light) s.light.intensity = s.bloom * 1.5;
+      } else {
+        if (!s.skyCut) {
+          s.skyCut = true;
+          this.lighting.cutSky?.();
+        }
+        const u = material.uniforms;
+        u.uOpacity.value = MathUtils.damp(u.uOpacity.value, 0, FADE_LAMBDA, dt);
+        u.uErode.value = MathUtils.damp(u.uErode.value, 0.8, FADE_LAMBDA, dt);
+        u.uWidth.value = MathUtils.damp(u.uWidth.value, 0, FADE_LAMBDA, dt);
+        u.uNoiseBoost.value = MathUtils.damp(u.uNoiseBoost.value, 3, FADE_LAMBDA, dt);
+        s.bloom = MathUtils.damp(s.bloom, 1, BLOOM_RETURN_LAMBDA, dt);
+        if (s.light) s.light.intensity = MathUtils.damp(s.light.intensity, 0, FADE_LAMBDA, dt);
+        if (u.uOpacity.value < 0.02 && s.bloom < 1.05) {
+          this.dispose1(s);
+          this.strikes.splice(i, 1);
+          continue;
+        }
       }
+      bloom = Math.max(bloom ?? 1, s.bloom);
+      // 画布永远对着镜头
+      if (s.mesh) s.mesh.rotation.y = Math.atan2(this.viewer.x - s.x, this.viewer.z - s.z);
     }
+    this.fx.setFlare(flare ? flare[0] : 0.5, flare ? flare[1] : 0, flare ? flare[2] : 0);
+    this.fx.setLightningBloom(bloom);
+    this.trauma = Math.max(0, this.trauma - dt * SHAKE_DECAY_PER_S);
+    this.shakePhase += dt * 30;
   }
 
-  private dispose1(bolt: Bolt): void {
-    bolt.root.removeFromParent();
-    bolt.root.traverse((node) => {
-      if (node instanceof Mesh) node.geometry.dispose();
+  /** 落地：立画布、亮点光、全场闪、镜头震、发事件 */
+  private land(s: Strike): void {
+    s.landed = true;
+    const height = CLOUD_Y - s.ground;
+    const points = randomWalkBolt(height, this.random, { halfWidth: PLANE_W / 2 });
+    const uPoints = Array.from({ length: MAX_BOLT_POINTS }, (_, i) =>
+      new Vector2(points[i]?.x ?? 0, points[i]?.y ?? 0),
+    );
+    const material = new ShaderMaterial({
+      vertexShader: LIGHTNING_VERTEX,
+      fragmentShader: LIGHTNING_FRAGMENT,
+      uniforms: {
+        uPoints: { value: uPoints },
+        uCount: { value: points.length },
+        uOpacity: { value: 1 },
+        uErode: { value: 0 },
+        uWidth: { value: 1 },
+        uNoiseBoost: { value: 1 },
+        uSeed: { value: this.random() * 100 },
+        uPlaneW: { value: PLANE_W },
+        uPlaneH: { value: height },
+        uStroke: { value: STROKE_M },
+        uColor: { value: new Color(PALETTE.lightningCore).multiplyScalar(5) },
+      },
+      transparent: true,
+      depthWrite: false,
+      side: DoubleSide,
     });
-    for (const material of bolt.materials) material.dispose();
+    const mesh = new Mesh(new PlaneGeometry(PLANE_W, height), material);
+    mesh.position.set(s.x, s.ground + height / 2, s.z);
+    mesh.rotation.y = Math.atan2(this.viewer.x - s.x, this.viewer.z - s.z);
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    mesh.userData.noCollide = true;
+    mesh.frustumCulled = false;
+    this.root.add(mesh);
+
+    const light = new PointLight(PALETTE.lightningGlow, 0, 40, 2);
+    light.name = "lightning-light";
+    light.position.set(s.x, s.ground + 1.5, s.z);
+    this.root.add(light);
+
+    s.mesh = mesh;
+    s.material = material;
+    s.light = light;
+
+    const strength = Math.max(0.25, 1 - (Math.max(0, s.distance - FLASH_NEAR_M) / (STRIKE_MAX_M - FLASH_NEAR_M)) * 0.75);
+    this.lighting.flash(strength);
+    this.sky.flash(strength);
+    this.trauma = Math.max(this.trauma, strength);
+    emit("lightning_struck", { x: s.x, z: s.z, distance: s.distance });
+  }
+
+  /** 镜头抖动：在 CameraRig 摆好镜头之后叠上去，下一帧 rig 又会重摆，不会累积 */
+  applyShake(camera: PerspectiveCamera): void {
+    if (this.trauma <= 0) return;
+    const amp = this.trauma * this.trauma * SHAKE_AMP;
+    const angle = this.shakePhase;
+    camera.rotation.x += Math.sin(angle) * amp;
+    camera.rotation.y += Math.sin(angle * 1.618 + 1.7) * amp;
+    camera.rotation.z += Math.sin(angle * 0.882 + 3.9) * amp * 0.5;
+  }
+
+  /** 场上还有几道（用例看） */
+  get active(): number {
+    return this.strikes.length;
+  }
+
+  private dispose1(s: Strike): void {
+    s.mesh?.removeFromParent();
+    s.mesh?.geometry.dispose();
+    s.material?.dispose();
+    s.light?.removeFromParent();
+    s.light?.dispose();
   }
 
   dispose(): void {
     for (const off of this.offs) off();
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
-    for (const bolt of this.bolts) this.dispose1(bolt);
-    this.bolts.length = 0;
+    for (const s of this.strikes) this.dispose1(s);
+    this.strikes.length = 0;
+    this.fx.setLightningBloom(null);
+    this.fx.setFlare(0.5, 0, 0);
     this.root.removeFromParent();
   }
-}
-
-function flickerAt(age: number): number {
-  for (let i = 0; i < FLICKER.length - 1; i += 1) {
-    const [t0, v0] = FLICKER[i];
-    const [t1, v1] = FLICKER[i + 1];
-    if (age >= t0 && age < t1) return v0 + ((v1 - v0) * (age - t0)) / (t1 - t0);
-  }
-  return 0;
-}
-
-const UP = new Vector3(0, 1, 0);
-
-/** 两点之间一根方棍（对着方向旋转），做闪电的一段 */
-function segment(a: { x: number; y: number; z: number }, b: { x: number; y: number; z: number }, width: number, material: MeshBasicMaterial): Object3D {
-  const from = new Vector3(a.x, a.y, a.z);
-  const to = new Vector3(b.x, b.y, b.z);
-  const length = from.distanceTo(to);
-  const mesh = new Mesh(new BoxGeometry(width, length + width * 0.6, width), material);
-  mesh.position.copy(from).lerp(to, 0.5);
-  mesh.quaternion.copy(new Quaternion().setFromUnitVectors(UP, to.clone().sub(from).normalize()));
-  mesh.castShadow = false;
-  mesh.receiveShadow = false;
-  return mesh;
 }

@@ -900,9 +900,10 @@ export class RoomScene {
       this.built.size.width,
       this.built.size.depth,
     );
-    this.lightning = new LightningStorm(this.scene, this.lighting, this.outdoor);
 
     this.renderer = createRenderer(container, this.scene, this.rig.camera);
+    // 闪电要拿后处理的把手（bloom 档、耀斑），得等渲染器建好
+    this.lightning = new LightningStorm(this.scene, this.lighting, this.outdoor, this.renderer.postFX);
     this.placement = new PlacementController(
       this.scene,
       this.rig.camera,
@@ -3803,6 +3804,7 @@ export class RoomScene {
       // 交接：rig 先算出它想要的机位，再从坐姿那个机位插过去
       const handoff = this.introHandoff;
       this.rig.update(deltaSeconds);
+      this.lightning.applyShake(this.rig.camera);
       handoff.elapsed += deltaSeconds;
       const t = Math.min(1, handoff.elapsed / 0.9);
       const a = t * t * (3 - 2 * t);
@@ -3811,6 +3813,7 @@ export class RoomScene {
       if (t >= 1) this.introHandoff = null;
     } else {
       this.rig.update(deltaSeconds);
+      this.lightning.applyShake(this.rig.camera);
     }
 
     if (this.journalFlight && this.journalGhost) {

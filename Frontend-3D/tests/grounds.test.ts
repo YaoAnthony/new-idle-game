@@ -98,12 +98,12 @@ test("grounds_目标和气泡_手上是路才有目标_锄头对准铺过的格�
   expect(groundHintFor(lay)).toMatchObject({ localizationKey: "ground.hint.lay", action: "interact" });
   expect(interactWithGroundCell(lay)).toEqual({ ok: true, did: "lay", groundId: "sandy_road" });
   expect(getCount("sandy_road")).toBe(0);
-  // 再对准同一格：铺过了，气泡说原因、不可按
+  // 再对准同一格：铺过了就没有目标、不浮气泡（站在自己铺的路上气泡别一直挂着）
   addItem("sandy_road", 1);
   selectHotbarSlot(findStackRef("sandy_road")!);
-  const again = groundTargetAt(HOME.x, HOME.z)!;
-  expect(again.action).toMatchObject({ kind: "none", why: "occupied" });
-  expect(groundHintFor(again).action).toBeUndefined();
+  expect(groundTargetAt(HOME.x, HOME.z)).toBeNull();
+  // 领地外仍然说原因
+  expect(groundTargetAt(-20, 0)?.action).toMatchObject({ kind: "none", why: "outside_territory" });
   // 锄头
   addItem("wooden_hoe", 1);
   selectHotbarSlot(findStackRef("wooden_hoe")!);

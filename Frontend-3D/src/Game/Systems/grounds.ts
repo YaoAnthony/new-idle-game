@@ -35,6 +35,8 @@ export function groundTargetAt(x: number, z: number): GroundTarget | null {
   const ground = groundOfItem(held.itemId);
   if (ground) {
     const verdict = canLayGround(x, z, ground.groundId);
+    // 铺过的格：不给目标、不浮气泡（用户 2026-09-18："不需要写 这里已经铺过了"）——站在自己铺的路上时气泡别一直挂着
+    if (verdict.ok === false && verdict.why === "occupied") return null;
     if (verdict.ok === false) return { ...at, action: { kind: "none", groundId: ground.groundId, why: verdict.why } };
     return { ...at, action: { kind: "lay", groundId: ground.groundId } };
   }

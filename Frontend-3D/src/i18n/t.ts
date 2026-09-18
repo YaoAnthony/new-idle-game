@@ -34,7 +34,6 @@ const ZH: Record<string, string> = {
   "ground.hint.lift": "撬起{ground}",
   "ground.hint.indoors": "屋里铺不了{ground}",
   "ground.hint.outside_territory": "领地外 · 铺不了",
-  "ground.hint.occupied": "这里已经铺过了",
   "ground.hint.no_item": "手上没有{ground}",
   "ground.toast.bag_full": "背包满了，撬不起来",
   "item.tomato_seed.desc": "一小包种子。撒进翻过的田里，浇着水它就长。",

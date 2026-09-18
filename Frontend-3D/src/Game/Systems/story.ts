@@ -515,21 +515,21 @@ export function startStorySystem(emitGameStarted = true): () => void {
   const offBuilt = on("building_completed", ({ buildingId }) =>
     signal("building_completed", buildingId),
   );
+  // 田里并成了巨大果实（种植系统）：同一条理由——节拍器在 Systems/farmingRuntime，不 import 本模块
+  const offGiant = on("farm_giant_grown", ({ cropId }) => signal("giant_crop_grown", cropId));
   const offMap = on("map_changed", ({ mapId }) => signal("map_entered", mapId));
 
   detach = () => {
     off();
     offPanel();
-  // 田里并成了巨大果实（种植系统）：同一条理由——节拍器在 Systems/farmingRuntime，不 import 本模块
-  const offGiant = on("farm_giant_grown", ({ cropId }) => signal("giant_crop_grown", cropId));
     offDay();
     offBuilt();
+    offGiant();
     offMap();
     blockingPanelOpen = false;
     detach = null;
   };
 
-    offGiant();
   // 进入信号：新档发 game_started（"搬进新家"这类），读档发 game_resumed（演到一半的接着演）
   emit("story_signal", { kind: emitGameStarted ? "game_started" : "game_resumed" });
   return detach;

@@ -282,12 +282,12 @@ import {
 import { OutdoorScene } from "./OutdoorScene.js";
 import { BuildingPlacementController } from "../Interaction/BuildingPlacementController.js";
 import { BuildingsView } from "./BuildingsView.js";
-import { TerritoryView } from "./TerritoryView.js";
-
 import { FarmCropsView } from "./FarmCropsView.js";
 import { farmHintFor, farmTargetAt, fillWateringCan, interactWithFarmCell } from "../../Game/Systems/farming";
 import { readFarmBed } from "../../Game/State/farmBeds";
 import { tf } from "../../i18n/format";
+import { TerritoryView } from "./TerritoryView.js";
+
 /** 内景房间没写墙高时的兜底（和主屋户型同一个数） */
 const DEFAULT_INTERIOR_WALL_HEIGHT = 4;
 /** 屋脊比墙高出多少（估值，只用来定屋外禁入盒的顶，宁高勿低） */
@@ -357,10 +357,10 @@ export class RoomScene {
   private readonly territoryView: TerritoryView;
   /** 玩家在领地里建的建筑。小镇六家店由 OutdoorScene 建，不走这里 */
   private readonly buildingsView: BuildingsView;
-  /** 建筑选址（虚影 + 两步确认）。和家具那套并存 */
-  private readonly buildingPlacement: BuildingPlacementController;
   /** 田里的苗 + 格光标（种植系统）。苗不进建筑模型，见文件头 */
   private readonly farmCropsView: FarmCropsView;
+  /** 建筑选址（虚影 + 两步确认）。和家具那套并存 */
+  private readonly buildingPlacement: BuildingPlacementController;
   private readonly fogField: FogField;
   /** 联机时房间里其他人的形象。单机时名册是空的，它每帧空转一圈 */
   private readonly remotePlayers: RemotePlayersView;
@@ -401,9 +401,9 @@ export class RoomScene {
       }
     | { kind: "resident"; residentId: string }
     | { kind: "door"; refId: string }
+    | { kind: "farmCell"; instanceId: string; cell: number }
     | { kind: "building"; instanceId: string }
     | { kind: "shopSpot"; instanceId: string; spot: "crate" | "register" }
-    | { kind: "farmCell"; instanceId: string; cell: number }
     | { kind: "mailbox" }
     | null = null;
   /** 门口的信箱（10）。openAir 图没有主屋就没有 */
@@ -556,9 +556,9 @@ export class RoomScene {
     // reason "territory" 重建，不需要场景转发
     this.territoryView = new TerritoryView(this.scene);
     this.buildingsView = new BuildingsView(this.scene);
+    this.farmCropsView = new FarmCropsView(this.scene);
 
     /*
-    this.farmCropsView = new FarmCropsView(this.scene);
      * 清晰度场（大雾天灯和房子驱雾用的 tile 网格 + 雾毯）。
      * 范围 = 可走范围；庇护 = 地图声明的 shelter（没声明就用一个
      * 零面积矩形，全图一样浓）。平时关着不花一分钱，profile 说开才开。
@@ -2049,15 +2049,13 @@ export class RoomScene {
         }
       | { kind: "resident"; residentId: string }
       | { kind: "door"; refId: string }
+      | { kind: "farmCell"; instanceId: string; cell: number }
       | { kind: "building"; instanceId: string }
       | { kind: "shopSpot"; instanceId: string; spot: "crate" | "register" }
-      | { kind: "farmCell"; instanceId: string; cell: number }
       | { kind: "mailbox" }
       | null = null;
     let bestDistance = INTERACT_RADIUS;
 
-    // 门口的信箱（10）：和门、活物平级按距离竞争
-    if (this.mailboxView) {
     /*
      * 田上的格（种植系统）。探针落在某块田里 → 那一格直接赢（距离 0）：
      * **田上 = 种地，田边 = 管理**——站在田边探针在田外，照旧落到下面建筑那支开面板。
@@ -2068,6 +2066,8 @@ export class RoomScene {
       best = { kind: "farmCell", ...farmCell };
     }
 
+    // 门口的信箱（10）：和门、活物平级按距离竞争
+    if (this.mailboxView) {
       const distance = Math.hypot(this.mailboxView.root.position.x - probeX, this.mailboxView.root.position.z - probeZ);
       if (distance < bestDistance) {
         bestDistance = distance;
@@ -2163,8 +2163,6 @@ export class RoomScene {
     let bestHint: HintTarget | null = null;
     let bestHintDistance = HINT_RADIUS;
 
-    for (const placed of placedFurniture) {
-      const definition = getDefinition(placed.furnitureId);
     // 田上那一格的气泡：格的样子 × 手上的东西（Systems/farming 说，这里只挂）
     if (farmCell) {
       const hint = farmHintFor(farmCell);
@@ -2183,6 +2181,8 @@ export class RoomScene {
       }
     }
 
+    for (const placed of placedFurniture) {
+      const definition = getDefinition(placed.furnitureId);
       if (!definition?.placement.interactHint) continue;
 
       const center = furnitureWorldCenter(
@@ -2203,10 +2203,10 @@ export class RoomScene {
       const holdingRecord = Boolean(
         findItemDefinition(getSelectedStack()?.itemId ?? "")?.record,
       );
-      const bathPhase = definition.placement.capabilities.includes(FurnitureCapability.Bath)
-        ? bathPhaseOf(placed.instanceId)
       const holdingCan =
         findItemDefinition(getSelectedStack()?.itemId ?? "")?.tool?.toolType === "watering_can";
+      const bathPhase = definition.placement.capabilities.includes(FurnitureCapability.Bath)
+        ? bathPhaseOf(placed.instanceId)
         : null;
       const hint = definition.placement.capabilities.includes(
         FurnitureCapability.MusicPlayer,
@@ -2228,8 +2228,6 @@ export class RoomScene {
                   ? ("interact" as const)
                   : undefined,
             }
-          : definition.placement.capabilities.includes(FurnitureCapability.Lighting)
-            ? {
           : definition.placement.capabilities.includes(FurnitureCapability.WaterSource)
             ? {
                 ...definition.placement.interactHint,
@@ -2239,6 +2237,8 @@ export class RoomScene {
                   : definition.placement.interactHint.localizationKey,
                 action: holdingCan ? ("interact" as const) : undefined,
               }
+          : definition.placement.capabilities.includes(FurnitureCapability.Lighting)
+            ? {
                 ...definition.placement.interactHint,
                 /*
                  * 灯的气泡说的是**按下去会发生什么**，不是它现在什么样：
@@ -2548,15 +2548,15 @@ export class RoomScene {
     if (keyOf(best) === keyOf(this.interactTarget)) return;
 
     this.interactTarget = best;
+    this.farmCropsView.setCursor(
+      best?.kind === "farmCell" ? { instanceId: best.instanceId, cell: best.cell } : null,
+    );
 
     if (best === null) {
       emit("interact_target_changed", null);
     } else if (best.kind === "resident") {
       emit("interact_target_changed", { kind: "resident", residentId: best.residentId });
     } else if (best.kind === "door") {
-    this.farmCropsView.setCursor(
-      best?.kind === "farmCell" ? { instanceId: best.instanceId, cell: best.cell } : null,
-    );
       emit("interact_target_changed", { kind: "door", refId: best.refId });
     } else if (best.kind === "building" || best.kind === "shopSpot" || best.kind === "mailbox" || best.kind === "farmCell") {
       // 建筑和店内交互点不进这条事件（没有"工作站"那套载荷）。订阅方
@@ -2654,12 +2654,6 @@ export class RoomScene {
    * 优先级：坐着躺着时含义变了（起身 / 睡觉）→ **正在选址就是定点** →
    * 附近有目标就操作目标 → 都没有就用手上那件东西。
    */
-  interact(): void {
-    // 开场还没演完：还躺着呢，什么都不许按
-    // 日记本飞着的时候也什么都不许按：那 1.4 秒是给眼睛看的
-    if (this.intro || this.introHandoff || this.journalFlight) return;
-    if (isResting()) {
-      this.interactWhileResting();
   /** 田上按 F：做什么由格和手上的东西决定（Systems/farming），这里只管演出反馈 */
   private interactWithFarm(target: { instanceId: string; cell: number }): void {
     const result = interactWithFarmCell(target);
@@ -2693,6 +2687,12 @@ export class RoomScene {
     this.refreshInteractTarget();
   }
 
+  interact(): void {
+    // 开场还没演完：还躺着呢，什么都不许按
+    // 日记本飞着的时候也什么都不许按：那 1.4 秒是给眼睛看的
+    if (this.intro || this.introHandoff || this.journalFlight) return;
+    if (isResting()) {
+      this.interactWhileResting();
       return;
     }
 
@@ -2878,12 +2878,21 @@ export class RoomScene {
           // 对着离自己最近的那个灶眼操作（放锅 / 投料 / 起锅 / 端起来）
           const slot = this.nearestKitchenSlot();
           if (slot) interactWithKitchenSlot(slot);
+        } else if (this.interactTarget.capability === "water_source") {
+          // 井：手持水壶装满；空手什么都不做（气泡已经只说"井"了）
+          const filled = fillWateringCan();
+          if (filled.ok) {
+            emit("story_toast", { localizationKey: "farm.toast.filled", durationMs: 1800 });
+            this.refreshInteractTarget();
+          }
         } else {
           request("station_open_requested", {
             instanceId: this.interactTarget.instanceId,
             capability: this.interactTarget.capability,
           });
         }
+      } else if (this.interactTarget.kind === "farmCell") {
+        this.interactWithFarm(this.interactTarget);
       } else if (this.interactTarget.kind === "building") {
         request("building_panel_open_requested", {
           instanceId: this.interactTarget.instanceId,
@@ -2894,21 +2903,12 @@ export class RoomScene {
           request("shelf_open_requested", {
             instanceId: this.interactTarget.instanceId,
           });
-        } else if (this.interactTarget.capability === "water_source") {
-          // 井：手持水壶装满；空手什么都不做（气泡已经只说"井"了）
-          const filled = fillWateringCan();
-          if (filled.ok) {
-            emit("story_toast", { localizationKey: "farm.toast.filled", durationMs: 1800 });
-            this.refreshInteractTarget();
-          }
         } else {
           /*
            * 收银台：把抽屉里的钱领进金库。**先入账再演出**——
            * claimRevenue 返回真正进账的数额（金库满了会少于抽屉里的），
            * 飞的金币只是那笔账的可视化，掉一帧也不丢钱。
            */
-      } else if (this.interactTarget.kind === "farmCell") {
-        this.interactWithFarm(this.interactTarget);
           const amount = claimRevenue(this.interactTarget.instanceId);
           if (amount > 0) {
             const spot = this.shopSpots().find((s) => s.spot === "register");
@@ -3250,6 +3250,7 @@ export class RoomScene {
     instanceId: string;
     localizationKey: string;
     action?: InteractHint["action"];
+    params?: Record<string, string>;
     x: number;
     y: number;
   } | null {
@@ -3266,7 +3267,6 @@ export class RoomScene {
     const slotWorld = kitchenSlot ? this.kitchenSlotWorld(kitchenSlot) : null;
 
     if (slotWorld) {
-    params?: Record<string, string>;
       this.projectScratch.set(slotWorld.x, slotWorld.y + 0.45, slotWorld.z);
     } else {
       this.projectScratch.copy(this.hintTarget.world);
@@ -3302,6 +3302,8 @@ export class RoomScene {
         kitchenHint ?? restingHint ?? slotStatus ?? this.hintTarget.hint.localizationKey,
       // 没有可执行动作就别显示按键——按了不会发生任何事
       action: slotStatus ? undefined : this.hintTarget.hint.action,
+      // 参数只属于目标自己那句话；换成厨具 / 坐卧的话时不带
+      params: (kitchenHint ?? restingHint ?? slotStatus) ? undefined : this.hintTarget.hint.params,
       x: rect.left + ((this.projectScratch.x + 1) / 2) * rect.width,
       y: rect.top + ((1 - this.projectScratch.y) / 2) * rect.height,
     };
@@ -3318,8 +3320,6 @@ export class RoomScene {
       this.controller.x,
       HEAD_TOP_HEIGHT + this.controller.supportY + 0.28,
       this.controller.z,
-      // 参数只属于目标自己那句话；换成厨具 / 坐卧的话时不带
-      params: (kitchenHint ?? restingHint ?? slotStatus) ? undefined : this.hintTarget.hint.params,
     );
     this.projectScratch.project(this.rig.camera);
 
@@ -4188,6 +4188,7 @@ export class RoomScene {
     this.outdoor.dispose();
     this.territoryView.dispose();
     this.buildingsView.dispose();
+    this.farmCropsView.dispose();
     this.buildingPlacement.cancel();
     this.fogField.dispose();
     this.cookwareView.dispose();
@@ -4202,4 +4203,3 @@ export class RoomScene {
     this.renderer.dispose();
   }
 }
-    this.farmCropsView.dispose();

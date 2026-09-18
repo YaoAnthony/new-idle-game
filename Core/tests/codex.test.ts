@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { codexSources } from "../src/Data/codex/index.js";
 import { placeableItems, itemDefinitions } from "../src/Data/items/index.js";
 import { residentDefinitions, residentIdOf } from "../src/Data/residents/index.js";
+import { cropDefinitions } from "../src/Data/crops/index.js";
 import {
   auditCodexContent,
   codexEntriesForSignal,
@@ -26,9 +27,10 @@ test("codex_条目数等于各来源枚举之和_家具是能摆的家具_居民
   const furniture = placeableItems().filter((item) => item.category === ItemCategory.Furniture);
   assert.equal(entries.filter((e) => e.section === "furniture").length, furniture.length);
   assert.equal(entries.filter((e) => e.section === "resident").length, residentDefinitions.length);
-  assert.equal(entries.length, furniture.length + residentDefinitions.length);
-  // 分区顺序：家具在前
-  assert.deepEqual(listCodexSections().map((s) => s.section), ["furniture", "resident"]);
+  assert.equal(entries.filter((e) => e.section === "crop").length, cropDefinitions.length);
+  assert.equal(entries.length, furniture.length + residentDefinitions.length + cropDefinitions.length);
+  // 分区顺序：家具在前，作物最后
+  assert.deepEqual(listCodexSections().map((s) => s.section), ["furniture", "resident", "crop"]);
   assert.equal(entries[0]!.section, "furniture");
 });
 

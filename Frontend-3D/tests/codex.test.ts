@@ -109,6 +109,6 @@ test("codex_快照与读档往返_读档发restored", () => {
 });
 
 test("codex_页签来自来源表_家具在前居民在后", () => {
-  expect(listCodexTabs().map((tab) => tab.section)).toEqual(["furniture", "resident"]);
+  expect(listCodexTabs().map((tab) => tab.section)).toEqual(["furniture", "resident", "crop"]);
   expect(listCodex().length).toBe(getCodexProgress().all.total);
 });

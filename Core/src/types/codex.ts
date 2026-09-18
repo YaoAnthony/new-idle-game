@@ -18,7 +18,7 @@ import type { StorySignal, StorySignalKind } from "./story.js";
  */
 
 /** 图鉴分区。加分区 = 这里加一个字面量 + `Data/codex` 加一项来源 */
-export type CodexSectionId = "furniture" | "resident";
+export type CodexSectionId = "furniture" | "resident" | "crop";
 
 /** 条目 id：`<分区>:<注册表里的 id>`。同一个注册表 id 进两个分区也不会撞 */
 export type CodexEntryId = `${CodexSectionId}:${string}`;

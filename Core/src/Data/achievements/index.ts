@@ -68,6 +68,27 @@ export const achievementDefinitions: readonly AchievementDefinition[] = [
     reward: chest(),
     icon: "🎵",
   },
+  // ---- 种植（2026-09-17）----
+  {
+    id: "first_harvest",
+    category: AchievementCategory.Life,
+    titleKey: "achievement.first_harvest.title",
+    descriptionKey: "achievement.first_harvest.desc",
+    points: 10,
+    condition: { kind: "stat_at_least", key: "crops_harvested", value: 1 },
+    reward: chest(),
+    icon: "items/tomato",
+  },
+  {
+    id: "harvest_30",
+    category: AchievementCategory.Life,
+    titleKey: "achievement.harvest_30.title",
+    descriptionKey: "achievement.harvest_30.desc",
+    points: 20,
+    condition: { kind: "stat_at_least", key: "crops_harvested", value: 30 },
+    reward: chest(),
+    icon: "items/tomato",
+  },
   // ---- 烹饪 ----
   {
     id: "little_cook",
@@ -133,6 +154,18 @@ export const achievementDefinitions: readonly AchievementDefinition[] = [
     condition: { kind: "stat_at_least", key: "cook_burnt", value: 1 },
     reward: chest(),
     icon: "🔥",
+  },
+  {
+    // 巨大果实：四格同种同时熟才有机会，玩到才知道有这回事——藏着（种植系统）
+    id: "giant_crop",
+    category: AchievementCategory.Hidden,
+    hidden: true,
+    titleKey: "achievement.giant_crop.title",
+    descriptionKey: "achievement.giant_crop.desc",
+    points: 15,
+    condition: { kind: "stat_at_least", key: "giant_crops_harvested", value: 1 },
+    reward: chest(2),
+    icon: "items/tomato",
   },
   {
     id: "night_owl",

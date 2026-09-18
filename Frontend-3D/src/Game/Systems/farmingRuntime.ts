@@ -17,6 +17,8 @@ import { nowUtc } from "../State/clock";
 import { farmBedsHere, readFarmBed, writeFarmBed } from "../State/farmBeds";
 import { getWeather } from "../State/weather";
 import { getWorldSeed } from "../State/worldSeed";
+import { tf } from "../../i18n/format";
+import { t } from "../../i18n/t";
 
 /**
  * 种植的节拍器（2026-09-17）。三件事：
@@ -86,7 +88,16 @@ function rollGiants(): void {
     const seed = giantSeedString(worldId, ref.instanceId, ref.bed, ref.footprint, candidate, farmingTuning.giantSeedSalt);
     const hit = rollGiant(seed, crop.giant.chance);
     writeFarmBed(ref.instanceId, settleGiant(ref.bed, candidate, hit));
-    if (hit) emit("farm_giant_grown", { instanceId: ref.instanceId, cropId: candidate.cropId });
+    if (hit) {
+      emit("farm_giant_grown", { instanceId: ref.instanceId, cropId: candidate.cropId });
+      // 掷中那一拍就说一声：玩家多半在别处，田里悄悄变了个样子没人知道
+      emit("story_toast", {
+        localizationKey: "farm.toast.giant_grown",
+        durationMs: 3000,
+        text: tf("farm.toast.giant_grown", { crop: t(crop.localizationKey) }),
+        icon: `items/${crop.harvest.itemId}`,
+      });
+    }
   }
 }
 

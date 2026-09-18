@@ -300,7 +300,7 @@ import {
   planWateringTour,
 } from "../../Game/Systems/farming";
 import { farmCellSurface, readFarmBed } from "../../Game/State/farmBeds";
-import { LOCAL_PLAYER_ID, emitParticipantGesture } from "../../Game/State/participants";
+import { LOCAL_PLAYER_ID, emitParticipantGesture, getLocalParticipant } from "../../Game/State/participants";
 import { GestureKind } from "core";
 import { ParticleField } from "../Effects/ParticleField";
 import {
@@ -3878,6 +3878,8 @@ export class RoomScene {
       // 雨要知道镜头朝向（抬头压扁雨丝）和视口高（点精灵的像素尺度）
       camera: this.rig.camera,
       viewportHeight: this.renderer.renderer.domElement.clientHeight,
+      // 积水的脚步波纹：人在哪、在不在动
+      player: { x: this.controller.x, z: this.controller.z, locomotion: getLocalParticipant().transform.locomotion },
     });
     // 闪电：落点相对镜头挑、耀斑看闪电在不在镜头里；余光每帧衰减（在 apply 之后写，它要盖过基准值）
     this.lightning.setCamera(this.rig.camera);

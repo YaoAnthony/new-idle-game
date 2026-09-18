@@ -18,6 +18,7 @@ import {
 } from "three";
 import { weatherVisualProfileOf } from "../Visual/weatherProfiles.js";
 import { RainField } from "./RainField.js";
+import { PuddleField, type PuddleViewer } from "./PuddleField.js";
 import { getCurrentMap, groundHeightAt } from "../../Game/State/worldRuntime";
 import { shelteredRects } from "../../Game/State/world/walkable";
 import {
@@ -143,6 +144,8 @@ export class OutdoorScene {
   private readonly clouds: { node: Object3D; speed: number }[] = [];
 
   private readonly rain: RainField;
+  /** 雨天积水（这张图声明了积水区才有） */
+  private readonly puddles: PuddleField | null;
   /**
    * **天气说现在下不下雨**。和 `rain.visible` 分开记：后者还要吃"人在
    * 屋里就不下"，直接拿它当真相的话，进一次屋就把雨永久关掉了
@@ -250,6 +253,8 @@ export class OutdoorScene {
     // ---- 雨（真的下在世界里） ----
     this.rain = new RainField();
     this.root.add(this.rain.points);
+    // 积水直接挂场景（不挂 outdoor root：root 整体压了 -floorLevel，积水面用世界标高）
+    this.puddles = this.terrain.puddle ? new PuddleField(scene, this.terrain.puddle) : null;
 
     /*
      * **整个室外世界沉到室内地板之下**（V0.13）。
@@ -372,6 +377,7 @@ export class OutdoorScene {
     this.raining = look.rain.density > 0;
     // 天气档的 count / opacity 是"下多大"，雨滴长什么样在 rainTuning；风的斜度也交给它
     this.rain.applyLook(look.rain.density, look.rain.opacity, look.windSlant);
+    this.puddles?.setRain(look.rain.density);
     // 风：连续量。>0.3 算有风（树梢/云动）；雨丝的斜度交给 RainField 按 windSlant 算
     this.windy = look.windSlant > 0.3;
 
@@ -415,7 +421,15 @@ export class OutdoorScene {
    */
   update(
     deltaSeconds: number,
-    viewer?: { x: number; y?: number; z: number; indoors: boolean; camera?: PerspectiveCamera; viewportHeight?: number },
+    viewer?: {
+      x: number;
+      y?: number;
+      z: number;
+      indoors: boolean;
+      camera?: PerspectiveCamera;
+      viewportHeight?: number;
+      player?: PuddleViewer["player"];
+    },
   ): void {
     this.elapsed += deltaSeconds;
     this.tickFlash(deltaSeconds);
@@ -442,6 +456,8 @@ export class OutdoorScene {
      * 屋里也画雨——只是屋里那块不下（RainField 按有顶的矩形挑掉雨滴）。
      * 老版人一进屋就把雨整个关掉，隔着窗看外面是晴的（用户 2026-09-18）。
      */
+    // 积水：下雨慢慢积、雨停慢慢干，所以不下雨也要 tick
+    this.puddles?.update(deltaSeconds, { x: viewer?.x ?? 0, z: viewer?.z ?? 0, player: viewer?.player });
     this.rain.points.visible = this.raining;
     if (!this.rain.points.visible) return;
     this.rain.setShelters(shelteredRects());
@@ -491,6 +507,7 @@ export class OutdoorScene {
 
   dispose(): void {
     this.rain.dispose();
+    this.puddles?.dispose();
     if (this.scene.fog === this.fog) this.scene.fog = null;
     this.root.removeFromParent();
     // 外景的几何体量远大于家具，不能只靠 renderer.dispose() 兜底

@@ -73,3 +73,55 @@ export function setRainTuning(patch: Partial<RainTuning>): void {
   Object.assign(rainTuning, patch);
   for (const listener of listeners) listener(rainTuning, rebuild);
 }
+
+// ---- 积水（2026-09-18，照那条 2D 雨天 dev log 的做法搬进 3D）----
+
+export type PuddleTuning = {
+  /** 噪波的世界尺度（每米几个噪波单位）：越小水坑越大块 */
+  scale: number;
+  /** 全干时的阈值（噪波 0..1，超过才是水）；1 = 没有水坑 */
+  thresholdDry: number;
+  /** 全湿时的阈值：越低水坑越多 */
+  thresholdWet: number;
+  /** 边缘那层移动噪波的幅度：水坑边缘晃 */
+  edgeNoise: number;
+  /** 倒影占多少（0 = 只有深色水面） */
+  reflect: number;
+  /** 倒影的噪波扰动 */
+  distort: number;
+  /** 湿地整体的深色罩子（水坑之外那层"地湿了"） */
+  tint: number;
+  /** 雨打出来的波纹：每秒几个（乘雨的密度） */
+  rippleRate: number;
+  /** 一圈波纹活多久（秒） */
+  rippleLife: number;
+  /** 下雨多少秒积满 */
+  fillSeconds: number;
+  /** 雨停多少秒干透 */
+  drySeconds: number;
+};
+
+export const puddleTuning: PuddleTuning = {
+  scale: 0.09,
+  thresholdDry: 1,
+  thresholdWet: 0.56,
+  edgeNoise: 0.06,
+  reflect: 0.75,
+  distort: 0.012,
+  tint: 0.35,
+  rippleRate: 60,
+  rippleLife: 1.1,
+  fillSeconds: 25,
+  drySeconds: 150,
+};
+
+type PuddleListener = (tuning: PuddleTuning) => void;
+const puddleListeners = new Set<PuddleListener>();
+export function onPuddleTuning(listener: PuddleListener): () => void {
+  puddleListeners.add(listener);
+  return () => puddleListeners.delete(listener);
+}
+export function setPuddleTuning(patch: Partial<PuddleTuning>): void {
+  Object.assign(puddleTuning, patch);
+  for (const listener of puddleListeners) listener(puddleTuning);
+}

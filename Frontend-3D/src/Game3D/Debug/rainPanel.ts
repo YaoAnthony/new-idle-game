@@ -1,4 +1,4 @@
-import { rainTuning, setRainTuning, type RainTuning } from "../Visual/rainTuning";
+import { puddleTuning, rainTuning, setPuddleTuning, setRainTuning, type PuddleTuning, type RainTuning } from "../Visual/rainTuning";
 
 /**
  * 临时调参面板（2026-09-18）：`/rainpanel` 开关。纯 DOM，不进 React——它是走查工具，
@@ -23,6 +23,20 @@ const SLIDERS: Slider[] = [
   { key: "farFade", min: 5, max: 80, step: 1 },
   { key: "windDrift", min: 0, max: 15, step: 0.5 },
   { key: "slantDeg", min: 0, max: 60, step: 1 },
+];
+
+type PuddleSlider = { key: keyof PuddleTuning; min: number; max: number; step: number };
+const PUDDLE_SLIDERS: PuddleSlider[] = [
+  { key: "scale", min: 0.02, max: 0.4, step: 0.005 },
+  { key: "thresholdWet", min: 0.3, max: 0.9, step: 0.01 },
+  { key: "edgeNoise", min: 0, max: 0.3, step: 0.01 },
+  { key: "reflect", min: 0, max: 1, step: 0.05 },
+  { key: "distort", min: 0, max: 0.06, step: 0.002 },
+  { key: "tint", min: 0, max: 1, step: 0.05 },
+  { key: "rippleRate", min: 0, max: 300, step: 5 },
+  { key: "rippleLife", min: 0.3, max: 3, step: 0.1 },
+  { key: "fillSeconds", min: 2, max: 120, step: 1 },
+  { key: "drySeconds", min: 5, max: 600, step: 5 },
 ];
 
 let panel: HTMLElement | null = null;
@@ -66,6 +80,33 @@ export function toggleRainPanel(): boolean {
     panel.appendChild(row);
   }
 
+  const puddleTitle = document.createElement("div");
+  puddleTitle.textContent = "积水";
+  puddleTitle.style.cssText = "font-weight:600;margin:10px 0 4px";
+  panel.appendChild(puddleTitle);
+  for (const slider of PUDDLE_SLIDERS) {
+    const row = document.createElement("label");
+    row.style.cssText = "display:grid;grid-template-columns:96px 1fr 48px;gap:6px;align-items:center;margin:3px 0";
+    const name = document.createElement("span");
+    name.textContent = slider.key;
+    const input = document.createElement("input");
+    input.type = "range";
+    input.min = String(slider.min);
+    input.max = String(slider.max);
+    input.step = String(slider.step);
+    input.value = String(puddleTuning[slider.key]);
+    const value = document.createElement("span");
+    value.textContent = String(puddleTuning[slider.key]);
+    value.style.textAlign = "right";
+    input.oninput = () => {
+      const next = Number(input.value);
+      value.textContent = String(next);
+      setPuddleTuning({ [slider.key]: next } as Partial<PuddleTuning>);
+    };
+    row.append(name, input, value);
+    panel.appendChild(row);
+  }
+
   const colorRow = document.createElement("label");
   colorRow.style.cssText = "display:grid;grid-template-columns:96px 1fr;gap:6px;align-items:center;margin:3px 0";
   const colorName = document.createElement("span");
@@ -97,7 +138,7 @@ export function toggleRainPanel(): boolean {
   copy.textContent = "复制 JSON（抄回 rainTuning）";
   copy.style.cssText = "margin-top:8px;width:100%;padding:6px;border:0;border-radius:6px;background:#e3ae90;color:#3a2a1c;font-weight:600;cursor:pointer";
   copy.onclick = () => {
-    const text = JSON.stringify(rainTuning, null, 2);
+    const text = JSON.stringify({ rain: rainTuning, puddle: puddleTuning }, null, 2);
     void navigator.clipboard?.writeText(text);
     console.log("[rain] tuning", text);
     copy.textContent = "已复制（也打在控制台）";

@@ -1025,6 +1025,8 @@ export function buildBaseTerrain(context: TerrainContext): OutdoorTerrain {
 
   return {
     root,
+    // 雨天积水：围墙里那片平地（河谷在墙外，坡地不算）
+    puddle: { ...WALL_RECT, y: YARD_Y },
     update(deltaSeconds) {
       // 河面流光顺流（+z）漂
       for (let i = 0; i < streaks.length; i += 1) {

@@ -26,6 +26,11 @@ export type TerrainTick = {
 
 export type OutdoorTerrain = {
   root: Object3D;
+  /**
+   * 雨天会积水的那片平地（世界坐标；y 是那片地的标高）。没给 = 这张图不积水。
+   * 积水是一张贴地的平面，只能铺在平的地方——河谷、坡地不算。
+   */
+  puddle?: { minX: number; maxX: number; minZ: number; maxZ: number; y: number };
   /** 每帧动画（河的流光、花瓣飘落…）。没有动画的地形不用给 */
   update?(deltaSeconds: number, elapsed: number, tick: TerrainTick): void;
 };

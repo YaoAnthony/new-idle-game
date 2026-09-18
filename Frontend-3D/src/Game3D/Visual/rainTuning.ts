@@ -38,7 +38,14 @@ export type RainTuning = {
   slantDeg: number;
 };
 
-/** 2026-09-18 用户在 /rainpanel 里拖出来的一版 */
+/**
+ * 2026-09-18 用户在 /rainpanel 里拖出来的一版。
+ *
+ * `color` 在面板里一度调成了 #148aff（蓝）——蓝雨是"雨天"这个概念的
+ * 图标画法，真雨丝没有颜色：看到的是天光在水柱上的高光，所以雨永远
+ * 比背景亮、偏白。压暗天穹（weatherProfiles 的 sky）之后蓝更不对了，
+ * 一片深灰天上挂着一层蓝纱。改回白，靠 opacity 控制存在感。
+ */
 export const rainTuning: RainTuning = {
   count: 700,
   radius: 29,
@@ -50,7 +57,7 @@ export const rainTuning: RainTuning = {
   speedMin: 8.5,
   speedMax: 17,
   opacity: 0.42,
-  color: "#148aff",
+  color: "#ffffff",
   blending: "normal",
   uvSquashMin: 0.18,
   nearFade: 3,

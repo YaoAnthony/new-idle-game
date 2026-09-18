@@ -26,6 +26,17 @@ import { type WeatherDefinition } from "core";
 export type WeatherVisualProfile = {
   /** 光照修正：方向光 / 半球光 / 环境光的系数，冷调和去饱和的量 */
   light: { sun: number; hemi: number; ambient: number; cool: number; desat: number };
+  /**
+   * 天穹（连带雾色、云）压暗多少、去饱和多少，0 = 原样。
+   *
+   * **和 light 是两回事**，这条是 2026-09-18 补的：天穹是
+   * MeshBasicMaterial（自发光，天空本来就是光源），Lighting 那边
+   * 把 light.sun 压到多低都只让地面和房子变暗，头顶那块还是晴天那块蓝，
+   * 于是暴雨看着"地很暗、天很亮"，整体反而更刺眼。压暗走**乘法**
+   * 而不是往某个灰色 lerp：夜里的天本来就比白天暗得多，往固定灰
+   * lerp 会把午夜的暴雨提亮成傍晚（雾色那条写死近白的老坑同款）。
+   */
+  sky: { darken: number; desat: number };
   /** 雨滴粒子数（0 = 不下雨）和透明度 */
   /** 下多大：粒子池用几成（0..1，雨滴本身长什么样在 rainTuning）、透明度倍数 */
   rain: { density: number; opacity: number };
@@ -57,6 +68,7 @@ export type WeatherVisualProfile = {
 
 const SUNNY: WeatherVisualProfile = {
   light: { sun: 1, hemi: 1, ambient: 1, cool: 0, desat: 0 },
+  sky: { darken: 0, desat: 0 },
   rain: { density: 0, opacity: 0 },
   windSlant: 0,
   clouds: { overcast: false, opacity: 0.88 },
@@ -75,6 +87,7 @@ export const weatherVisualProfiles: Record<string, WeatherVisualProfile> = {
   weather_visual_cloudy: {
     ...SUNNY,
     light: { sun: 0.55, hemi: 0.9, ambient: 1, cool: 0.25, desat: 0.25 },
+    sky: { darken: 0.2, desat: 0.4 },
     clouds: { overcast: true, opacity: 0.96 },
     starsVisible: false,
     celestialDimming: 0.5,
@@ -83,6 +96,7 @@ export const weatherVisualProfiles: Record<string, WeatherVisualProfile> = {
   weather_visual_rain: {
     ...SUNNY,
     light: { sun: 0.35, hemi: 0.8, ambient: 0.95, cool: 0.45, desat: 0.45 },
+    sky: { darken: 0.45, desat: 0.6 },
     rain: { density: 0.35, opacity: 0.7 },
     clouds: { overcast: true, opacity: 0.96 },
     starsVisible: false,
@@ -97,12 +111,21 @@ export const weatherVisualProfiles: Record<string, WeatherVisualProfile> = {
   },
   weather_visual_storm: {
     ...SUNNY,
-    light: { sun: 0.22, hemi: 0.65, ambient: 0.85, cool: 0.6, desat: 0.55 },
+    // 光再压两成：天压暗之后地面反而成了画面里最亮的一块，
+    // 一整片鲜绿草地顶着一块铅灰的天，比原来更不像暴雨
+    light: { sun: 0.18, hemi: 0.55, ambient: 0.72, cool: 0.6, desat: 0.55 },
+    // 暴雨的天压到两成半、几乎抽干颜色——用户说"再阴沉一些，过于亮了"，
+    // 亮的正是这块天（见 sky 那条注释）。0.65 还带点傍晚的蓝，0.8 已经
+    // 接近夜；0.75 是白天看得出是白天、但抬头知道要出事的那档
+    sky: { darken: 0.75, desat: 0.85 },
     rain: { density: 1, opacity: 1 },
     windSlant: 1,
     clouds: { overcast: true, opacity: 0.96 },
     starsVisible: false,
-    celestialDimming: 0.22,
+    // 0.22 是天穹还亮着的时候定的：天一压暗，那点余量就成了乌云里
+    // 挂着一颗发光的太阳（0.05 也还看得见——圆盘旁边那圈是加法混合的
+    // 光晕，底越暗越显）。暴雨的云厚到日月全不可见，直接关掉
+    celestialDimming: 0,
     dustVisible: false,
     glassGlow: true,
     // 雷：9～26 秒一道。固定间隔听起来像节拍器，连着炸又很吵（原来 Soundscape 掐的那两个数）
@@ -112,6 +135,12 @@ export const weatherVisualProfiles: Record<string, WeatherVisualProfile> = {
     ...SUNNY,
     // 雾天不暗，是白：太阳压一点、环境光反而抬（漫射满天），去饱和最重
     light: { sun: 0.4, hemi: 1.05, ambient: 1.1, cool: 0.2, desat: 0.6 },
+    /*
+     * 大雾**不动**（sky 留在 SUNNY 的 0/0）。雾天本来就不暗、是白，
+     * 而且全局雾色是从 SKY_BOTTOM 推出来的——那条"夜雾抬多少"
+     * （FOG_LIFT 的 0.03）是对着真夜雾照片调了两轮才定下的，
+     * 这里压一手就会把它一起改掉。要改大雾得单独看图。
+     */
     clouds: { overcast: true, opacity: 0.5 },
     starsVisible: false,
     celestialDimming: 0.15,

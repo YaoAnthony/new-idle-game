@@ -16,6 +16,7 @@ import {
   SphereGeometry,
   type PerspectiveCamera,
 } from "three";
+import { desaturate } from "../Visual/palette.js";
 import { weatherVisualProfileOf } from "../Visual/weatherProfiles.js";
 import { RainField } from "./RainField.js";
 import { PuddleField, type PuddleViewer } from "./PuddleField.js";
@@ -348,9 +349,16 @@ export class OutdoorScene {
 
   apply(phase: DayPhaseId, weather: WeatherDefinition): void {
     const look = weatherVisualProfileOf(weather);
-    // 天穹渐变：按顶点高度插值。地平线附近吃 SKY_BOTTOM，天顶吃 SKY_TOP
-    const top = new Color(SKY_TOP[phase]);
-    const bottom = new Color(SKY_BOTTOM[phase]);
+    /*
+     * 天穹渐变：按顶点高度插值。地平线附近吃 SKY_BOTTOM，天顶吃 SKY_TOP。
+     *
+     * 天气先在这两头上生效（2026-09-18）：**天穹不吃光**（MeshBasicMaterial，
+     * 天空本来就是光源），所以 weatherProfiles 里的 light.* 压得再狠也只暗了
+     * 地面，头顶还是晴天那块蓝——暴雨于是"地暗天亮"，比晴天还刺眼。
+     * 乘法压暗 + 去饱和，都是相对当前时段的天色，夜里的暴雨不会被提亮。
+     */
+    const top = desaturate(new Color(SKY_TOP[phase]), look.sky.desat).multiplyScalar(1 - look.sky.darken);
+    const bottom = desaturate(new Color(SKY_BOTTOM[phase]), look.sky.desat).multiplyScalar(1 - look.sky.darken);
     const positions = this.skyGeometry.getAttribute("position");
     const colors = this.skyGeometry.getAttribute("color") as BufferAttribute;
     const mixed = new Color();
@@ -364,8 +372,8 @@ export class OutdoorScene {
     // 雾色贴地平线，远树被推向天色。大雾天从天色往白抬（抬多少看时段，
     // 见 FOG_LIFT）：白天沿用天色×0.96 出来是一片水泥灰，夜里写死近白又
     // 成了天上开灯——两头都错过一次
-    if (look.visibilityField) this.fog.color.set(SKY_BOTTOM[phase]).lerp(new Color(FOG_WHITE), FOG_LIFT[phase]);
-    else this.fog.color.set(SKY_BOTTOM[phase]).multiplyScalar(0.96);
+    if (look.visibilityField) this.fog.color.copy(bottom).lerp(new Color(FOG_WHITE), FOG_LIFT[phase]);
+    else this.fog.color.copy(bottom).multiplyScalar(0.96);
     this.fogBase.copy(this.fog.color);
     // 全局雾距按天气档缩放（大雾把 48/190 压到 3/22）；全景期间另有一套，
     // setOverviewAtmosphere 会盖过去
@@ -373,7 +381,9 @@ export class OutdoorScene {
     this.applyFogDistance();
 
     this.cloudMaterial.color.set(CLOUD_COLORS[phase]);
-    if (look.clouds.overcast) this.cloudMaterial.color.multiplyScalar(0.72);
+    // 云跟着天一起压。固定 0.72 是天穹还没压暗时定的：天一暗，四团 72%
+    // 亮度的白云就成了黑天上贴的棉花，比原来更显眼
+    if (look.clouds.overcast) this.cloudMaterial.color.multiplyScalar(0.72 * (1 - look.sky.darken * 0.8));
     this.cloudMaterial.opacity = look.clouds.opacity;
 
     this.starBaseOpacity = look.starsVisible ? STAR_OPACITY[phase] : 0;

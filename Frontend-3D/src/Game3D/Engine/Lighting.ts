@@ -10,6 +10,7 @@ import {
   Scene,
   Vector3,
 } from "three";
+import { desaturate } from "../Visual/palette.js";
 import { weatherVisualProfileOf } from "../Visual/weatherProfiles.js";
 
 /**
@@ -142,13 +143,6 @@ const LAMP_INTENSITY: Record<DayPhaseId, number> = {
  */
 
 const COOL_TINT = new Color("#7f9bd4");
-
-/** 亮度不变地降低饱和度（雨天/阴天的灰调） */
-function desaturate(target: Color, amount: number): Color {
-  if (amount <= 0) return target;
-  const luma = target.r * 0.299 + target.g * 0.587 + target.b * 0.114;
-  return target.lerp(new Color(luma, luma, luma), amount);
-}
 
 export class Lighting {
   readonly root: Object3D;

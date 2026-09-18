@@ -514,6 +514,22 @@ export function color(value: string): Color {
 }
 
 /**
+ * 亮度不变地降低饱和度（阴雨天的灰调）。**就地改 target**，返回的是同一个
+ * 对象——调用方都是"刚 new 出来正要塞进 material"的临时色。
+ *
+ * 原来只有 Engine/Lighting 一个私有函数。天穹也要压这一手（暴雨天的
+ * 天不该是晴天那块蓝）之后就有两家用了，与其抄一份不如挪到这里：
+ * 两边的"灰"必须是同一个灰，不然光和天会各走各的。
+ */
+export function desaturate(target: Color, amount: number): Color {
+  if (amount <= 0) return target;
+  // 0.299/0.587/0.114：Rec.601 的亮度权重。换 Rec.709 会让绿的草地
+  // 灰得更快，对这套暖色调的画风不好看
+  const luma = target.r * 0.299 + target.g * 0.587 + target.b * 0.114;
+  return target.lerp(new Color(luma, luma, luma), amount);
+}
+
+/**
  * 在基色附近做确定性抖动，用于地板/墙面分块。
  * 同一个 (x, y) 永远得到同一个偏移，重新加载场景不会闪。
  *

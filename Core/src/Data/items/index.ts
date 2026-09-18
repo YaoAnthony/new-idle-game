@@ -1871,6 +1871,8 @@ export const itemDefinitions = [
       blocksMovement: true,
       /** 井台面。宠物凑到边上喝，不需要爬上去 */
       surfaceHeight: 0.9,
+      // 种植系统：手持水壶按 F 装水。没拿壶时只说"井"（表现层按手上的东西换词）
+      interactHint: { localizationKey: "hint.well", anchorHeight: 1.6 },
     },
   },
   {

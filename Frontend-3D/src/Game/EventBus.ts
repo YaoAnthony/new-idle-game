@@ -40,7 +40,9 @@ export type StationCapability =
   | "consign"
   | "journal"
   /** 剧情道具（气泡 action 为 pickup，如石傀儡的头）：F 收进背包 */
-  | "pickup";
+  | "pickup"
+  /** 水源（井）：手持水壶按 F 装满（种植系统） */
+  | "water_source";
 
 /**
  * 读档 / 换世界事务的种类（`save_applied` 的 mode）：

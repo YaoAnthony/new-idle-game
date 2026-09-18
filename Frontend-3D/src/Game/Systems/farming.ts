@@ -44,6 +44,8 @@ import {
   type SlotStack,
 } from "../State/inventory";
 import { bumpStat } from "../State/stats";
+import { formatDuration } from "../../i18n/format";
+import { t } from "../../i18n/t";
 
 /**
  * 种植的交互（2026-09-17，设计稿 `gpt设计稿/种植系统/`）。
@@ -94,6 +96,41 @@ export function farmActionAt(target: FarmTarget, held?: HeldForFarm): FarmAction
   if (!ref) return null;
   const holding = held === undefined ? heldForFarm(getSelectedStack()) : held;
   return farmActionFor(ref.bed, ref.footprint, target.cell, holding, findCropDefinition, nowUtc());
+}
+
+/** 气泡上写什么。`params` 由气泡组件替进文案；`action` 有值才印 F */
+export type FarmHint = {
+  localizationKey: string;
+  params?: Record<string, string>;
+  action?: "interact";
+};
+
+/**
+ * 对准一格时气泡说的话：格的样子 × 手上的东西（设计稿 01 契约 §5.2）。
+ * 和 F 问的是同一个 `farmActionFor`——气泡说能按，按下去就一定有事发生。
+ */
+export function farmHintFor(target: FarmTarget): FarmHint | null {
+  const view = farmCellViewOf(target);
+  if (!view) return null;
+  const action = farmActionAt(target);
+  const actionable = action && action.kind !== "none" ? ("interact" as const) : undefined;
+  if (view.soil === "packed") return { localizationKey: "farm.hint.packed", action: actionable };
+  if (!view.plant) return { localizationKey: "farm.hint.empty", action: actionable };
+  const crop = findCropDefinition(view.plant.cropId);
+  const params = { crop: crop ? t(crop.localizationKey) : view.plant.cropId };
+  if (view.plant.ripe) {
+    return { localizationKey: view.plant.giant ? "farm.hint.giant" : "farm.hint.ripe", params, action: "interact" };
+  }
+  if (view.plant.needsWater) {
+    if (action?.kind === "none" && action.why === "can_empty") {
+      return { localizationKey: "farm.hint.can_empty", params };
+    }
+    return { localizationKey: "farm.hint.thirsty", params, action: actionable };
+  }
+  return {
+    localizationKey: "farm.hint.growing",
+    params: { ...params, time: formatDuration(view.plant.remainingMs ?? 0) },
+  };
 }
 
 export type FarmResult =

@@ -470,6 +470,27 @@ export const PALETTE = {
   /** 乱炖：几样东西混出来的浑色，刻意调得"说不清是什么" */
   stewMurk: "#8a6b47",
   stewMurkLight: "#a2825b",
+
+  // ---- 农田（种植系统 2026-09-17，照 Assets/icons/buildings/farm_plot/l1.png 取色）----
+  farmDirtSide: "#6a4a30",        // 土台侧面
+  farmDirt: "#5b4632",            // 台顶那层田土 / 犁沟的沟
+  farmDirtPacked: "#7a5a3c",      // 实土：没翻过、颜色浅一档
+  farmDirtPackedLight: "#8d6b48", // 实土上的浅斑
+  farmDirtTilled: "#4d3826",      // 耕地的垄
+  farmDirtWet: "#35281b",         // 浇过水的垄：深一大档，隔着院子看得出湿
+  farmDirtWetTrough: "#3f2f22",   // 湿地的沟
+  farmGrass: "#7a9a4a",           // 草沿
+  farmGrassAlt: "#6c8c42",        // 草沿的另一种绿：像素块交错
+  farmStone: "#5f5a63",           // 侧面嵌的石头、桩上的铁箍
+  farmMushroom: "#8c4fbf",        // 紫蘑菇的伞
+  farmMushroomStem: "#dccbe8",    // 蘑菇柄、伞上的白点
+  farmCrystal: "#a56ad9",         // 紫水晶
+  farmCrystalLight: "#c48fe8",    // 水晶亮面
+  farmBanner: "#3d2757",          // 弯月旗
+  farmMoon: "#e7c15c",            // 旗上的月亮和星
+  farmCursor: "#f2e6c4",          // 对准那一格的描边
+  tomatoRedDeep: "#a43d2e",       // 番茄的棱
+  hoeIron: "#4c4a45",             // 锄头的铁头
 } as const;
 
 export type PaletteKey = keyof typeof PALETTE;

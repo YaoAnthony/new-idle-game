@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { InteractHint } from "core";
 import type { RoomScene } from "../../Game3D/World/RoomScene";
 import { labelForHintAction } from "../../Game/Input/bindings";
-import { t } from "../../i18n/t";
+import { tf } from "../../i18n/format";
 
 /**
  * 家具交互气泡。附着在家具上方的世界坐标，随镜头移动/旋转/缩放实时跟随。
@@ -23,6 +23,8 @@ type BubbleState = {
   instanceId: string;
   localizationKey: string;
   action?: InteractHint["action"];
+  /** 正文里的参数（田的气泡："番茄 · 还要 1 小时 20 分"） */
+  params?: Record<string, string>;
   x: number;
   y: number;
 };
@@ -45,7 +47,8 @@ export function InteractBubble({ scene }: { scene: RoomScene | null }) {
       const next = scene.getHintBubble();
 
       // 位置每帧都要更新（跟随镜头），但只有内容变了才触发 React 重渲染
-      const key = next ? `${next.instanceId}:${next.localizationKey}` : "";
+      // 参数也算内容：还要几分钟这种数字变了，字得跟着变
+      const key = next ? `${next.instanceId}:${next.localizationKey}:${JSON.stringify(next.params ?? null)}` : "";
       if (key !== lastKey) {
         lastKey = key;
         setBubble(next);
@@ -77,7 +80,7 @@ export function InteractBubble({ scene }: { scene: RoomScene | null }) {
           </span>
         )}
         <span className="text-[13px] leading-tight text-[#3d2817]">
-          {t(bubble.localizationKey)}
+          {tf(bubble.localizationKey, bubble.params)}
         </span>
       </div>
       {/* 小尖角，指向家具 */}

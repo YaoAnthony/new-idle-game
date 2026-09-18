@@ -35,6 +35,14 @@ import { buildFox } from "./recipes/fox.js";
 import { buildRaftCart } from "./recipes/raftCart.js";
 import { buildNewsPrinter } from "./recipes/newsPrinter.js";
 import { buildWateringCan } from "./recipes/wateringCan.js";
+import {
+  buildCropSown,
+  buildCropTomatoBush,
+  buildCropTomatoGiant,
+  buildCropTomatoRipe,
+  buildCropTomatoSprout,
+} from "./recipes/crops.js";
+import { buildWoodenHoe } from "./recipes/farmTools.js";
 import { buildSlime } from "./recipes/slime.js";
 import { buildSpirit } from "./recipes/spirit.js";
 import { buildShuShu } from "./recipes/shushu.js";
@@ -246,7 +254,15 @@ const REGISTRY: Record<string, VisualEntry> = {
   fox_neighbor: { kind: "procedural", build: buildFox },
   fish_trader: { kind: "procedural", build: buildFishTrader },
   raft_cart: { kind: "procedural", build: buildRaftCart },
-  watering_can_wide: { kind: "procedural", build: buildWateringCan },
+  watering_can_wide: { kind: "procedural", build: () => buildWateringCan(true) },
+  // 农具与作物（种植系统）：作物每段一个 id，作物表的 stages 按名字点
+  watering_can: { kind: "procedural", build: () => buildWateringCan(false) },
+  wooden_hoe: { kind: "procedural", build: buildWoodenHoe },
+  crop_sown: { kind: "procedural", build: buildCropSown },
+  crop_tomato_sprout: { kind: "procedural", build: buildCropTomatoSprout },
+  crop_tomato_bush: { kind: "procedural", build: buildCropTomatoBush },
+  crop_tomato_ripe: { kind: "procedural", build: buildCropTomatoRipe },
+  crop_tomato_giant: { kind: "procedural", build: buildCropTomatoGiant },
   news_printer: { kind: "procedural", build: buildNewsPrinter },
   spirit_neighbor: { kind: "procedural", build: buildSpirit },
 

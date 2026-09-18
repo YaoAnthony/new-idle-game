@@ -15,8 +15,8 @@ import { box, cylinder, group } from "../primitives.js";
  * 的唯一视觉说明。普通壶（今天还不存在）如果要做，就是同一个壶身配一个
  * 细嘴——两把摆一起，玩家不用读说明也知道哪把厉害。
  */
-export function buildWateringCan(): Object3D {
-  return group("watering-can", [
+export function buildWateringCan(wide = true): Object3D {
+  return group(wide ? "watering-can-wide" : "watering-can", [
     // 壶身：一个略收口的木桶
     cylinder(0.085, 0.105, 0.17, 8, {
       position: [0, 0.085, 0],
@@ -47,13 +47,14 @@ export function buildWateringCan(): Object3D {
      * 一格，这把一次九格，两者在数据上差一个 `tool.power`，在画面上
      * 就差这一块。
      */
-    cylinder(0.062, 0.042, 0.03, 8, {
+    // 普通壶（种植系统）就是同一个壶身配一个小喷头：两把摆一起不用读说明也知道哪把厉害
+    cylinder(wide ? 0.062 : 0.03, wide ? 0.042 : 0.026, 0.03, 8, {
       position: [0.185, 0.205, 0],
       rotation: [0, 0, -0.72],
       color: PALETTE.raftLantern,
     }),
     // 花洒面上的孔：几个小方块压出来的暗点
-    ...[-1, 0, 1].flatMap((i) =>
+    ...(wide ? [-1, 0, 1] : [0]).flatMap((i) =>
       [-1, 1].map((j) =>
         box([0.012, 0.006, 0.012], {
           position: [0.196 + i * 0.016, 0.216 + i * 0.013, j * 0.018],

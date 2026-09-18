@@ -26,6 +26,9 @@ import {
 import { buildItemVisual } from "../Visual/VisualRegistry";
 import { PALETTE } from "../Visual/palette";
 import { box, disposeTree } from "../Visual/primitives";
+import { applyFarmSoil } from "./farmSoil";
+import { readFarmBed } from "../../Game/State/farmBeds";
+import { nowUtc } from "../../Game/State/clock";
 
 /** 居民房门板开到几度：往屋里转 100°（铰链在左框、绕 y 正转把板子甩向 -z 即屋里），比 90° 多一点，站门口不会被板子边挡视线 */
 const OPEN_ANGLE = Math.PI * 0.56;
@@ -42,7 +45,8 @@ const OPEN_ANGLE = Math.PI * 0.56;
  * - 金库的存量（`gold-stage-*`）：按 `stored / capacity` 分六档，只显示那一档。
  *   一档 = 一个完整造型（箱盖开合 + 一堆币），**这是那个建筑的灵魂**——
  *   玩家一眼看出还能装多少。
- * - 农田的阶段（`stage-*`）：只显示当前阶段那一组。
+ * - 农田每格的土面（`cell-<i>-packed / -tilled / -wet`）：按 `state.farm` 只亮一层
+ *   （`farmSoil.applyFarmSoil`）。苗不在楼的模型里——见 `FarmCropsView`。
  */
 /**
  * 门牌：一块小木牌，名字画在 CanvasTexture 上。字体走系统回退——这块牌只有几个字，
@@ -99,6 +103,10 @@ export class BuildingsView {
      */
     this.offListeners.push(
       on("building_state_changed", ({ instanceId }) => this.refreshOne(instanceId)),
+    );
+    // 田的派生状态（湿→干）变了：土面要换一层，存档没变所以走的是这条不是上面那条
+    this.offListeners.push(
+      on("farm_cell_changed", ({ instanceId }) => this.refreshOne(instanceId)),
     );
 
     /*
@@ -158,6 +166,7 @@ export class BuildingsView {
        */
       node.position.y = placement.elevation;
       applyState(node, placement.state);
+      applyFarm(node, placement.instanceId);
 
       /*
        * **工地**：成品变半透明 + 围一圈围栏。
@@ -452,7 +461,10 @@ export class BuildingsView {
     const node = this.root.getObjectByName(`building-${instanceId}`);
     if (!node) return;
     const placement = listBuildings().find((item) => item.instanceId === instanceId);
-    if (placement) applyState(node, placement.state);
+    if (placement) {
+      applyState(node, placement.state);
+      applyFarm(node, instanceId);
+    }
   }
 
   dispose(): void {
@@ -487,14 +499,12 @@ function applyState(node: Object3D, state: Record<string, unknown> | undefined):
     });
   }
 
-  // ---- 农田的阶段 ----
-  const stage = typeof state.stage === "string" ? state.stage : undefined;
-  if (stage) {
-    node.traverse((child) => {
-      if (!child.name.startsWith("stage-")) return;
-      child.visible = child.name === `stage-${stage}`;
-    });
-  }
+}
+
+/** 田的土面：不是田就什么都不做 */
+function applyFarm(node: Object3D, instanceId: string): void {
+  const ref = readFarmBed(instanceId);
+  if (ref) applyFarmSoil(node, ref.bed, nowUtc());
 }
 
 /**

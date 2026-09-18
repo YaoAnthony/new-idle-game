@@ -41,6 +41,8 @@ export function stationCapabilityOf(
   if (has(FurnitureCapability.Storage)) return "storage";
   // 浴缸自己管"注水/泡"两步，比坐卧优先（它的锚点只在满缸时才给坐）
   if (has(FurnitureCapability.Bath)) return "bath";
+  // 水源（井）：手持水壶装水。排在坐卧前——井台没有坐的能力，排哪儿都一样，只是别漏
+  if (has(FurnitureCapability.WaterSource)) return "water_source";
   // 床优先当"躺"处理；沙发这类只有 Sitting 的落到坐
   if (has(FurnitureCapability.Sleep)) return "sleep";
   if (has(FurnitureCapability.Sitting)) return "sitting";

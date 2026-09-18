@@ -213,7 +213,10 @@ export type BuildingDefinition = {
    * `BuildingPlacement.state.farm`。种植系统按这个标认田，不认 buildingId
    * 字面量——以后加"温室""花坛"都是再打一个标。
    */
-  farm?: true;
+  farm?: {
+    /** 土面离地多高：苗的落脚点、格光标的高度。人踩上去也是这个高 */
+    soilTop: number;
+  };
 
   /**
    * 这张图上最多能有几栋。不填 = 不限。

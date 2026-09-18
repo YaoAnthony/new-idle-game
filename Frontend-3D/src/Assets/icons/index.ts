@@ -24,6 +24,7 @@
  * | 键 | 谁在用 |
  * |---|---|
  * | `items/<itemId>` | 背包、商店、成就。**文件名必须等于物品 id** |
+ * | `tools/<itemId>` | 农具（用户按类别分的第二个目录，2026-09-17）。取物品图标时 `items/` 找不到再找这里，文件名同样必须等于物品 id |
  * | `buildings/<buildingId>/<levelId>` | 建筑卡片、升级面板（见 `Buildings/index.ts` 的 `buildingIcon`） |
  * | `terrain/<地貌>` | 地块卡片（`Maps/base/territory.ts`） |
  * | `currency/gold` | 金币。它不是物品，所以不在 items 下 |
@@ -50,9 +51,9 @@ export function iconUrl(key: string | undefined): string | undefined {
   return key ? ICONS.get(key) : undefined;
 }
 
-/** 物品图标：`items/<itemId>` 的简写 */
+/** 物品图标：`items/<itemId>`，找不到再找 `tools/<itemId>`（农具那一格） */
 export function itemIconUrl(itemId: string): string | undefined {
-  return ICONS.get(`items/${itemId}`);
+  return ICONS.get(`items/${itemId}`) ?? ICONS.get(`tools/${itemId}`);
 }
 
 /** 目录里现有的全部键。给测试查缺图 / 孤儿图用 */

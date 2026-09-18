@@ -213,6 +213,12 @@ export type InteractHint = {
    */
   action?: "interact" | "pickup" | "sleep";
 
+  /**
+   * 正文里的参数（`{crop}` `{time}` 这类）。文案表只查键，替换在表现层做
+   * （前端 `i18n/format.tf`）。田的气泡"番茄 · 还要 1 小时 20 分"靠它
+   */
+  params?: Record<string, string>;
+
   /** 气泡挂在家具原点上方多高（世界单位）。不填由表现层按占地估算 */
   anchorHeight?: number;
 };

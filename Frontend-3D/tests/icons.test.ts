@@ -87,9 +87,10 @@ test("items/ 下没有对不上物品 id 的图", () => {
   // 图先到、物品还没做的。做完就从这里删掉，这条会逼着你删
   const PENDING = new Set(["furniture_kitchen_counter_small"]);
 
+  // tools/ 是农具那一格（同样按物品 id 取图），一起查
   const orphans = iconKeys()
-    .filter((key) => key.startsWith("items/"))
-    .map((key) => key.slice("items/".length))
+    .filter((key) => key.startsWith("items/") || key.startsWith("tools/"))
+    .map((key) => key.slice(key.indexOf("/") + 1))
     .filter((id) => !findItemDefinition(id) && !PENDING.has(id));
   expect(orphans).toEqual([]);
 

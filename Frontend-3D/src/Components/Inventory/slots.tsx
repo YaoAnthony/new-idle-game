@@ -330,6 +330,17 @@ export function SlotCell({
             size={size - 14}
             fluid={fluid}
           />
+          {/* 水壶：一条小水条。容量在定义上、水量在格子上（种植系统） */}
+          {stack.charges !== undefined && (findItemDefinition(stack.itemId)?.tool?.capacity ?? 0) > 0 && (
+            <span className="absolute bottom-1 left-1.5 right-1.5 h-[4px] overflow-hidden rounded-full bg-[rgb(0_0_0_/_0.18)]">
+              <span
+                className="block h-full rounded-full bg-[#4a9fd6]"
+                style={{
+                  width: `${Math.round((100 * stack.charges) / (findItemDefinition(stack.itemId)?.tool?.capacity ?? 1))}%`,
+                }}
+              />
+            </span>
+          )}
           {stack.count > 1 && (
             <span
               className={`absolute bottom-0.5 right-1 font-bold text-[#3d2817] [text-shadow:0_1px_0_rgb(255_248_225),0_0_3px_rgb(255_248_225)] ${

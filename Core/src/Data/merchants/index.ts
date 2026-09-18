@@ -40,6 +40,9 @@ export const merchantDefinitions: MerchantDefinition[] = [
       "baby_cabbage",
       "cheese",
       "tomato_seed",
+      // 种植系统（测试期来源，决策 21）：锄头和普通水壶。正式来源等「两个世界」定了再改
+      "wooden_hoe",
+      "watering_can",
       // 05：草药——咕噜病了要它。只有水獭卖：生病的委托要有一条确定的解法
       "herbal_medicine",
       "wood",

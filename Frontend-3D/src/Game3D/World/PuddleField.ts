@@ -2,6 +2,7 @@ import { Locomotion } from "core";
 import { Color, DataTexture, DoubleSide, NearestFilter, PlaneGeometry, RedFormat, Vector4, type Scene, type ShaderMaterial } from "three";
 import { Reflector } from "three/examples/jsm/objects/Reflector.js";
 
+import { getGraphicsSettings, onGraphicsSettings } from "../Engine/graphicsSettings";
 import { GLSL_SNOISE_2D } from "../Visual/glslNoise";
 import { onPuddleTuning, puddleTuning, type PuddleTuning } from "../Visual/rainTuning";
 
@@ -130,6 +131,8 @@ export class PuddleField {
   private rainAccumulator = 0;
   private footTimer = 0;
   private readonly off: () => void;
+  private readonly offSettings: () => void;
+  private enabled = getGraphicsSettings().puddles;
   private readonly block: DataTexture;
   private readonly blockCols: number;
   private readonly blockRows: number;
@@ -190,6 +193,11 @@ export class PuddleField {
     (this.material.uniforms.color.value as Color) = new Color(0x1f2a33);
     scene.add(this.reflector);
     this.off = onPuddleTuning((tuning) => this.applyTuning(tuning));
+    // 画质里的一档：关了就整个不画、不渲倒影（Reflector 那一遍是主要开销）
+    this.offSettings = onGraphicsSettings((settings) => {
+      this.enabled = settings.puddles;
+      if (!this.enabled) this.reflector.visible = false;
+    });
   }
 
   private applyTuning(tuning: PuddleTuning): void {
@@ -248,8 +256,8 @@ export class PuddleField {
     u.uTime.value = this.time;
     u.uWet.value = this.wet;
     u.uThreshold.value = tuning.thresholdDry + (tuning.thresholdWet - tuning.thresholdDry) * this.wet;
-    // 没湿就不画也不渲倒影（Reflector 每帧多渲一遍场景，干天白花）
-    this.reflector.visible = this.wet > 0.02;
+    // 没湿就不画也不渲倒影（Reflector 每帧多渲一遍场景，干天白花）；画质里关了同理
+    this.reflector.visible = this.enabled && this.wet > 0.02;
     if (!this.reflector.visible) return;
 
     // 雨点波纹：镜头周围随机撒，shader 里只在水坑里显形
@@ -279,6 +287,7 @@ export class PuddleField {
 
   dispose(): void {
     this.off();
+    this.offSettings();
     this.reflector.removeFromParent();
     this.reflector.dispose();
     this.reflector.geometry.dispose();

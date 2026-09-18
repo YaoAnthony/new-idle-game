@@ -999,6 +999,9 @@ const ZH: Record<string, string> = {
   "ui.settings.tab_world": "世界",
   "ui.settings.tab_audio": "声音",
   "ui.settings.tab_interface": "界面",
+  "ui.settings.graphics": "画质",
+  "ui.settings.puddles": "雨天积水与倒影",
+  "ui.settings.puddles_hint": "费性能：雨天会把整个场景多画一遍做倒影",
   "ui.settings.tab_controls": "控制",
   "ui.settings.tab_debug": "调试",
 

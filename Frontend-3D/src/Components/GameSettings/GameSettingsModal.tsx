@@ -33,6 +33,7 @@ import {
 import { t } from "../../i18n/t";
 import { Modal } from "../Modal/Modal";
 import { usePanel } from "../PanelStack/usePanel";
+import { getGraphicsSettings, updateGraphicsSettings } from "../../Game3D/Engine/graphicsSettings";
 import {
   LANGUAGE_CHOICES,
   MUSIC_MODE_LABELS,
@@ -67,6 +68,7 @@ export function GameSettingsModal() {
   // 挡屏面板，开关挂在全局面板栈上；入口是 ESC 抽屉里的「设置」格（2026-09-12 加回）
   const [open, setOpen] = usePanel("settings");
   const [tab, setTab] = useState<SettingsTabId>("world");
+  const [graphics, setGraphics] = useState(() => getGraphicsSettings());
   /*
    * 音量是 audioSettings 那本账的一份镜像，不是这里的状态：白噪音台的「音乐」
    * 推子也写同一本账，这里只在账变了的时候重读回显。原来是本地状态 + effect
@@ -356,6 +358,22 @@ export function GameSettingsModal() {
                 )}
 
                 {tab === "interface" && (
+                  <div className="flex flex-col gap-5">
+                  <section className="flex flex-col gap-2">
+                    <SectionTitle>{t("ui.settings.graphics")}</SectionTitle>
+                    <label className="flex cursor-pointer items-center justify-between font-bold">
+                      <span className="flex flex-col">
+                        <span>{t("ui.settings.puddles")}</span>
+                        <span className="text-[11px] font-normal text-[#6b7a75]">{t("ui.settings.puddles_hint")}</span>
+                      </span>
+                      <input
+                        type="checkbox"
+                        className="size-4 accent-[#e2ddd3]"
+                        checked={graphics.puddles}
+                        onChange={(event) => setGraphics(updateGraphicsSettings({ puddles: event.target.checked }))}
+                      />
+                    </label>
+                  </section>
                   <section className="flex flex-col gap-2">
                     <SectionTitle>{t("ui.settings.language")}</SectionTitle>
                     {LANGUAGE_CHOICES.map((choice) => (
@@ -388,6 +406,7 @@ export function GameSettingsModal() {
                       </button>
                     ))}
                   </section>
+                  </div>
                 )}
 
                 {tab === "controls" && (

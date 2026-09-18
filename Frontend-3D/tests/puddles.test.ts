@@ -1,13 +1,32 @@
-import { expect, test } from "vitest";
+import { beforeEach, expect, test } from "vitest";
 import { Locomotion } from "core";
 import { Scene } from "three";
 
+import { updateGraphicsSettings } from "../src/Game3D/Engine/graphicsSettings";
 import { puddleTuning } from "../src/Game3D/Visual/rainTuning";
 import { PuddleField } from "../src/Game3D/World/PuddleField";
 
 /** 雨天积水（2026-09-18）：湿度慢慢积、慢慢干；波纹的环形缓冲；脚步只在动的时候发 */
 
 const AREA = { minX: -10, maxX: 10, minZ: -10, maxZ: 10, y: 0 };
+
+// 画质里默认是关的（Reflector 费性能）；用例要看它工作，先开
+beforeEach(() => {
+  updateGraphicsSettings({ puddles: true });
+});
+
+test("puddles_画质里关了就不画", () => {
+  updateGraphicsSettings({ puddles: false });
+  const scene = new Scene();
+  const field = new PuddleField(scene, AREA);
+  field.setRain(1);
+  for (let i = 0; i < 60 * 40; i += 1) field.update(1 / 60, { x: 0, z: 0 });
+  expect(scene.getObjectByName("puddles")!.visible).toBe(false);
+  updateGraphicsSettings({ puddles: true });
+  field.update(1 / 60, { x: 0, z: 0 });
+  expect(scene.getObjectByName("puddles")!.visible).toBe(true);
+  field.dispose();
+});
 
 test("puddles_下雨积_雨停干_没湿不渲倒影", () => {
   const scene = new Scene();

@@ -25,7 +25,9 @@ uniform float uCenterX;
 uniform float uBandWidth;
 uniform float uFlash;
 void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
-  float band = 1.0 - smoothstep(uBandWidth, uBandWidth * 3.5, abs(uv.x - uCenterX));
+  // 半宽 0 时 smoothstep(0, 0, x) 在 GLSL 里是未定义的（有的卡返回 0 → 整屏都算带内），垫一个极小值
+  float halfWidth = max(uBandWidth, 0.0005);
+  float band = 1.0 - smoothstep(halfWidth, halfWidth * 3.5, abs(uv.x - uCenterX));
   vec3 flashed = mix(inputColor.rgb, vec3(1.0), uFlash * band);
   outputColor = vec4(flashed, inputColor.a);
 }`,

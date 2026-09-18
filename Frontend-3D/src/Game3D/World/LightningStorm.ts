@@ -141,8 +141,10 @@ export class LightningStorm {
    */
   private screenXOf(s: Strike): number | null {
     if (!this.camera) return 0.5;
-    const point = new Vector3(s.x, s.ground + 15, s.z).project(this.camera);
-    if (point.z > 1 || Math.abs(point.x) > 1.15 || Math.abs(point.y) > 1.3) return null;
+    // 折线有四十多米高，竖着总有一截在画面里；只看横向在不在、在不在镜头前面
+    const point = new Vector3(s.x, s.ground + 6, s.z).project(this.camera);
+    const behind = point.z > 1;
+    if (behind || Math.abs(point.x) > 1.15) return null;
     return (point.x + 1) / 2;
   }
 

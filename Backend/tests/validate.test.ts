@@ -184,6 +184,22 @@ test('gesture 只认白名单里的两种', () => {
   assert.ok(parseGesture({ kind: GestureKind.Wave, atMs: 0 }))
   assert.equal(parseGesture({ kind: 'dance', atMs: 1 }), null)
   assert.equal(parseGesture({ kind: GestureKind.Jump, atMs: 'now' }), null)
+})
+
+test('gesture：tool_use 必带 tool 块——itemId / use 非空有界，at 可选但要两个有限数', () => {
+  const ok = { kind: GestureKind.ToolUse, atMs: 5, tool: { itemId: 'wooden_hoe', use: 'swing', at: { x: 1.5, z: -2 } } }
+  assert.deepEqual(parseGesture(ok), ok)
+  assert.deepEqual(parseGesture({ kind: GestureKind.ToolUse, atMs: 5, tool: { itemId: 'watering_can', use: 'pour' } }), {
+    kind: GestureKind.ToolUse,
+    atMs: 5,
+    tool: { itemId: 'watering_can', use: 'pour' },
+  })
+  assert.equal(parseGesture({ kind: GestureKind.ToolUse, atMs: 5 }), null)
+  assert.equal(parseGesture({ kind: GestureKind.ToolUse, atMs: 5, tool: { itemId: '', use: 'swing' } }), null)
+  assert.equal(parseGesture({ kind: GestureKind.ToolUse, atMs: 5, tool: { itemId: 'x'.repeat(65), use: 'swing' } }), null)
+  assert.equal(parseGesture({ kind: GestureKind.ToolUse, atMs: 5, tool: { itemId: 'wooden_hoe', use: '' } }), null)
+  assert.equal(parseGesture({ kind: GestureKind.ToolUse, atMs: 5, tool: { itemId: 'wooden_hoe', use: 'swing', at: { x: 'a', z: 0 } } }), null)
+  assert.equal(parseGesture({ kind: GestureKind.ToolUse, atMs: 5, tool: { itemId: 'wooden_hoe', use: 'swing', at: { x: Infinity, z: 0 } } }), null)
   assert.equal(parseGesture({ kind: GestureKind.Jump, atMs: Number.NaN }), null)
   assert.equal(parseGesture(null), null)
 })

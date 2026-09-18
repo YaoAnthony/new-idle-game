@@ -16,6 +16,7 @@ import {
   findPosture,
   type PosePartName,
 } from "../Visual/poses.js";
+import { HAND_HOLD_PITCH } from "../Tools/HeldTool";
 import {
   box,
   group,
@@ -52,6 +53,12 @@ export type CharacterRig = {
    * 跟着待机呼吸和步伐颠动一起动，看着是"端着"而不是"贴在身上"。
    */
   heldAnchor: Object3D;
+  /**
+   * 右手掌心的挂点（种植系统 期 6）：锄头、水壶这类单手工具挂这里，
+   * 胳膊怎么抡它怎么走。挂在手臂上而不是 body 上，和 heldAnchor 正相反——
+   * 端着的东西不该跟着胳膊甩，拿在手里的东西必须跟着。
+   */
+  handAnchor: Object3D;
   parts: {
     body: Object3D;
     head: Object3D;
@@ -144,6 +151,12 @@ export function buildCharacter(
   armRight.position.set(0.28, BODY_HEIGHT - 0.06, 0);
   body.add(armRight);
 
+  // 手球在臂节点下 0.34（见 buildArm），工具就握在那一点
+  const handAnchor = new Object3D();
+  handAnchor.name = "slot-hand";
+  handAnchor.position.set(0, -0.34, 0);
+  armRight.add(handAnchor);
+
   const head = new Object3D();
   head.name = "slot-head";
   head.position.y = BODY_HEIGHT;
@@ -183,9 +196,16 @@ export function buildCharacter(
     heading,
     posture,
     heldAnchor,
+    handAnchor,
     parts: { body, head, hair, armLeft, armRight, legLeft, legRight },
   };
 }
+
+/**
+ * 手上东西的拿法，决定走路时胳膊怎么摆：
+ * `front` 双手端在身前（锅、伞）；`hand` 右手单手拿着（工具），左臂照常摆；`none` 空手。
+ */
+export type CarryMode = "none" | "front" | "hand";
 
 function buildArm(
   topColor: string,
@@ -266,19 +286,22 @@ function relaxPoseResidue(rig: CharacterRig): void {
  * 程序化动画：持续动作用代码直接驱动零件。
  * walkCycle 0→1 表示步态相位；speed 0 时回到待机呼吸。
  *
- * `carrying` 为真时手臂不摆，改成端在身前——手上明明捧着一口锅，
- * 胳膊却照常前后甩会很滑稽。腿照走，身体照颠。
+ * `carry` 是 `front` 时手臂不摆，改成端在身前——手上明明捧着一口锅，
+ * 胳膊却照常前后甩会很滑稽。`hand` 时只有右臂不摆（微微前抬着工具），
+ * 左臂照常。腿照走，身体照颠。
  */
 export function animateCharacter(
   rig: CharacterRig,
   walkPhase: number,
   moving: boolean,
   timeSeconds: number,
-  carrying = false,
+  carry: CarryMode = "none",
   jumping = false,
 ): void {
   // 先把上一个姿势的残留角度收一收：跳、走、站定都要还原（见 relaxPoseResidue）
   relaxPoseResidue(rig);
+  const carrying = carry === "front";
+  const inHand = carry === "hand";
 
   if (jumping) {
     /*
@@ -291,7 +314,7 @@ export function animateCharacter(
     rig.parts.legRight.rotation.x = JUMP_LEG_TUCK;
     const armPitch = carrying ? CARRY_ARM_PITCH : JUMP_ARM_RAISE;
     rig.parts.armLeft.rotation.x = armPitch;
-    rig.parts.armRight.rotation.x = armPitch;
+    rig.parts.armRight.rotation.x = inHand ? HAND_HOLD_PITCH : armPitch;
     rig.parts.body.position.y = 0;
     return;
   }
@@ -309,7 +332,10 @@ export function animateCharacter(
       rig.parts.armRight.rotation.x = CARRY_ARM_PITCH - bob;
     } else {
       rig.parts.armLeft.rotation.x = -swing * 0.7;
-      rig.parts.armRight.rotation.x = swing * 0.7;
+      // 拿着工具的那只手不摆，只随步伐微微起伏
+      rig.parts.armRight.rotation.x = inHand
+        ? HAND_HOLD_PITCH + Math.sin(walkPhase * Math.PI * 2) * 0.05
+        : swing * 0.7;
     }
 
     // 身体随步伐上下颠一点，低多边形的"活"主要靠这个。
@@ -329,7 +355,12 @@ export function animateCharacter(
         (CARRY_ARM_PITCH - rig.parts.armRight.rotation.x) * SETTLE;
     } else {
       rig.parts.armLeft.rotation.x *= keep;
-      rig.parts.armRight.rotation.x *= keep;
+      if (inHand) {
+        rig.parts.armRight.rotation.x +=
+          (HAND_HOLD_PITCH - rig.parts.armRight.rotation.x) * SETTLE;
+      } else {
+        rig.parts.armRight.rotation.x *= keep;
+      }
     }
 
     // 待机呼吸

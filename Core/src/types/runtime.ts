@@ -148,12 +148,19 @@ export type ParticipantAppearance = {
 export enum GestureKind {
   Jump = "jump",
   Wave = "wave",
+  /** 用了一下手上的工具：挥锄、倾壶、井边装水（种植系统 期 6，协议 v16） */
+  ToolUse = "tool_use",
 }
 
 export type ParticipantGesture = {
   kind: GestureKind;
   /** 发生时刻（UTC 毫秒）。晚到的包据此判断还值不值得播 */
   atMs: number;
+  /**
+   * 只有 `tool_use` 带：哪件工具、哪个动作名（工具类自己定的 swing / pour / fill）、
+   * 对着世界里哪一点（土块往哪飞、水往哪落）。远端只播动作；状态走 op，不在这里
+   */
+  tool?: { itemId: ItemId; use: string; at?: { x: number; z: number } };
 };
 
 export type ParticipantState = {

@@ -191,8 +191,9 @@ export function emitParticipantGesture(
   playerId: PlayerId,
   kind: GestureKind,
   atMs: number = Date.now(),
+  tool?: ParticipantGesture["tool"],
 ): void {
-  const gesture: ParticipantGesture = { kind, atMs };
+  const gesture: ParticipantGesture = tool ? { kind, atMs, tool } : { kind, atMs };
   for (const listener of gestureListeners) listener(playerId, gesture);
 }
 

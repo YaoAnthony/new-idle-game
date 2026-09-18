@@ -48,8 +48,9 @@ import type { WorldRefreshSlices } from "./saveSlices.js";
  * v6（2026-08-23）：加灯的开关（lamp_switched）+ lamps 刷新切片。
  * v14（2026-09-15）：transform 和活物关键帧加 `headYaw`（注视，居民系统 21）。
  * v15（2026-09-18）：加建筑状态 op（building_state_set）：田里的格、罐里的钱、小店抽屉即时同步（种植系统 期 5）。
+ * v16（2026-09-18）：手势加 tool_use（带 itemId / use / at）：别人挥锄、倾壶看得见（种植系统 期 6）。
  */
-export const NET_PROTOCOL_VERSION = 15;
+export const NET_PROTOCOL_VERSION = 16;
 
 /** 服务端强制的上限。放在共享类型里，客户端可以在发送前先自查 */
 export const NET_LIMITS = {

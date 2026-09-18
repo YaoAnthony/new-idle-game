@@ -1,5 +1,6 @@
 import {
   farmCellCount,
+  farmCellWorld,
   parseFarmBed,
   type BuildingPlacement,
   type FarmBed,
@@ -76,4 +77,17 @@ export function farmBedsHere(): FarmBedRef[] {
     if (ref) out.push(ref);
   }
   return out;
+}
+
+/**
+ * 一格土面的世界坐标（格心 + 土台顶）。锄头落下时土块从这里飞、水滴落到这里停
+ * （种植系统 期 6）。土面高度是建筑定义的 `farm.soilTop` 加落地标高，和作物、
+ * 光标同一个算法——各处各算一遍迟早有一处算歪。
+ */
+export function farmCellSurface(target: { instanceId: string; cell: number }): { x: number; y: number; z: number } | null {
+  const ref = readFarmBed(target.instanceId);
+  if (!ref) return null;
+  const soilTop = findBuilding(ref.placement.buildingId)?.farm?.soilTop ?? 0;
+  const at = farmCellWorld(ref.placement, ref.footprint, target.cell);
+  return { x: at.x, y: ref.placement.elevation + soilTop, z: at.z };
 }

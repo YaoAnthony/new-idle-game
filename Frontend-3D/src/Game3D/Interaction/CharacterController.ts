@@ -34,6 +34,7 @@ import { doorGateBlocks } from "../../Game/State/world/walkable";
 import { DEFAULT_POSTURE, isSupportedPosture } from "../Visual/poses.js";
 import type { CharacterRig } from "../World/CharacterView";
 import { animateCharacter, applyPose } from "../World/CharacterView";
+import { carryModeOf } from "../World/HeldItemView";
 
 /**
  * WASD 移动。方向相对相机档位（按屏幕方向走，动森一样），
@@ -463,14 +464,14 @@ export class CharacterController {
     );
 
     // 站着才跑走路 / 待机呼吸；坐着躺着完全交给姿势
-    const carrying = getHeld() !== null;
+    const carry = carryModeOf(getHeld()?.itemId);
     if (!seated) {
       animateCharacter(
         this.rig,
         this.walkPhase,
         moving,
         this.elapsed,
-        carrying,
+        carry,
         this.airborne,
       );
     }

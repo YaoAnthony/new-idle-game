@@ -10,6 +10,9 @@ import {
   buildItemVisual,
   buildPortionVisual,
 } from "../Visual/VisualRegistry.js";
+import type { ToolGrip } from "../Tools/HeldTool";
+import { toolForItem } from "../Tools/index";
+import type { CarryMode, CharacterRig } from "./CharacterView";
 
 /**
  * 手上端着的东西的 3D 表现。
@@ -117,11 +120,50 @@ function buildHeldContents(
   });
 }
 
+/**
+ * 手上东西的拿法（种植系统 期 6）。只看物品定义的 `carry`，不点名 id：
+ * `"hand"` 单手拿（工具）；其余（含举过头顶的伞）都算双手端在身前——
+ * 那决定的是**走路时胳膊怎么摆**，伞和锅一样是两只手都占着。
+ */
+export function carryModeOf(itemId: string | null | undefined): CarryMode {
+  if (!itemId) return "none";
+  return findItemDefinition(itemId)?.carry === "hand" ? "hand" : "front";
+}
+
+/** 单手拿、但没有工具类的东西怎么握：柄从手心往下垂 */
+const DEFAULT_HAND_GRIP: ToolGrip = { position: [0, 0, 0], rotation: [Math.PI, 0, 0], scale: 1 };
+
+/**
+ * 把手上的东西挂到骨架上——**唯一入口**，本地 HeldItemView、联机 RemotePlayersView、
+ * 自动生活的 setAutoProp 三处共用。按 `carry` 选挂点：单手拿的挂右手掌心
+ * （`handAnchor`）、按工具类给的握法摆好并把握法记在 `userData.grip` 上
+ * （播放器倾壶 / 抡锄时在这个角度之上再转）；其余挂胸前 `heldAnchor`。
+ */
+export function mountHeldVisual(
+  rig: CharacterRig,
+  itemId: string,
+  containerItems?: ReadonlyArray<{ itemId: string; quantity: number }>,
+): Object3D | null {
+  const root = buildHeldVisual(itemId, containerItems);
+  if (!root) return null;
+  if (carryModeOf(itemId) === "hand") {
+    const grip = toolForItem(itemId)?.grip ?? DEFAULT_HAND_GRIP;
+    root.position.set(grip.position[0], grip.position[1], grip.position[2]);
+    root.rotation.set(grip.rotation[0], grip.rotation[1], grip.rotation[2]);
+    root.scale.multiplyScalar(grip.scale);
+    root.userData.grip = grip;
+    rig.handAnchor.add(root);
+  } else {
+    rig.heldAnchor.add(root);
+  }
+  return root;
+}
+
 export class HeldItemView {
   private current: Object3D | null = null;
   private readonly unsubscribe: () => void;
 
-  constructor(private readonly anchor: Object3D) {
+  constructor(private readonly rig: CharacterRig) {
     this.unsubscribe = on("held_changed", () => this.sync());
     this.sync();
   }
@@ -137,11 +179,7 @@ export class HeldItemView {
 
     // 走物品统一入口：拿的是家具、厨具还是一颗番茄，这里都不用知道。
     // 锅里装着的东西也一起画，否则"端着一锅菜"看起来是端着一口空锅
-    const root = buildHeldVisual(held.itemId, held.container?.items);
-    if (!root) return;
-
-    this.anchor.add(root);
-    this.current = root;
+    this.current = mountHeldVisual(this.rig, held.itemId, held.container?.items);
   }
 
 

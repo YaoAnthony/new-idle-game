@@ -1,4 +1,4 @@
-import { Locomotion } from "core";
+import { GestureKind, Locomotion, type ParticipantGesture } from "core";
 import { CanvasTexture, Sprite, SpriteMaterial, type Scene } from "three";
 import { on } from "../../Game/EventBus";
 import {
@@ -6,7 +6,10 @@ import {
   sampleRemoteTransform,
   type RemotePlayer,
 } from "../../Game/Multiplayer/roster";
+import { farmCellSurface } from "../../Game/State/farmBeds";
 import { groundHeightAt } from "../../Game/State/worldRuntime";
+import { farmTargetAt } from "../../Game/Systems/farming";
+import { ToolPlayer, toolForItem, type ToolEffects } from "../Tools/index";
 import { disposeTree } from "../Visual/primitives";
 import {
   HEAD_TOP_HEIGHT,
@@ -15,7 +18,7 @@ import {
   buildCharacter,
   type CharacterRig,
 } from "./CharacterView";
-import { buildHeldVisual } from "./HeldItemView";
+import { carryModeOf, mountHeldVisual } from "./HeldItemView";
 
 /**
  * 房间里**其他玩家**的形象。
@@ -37,6 +40,8 @@ import { buildHeldVisual } from "./HeldItemView";
 /** 步频推进速率。和 CharacterController 的 2.6 一致，跑步再乘它的倍率 */
 const WALK_PHASE_RATE = 2.6;
 const RUN_PHASE_MULTIPLIER = 1.75;
+/** 手势晚到超过这么久就不播了：人早走开了，对着空地抡一锄头很怪 */
+const STALE_GESTURE_MS = 3000;
 
 type RemoteView = {
   rig: CharacterRig;
@@ -46,13 +51,20 @@ type RemoteView = {
   /** 手上那份造型的身份键。变了才重建模型，不每帧对比整个对象 */
   heldKey: string;
   heldVisual: import("three").Object3D | null;
+  /** 工具动作（期 6）：名册上的 tool_use 手势在这具骨架上播 */
+  toolPlayer: ToolPlayer;
+  /** 上一条播过的手势的时刻。名册只存"最后一条"，靠它判断是不是新的 */
+  playedGestureAt: number;
 };
 
 export class RemotePlayersView {
   private readonly views = new Map<string, RemoteView>();
   private readonly offs: Array<() => void>;
 
-  constructor(private readonly scene: Scene) {
+  constructor(
+    private readonly scene: Scene,
+    private readonly effects: ToolEffects,
+  ) {
     // 挂载时名册里可能已经有人（先入房、后建场景——做客就是这个顺序），
     // 所以第一帧的 update 会把已有的人补建出来，这里不用扫一遍
     this.offs = [
@@ -60,6 +72,27 @@ export class RemotePlayersView {
       // joined 不用单独听：update 每帧对账名册，下一帧自然长出来。
       // 留这条注释是免得后人觉得"漏订阅了"
     ];
+  }
+
+  /**
+   * 别人挥锄 / 倾壶：按 itemId 找回同一个工具类、按名字播同一个动作。
+   * 手势和位置、样子一样从名册读（`lastGesture`），不另开订阅——
+   * 参与者层的 `onParticipantGesture` 是**出站**的（本地发生 → 发出去），
+   * 入站的手势只落在名册上。**只播动作**——那一格翻没翻走 op（期 5），
+   * 重复到达的手势也只是多抡一下。
+   */
+  private playGesture(view: RemoteView, gesture: ParticipantGesture): void {
+    if (gesture.kind !== GestureKind.ToolUse || !gesture.tool) return;
+    if (Date.now() - gesture.atMs > STALE_GESTURE_MS) return;
+    const spec = toolForItem(gesture.tool.itemId)?.use(gesture.tool.use);
+    if (!spec) return;
+    const at = gesture.tool.at;
+    // 对着田就落到土面上，否则落到地面
+    const cell = at ? farmTargetAt(at.x, at.z) : null;
+    const target = at
+      ? (cell && farmCellSurface(cell)) ?? { x: at.x, y: groundHeightAt(at.x, at.z), z: at.z }
+      : null;
+    view.toolPlayer.play(spec, { target });
   }
 
   update(deltaSeconds: number): void {
@@ -101,7 +134,7 @@ export class RemotePlayersView {
       }
 
       const appearance = remote.appearance;
-      const carrying = appearance.heldItem != null;
+      const carry = carryModeOf(appearance.heldItem?.itemId);
       /*
        * 在半空 = **高过他脚下那块地**，不是 liftHeight > 0。
        *
@@ -117,11 +150,18 @@ export class RemotePlayersView {
 
       // 站姿才播走路/待机动画；坐躺完全交给姿势（和本地玩家同一套规则）
       if (appearance.posture === "stand") {
-        animateCharacter(view.rig, view.walkPhase, moving, view.elapsed, carrying, airborne);
+        animateCharacter(view.rig, view.walkPhase, moving, view.elapsed, carry, airborne);
       }
       applyPose(view.rig, appearance.posture, moving ? null : appearance.activity ?? null);
       // 注视（21）：头的偏转照 transform 里的，盖在姿势之上（和本地玩家同一条规则）
       view.rig.parts.head.rotation.y = sampled.headYaw ?? 0;
+      // 名册上来了一条新手势（时刻变了）就播；工具动作最后写，盖过步态和姿势给右臂的角度
+      const gesture = remote.lastGesture;
+      if (gesture && gesture.atMs !== view.playedGestureAt) {
+        view.playedGestureAt = gesture.atMs;
+        this.playGesture(view, gesture);
+      }
+      view.toolPlayer.update(deltaSeconds);
     }
   }
 
@@ -141,6 +181,8 @@ export class RemotePlayersView {
       elapsed: Math.random() * 10, // 待机呼吸错开相位，两个人别同频起伏
       heldKey: "",
       heldVisual: null,
+      toolPlayer: new ToolPlayer(rig, this.effects),
+      playedGestureAt: 0,
     });
   }
 
@@ -168,16 +210,15 @@ export class RemotePlayersView {
     }
     if (!held) return;
 
-    const visual = buildHeldVisual(held.itemId, held.container?.items);
-    if (!visual) return;
-    view.rig.heldAnchor.add(visual);
-    view.heldVisual = visual;
+    // 挂法（胸前 / 右手）和本地同一个入口
+    view.heldVisual = mountHeldVisual(view.rig, held.itemId, held.container?.items);
   }
 
   private remove(playerId: string): void {
     const view = this.views.get(playerId);
     if (!view) return;
     this.views.delete(playerId);
+    view.toolPlayer.cancel();
 
     this.scene.remove(view.rig.root);
     view.label.material.map?.dispose();

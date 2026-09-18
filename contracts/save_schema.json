@@ -1,7 +1,7 @@
 {
   "$comment": "由 Frontend-3D/tests/saveContract.test.ts 从注册表生成（Core/src/types/saveSlices.ts + Frontend-3D/src/Data/Save/registry），别手改。改了注册表之后跑 `npm run save-contract` 重生成",
   "saveSchemaVersion": 54,
-  "netProtocolVersion": 15,
+  "netProtocolVersion": 16,
   "legend": {
     "sync": "refresh = 房主变了就推给全房、服务端也合并；join = 只在入房快照里给；none = 不参与联机（必带 reason）",
     "changedBy": "哪些事件意味着这一片脏了 → 自动存档",

@@ -126,14 +126,38 @@ export function parseAppearance(value: unknown): ParticipantAppearance | null {
   return { posture: raw.posture, activity, heldItem, restingOn }
 }
 
+const GESTURE_KINDS = new Set<string>(Object.values(GestureKind))
+const MAX_GESTURE_ITEM_ID = 64
+const MAX_GESTURE_USE = 32
+
 export function parseGesture(value: unknown): ParticipantGesture | null {
   if (typeof value !== 'object' || value === null) return null
   const raw = value as Record<string, unknown>
 
-  if (raw.kind !== GestureKind.Jump && raw.kind !== GestureKind.Wave) return null
+  if (typeof raw.kind !== 'string' || !GESTURE_KINDS.has(raw.kind)) return null
   if (!isFiniteNumber(raw.atMs)) return null
+  const kind = raw.kind as GestureKind
 
-  return { kind: raw.kind, atMs: raw.atMs }
+  // 工具动作（协议 v16）必带 tool 块：哪件、哪个动作、（可选）对着哪。只查形状，
+  // "这件是不是工具、这个动作它有没有"是客户端工具类的事
+  if (kind === GestureKind.ToolUse) {
+    const tool = parseGestureTool(raw.tool)
+    if (!tool) return null
+    return { kind, atMs: raw.atMs, tool }
+  }
+  return { kind, atMs: raw.atMs }
+}
+
+function parseGestureTool(value: unknown): NonNullable<ParticipantGesture['tool']> | null {
+  if (typeof value !== 'object' || value === null) return null
+  const raw = value as Record<string, unknown>
+  if (typeof raw.itemId !== 'string' || raw.itemId.length === 0 || raw.itemId.length > MAX_GESTURE_ITEM_ID) return null
+  if (typeof raw.use !== 'string' || raw.use.length === 0 || raw.use.length > MAX_GESTURE_USE) return null
+  if (raw.at === undefined) return { itemId: raw.itemId, use: raw.use }
+  if (typeof raw.at !== 'object' || raw.at === null) return null
+  const at = raw.at as Record<string, unknown>
+  if (!isFiniteNumber(at.x) || !isFiniteNumber(at.z)) return null
+  return { itemId: raw.itemId, use: raw.use, at: { x: at.x, z: at.z } }
 }
 
 export function parseChatText(value: unknown): string | null {

@@ -1372,6 +1372,7 @@ export const itemDefinitions = [
     visual: { id: "watering_can_wide" },
     // 占位：capacity 由用户调
     tool: { toolType: "watering_can", power: 1, capacity: 12 },
+    carry: "hand",
   },
   {
     /*
@@ -1390,6 +1391,7 @@ export const itemDefinitions = [
     value: 20,
     visual: { id: "wooden_hoe" },
     tool: { toolType: "hoe", power: 0 },
+    carry: "hand",
   },
   {
     /*
@@ -1406,6 +1408,7 @@ export const itemDefinitions = [
     value: 25,
     visual: { id: "watering_can" },
     tool: { toolType: "watering_can", power: 0, capacity: 6 },
+    carry: "hand",
   },
   {
     /*

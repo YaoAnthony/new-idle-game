@@ -270,7 +270,7 @@ import {
   slotWorldPosition,
 } from "./FurnitureView.js";
 import { FACING_ROTATION, furnitureFloorDistance, interactProbe } from "./furnitureMath.js";
-import { HeldItemView, buildHeldVisual } from "./HeldItemView.js";
+import { HeldItemView, mountHeldVisual } from "./HeldItemView.js";
 import {
   DoorView,
   PlankDoor,
@@ -285,6 +285,7 @@ import { BuildingsView } from "./BuildingsView.js";
 import { FarmCropsView } from "./FarmCropsView.js";
 import {
   bestWateringCan,
+  farmActionAt,
   farmHintFor,
   farmTargetAt,
   fillWateringCan,
@@ -292,7 +293,20 @@ import {
   performWateringStop,
   planWateringTour,
 } from "../../Game/Systems/farming";
-import { readFarmBed } from "../../Game/State/farmBeds";
+import { farmCellSurface, readFarmBed } from "../../Game/State/farmBeds";
+import { LOCAL_PLAYER_ID, emitParticipantGesture } from "../../Game/State/participants";
+import { GestureKind } from "core";
+import { ParticleField } from "../Effects/ParticleField";
+import {
+  DIRT_COLOR,
+  ToolPlayer,
+  WATER_COLOR,
+  toolForHeld,
+  toolForItem,
+  type HeldTool,
+  type ToolEffects,
+  type ToolUseSpec,
+} from "../Tools/index";
 import { tf } from "../../i18n/format";
 import { TerritoryView } from "./TerritoryView.js";
 
@@ -388,6 +402,12 @@ export class RoomScene {
   // 新档则是捏脸界面（或默认值）写入的
   private readonly characterRig = buildCharacter(getAvatar());
   private readonly heldItemView: HeldItemView;
+  /** 土块和水滴的粒子池（种植系统 期 6），本地和远端的动作播放器共用 */
+  private readonly particles: ToolEffects;
+  /** 本地玩家的工具动作播放器：抡锄、倾壶、探井 */
+  private readonly toolPlayer: ToolPlayer;
+  /** 上一次看到的手持物 id：换了东西才收手，扣水 / 扣种子那种同一件的变化不打断动作 */
+  private toolHeldId: string | null = null;
   private readonly controller: CharacterController;
   private readonly placement: PlacementController;
 
@@ -642,7 +662,12 @@ export class RoomScene {
         });
       }
     }
-    this.remotePlayers = new RemotePlayersView(this.scene);
+    this.particles = {
+      dirt: new ParticleField(this.scene, DIRT_COLOR),
+      water: new ParticleField(this.scene, WATER_COLOR),
+    };
+    this.toolPlayer = new ToolPlayer(this.characterRig, this.particles);
+    this.remotePlayers = new RemotePlayersView(this.scene, this.particles);
     // 现查不缓存：机器可能被收走或摆第二台
     this.dailyBoardAnimator = new DailyBoardAnimator(() =>
       this.furnitureView.findByFurnitureId("furniture_daily_board"),
@@ -671,7 +696,8 @@ export class RoomScene {
     this.controller = new CharacterController(this.characterRig);
     // 手上端着的东西挂到角色骨架上——在这之前手持物只有右下角一张卡片，
     // 把锅从灶眼拿起来，世界里那口锅就凭空没了
-    this.heldItemView = new HeldItemView(this.characterRig.heldAnchor);
+    this.heldItemView = new HeldItemView(this.characterRig);
+    this.toolHeldId = getHeld()?.itemId ?? null;
 
     /**
      * 读档时坐姿要在这里补一次。
@@ -719,6 +745,13 @@ export class RoomScene {
      */
     this.offEventListeners.push(
       on("held_changed", () => this.syncHeldPreview()),
+      on("held_changed", () => {
+        const itemId = getHeld()?.itemId ?? null;
+        if (itemId === this.toolHeldId) return;
+        this.toolHeldId = itemId;
+        // 抡到一半换了手上的东西：收手，不落下（落下那一拍才改状态，所以什么都没发生）
+        this.toolPlayer.cancel();
+      }),
     );
 
     // 扔出去的东西落地那一刻，问一句附近的槽位收不收
@@ -1720,11 +1753,29 @@ export class RoomScene {
         const stop = stops[index];
         // 井：站到它跟前那一格（同灶台、床）；格：站到格心（田是踩着走的）
         const spot = stop.kind === "fill" ? this.approachPoint(stop.instanceId) : stop.at;
-        const pour = () =>
-          this.tourWait(autoLifeTuning.waterPourSeconds, () => {
+        // 到站先演动作（倾壶 / 探井，期 6），落下那一拍才真浇 / 真装；动作比站的时长短，
+        // 剩下的时间站着。动作播不了（没这件工具的类、正忙）就直接浇
+        const pour = () => {
+          const tool = toolForItem(can.itemId);
+          const spec = tool?.useSpecFor(
+            stop.kind === "fill"
+              ? { kind: "station", capability: "water_source" }
+              : { kind: "farm", action: "water" },
+          ) ?? null;
+          const target = stop.kind === "pour" ? farmCellSurface(stop.target) : null;
+          let done = false;
+          const apply = () => {
+            if (done) return;
+            done = true;
             performWateringStop(stop);
+          };
+          if (!tool || !spec || !this.playTool(tool, spec, target, apply)) apply();
+          this.tourWait(autoLifeTuning.waterPourSeconds, () => {
+            apply();
             visit(index + 1);
           });
+        };
+
         if (!spot || !this.tourWalk(spot, pour)) visit(index + 1);
       };
       visit(0);
@@ -1855,7 +1906,7 @@ export class RoomScene {
   /**
    * 把一件东西挂到手上 / 收起来（出门的伞、浇水的壶）。
    *
-   * 造型和挂法跟"快捷栏选中它、拿在手上"是**同一个**：buildHeldVisual 按物品的
+   * 造型和挂法跟"快捷栏选中它、拿在手上"是**同一个**：mountHeldVisual 按物品的
    * `carry` 举过头顶或捧在手里，挂在 heldAnchor 上——剧本挂的和手上拿的长一个样、
    * 在一个位置。手上已经拿着这一件就不再挂：再挂就是两件叠在一起。
    *
@@ -1867,10 +1918,10 @@ export class RoomScene {
     this.autoProp = null;
     if (!itemId) return;
     if (getHeld()?.itemId === itemId) return;
-    const prop = buildHeldVisual(itemId);
+    // 挂法和玩家手持同一个入口：壶挂右手，抡壶的动作找得到它
+    const prop = mountHeldVisual(this.characterRig, itemId);
     if (!prop) return;
     prop.name = `auto-life-${itemId}`;
-    this.characterRig.heldAnchor.add(prop);
     this.autoProp = prop;
   }
 
@@ -2722,9 +2773,45 @@ export class RoomScene {
    * 优先级：坐着躺着时含义变了（起身 / 睡觉）→ **正在选址就是定点** →
    * 附近有目标就操作目标 → 都没有就用手上那件东西。
    */
-  /** 田上按 F：做什么由格和手上的东西决定（Systems/farming），这里只管演出反馈 */
+  /**
+   * 田上按 F：做什么由格和手上的东西决定（Systems/farming）。手上是工具、
+   * 而且它对这个动作有一套演法（期 6）→ 先演，**落下那一拍才改状态**；
+   * 没有（种子、空手收获）→ 立刻改。动作进行中再按不响应。
+   */
   private interactWithFarm(target: { instanceId: string; cell: number }): void {
+    const tool = toolForHeld();
+    const action = tool ? farmActionAt(target) : null;
+    const spec = tool && action ? tool.useSpecFor({ kind: "farm", action: action.kind }) : null;
+    if (tool && spec) {
+      this.playTool(tool, spec, farmCellSurface(target), () => this.applyFarmInteraction(target));
+      return;
+    }
+    this.applyFarmInteraction(target);
+  }
+
+  /**
+   * 播一个工具动作（本地）。进行中再来一个就拒掉（返回 false）。
+   * 同时发一条 tool_use 手势：房里别人按同一个 itemId + 动作名播同一份动作。
+   */
+  private playTool(
+    tool: HeldTool,
+    spec: ToolUseSpec,
+    target: { x: number; y: number; z: number } | null,
+    onImpact: () => void,
+  ): boolean {
+    if (!this.toolPlayer.play(spec, { target, onImpact })) return false;
+    emitParticipantGesture(LOCAL_PLAYER_ID, GestureKind.ToolUse, Date.now(), {
+      itemId: tool.definition.id,
+      use: spec.name,
+      ...(target ? { at: { x: target.x, z: target.z } } : {}),
+    });
+    return true;
+  }
+
+  /** 真正改状态（Systems），这里只管演出反馈 */
+  private applyFarmInteraction(target: { instanceId: string; cell: number }): void {
     const result = interactWithFarmCell(target);
+
     if (result.ok === false) {
       if (result.why === "bag_full") {
         emit("story_toast", { localizationKey: "farm.toast.bag_full", durationMs: 2200 });
@@ -2947,12 +3034,19 @@ export class RoomScene {
           const slot = this.nearestKitchenSlot();
           if (slot) interactWithKitchenSlot(slot);
         } else if (this.interactTarget.capability === "water_source") {
-          // 井：手持水壶装满；空手什么都不做（气泡已经只说"井"了）
-          const filled = fillWateringCan();
-          if (filled.ok) {
-            emit("story_toast", { localizationKey: "farm.toast.filled", durationMs: 1800 });
-            this.refreshInteractTarget();
-          }
+          // 井：手持水壶装满；空手什么都不做（气泡已经只说"井"了）。
+          // 壶有"探下去"的动作就先演，探到底那一拍才装；动作进行中再按不响应
+          const tool = toolForHeld();
+          const spec = tool?.useSpecFor({ kind: "station", capability: "water_source" }) ?? null;
+          const fill = () => {
+            const filled = fillWateringCan();
+            if (filled.ok) {
+              emit("story_toast", { localizationKey: "farm.toast.filled", durationMs: 1800 });
+              this.refreshInteractTarget();
+            }
+          };
+          if (tool && spec) this.playTool(tool, spec, null, fill);
+          else fill();
         } else {
           request("station_open_requested", {
             instanceId: this.interactTarget.instanceId,
@@ -3549,6 +3643,10 @@ export class RoomScene {
     }
 
     this.controller.update(deltaSeconds, this.rig.azimuthDegrees);
+    // 工具动作写在控制器之后（它每帧写右臂的角度，播放器要赢）；粒子跟着推
+    this.toolPlayer.update(deltaSeconds);
+    this.particles.dirt.update(deltaSeconds);
+    this.particles.water.update(deltaSeconds);
 
     // 音景要知道玩家站在哪儿（家具音的距离衰减、分区档案、脚步声）。
     // 往里推而不是让音景去问控制器——控制器是 Interaction 层的，反向依赖会绕一圈
@@ -4261,6 +4359,9 @@ export class RoomScene {
     this.fogField.dispose();
     this.cookwareView.dispose();
     this.heldItemView.dispose();
+    this.toolPlayer.cancel();
+    this.particles.dirt.dispose();
+    this.particles.water.dispose();
     this.droppedItemView.dispose();
     this.residentView.dispose();
     if (this.mailboxView) {

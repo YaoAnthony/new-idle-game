@@ -81,8 +81,9 @@ export function placementRoomOf(target: PlacementTarget): RoomSave {
 export type LocalPlacementCheck =
   | PlacementCheck
   | { ok: false; reason: "outside_territory" }
-  /** 这件东西只能摆在院子里（`PlacementBlock.outdoorOnly`），屋里不收 */
-  | { ok: false; reason: "outdoor_only" };
+  /** 这件东西的 `zones` 不含屋里 / 院子（`PlacementBlock.zones`） */
+  | { ok: false; reason: "outdoor_only" }
+  | { ok: false; reason: "indoor_only" };
 
 /** 放置预览与提交共用同一份校验（Core 的 checkPlacement + 活物避让 + 领地） */
 export function checkPlacementTarget(
@@ -140,12 +141,12 @@ export function checkPlacementTarget(
   );
   if (!check.ok) return check;
 
-  // 院子里的大件（寄售台）不进屋：和领地一样是"这间是不是院子"的事，只有这里知道
-  if (
-    definition?.placement.outdoorOnly &&
-    room.roomId !== worldState.map.outdoorRoomId
-  ) {
-    return { ok: false, reason: "outdoor_only" };
+  // 地带：这一间是院子还是屋里，只有这里知道；这件东西的 zones 不含它就不收
+  if (definition) {
+    const zone = room.roomId === worldState.map.outdoorRoomId ? "outdoor" : "indoor";
+    if (!definition.placement.zones.includes(zone)) {
+      return { ok: false, reason: zone === "outdoor" ? "indoor_only" : "outdoor_only" };
+    }
   }
 
   /*

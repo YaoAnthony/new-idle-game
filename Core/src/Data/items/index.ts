@@ -204,6 +204,7 @@ export const itemDefinitions = [
     audio: { active: "furniture_cooking" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor", "outdoor"],
       footprint: { width: 6, height: 4 },
       footprintMask: [
       [0, 0], [1, 0], [2, 0], [3, 0], [4, 0], [5, 0],
@@ -278,6 +279,7 @@ export const itemDefinitions = [
     visual: { id: "ordinary_workbench" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor", "outdoor"],
       footprint: { width: 2, height: 1 },
       capabilities: [FurnitureCapability.Crafting],
       floorLayer: FloorLayer.Object,
@@ -303,6 +305,7 @@ export const itemDefinitions = [
     visual: { id: "wooden_table" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor", "outdoor"],
       footprint: { width: 2, height: 1 },
       capabilities: [FurnitureCapability.Study],
       floorLayer: FloorLayer.Object,
@@ -332,6 +335,7 @@ export const itemDefinitions = [
     visual: { id: "journal" },
     placement: {
       surface: PlacementSurface.Surface,
+      zones: ["indoor", "outdoor"],
       footprint: { width: 1, height: 1 },
       capabilities: [FurnitureCapability.Journal],
       blocksMovement: false,
@@ -362,6 +366,7 @@ export const itemDefinitions = [
     visual: { id: "news_printer" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor"],
       footprint: { width: 1, height: 1 },
       capabilities: [],
       floorLayer: FloorLayer.Object,
@@ -389,6 +394,7 @@ export const itemDefinitions = [
     visual: { id: "nightstand" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor"],
       footprint: { width: 1, height: 1 },
       capabilities: [],
       floorLayer: FloorLayer.Object,
@@ -410,6 +416,7 @@ export const itemDefinitions = [
     visual: { id: "wooden_chair" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor", "outdoor"],
       footprint: { width: 1, height: 1 },
       capabilities: [FurnitureCapability.Sitting],
       floorLayer: FloorLayer.Object,
@@ -442,6 +449,7 @@ export const itemDefinitions = [
     visual: { id: "round_rug" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor"],
       footprint: { width: 3, height: 2 },
       capabilities: [],
       floorLayer: FloorLayer.Covering,
@@ -459,6 +467,7 @@ export const itemDefinitions = [
     visual: { id: "bedroll" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor"],
       footprint: { width: 1, height: 2 },
       capabilities: [FurnitureCapability.Sleep, FurnitureCapability.Rest],
       floorLayer: FloorLayer.Object,
@@ -484,6 +493,7 @@ export const itemDefinitions = [
     visual: { id: "dumbbell" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor", "outdoor"],
       footprint: { width: 1, height: 1 },
       capabilities: [FurnitureCapability.Exercise],
       floorLayer: FloorLayer.Object,
@@ -503,6 +513,7 @@ export const itemDefinitions = [
     visual: { id: "bookshelf" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor"],
       footprint: { width: 2, height: 1 },
       capabilities: [FurnitureCapability.Storage],
       floorLayer: FloorLayer.Object,
@@ -531,6 +542,7 @@ export const itemDefinitions = [
     visual: { id: "daily_board" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor", "outdoor"],
       footprint: { width: 1, height: 1 },
       capabilities: [FurnitureCapability.DailyBoard],
       floorLayer: FloorLayer.Object,
@@ -557,6 +569,7 @@ export const itemDefinitions = [
     musicPlayer: { defaultRecordItemId: "record_animal_crossing" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor", "outdoor"],
       footprint: { width: 1, height: 1 },
       capabilities: [FurnitureCapability.MusicPlayer],
       floorLayer: FloorLayer.Object,
@@ -593,6 +606,7 @@ export const itemDefinitions = [
      */
     placement: {
       surface: PlacementSurface.Surface,
+      zones: ["indoor", "outdoor"],
       footprint: { width: 1, height: 1 },
       capabilities: [],
       blocksMovement: false,
@@ -615,6 +629,7 @@ export const itemDefinitions = [
      */
     placement: {
       surface: PlacementSurface.Surface,
+      zones: ["indoor", "outdoor"],
       footprint: { width: 1, height: 1 },
       capabilities: [],
       blocksMovement: false,
@@ -632,6 +647,7 @@ export const itemDefinitions = [
     visual: { id: "storage_chest" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor", "outdoor"],
       footprint: { width: 1, height: 1 },
       capabilities: [FurnitureCapability.Storage],
       floorLayer: FloorLayer.Object,
@@ -657,6 +673,7 @@ export const itemDefinitions = [
     visual: { id: "consign_box" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["outdoor"],
       /*
        * 4×2 的大件（用户 2026-09-02："起码是 2x4 size 的大物品"）：
        * 它是院子里的**寄售台**，不是屋里一只小箱子——一整排家具要装得进去，
@@ -668,7 +685,6 @@ export const itemDefinitions = [
       floorLayer: FloorLayer.Object,
       blocksMovement: true,
       // 只能摆在院子里：它是室外的东西（用户定），4×2 的台子也进不了门
-      outdoorOnly: true,
       // 不给 surfaceHeight：敞口的，上面搁不了花盆
       interactHint: {
         localizationKey: "hint.consign_box",
@@ -689,6 +705,7 @@ export const itemDefinitions = [
     visual: { id: "wooden_bed" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor"],
       footprint: { width: 2, height: 3 },
       capabilities: [FurnitureCapability.Sleep, FurnitureCapability.Rest],
       floorLayer: FloorLayer.Object,
@@ -716,6 +733,7 @@ export const itemDefinitions = [
     visual: { id: "round_stool" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor", "outdoor"],
       footprint: { width: 1, height: 1 },
       capabilities: [FurnitureCapability.Sitting],
       floorLayer: FloorLayer.Object,
@@ -748,6 +766,7 @@ export const itemDefinitions = [
     visual: { id: "floor_cushion" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor", "outdoor"],
       footprint: { width: 1, height: 1 },
       capabilities: [
       FurnitureCapability.Sitting,
@@ -784,6 +803,7 @@ export const itemDefinitions = [
     audio: { ambient: "furniture_fireplace" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor"],
       footprint: { width: 2, height: 1 },
       capabilities: [FurnitureCapability.Ambience],
       floorLayer: FloorLayer.Object,
@@ -806,6 +826,7 @@ export const itemDefinitions = [
     visual: { id: "floor_lamp" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor"],
       footprint: { width: 1, height: 1 },
       capabilities: [FurnitureCapability.Ambience, FurnitureCapability.Lighting],
       floorLayer: FloorLayer.Object,
@@ -856,6 +877,7 @@ export const itemDefinitions = [
     visual: { id: "moon_lamp" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor"],
       footprint: { width: 1, height: 1 },
       capabilities: [FurnitureCapability.Ambience, FurnitureCapability.Lighting],
       floorLayer: FloorLayer.Object,
@@ -879,6 +901,7 @@ export const itemDefinitions = [
     visual: { id: "mushroom_lamp" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor", "outdoor"],
       footprint: { width: 1, height: 1 },
       capabilities: [FurnitureCapability.Ambience, FurnitureCapability.Lighting],
       floorLayer: FloorLayer.Object,
@@ -902,6 +925,7 @@ export const itemDefinitions = [
     visual: { id: "cloud_lamp" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor"],
       footprint: { width: 1, height: 1 },
       capabilities: [FurnitureCapability.Ambience, FurnitureCapability.Lighting],
       floorLayer: FloorLayer.Object,
@@ -925,6 +949,7 @@ export const itemDefinitions = [
     visual: { id: "potted_plant" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor", "outdoor"],
       footprint: { width: 1, height: 1 },
       capabilities: [],
       floorLayer: FloorLayer.Object,
@@ -955,6 +980,7 @@ export const itemDefinitions = [
     visual: { id: "lucky_bamboo" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor", "outdoor"],
       footprint: { width: 1, height: 1 },
       capabilities: [],
       floorLayer: FloorLayer.Object,
@@ -983,6 +1009,7 @@ export const itemDefinitions = [
     audio: { active: "furniture_bath_water" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor"],
       footprint: { width: 4, height: 3 },
       capabilities: [FurnitureCapability.Bath, FurnitureCapability.Rest],
       floorLayer: FloorLayer.Object,
@@ -1017,6 +1044,7 @@ export const itemDefinitions = [
     visual: { id: "long_rug" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor"],
       footprint: { width: 4, height: 3 },
       capabilities: [],
       floorLayer: FloorLayer.Covering,
@@ -1034,6 +1062,7 @@ export const itemDefinitions = [
     visual: { id: "tatami_mat" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor"],
       footprint: { width: 3, height: 3 },
       capabilities: [],
       floorLayer: FloorLayer.Covering,
@@ -1051,6 +1080,7 @@ export const itemDefinitions = [
     visual: { id: "door_mat" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor", "outdoor"],
       footprint: { width: 2, height: 1 },
       capabilities: [],
       floorLayer: FloorLayer.Covering,
@@ -1068,6 +1098,7 @@ export const itemDefinitions = [
     visual: { id: "fabric_sofa" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor"],
       footprint: { width: 3, height: 1 },
       capabilities: [FurnitureCapability.Sitting],
       floorLayer: FloorLayer.Object,
@@ -1108,6 +1139,7 @@ export const itemDefinitions = [
     visual: { id: "garden_bench" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["outdoor"],
       footprint: { width: 2, height: 1 },
       capabilities: [FurnitureCapability.Sitting],
       floorLayer: FloorLayer.Object,
@@ -1138,6 +1170,7 @@ export const itemDefinitions = [
     visual: { id: "street_lamp" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["outdoor"],
       footprint: { width: 1, height: 1 },
       capabilities: [FurnitureCapability.Ambience, FurnitureCapability.Lighting],
       floorLayer: FloorLayer.Object,
@@ -1161,6 +1194,7 @@ export const itemDefinitions = [
     visual: { id: "wardrobe" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor"],
       footprint: { width: 2, height: 1 },
       capabilities: [FurnitureCapability.Storage],
       floorLayer: FloorLayer.Object,
@@ -1183,6 +1217,7 @@ export const itemDefinitions = [
     visual: { id: "study_desk" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor"],
       footprint: { width: 2, height: 1 },
       capabilities: [FurnitureCapability.Study],
       floorLayer: FloorLayer.Object,
@@ -1209,6 +1244,7 @@ export const itemDefinitions = [
     visual: { id: "coffee_table" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor"],
       footprint: { width: 2, height: 1 },
       capabilities: [],
       floorLayer: FloorLayer.Object,
@@ -1231,6 +1267,7 @@ export const itemDefinitions = [
     visual: { id: "easel" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor", "outdoor"],
       footprint: { width: 1, height: 1 },
       capabilities: [FurnitureCapability.Creation],
       floorLayer: FloorLayer.Object,
@@ -1254,6 +1291,7 @@ export const itemDefinitions = [
     visual: { id: "picture_frame" },
     placement: {
       surface: PlacementSurface.Wall,
+      zones: ["indoor"],
       footprint: { width: 1, height: 1 },
       capabilities: [],
       blocksMovement: false,
@@ -1271,6 +1309,7 @@ export const itemDefinitions = [
     audio: { ambient: "furniture_clock" },
     placement: {
       surface: PlacementSurface.Wall,
+      zones: ["indoor"],
       footprint: { width: 1, height: 1 },
       capabilities: [],
       blocksMovement: false,
@@ -1287,6 +1326,7 @@ export const itemDefinitions = [
     visual: { id: "curtain" },
     placement: {
       surface: PlacementSurface.Wall,
+      zones: ["indoor"],
       /*
        * 2 宽 × 3 高：屋里的 2×2 窗开在墙格 y1..2（离地 1 米到 3 米），
        * 窗帘要**罩住窗**就得从窗台（y1）一直到墙顶（y3）——杆子挂在窗
@@ -1659,6 +1699,7 @@ export const itemDefinitions = [
     audio: { active: "furniture_cooking" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor", "outdoor"],
       footprint: { width: 2, height: 1 },
       capabilities: [FurnitureCapability.Cooking],
       floorLayer: FloorLayer.Object,
@@ -1843,6 +1884,7 @@ export const itemDefinitions = [
     golemPart: "head",
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor", "outdoor"],
       footprint: { width: 1, height: 1 },
       capabilities: [],
       floorLayer: FloorLayer.Object,
@@ -1880,6 +1922,7 @@ export const itemDefinitions = [
     visual: { id: "well_stone" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["outdoor"],
       footprint: { width: 2, height: 2 },
       capabilities: [FurnitureCapability.WaterSource],
       floorLayer: FloorLayer.Object,
@@ -1899,6 +1942,7 @@ export const itemDefinitions = [
     visual: { id: "cardboard_box" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor", "outdoor"],
       footprint: { width: 1, height: 1 },
       capabilities: [FurnitureCapability.Unpack],
       floorLayer: FloorLayer.Object,
@@ -1917,6 +1961,7 @@ export const itemDefinitions = [
     visual: { id: "cardboard_stack" },
     placement: {
       surface: PlacementSurface.Floor,
+      zones: ["indoor", "outdoor"],
       footprint: { width: 1, height: 1 },
       capabilities: [FurnitureCapability.Unpack],
       floorLayer: FloorLayer.Object,

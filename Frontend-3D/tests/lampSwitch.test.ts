@@ -1,11 +1,5 @@
 import { beforeEach, expect, test, vi } from "vitest";
-import {
-  DEFAULT_MAP_ID,
-  Facing,
-  FurnitureCapability,
-  findPlaceableItem,
-  worldToRoomCell,
-} from "core";
+import { DEFAULT_MAP_ID, Facing, FurnitureCapability, findPlaceableItem, worldToRoomCell, findItemDefinition } from "core";
 
 import { on } from "../src/Game/EventBus";
 import {
@@ -46,16 +40,24 @@ function yardCell(dx = 0, dy = 0): { x: number; y: number } {
   return { x: cell.x + dx, y: cell.y + dy };
 }
 
-/** 摆一件家具，返回它的 instanceId */
+/**
+ * 摆一件家具，返回它的 instanceId。
+ * 地带标签（2026-09-18）之后屋里的灯进不了院子：按这件东西的 `zones` 挑地方——
+ * 能在院子的摆院子（老坐标），只能在屋里的摆主屋正中。
+ */
 function place(furnitureId: string, dx = 0, dy = 0): string {
   const before = new Set(
     getWorld().placedFurniture.map((item) => item.instanceId),
   );
+  const outdoor = findItemDefinition(furnitureId)?.placement?.zones.includes("outdoor") ?? true;
+  const house = getWorld().room;
   const result = placeFurniture(
     furnitureId,
-    yardCell(dx, dy),
+    outdoor
+      ? yardCell(dx, dy)
+      : { x: Math.floor(house.floorGrid.width / 2) + dx, y: Math.floor(house.floorGrid.height / 2) + dy },
     Facing.North,
-    YARD(),
+    outdoor ? YARD() : house.roomId,
   );
   expect(result.ok, JSON.stringify(result)).toBe(true);
   const placed = getWorld().placedFurniture.find(

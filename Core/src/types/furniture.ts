@@ -201,6 +201,9 @@ export type FurnitureAnchor = {
  * 按键写成 action 语义（interact/pickup…）而不是字面量 "F"——
  * 键位可重映射（V0.2 要求），表现层查当前绑定再显示。
  */
+/** 摆放的地带：屋里 / 院子 */
+export type PlacementZone = "indoor" | "outdoor";
+
 export type InteractHint = {
   /** 提示正文的 localizationKey，例如 "hint.workbench" */
   localizationKey: LocalizationKey;
@@ -279,12 +282,15 @@ export type PlacementBlock = {
   coversOpenings?: boolean;
 
   /**
-   * 只能摆在院子里（地图的室外房间）。寄售台这类"院子里的大件"才为 true——
-   * 它们在屋里没有意义，4×2 也进不了门。判定在前端 `checkPlacementTarget`：
-   * "哪间是室外"是地图层的事（`map.outdoorRoomId`），Core 的 `checkPlacement`
-   * 只管一间屋子内部的格子规则，不该知道这一间是不是院子。
+   * 能摆在哪种地方（2026-09-18，用户："所有的家具应该有分 outdoor 和 indoor 的 tag，
+   * 如果都有，就都能放"）。**必填**：漏了编译不过，不靠审计。
+   *
+   * `indoor` = 屋里（含缘侧，它是屋子的楼板）；`outdoor` = 院子（地图的室外房间）。
+   * 判定在前端 `checkPlacementTarget`："哪间是室外"是地图层的事（`map.outdoorRoomId`），
+   * Core 的 `checkPlacement` 只管一间屋子内部的格子规则，不该知道这一间是不是院子。
+   * 取代了原来的 `outdoorOnly`（寄售台）。
    */
-  outdoorOnly?: boolean;
+  zones: readonly PlacementZone[];
 
   /**
    * 台面网格（V0.13）：这件家具的顶面能摆东西，网格几行几列，

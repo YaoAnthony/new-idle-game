@@ -79,9 +79,31 @@ test("visitor_候选_在场的_有房的_图纸在手的不来_一天只来一�
 test("visitor_访客只跑访客技能_作息委托不问_按F是想住下来吗", () => {
   const slime = spawnVisitor("slime_neighbor")!;
   expect(slime.visiting).toBeDefined();
-  // 身体那层挡：routine / favor 不在访客技能里
-  expect(routineSkill.decide!({ agent: slime, player: PLAYER, current: null })).toBeNull();
-  expect(favorSkill.interact!({ agent: slime, player: PLAYER, current: null })).toBeNull();
+  /*
+   * 挡在**身体那层**：`visiting` 的人只问标了 `forVisitors` 的技能
+   * （residentAgent 的 consultSkills / interact / observeSkills / notify 四个口都挡）。
+   * 所以这里断言的是"这两个技能没被标成访客技能" + "真跑一段也不会跳到作息上"。
+   *
+   * 原来这里是直接调 `routineSkill.decide(...)` 断言 null——那等于绕过唯一做判断的
+   * 那一层去问技能本人，它返回什么都不说明问题；12 期给史莱姆补上作息表之后，
+   * 它开始正常地返回"回家睡觉"，用例就炸了，而产品行为一直是对的。
+   */
+  expect(routineSkill.forVisitors).toBeFalsy();
+  expect(favorSkill.forVisitors).toBeFalsy();
+  /*
+   * 真跑两百秒，把这期间**接手过的每一个技能**都记下来：必须全在 forVisitors 那一份名单里。
+   * 只看最后一帧会抽风——两条 Intent 之间有几秒空档，撞上就什么都读不到（8 次里翻 1 次）。
+   * "entering"（登场走进来那条）不是技能，是指令级 Intent，不算在内。
+   */
+  const visitorSkillIds = slime.skills.filter((skill) => skill.forVisitors).map((skill) => skill.id);
+  const took = new Set<string>();
+  for (let i = 0; i < 400; i += 1) {
+    slime.tick(0.5, PLAYER);
+    const skillId = slime.currentIntent?.skillId;
+    if (skillId && skillId !== "entering") took.add(skillId);
+  }
+  expect(took.size).toBeGreaterThan(0);
+  expect([...took].filter((id) => !visitorSkillIds.includes(id))).toEqual([]);
   expect(slime.interact(PLAYER)).toEqual({ kind: "dialogue", dialogueId: "slime_asks_to_stay" });
   expect(talkSkill.interact!({ agent: slime, player: PLAYER, current: null })).toEqual({ kind: "dialogue", dialogueId: "slime_asks_to_stay" });
 });

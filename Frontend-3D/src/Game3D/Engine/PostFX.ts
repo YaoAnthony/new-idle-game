@@ -188,7 +188,16 @@ export function createPostFX(
    * 在上一帧（开场坐起来后画面卡在糊图上就是这个）。addPass / removePass
    * 会自己把 renderToScreen 交给新的链尾。半分辨率跑两遍够糊了。
    */
-  const blur = new GaussianBlurPass({ kernelSize: 35, iterations: 2, resolutionScale: 0.5 });
+  /*
+   * postprocessing 6.39 的类型声明是手写的，GaussianBlurPass 那条只写了构造函数、
+   * 一个成员都没有——而强度要写在它的模糊材质上。开一个窄口子把这一个字段补出来，
+   * 比就地 as any 安全（写错别的字段照样报错）。
+   */
+  const blur = new GaussianBlurPass({
+    kernelSize: 35,
+    iterations: 2,
+    resolutionScale: 0.5,
+  }) as GaussianBlurPass & { blurMaterial: { scale: number } };
   let blurAttached = false;
 
   let enabled = initial.postFX && !forceBypass;
@@ -237,7 +246,13 @@ export function createPostFX(
     },
 
     setBlur(scale: number) {
-      blur.scale = scale;
+      /*
+       * 强度写在**材质**的 kernel scale 上。原来写的是 `blur.scale`——
+       * GaussianBlurPass 上没有这个属性（类型报错，运行时也只是挂了个没人读的字段），
+       * 所以开场那段"刚睁眼"其实一直是固定强度、到 0.01 那一下直接消失，没有渐清。
+       * 超过 1 会出采样瑕疵（官方注释写了），调用方给到 1.6，这里封顶。
+       */
+      blur.blurMaterial.scale = Math.min(Math.max(scale, 0), 1);
       const wanted = scale > 0.01;
       if (wanted && !blurAttached) composer.addPass(blur);
       if (!wanted && blurAttached) composer.removePass(blur);

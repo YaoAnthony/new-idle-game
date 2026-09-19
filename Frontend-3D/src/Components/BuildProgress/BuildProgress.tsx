@@ -53,7 +53,11 @@ export function describeRemaining(ms: number): string {
     if (minutes > 0) parts.push(`${minutes}${t("unit.minute")}`);
     parts.push(`${seconds}${t("unit.second")}`);
   }
-  return `${t("build.remaining")} ${parts.join(" ")}`;
+  /*
+   * **不写"还剩"**（2026-09-19 用户定的）：一个每秒在变小的数字，本身就是倒计时，
+   * 不需要一个词来说明它是倒计时。同理不写"剩余时间："这类前缀。
+   */
+  return parts.join(" ");
 }
 
 export function BuildProgress({ scene }: { scene: RoomScene | null }) {

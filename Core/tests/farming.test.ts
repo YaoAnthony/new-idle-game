@@ -204,7 +204,8 @@ test("farming_判定表_五种格乘五种手上物", () => {
   const ripe: FarmBed = { cells: [ripeCell(), ...newFarmBed(5).cells] };
   const rows: Array<[string, FarmBed, Record<string, string>]> = [
     ["实土", packed, { hand: "none:packed_no_hoe", hoe: "till", seed: "none:packed_no_hoe", canFull: "none:packed_no_hoe", canEmpty: "none:packed_no_hoe" }],
-    ["耕地空", empty, { hand: "none:empty_no_seed", hoe: "flatten", seed: "sow", canFull: "none:empty_no_seed", canEmpty: "none:empty_no_seed" }],
+    // 锄头对着空耕地**什么也不干**（2026-09-19）：翻好的地不该连按两下 F 就翻回去
+    ["耕地空", empty, { hand: "none:empty_no_seed", hoe: "none:empty_no_seed", seed: "sow", canFull: "none:empty_no_seed", canEmpty: "none:empty_no_seed" }],
     ["有苗干", thirsty, { hand: "none:needs_water_no_can", hoe: "none:needs_water_no_can", seed: "none:needs_water_no_can", canFull: "water", canEmpty: "none:can_empty" }],
     ["有苗湿", growing, { hand: "none:growing", hoe: "none:growing", seed: "none:growing", canFull: "none:wet_enough", canEmpty: "none:wet_enough" }],
     ["成熟", ripe, { hand: "harvest", hoe: "harvest", seed: "harvest", canFull: "harvest", canEmpty: "harvest" }],

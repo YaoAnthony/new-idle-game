@@ -368,7 +368,7 @@ export function describeCell(
 
 /**
  * 按 F 会发生什么。判定表见设计稿 01 契约 §4：**成熟时手上拿什么都能收**；
- * 缺水时只有有水的壶能浇；实土只认锄头；空耕地认种子和锄头（填平）。
+ * 缺水时只有有水的壶能浇；实土只认锄头；空耕地只认种子（2026-09-19 起锄头不再填平）。
  */
 export function farmActionFor(
   bed: FarmBed,
@@ -383,7 +383,13 @@ export function farmActionFor(
     return held?.kind === "hoe" ? { kind: "till" } : { kind: "none", why: "packed_no_hoe" };
   }
   if (!view.plant) {
-    if (held?.kind === "hoe") return { kind: "flatten" };
+    /*
+     * **空耕地拿着锄头什么也不干**（2026-09-19 用户："锄头翻地，怎么翻好了
+     * 还能再按 F 翻回去"）。原来这儿是"再挥一下填平"，于是翻好的地站着不动
+     * 连按两下 F 就回到实土——同一个键在同一格上来回切，玩家看不出自己
+     * 到底处在哪一边，而"把刚翻好的地填回去"根本不是会主动想做的事。
+     * 填平的算子（`flattenCell`）留着，只走调试指令，不再挂在 F 上。
+     */
     if (held?.kind === "seed") return { kind: "sow", cropId: held.cropId };
     return { kind: "none", why: "empty_no_seed" };
   }

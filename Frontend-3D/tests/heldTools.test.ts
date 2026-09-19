@@ -34,11 +34,13 @@ test("heldTools_注册表按toolType认类_锄头是HoeTool_两把壶都是Water
   expect(toolForItem("wooden_hoe")).toBe(toolForItem("wooden_hoe"));
 });
 
-test("heldTools_useFor_锄头管翻地填平_壶管浇水和井_各不越界", () => {
+test("heldTools_useFor_锄头只管翻地_壶管浇水和井_各不越界", () => {
   const hoe = toolForItem("wooden_hoe")!;
   const can = toolForItem("watering_can")!;
   expect(hoe.useFor({ kind: "farm", action: "till" })).toBe("swing");
-  expect(hoe.useFor({ kind: "farm", action: "flatten" })).toBe("swing");
+  // 填平 2026-09-19 从 F 的判定表里去掉了（翻好的地不该连按两下就翻回去），
+  // 锄头因此也不再为它出动作
+  expect(hoe.useFor({ kind: "farm", action: "flatten" })).toBeNull();
   expect(hoe.useFor({ kind: "farm", action: "water" })).toBeNull();
   expect(hoe.useFor({ kind: "farm", action: "sow" })).toBeNull();
   expect(hoe.useFor({ kind: "station", capability: "water_source" })).toBeNull();

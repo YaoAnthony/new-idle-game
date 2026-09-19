@@ -142,7 +142,6 @@ export type FarmActionWhy =
 /** 按 F 会发生什么。`none` 带理由，气泡照它说话 */
 export type FarmAction =
   | { kind: "till" }
-  | { kind: "flatten" }
   | { kind: "sow"; cropId: CropId }
   | { kind: "water" }
   | { kind: "harvest"; giant: boolean }

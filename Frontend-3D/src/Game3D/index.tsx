@@ -236,6 +236,7 @@ import {
   debugRipenFarm,
   debugThirstFarm,
   farmCellViewOf,
+  flattenFarmCell,
   interactWithFarmCell,
 } from "../Game/Systems/farming";
 import { debugRainOnFarms, startFarming } from "../Game/Systems/farmingRuntime";
@@ -1153,9 +1154,16 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
             ["till", "flatten", "sow", "water", "harvest"] as const,
             "动作",
           );
+          // 填平不在 F 的判定表里了（2026-09-19），只有调试能做，单独一条路
+          if (verb === "flatten") {
+            const flattened = flattenFarmCell({ instanceId: target.instanceId, cell });
+            if (flattened.ok === false) return fail(`没做成：${flattened.why}`);
+            return ok(`flatten → ${JSON.stringify(flattened)}`);
+          }
+
           // 跳过手上的东西：浇水不扣壶、播种不扣种子（正常玩走 F）
           let held: HeldForFarm = null;
-          if (verb === "till" || verb === "flatten") held = { kind: "hoe" };
+          if (verb === "till") held = { kind: "hoe" };
           if (verb === "sow") {
             if (!findCropDefinition(args[3] ?? "")) return fail("要给作物 id（比如 tomato）");
             held = { kind: "seed", cropId: args[3] ?? "" };

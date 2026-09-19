@@ -153,6 +153,20 @@ export type FarmResult =
  * 收获**先问背包**：果实和种子都装得下才收，否则田不动、报 `bag_full`——
  * 让攒的东西凭空消失会制造焦虑，这个游戏不干这事。
  */
+/**
+ * 填平一格（把耕地推回实土）。**只有调试指令 `/farm <田> <格> flatten` 走这里。**
+ *
+ * 2026-09-19 之前它挂在 F 上（空耕地 + 锄头 = 填平），于是翻好的地连按两下 F
+ * 就回到实土——同一个键在同一格上来回切。现在 F 那条路不再产生这个动作，
+ * 算子本身留着：整地是块内容编辑，验收时要能把田恢复原样。
+ */
+export function flattenFarmCell(target: FarmTarget): FarmResult {
+  const ref = readFarmBed(target.instanceId);
+  if (!ref) return { ok: false, why: "not_a_farm" };
+  writeFarmBed(ref.instanceId, flattenCell(ref.bed, target.cell));
+  return { ok: true, did: "flatten" };
+}
+
 export function interactWithFarmCell(target: FarmTarget, heldOverride?: HeldForFarm): FarmResult {
   const ref = readFarmBed(target.instanceId);
   if (!ref) return { ok: false, why: "not_a_farm" };
@@ -165,9 +179,6 @@ export function interactWithFarmCell(target: FarmTarget, heldOverride?: HeldForF
     case "till":
       writeFarmBed(ref.instanceId, tillCell(ref.bed, target.cell));
       return { ok: true, did: "till" };
-    case "flatten":
-      writeFarmBed(ref.instanceId, flattenCell(ref.bed, target.cell));
-      return { ok: true, did: "flatten" };
     case "sow": {
       writeFarmBed(ref.instanceId, sowCell(ref.bed, target.cell, action.cropId, now));
       if (fromHand) consumeSelectedOne();

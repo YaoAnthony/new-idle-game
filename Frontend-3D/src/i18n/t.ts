@@ -38,7 +38,7 @@ const ZH: Record<string, string> = {
   "item.tomato_seed.desc": "一小包种子。撒进翻过的田里，浇着水它就长。",
   // ---- 种植（2026-09-17）----
   "item.wooden_hoe": "木锄头",
-  "item.wooden_hoe.desc": "翻地用的。对着田里的实土挥一下就是耕地，对着空耕地再挥一下填平。",
+  "item.wooden_hoe.desc": "翻地用的。对着田里的实土挥一下，就成了能下种的耕地。",
   "item.watering_can": "水壶",
   "item.watering_can.desc": "装六格水，一次浇一格。去井边按 F 装满。",
   "item.watering_can_wide.desc": "口子大，一次喷九格；装十二格水。",
@@ -206,7 +206,6 @@ const ZH: Record<string, string> = {
   "build.in_progress": "施工中",
   "build.queued": "等着开工",
   // 工地进度条上的倒计时（t() 不插值，数字和单位在组件里拼："还剩 2天 3小时 15分"）
-  "build.remaining": "还剩",
   "build.almost_done": "马上好",
   "unit.day": "天",
   "unit.hour": "小时",

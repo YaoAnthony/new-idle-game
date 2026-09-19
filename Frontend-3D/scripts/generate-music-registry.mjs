@@ -80,9 +80,20 @@ function urlOf(relativePath) {
     .join("/")}`;
 }
 
-const files = collectMusicFiles(musicDir).sort((a, b) =>
-  a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }),
-);
+/**
+ * `NO_MUSIC=1`：跳过扫描，产出空曲库（精简版桌面包用，见 deploy/desktop.md）。
+ *
+ * public/music 是桌面包体积的大头（530 MB），去掉文件之后曲库**必须跟着空掉**：
+ * 注册表是编译进产物的，留着它而没有文件的话，留声机里照样列着一排曲名、
+ * 点下去每首都 404。空曲库是代码里兜住的状态（albumById 查不到返回 undefined，
+ * 曲数 0 就不播），音效不走这条路，不受影响。
+ */
+const slim = process.env.NO_MUSIC === "1";
+const files = slim
+  ? []
+  : collectMusicFiles(musicDir).sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }),
+    );
 
 /**
  * **一个顶层子文件夹 = 一张专辑（= 一张唱片能放的内容）。**
@@ -160,4 +171,8 @@ fs.mkdirSync(path.dirname(output), { recursive: true });
 if (!fs.existsSync(output) || fs.readFileSync(output, "utf8") !== content) {
   fs.writeFileSync(output, content, "utf8");
 }
-console.log(`music registry: ${albums.size} albums, ${files.length} tracks`);
+console.log(
+  slim
+    ? "music registry: NO_MUSIC=1 → 空曲库（精简包）"
+    : `music registry: ${albums.size} albums, ${files.length} tracks`,
+);

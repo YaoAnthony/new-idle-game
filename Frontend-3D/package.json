@@ -19,7 +19,8 @@
     "electron:dev": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && cross-env ELECTRON_START_URL=http://localhost:5173 electron electron/main.cjs\"",
     "electron:pack": "npm run build && electron-builder --dir",
     "electron:build": "npm run build && electron-builder --win nsis",
-    "electron:mac": "npm run build && electron-builder --mac"
+    "electron:mac": "npm run build && electron-builder --mac",
+    "electron:win-slim": "node scripts/pack-win-slim.mjs"
   },
   "dependencies": {
     "@ant-design/icons": "^5.6.1",

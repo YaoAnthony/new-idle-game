@@ -68,11 +68,15 @@ test("每件物品的推导结果唯一且自洽", () => {
     if (preview === null) {
       expect(item.blueprint, `${item.id} 是图纸却没进选址`).toBeUndefined();
       expect(item.placement, `${item.id} 能摆却没出虚影`).toBeUndefined();
+      expect(item.ground, `${item.id} 是地面却没进铺地`).toBeUndefined();
       continue;
     }
     if (preview.kind === "building") {
       // 建筑 id 必须是能力块里那个，不许从物品 id 裁字符串猜
       expect(preview.buildingId).toBe(item.blueprint?.buildingId);
+    } else if (preview.kind === "ground") {
+      // 地面 id 同理，来自 `ground` 能力块（2026-09-19 铺地改鼠标之后进这一支）
+      expect(preview.groundId).toBe(item.ground?.groundId);
     } else {
       expect(preview.itemId).toBe(item.id);
       expect(findItemDefinition(preview.itemId)?.placement).toBeDefined();

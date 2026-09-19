@@ -17,7 +17,13 @@ import {
 import { resetTerritory } from "../src/Game/State/territory";
 import { clearAllFurniture } from "../src/Game/State/world/furniture";
 import { getCurrentMapId } from "../src/Game/State/worldRuntime";
-import { groundHintFor, groundTargetAt, interactWithGroundCell } from "../src/Game/Systems/grounds";
+import {
+  groundHintFor,
+  groundPaintTargetAt,
+  groundTargetAt,
+  interactWithGroundCell,
+  layGroundHere,
+} from "../src/Game/Systems/grounds";
 import { travelTo } from "../src/Game/Systems/mapTravel";
 import { cornerPolygons, polygonArea } from "../src/Game3D/Visual/groundShapes";
 import { GroundsView } from "../src/Game3D/World/GroundsView";
@@ -89,29 +95,46 @@ test("grounds_replay不发op_幂等", () => {
   off();
 });
 
-test("grounds_目标和气泡_手上是路才有目标_锄头对准铺过的格是撬_空手没有", () => {
+test("grounds_鼠标铺_点哪格铺哪格_铺过的转红_领地外给原因_扣一件", () => {
+  addItem("sandy_road", 2);
+  selectHotbarSlot(findStackRef("sandy_road")!);
+
+  const here = groundPaintTargetAt(HOME.x, HOME.z, "sandy_road")!;
+  expect(here.ok).toBe(true);
+  expect(layGroundHere(here, "sandy_road")).toEqual({ ok: true, did: "lay", groundId: "sandy_road" });
+  expect(getCount("sandy_road")).toBe(1);
+
+  // 同一格再指一次：铺过了 → 光标转红（ok=false），点下去也落不了
+  const again = groundPaintTargetAt(HOME.x, HOME.z, "sandy_road")!;
+  expect(again).toMatchObject({ ok: false, why: "occupied" });
+  expect(layGroundHere(again, "sandy_road")).toEqual({ ok: false, why: "occupied" });
+  expect(getCount("sandy_road")).toBe(1);
+
+  // 领地外：给得出原因（点下去弹那句），院子外面根本没有格
+  expect(groundPaintTargetAt(-20, 0, "sandy_road")).toMatchObject({
+    ok: false,
+    why: "outside_territory",
+  });
+});
+
+test("grounds_F只剩撬_拿着路不抢F_锄头对准铺过的格才是撬", () => {
   expect(groundTargetAt(HOME.x, HOME.z)).toBeNull();
+
+  // 手上是路：**探针不给目标**——铺走鼠标那条路，F 得让给门、居民这些
   addItem("sandy_road", 1);
   selectHotbarSlot(findStackRef("sandy_road")!);
-  const lay = groundTargetAt(HOME.x, HOME.z)!;
-  expect(lay.action).toEqual({ kind: "lay", groundId: "sandy_road" });
-  expect(groundHintFor(lay)).toMatchObject({ localizationKey: "ground.hint.lay", action: "interact" });
-  expect(interactWithGroundCell(lay)).toEqual({ ok: true, did: "lay", groundId: "sandy_road" });
-  expect(getCount("sandy_road")).toBe(0);
-  // 再对准同一格：铺过了就没有目标、不浮气泡（站在自己铺的路上气泡别一直挂着）
-  addItem("sandy_road", 1);
-  selectHotbarSlot(findStackRef("sandy_road")!);
   expect(groundTargetAt(HOME.x, HOME.z)).toBeNull();
-  // 领地外仍然说原因
-  expect(groundTargetAt(-20, 0)?.action).toMatchObject({ kind: "none", why: "outside_territory" });
-  // 锄头
+  layGroundHere(groundPaintTargetAt(HOME.x, HOME.z, "sandy_road")!, "sandy_road");
+
+  // 锄头对准铺过的格 = 撬；没铺过的格没有目标
   addItem("wooden_hoe", 1);
   selectHotbarSlot(findStackRef("wooden_hoe")!);
   const lift = groundTargetAt(HOME.x, HOME.z)!;
   expect(lift.action).toEqual({ kind: "lift", groundId: "sandy_road" });
+  expect(groundHintFor(lift)).toMatchObject({ localizationKey: "ground.hint.lift", action: "interact" });
   expect(groundTargetAt(HOME.x + 2, HOME.z)).toBeNull();
   expect(interactWithGroundCell(lift)).toEqual({ ok: true, did: "lift", groundId: "sandy_road" });
-  expect(getCount("sandy_road")).toBe(2);
+  expect(getCount("sandy_road")).toBe(1);
 });
 
 test("grounds_六种形状的面积_corner四分之一圆_edge半块_full整块_notch互补_diagonal两块", () => {

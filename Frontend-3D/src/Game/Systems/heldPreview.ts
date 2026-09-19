@@ -1,4 +1,4 @@
-import { findItemDefinition, isPlaceable } from "core";
+import { findItemDefinition, groundOfItem, isPlaceable } from "core";
 
 /**
  * 手上拿着什么，就自动进什么**预瞄**——选中即预瞄，不用再按一次 F。
@@ -31,7 +31,8 @@ import { findItemDefinition, isPlaceable } from "core";
  */
 export type HeldPreview =
   | { kind: "furniture"; itemId: string }
-  | { kind: "building"; buildingId: string };
+  | { kind: "building"; buildingId: string }
+  | { kind: "ground"; groundId: string };
 
 export function heldPreviewOf(itemId: string | null | undefined): HeldPreview | null {
   if (!itemId) return null;
@@ -42,6 +43,16 @@ export function heldPreviewOf(itemId: string | null | undefined): HeldPreview | 
   // 图纸 → 建筑选址（虚影跟鼠标 → 点一下选定 → 确认才动工）
   if (definition.blueprint) {
     return { kind: "building", buildingId: definition.blueprint.buildingId };
+  }
+
+  /*
+   * 地面 → 铺地光标（2026-09-19 用户点名："不应该是 F 放置，而是鼠标选中哪里，
+   * 然后左键就可以放下，就和室内装饰一样"）。铺路是**连着铺一片**的活儿，
+   * 走到每一格跟前按一次 F 太笨；和家具同一条路：选中即预瞄、点哪儿铺哪儿。
+   */
+  const ground = groundOfItem(definition.id);
+  if (ground) {
+    return { kind: "ground", groundId: ground.groundId };
   }
 
   // 家具 → 布置虚影（吸附网格，点一下就落地）

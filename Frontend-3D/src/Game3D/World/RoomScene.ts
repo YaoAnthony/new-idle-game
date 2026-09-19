@@ -192,6 +192,7 @@ import { weatherVisualProfileOf } from "../Visual/weatherProfiles.js";
 import { advance as advanceDialogue, getActiveDialogue, startDialogue } from "../../Game/Systems/dialogue";
 import { getEventStage } from "../../Game/Systems/events";
 import { heldPreviewOf } from "../../Game/Systems/heldPreview";
+import { GroundPaintController } from "../Interaction/GroundPaintController.js";
 import {
   describeKitchenSlot,
   dumpKitchenSlot,
@@ -420,6 +421,7 @@ export class RoomScene {
   private toolHeldId: string | null = null;
   private readonly controller: CharacterController;
   private readonly placement: PlacementController;
+  private readonly groundPaint: GroundPaintController;
 
   private phase: DayPhaseId = DayPhaseId.Day;
   private weather: WeatherDefinition = getWeather();
@@ -757,6 +759,15 @@ export class RoomScene {
      */
     this.offEventListeners.push(
       on("held_changed", () => this.syncHeldPreview()),
+      /*
+       * 地面变了（自己铺完、撬完、房主那边铺的推过来）→ 铺地光标重问一次：
+       * 刚铺上的那格当场转红，不用等玩家再动一下鼠标。
+       */
+      on("ground_changed", () => {
+        if (!this.groundPaint.active) return;
+        this.groundPaint.refresh();
+        this.syncGroundCursor();
+      }),
       on("held_changed", () => {
         const itemId = getHeld()?.itemId ?? null;
         if (itemId === this.toolHeldId) return;
@@ -912,6 +923,8 @@ export class RoomScene {
       this.built.walls,
       () => this.furnitureView.findSurfaceHostViews(),
     );
+    // 铺地模式（2026-09-19）：和家具同一条路——选中即预瞄、点哪儿铺哪儿
+    this.groundPaint = new GroundPaintController(this.rig.camera, this.renderer.renderer.domElement);
 
     /*
      * 建筑选址。和家具那套并存、各管各的——两者的落点判据和确认流程都
@@ -1283,6 +1296,8 @@ export class RoomScene {
 
       this.placement.onPointerMove(event);
       this.buildingPlacement.onPointerMove(event);
+      this.groundPaint.onPointerMove(event);
+      this.syncGroundCursor();
     };
 
     const onPointerUp = (event: PointerEvent) => {
@@ -1314,6 +1329,10 @@ export class RoomScene {
         if (this.buildingPlacement.active) {
           this.buildingPlacement.onPointerMove(event);
         }
+        if (this.groundPaint.active) {
+          this.groundPaint.onPointerMove(event);
+          this.syncGroundCursor();
+        }
       }
 
       // 拖过就不是点击了
@@ -1321,6 +1340,7 @@ export class RoomScene {
         this.placement.onClick();
         // 建筑选址里点一下是**选定**，不是落地——落地要再按一次确认
         this.buildingPlacement.commit();
+        if (this.groundPaint.onClick()) this.syncGroundCursor();
       }
       dragPointerId = null;
     };
@@ -2718,7 +2738,9 @@ export class RoomScene {
     this.farmCropsView.setCursor(
       best?.kind === "farmCell" ? { instanceId: best.instanceId, cell: best.cell } : null,
     );
-    this.groundsView.setCursor(best?.kind === "groundCell" ? { roomId: best.roomId, cell: best.cell } : null);
+    if (!this.groundPaint.active) {
+      this.groundsView.setCursor(best?.kind === "groundCell" ? { roomId: best.roomId, cell: best.cell } : null);
+    }
 
     if (best === null) {
       emit("interact_target_changed", null);
@@ -4001,12 +4023,36 @@ export class RoomScene {
     if (preview?.kind === "furniture") this.placement.begin(preview.itemId);
     else this.placement.cancel();
 
+    // 地面物品 → 铺地模式（手上换成别的、或最后一件铺完，这里把光标收掉）
+    if (preview?.kind === "ground") this.groundPaint.begin(preview.groundId);
+    else this.groundPaint.cancel();
+    this.syncGroundCursor();
+
     // 进不去也要收（比如这张图没有领地，见 beginBuildingSiting 的闸）——
     // "最多开一种"包括"一种都不开"
     const siting =
       preview?.kind === "building" &&
       this.beginBuildingSiting({ mode: "build", buildingId: preview.buildingId });
     if (!siting) this.buildingPlacement.cancel();
+  }
+
+  /**
+   * 铺地光标：模式开着时由鼠标位置说了算，关着时把光标交还给探针那条路
+   * （锄头撬地还在 F 上，它的光标走 refreshInteractTarget）。
+   */
+  private syncGroundCursor(): void {
+    if (!this.groundPaint.active) {
+      /*
+       * 退出铺地（换了手上的东西 / 最后一件铺完）要**自己把光标收掉**：
+       * 探针那条路只在"目标变了"时才喂光标，它不会替我们擦上一帧留下的那枚。
+       */
+      this.groundsView.setCursor(null);
+      return;
+    }
+    const target = this.groundPaint.current;
+    this.groundsView.setCursor(
+      target ? { roomId: target.roomId, cell: target.cell, ok: target.ok } : null,
+    );
   }
 
   rotate(direction: 1 | -1): void {

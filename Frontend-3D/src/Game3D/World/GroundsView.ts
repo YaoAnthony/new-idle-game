@@ -12,6 +12,7 @@ import {
   Color,
   DoubleSide,
   Mesh,
+  MeshLambertMaterial,
   MeshStandardMaterial,
   Object3D,
   ShapeUtils,
@@ -46,6 +47,8 @@ export class GroundsView {
   readonly root = new Object3D();
   private readonly meshes = new Map<string, GroundMesh>();
   private readonly cursor: Object3D;
+  private readonly cursorMaterials: MeshLambertMaterial[] = [];
+  private cursorColor: string = PALETTE.groundCursor;
   private readonly offs: Array<() => void>;
 
   constructor(scene: Scene) {
@@ -53,6 +56,10 @@ export class GroundsView {
     scene.add(this.root);
     this.cursor = buildCursor();
     this.cursor.visible = false;
+    this.cursor.traverse((child) => {
+      const material = (child as Mesh).material;
+      if (material instanceof MeshLambertMaterial) this.cursorMaterials.push(material);
+    });
     this.root.add(this.cursor);
     this.rebuildAll();
     this.offs = [
@@ -116,7 +123,11 @@ export class GroundsView {
   }
 
   /** 对准的那一格画个框；null 收掉 */
-  setCursor(cell: { roomId: string; cell: GridPosition } | null): void {
+  /**
+   * 对准的那一格。`ok = false` 转红（铺地模式里指着领地外 / 已铺过的格）——
+   * 和家具虚影的绿红同一套语言，不用再读气泡。
+   */
+  setCursor(cell: { roomId: string; cell: GridPosition; ok?: boolean } | null): void {
     if (!cell) {
       this.cursor.visible = false;
       return;
@@ -129,6 +140,13 @@ export class GroundsView {
     const at = roomCellToWorld(room, cell.cell.x, cell.cell.y);
     this.cursor.position.set(at.x, groundHeightAt(at.x, at.z) + groundTuning.slabHeight + 0.02, at.z);
     this.cursor.visible = true;
+    this.setCursorColor(cell.ok === false ? PALETTE.groundCursorBad : PALETTE.groundCursor);
+  }
+
+  private setCursorColor(hex: string): void {
+    if (this.cursorColor === hex) return;
+    this.cursorColor = hex;
+    for (const material of this.cursorMaterials) material.color.set(hex);
   }
 
   dispose(): void {
@@ -200,6 +218,13 @@ function buildCursor(): Object3D {
   ]);
   node.traverse((child) => {
     child.userData.noCollide = true;
+    /*
+     * **自己克隆一份材质。** `box()` 给字符串颜色时拿的是**按颜色共享的缓存材质**
+     * （primitives.flatMaterial），光标要能变红，直接改那一份会把场上所有
+     * 同色的东西一起染红。
+     */
+    const material = (child as Mesh).material;
+    if (material instanceof MeshLambertMaterial) (child as Mesh).material = material.clone();
   });
   return node;
 }

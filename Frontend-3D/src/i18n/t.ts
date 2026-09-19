@@ -30,7 +30,6 @@ const ZH: Record<string, string> = {
   "item.sandy_road": "沙土路",
   "item.sandy_road.desc": "一块铺一格。铺成路之后大家都更愿意走路上，不再斜穿草地。",
   "ground.sandy_road": "沙土路",
-  "ground.hint.lay": "铺{ground}",
   "ground.hint.lift": "撬起{ground}",
   "ground.hint.indoors": "屋里铺不了{ground}",
   "ground.hint.outside_territory": "领地外 · 铺不了",

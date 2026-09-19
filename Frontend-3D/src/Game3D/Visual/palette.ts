@@ -493,6 +493,7 @@ export const PALETTE = {
   groundSandTop: "#c9a86a",       // 沙土路的面
   groundSandRim: "#9a7a48",       // 沙土路的侧棱（板的厚度那一圈）
   groundCursor: "#f6ecd2",        // 对准要铺的那一格
+  groundCursorBad: "#c05248",     // 那一格铺不了（领地外 / 已经铺过），和家具虚影的红同一支
   // ---- 暴风雨的闪电（2026-09-18）----
   lightningCore: "#f4f8ff",       // 芯：近白，过 bloom 发光
   lightningGlow: "#9fc4ff",       // 晕：偏蓝的一圈

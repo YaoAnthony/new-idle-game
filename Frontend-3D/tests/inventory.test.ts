@@ -212,18 +212,46 @@ test("数量不够时整笔拒绝，不扣半截", () => {
   expect(getCount("wood")).toBe(2);
 });
 
-test("扣除按背包段优先，和 peekConsumeQuality 报的是同一堆", () => {
-  // 快捷栏放上乘的，背包段放焦的
+test("扣除按手上那格优先，和 peekConsumeQuality 报的是同一堆", () => {
+  /*
+   * 2026-09-19 把顺序改成"手上那格最先"（用户：手持动作扣的就该是手上那份，
+   * 而且只能有一条规矩）。这条用例盯的不是顺序本身，是**预告和实扣说的是同一堆**
+   * ——品质靠它才不会"看着要吃焦的、结果吃了上乘的"。
+   */
+  // 手上放上乘的，背包段放焦的
+  selectHotbarSlot(0);
   setStackAt(0, { itemId: "fried_egg", count: 1, quality: ItemQuality.Excellent });
   setStackAt(HOTBAR_SIZE, { itemId: "fried_egg", count: 1, quality: ItemQuality.Poor });
 
-  const nextQuality = peekConsumeQuality("fried_egg");
-  expect(nextQuality).toBe(ItemQuality.Poor);
+  expect(peekConsumeQuality("fried_egg")).toBe(ItemQuality.Excellent);
 
   removeItem("fried_egg", 1);
-  // 吃掉的确实是背包段那盘焦的
+  // 吃掉的是手上那盘上乘的；手上空了，背包那盘焦的自动补了上来
+  expect(getStackAt(0)?.quality).toBe(ItemQuality.Poor);
   expect(getStackAt(HOTBAR_SIZE)).toBeNull();
-  expect(getStackAt(0)?.quality).toBe(ItemQuality.Excellent);
+});
+
+test("手上那摞用光就从背包补一摞上来", () => {
+  selectHotbarSlot(2);
+  setStackAt(2, { itemId: "wood", count: 1 });
+  setStackAt(HOTBAR_SIZE + 3, { itemId: "wood", count: 7 });
+
+  removeItem("wood", 1);
+
+  // 手上不空着：背包里那摞整个搬上来（品质、保质期长在这一摞上，不拆）
+  expect(getStackAt(2)).toMatchObject({ itemId: "wood", count: 7 });
+  expect(getStackAt(HOTBAR_SIZE + 3)).toBeNull();
+});
+
+test("背包里没有同款就补不了_手上空着", () => {
+  selectHotbarSlot(1);
+  setStackAt(1, { itemId: "wood", count: 1 });
+  setStackAt(HOTBAR_SIZE, { itemId: "plank", count: 4 });
+
+  removeItem("wood", 1);
+
+  expect(getStackAt(1)).toBeNull();
+  expect(getStackAt(HOTBAR_SIZE)).toMatchObject({ itemId: "plank", count: 4 });
 });
 
 test("removeFromSlot 只动指定那一格（送礼要的就是这个）", () => {

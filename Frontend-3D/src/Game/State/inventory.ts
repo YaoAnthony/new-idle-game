@@ -141,17 +141,51 @@ function isSlot(index: number): boolean {
 }
 
 /**
- * 扣物品时的遍历顺序：**先背包段，再快捷栏段**。
+ * 扣物品时的遍历顺序：**手上那格最先，然后背包段，最后快捷栏其余的格**。
  *
- * 快捷栏是玩家自己摆的常用位（几号键放什么是肌肉记忆），
- * 合成/送礼消耗材料时应该先吃背包里那些散的，别把手边这排掏空。
- * 填充走的是自然序（0 起），所以"进来先进快捷栏、出去先出背包"。
+ * ---- 为什么手上那格排第一（2026-09-19 改）----
+ *
+ * 原来是"背包段优先、手上那格留到最后"，理由是别把玩家摆好的快捷栏掏空。
+ * 但那条顺序让**手持动作**看起来像没生效：举着 5 盏路灯往地上放，背包里
+ * 恰好还有同款，快捷栏那个数就一动不动（用户 2026-09-19 报的就是这个）。
+ *
+ * 于是当时的补法是"摆家具单独走 consumeSelectedOne"——用户当场否了：
+ * **"不能做饭一个逻辑，其他另一个逻辑"**。对的，那是拿特判去补一条错规矩。
+ *
+ * 所以规矩只有一条，而且是玩家早就懂的那条（我的世界 / 星露谷同款）：
+ * **你手上拿的就是你在用的那一份**。做饭、合成同理——手上正拿着番茄，
+ * 那就先用它，用完再去背包翻。快捷栏不会被无故掏空：只有它**正拿着**
+ * 那种东西时才会先扣它，而那正是玩家的本意。
+ *
+ * 配套的另一半见 `refillSelected`：手上这摞用光了，自动从背包补一摞上来。
  */
 function consumeOrder(): number[] {
-  const order: number[] = [];
+  const order: number[] = [selectedHotbarIndex];
   for (let i = HOTBAR_SIZE; i < INVENTORY_SIZE; i += 1) order.push(i);
-  for (let i = 0; i < HOTBAR_SIZE; i += 1) order.push(i);
+  for (let i = 0; i < HOTBAR_SIZE; i += 1) if (i !== selectedHotbarIndex) order.push(i);
   return order;
+}
+
+/**
+ * 手上那格空了 → 从别处补一摞同样的上来（背包段优先）。
+ *
+ * 用户 2026-09-19 定的："就扣除快捷栏上的东西，但是如果这个没了，
+ * 他会搜索背包有没有相同的物品，然后自动补上才对。"
+ *
+ * 这不是便利功能，是上面那条顺序的另一半：手上先扣，扣空了要是不补，
+ * 背包里明明还有十盏灯，玩家却得手动拖一摞上来才能接着摆。
+ * 整摞搬过来而不是拆散——品质、保质期都长在那一摞上，拆了就得挑该带谁的。
+ */
+function refillSelected(itemId: string): void {
+  if (inventory[selectedHotbarIndex]) return;
+  for (const i of consumeOrder()) {
+    if (i === selectedHotbarIndex) continue;
+    const stack = inventory[i];
+    if (!stack || stack.itemId !== itemId || isLoadedWare(stack)) continue;
+    inventory[selectedHotbarIndex] = stack;
+    inventory[i] = null;
+    return;
+  }
 }
 
 /**
@@ -276,6 +310,9 @@ export function setSelectedStack(next: SlotStack): void {
  *
  * "手上这一份被用掉了"要走这条，不能直接把整格清空——
  * 手里拿着 5 个番茄下锅一个，另外 4 个不该跟着消失。
+ *
+ * 用光了和 `removeItem` 一样从背包补一摞上来（见 `refillSelected`）：
+ * 手持动作只有这一条规矩，不分是谁在调。
  */
 export function consumeSelectedOne(): void {
   const stack = inventory[selectedHotbarIndex];
@@ -285,6 +322,7 @@ export function consumeSelectedOne(): void {
     inventory[selectedHotbarIndex] = { ...stack, count: stack.count - 1 };
   } else {
     inventory[selectedHotbarIndex] = null;
+    refillSelected(stack.itemId);
   }
 
   announce("consumed");
@@ -454,7 +492,7 @@ export function peekConsumeQuality(itemId: string): ItemQuality | undefined {
   return undefined;
 }
 
-/** 按 consumeOrder 扣除（背包段优先） */
+/** 按 consumeOrder 扣除（手上那格优先），扣空了手上那格就从背包补一摞 */
 export function removeItem(itemId: string, quantity = 1): boolean {
   if (getCount(itemId) < quantity) return false;
 
@@ -470,6 +508,7 @@ export function removeItem(itemId: string, quantity = 1): boolean {
     if (stack.count <= 0) inventory[i] = null;
   }
 
+  refillSelected(itemId);
   announce("remove");
   return true;
 }

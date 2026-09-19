@@ -15,6 +15,7 @@ import {
 import { hostGeometryOf, surfaceChildPose } from "./SurfacePlacement.js";
 import { Color, Mesh, Object3D, PointLight } from "three";
 import { releaseLampLightsIn } from "../Visual/lampPool.js";
+import { mergeStaticParts } from "../Visual/mergeStatics.js";
 import { on } from "../../Game/EventBus";
 import { isLampOn, isSwitchableLamp } from "../../Game/State/lamps";
 import { getDefinition, getRoom, getWorld, groundHeightAt } from "../../Game/State/worldRuntime";
@@ -457,6 +458,14 @@ export class FurnitureView {
     }
 
     visual.userData.instanceId = placed.instanceId;
+
+    /*
+     * 同材质的小块先合成一块，**再加描边**（描边是照着每个网格复制一份外壳，
+     * 先合再描等于外壳也跟着少一半）。低多边形配方一件家具是几十个小方块拼的，
+     * 每块都是一次 draw call，而 draw call 的开销全在 CPU 上、和显卡无关。
+     * 见 Visual/mergeStatics。
+     */
+    mergeStaticParts(visual);
 
     addOutline(visual);
     setOutlineVisible(visual, this.outlineEnabled);

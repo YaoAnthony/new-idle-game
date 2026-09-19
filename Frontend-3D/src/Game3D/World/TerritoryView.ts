@@ -8,6 +8,7 @@ import {
   ownedBoundaryEdges,
 } from "../../Game/State/territory";
 import { groundHeightAt } from "../../Game/State/worldRuntime";
+import { mergeStaticParts } from "../Visual/mergeStatics.js";
 import { PALETTE, jitterShade } from "../Visual/palette";
 import { blob, box, cylinder, disposeTree, group } from "../Visual/primitives";
 import { hash01 } from "./outdoorTerrain";
@@ -172,6 +173,13 @@ export class TerritoryView {
         if (built) landmarks.add(built);
       }
     }
+
+    /*
+     * 杂草合成一块。**每丛草都有自己抖过的颜色**（jitterShade），按材质分组等于没合，
+     * 所以这里走烘顶点色那一档：285 丛 → 1 块。它是纯布景，没人按材质或名字找它，
+     * 正是 `bakeColors` 该用的地方（见 Visual/mergeStatics）。
+     */
+    mergeStaticParts(weeds, { bakeColors: true });
 
     this.root.add(weeds);
     this.root.add(landmarks);

@@ -1,6 +1,12 @@
 import { findPlaceableItem, surfaceChildrenOf } from "core";
 import { guardWorldMutation } from "../Multiplayer/worldLock";
-import { addItem, getCount, removeItem } from "../State/inventory";
+import {
+  addItem,
+  consumeSelectedOne,
+  getCount,
+  getSelectedStack,
+  removeItem,
+} from "../State/inventory";
 import {
   getWorld,
   placeFurnitureAt,
@@ -32,7 +38,20 @@ export function placeFromItem(
   const check = placeFurnitureAt(itemId, target);
   if (!check.ok) return false;
 
-  removeItem(itemId, 1);
+  /*
+   * **摆下去的是手上那一摞里的一个**（2026-09-19 用户："放路灯的时候数量不会减少"）。
+   *
+   * 原来走的是 `removeItem`，它按 `consumeOrder` 扣——**先背包、手上那格留到最后**。
+   * 那个顺序是给做饭、制作这类"不看手上拿什么"的聚合消耗定的：手里那 5 个番茄
+   * 不该因为下锅一个就少一个。但摆家具恰恰相反，玩家正举着它往地上放，
+   * 快捷栏那个数一动不动 = 东西没扣的观感（背包里同款越多越明显）。
+   *
+   * 播种（farming）、铺地（grounds）、丢东西（dropping）早就都是 `consumeSelectedOne`，
+   * 这里是最后一条漏网的手持路径。手上那格不是它（理论上到不了，防个万一）才退回旧路。
+   */
+  const held = getSelectedStack();
+  if (held?.itemId === itemId) consumeSelectedOne();
+  else removeItem(itemId, 1);
   return true;
 }
 

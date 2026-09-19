@@ -396,13 +396,21 @@ test("constructionRemainingMs：排队中是 null 不是 0，到点夹在 0", ()
   assert.equal(constructionRemainingMs({}, now), null);
 });
 
-test("splitDuration：天/时/分三段，分钟向上取整", () => {
-  assert.deepEqual(splitDuration(0), { days: 0, hours: 0, minutes: 0 });
-  // 30 秒也算 1 分——倒计时显示 0 分却还在建，比多等一分钟更像坏了
-  assert.deepEqual(splitDuration(30_000), { days: 0, hours: 0, minutes: 1 });
-  assert.deepEqual(splitDuration(90 * 60_000), { days: 0, hours: 1, minutes: 30 });
-  // 2 天 3 小时 15 分
-  assert.deepEqual(splitDuration(((2 * 24 + 3) * 60 + 15) * 60_000), { days: 2, hours: 3, minutes: 15 });
+test("splitDuration：天/时/分/秒四段，一律向下取整", () => {
+  assert.deepEqual(splitDuration(0), { days: 0, hours: 0, minutes: 0, seconds: 0 });
+  // 有了秒这一段就不用再把分钟往上凑了（2026-09-19 用户要"精确到秒"）
+  assert.deepEqual(splitDuration(30_000), { days: 0, hours: 0, minutes: 0, seconds: 30 });
+  assert.deepEqual(splitDuration(90_500), { days: 0, hours: 0, minutes: 1, seconds: 30 });
+  assert.deepEqual(splitDuration(90 * 60_000), { days: 0, hours: 1, minutes: 30, seconds: 0 });
+  // 2 天 3 小时 15 分 7 秒
+  assert.deepEqual(splitDuration(((2 * 24 + 3) * 60 + 15) * 60_000 + 7_000), {
+    days: 2,
+    hours: 3,
+    minutes: 15,
+    seconds: 7,
+  });
+  // 负数按 0 处理（时钟往回跳过）
+  assert.deepEqual(splitDuration(-5_000), { days: 0, hours: 0, minutes: 0, seconds: 0 });
 });
 
 // ---- 成排落地（木墙一张图纸五格）----

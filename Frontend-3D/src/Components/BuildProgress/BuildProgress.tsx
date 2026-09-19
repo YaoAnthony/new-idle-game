@@ -25,20 +25,34 @@ import { t } from "../../i18n/t";
  * 琥珀填充 + 奶油标签，和 HUD 的时钟卡同一家。
  *
  * 倒计时是用户要的：一栋楼要建几天，只看百分比不知道"我该什么时候回来"。
- * 天 / 时 / 分三段按有没有省略：不到一天不显示"0天"，不到一小时不显示
- * "0小时"——"还剩 15分"比"还剩 0天 0小时 15分"像句人话。
+ * 天 / 时 / 分 / 秒按有没有省略：不到一天不显示"0天"，不到一小时不显示
+ * "0小时"——"还剩 15分"比"还剩 0天 0小时 15分"像句人话。一小时以内改报
+ * 分 + 秒（2026-09-19），最后那几十秒原来一直卡在"还剩 1分"上。
  */
 
 type Row = { instanceId: string; queued: boolean };
 
-/** 毫秒 → "2天 3小时 15分"；到点了说"马上好" */
-function describeRemaining(ms: number): string {
-  const { days, hours, minutes } = splitDuration(ms);
-  if (days === 0 && hours === 0 && minutes === 0) return t("build.almost_done");
+/**
+ * 毫秒 → "2天 3小时 15分" / "15分 30秒" / "45秒"；到点了说"马上好"。
+ *
+ * **一小时以内才报秒**（2026-09-19 用户："应该精确到秒"）。真正要盯着看的是
+ * 最后这几分钟——夜里搭个小棚子三十秒就好，原来只能显示"还剩 1分"然后突然完工。
+ * 而一栋要建两天的楼报到秒只是让数字一直在跳，那一段仍然按天/时/分说。
+ */
+export function describeRemaining(ms: number): string {
+  const { days, hours, minutes, seconds } = splitDuration(ms);
+  if (days === 0 && hours === 0 && minutes === 0 && seconds === 0) {
+    return t("build.almost_done");
+  }
   const parts: string[] = [];
   if (days > 0) parts.push(`${days}${t("unit.day")}`);
   if (days > 0 || hours > 0) parts.push(`${hours}${t("unit.hour")}`);
-  parts.push(`${minutes}${t("unit.minute")}`);
+  if (days > 0 || hours > 0) {
+    parts.push(`${minutes}${t("unit.minute")}`);
+  } else {
+    if (minutes > 0) parts.push(`${minutes}${t("unit.minute")}`);
+    parts.push(`${seconds}${t("unit.second")}`);
+  }
   return `${t("build.remaining")} ${parts.join(" ")}`;
 }
 

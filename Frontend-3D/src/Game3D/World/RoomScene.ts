@@ -2516,9 +2516,14 @@ export class RoomScene {
     }
 
     /*
-     * 建筑的气泡：在建的说"施工中"（没有可执行动作，不给按键标签），
-     * 建好的**直接报这栋楼的名字**——餐厅就说"餐厅"，家具店就说
+     * 建筑的气泡：**一律报这栋楼的名字**——餐厅就说"餐厅"，家具店就说
      * "家具小店"。
+     *
+     * 在建的原来说"施工中"，而工地头顶那枚胶囊（BuildProgress）已经在说
+     * "施工中 · 还剩 45秒"了，走近就是上下两句"施工中"。用户 2026-09-19：
+     * "不要两个施工中"。删哪一句？删气泡那句：胶囊带着进度条和倒计时，
+     * 信息量大得多；而气泡的位置本来就该回答"这块地是哪栋楼"——
+     * 工地阶段这个问题恰恰最难自己看出来（还只是个架子）。
      *
      * 原来一律是"看看这栋"（`build.hint.manage`）。用户 2026-08-25：
      * "很奇怪，餐厅就说餐厅"。确实：气泡是玩家和这个物件的第一句话，
@@ -2585,13 +2590,12 @@ export class RoomScene {
       const definition = findBuilding(building.buildingId);
       const target: HintTarget = {
         instanceId: building.instanceId,
-        hint: building.construction
-          ? { localizationKey: "build.hint.site" }
-          : {
-              // 查不到型号只可能是内容表被删过一行，退回旧文案而不是空气泡
-              localizationKey: definition?.localizationKey ?? "build.hint.manage",
-              action: "interact",
-            },
+        hint: {
+          // 查不到型号只可能是内容表被删过一行，退回旧文案而不是空气泡
+          localizationKey: definition?.localizationKey ?? "build.hint.manage",
+          // 工地不给按键标签：按 F 开的是管理面板，工地上没什么可管的
+          ...(building.construction ? {} : { action: "interact" as const }),
+        },
         world: new Vector3(at.x, at.y, at.z),
       };
       hintByKey.set(`building:${building.instanceId}`, target);

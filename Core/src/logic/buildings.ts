@@ -145,18 +145,27 @@ export function constructionRemainingMs(
 }
 
 /**
- * 毫秒 → 天 / 时 / 分 三段，给"还剩 2天3小时15分"那种文案用。
+ * 毫秒 → 天 / 时 / 分 / 秒 四段，给"还剩 2天3小时15分"、"还剩 45秒"那种文案用。
  *
- * **分钟向上取整**：还剩 61 秒说"1 分"、还剩 30 秒也说"1 分"，
- * 而不是显示"0 分"然后又没完工——倒计时到 0 却还在建，比多等一分钟
- * 更让人觉得坏了。完工那一刻（0 ms）三段全 0，调用方按"马上好"处理。
+ * **秒是 2026-09-19 补的**（用户："应该精确到秒"）。在那之前只有三段、
+ * 而且分钟是**向上取整**的——因为没有秒这一段，还剩 30 秒只能显示"0 分"，
+ * 倒计时到 0 却还在建比多等一分钟更像坏了，所以宁可报"1 分"。
+ * 有了秒这个顾虑就没了，四段一律**向下取整**：还剩 30 秒就是 30 秒。
+ *
+ * 完工那一刻（0 ms）四段全 0，调用方按"马上好"处理。
  */
-export function splitDuration(ms: number): { days: number; hours: number; minutes: number } {
-  const totalMinutes = Math.ceil(Math.max(0, ms) / 60_000);
+export function splitDuration(ms: number): {
+  days: number;
+  hours: number;
+  minutes: number;
+  seconds: number;
+} {
+  const totalSeconds = Math.floor(Math.max(0, ms) / 1000);
   return {
-    days: Math.floor(totalMinutes / 1440),
-    hours: Math.floor((totalMinutes % 1440) / 60),
-    minutes: totalMinutes % 60,
+    days: Math.floor(totalSeconds / 86_400),
+    hours: Math.floor((totalSeconds % 86_400) / 3600),
+    minutes: Math.floor((totalSeconds % 3600) / 60),
+    seconds: totalSeconds % 60,
   };
 }
 

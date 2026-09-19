@@ -211,7 +211,7 @@ const ZH: Record<string, string> = {
   "unit.day": "天",
   "unit.hour": "小时",
   "unit.minute": "分",
-  "build.hint.site": "施工中",
+  "unit.second": "秒",
   "build.hint.manage": "看看这栋",
   "build.panel.overview": "概览",
   "build.panel.stored": "存了",

@@ -1,4 +1,5 @@
 import { Color, Mesh, Object3D, PointLight } from "three";
+import { acquireLampLight, LAMP_LIGHT_NAME } from "../lampPool.js";
 import { PALETTE } from "../palette.js";
 import { blob, box, cylinder, group, sphere } from "../primitives.js";
 
@@ -34,7 +35,13 @@ export type LampOptions = {
   decay?: number;
 };
 
-/** 灯具内嵌点光。名字是 Lighting 扫描用的约定，别改（estate 的路灯也用） */
+/**
+ * 灯具内嵌点光。名字是 Lighting 扫描用的约定，别改（estate 的路灯也用）。
+ *
+ * **先问池子借**（见 Visual/lampPool）：自己 new 一盏就是给场上多添一个点光，
+ * three.js 会因此把全场材质重编一遍，摆一盏灯卡 100~230 ms。池子没装的场合
+ * （headless 用例、图标渲染）退回自己造一盏——那些路径不渲染场景，没这个问题。
+ */
 export function lampLight(
   colorValue: string,
   x: number,
@@ -42,13 +49,13 @@ export function lampLight(
   z: number,
   options: LampOptions = {},
 ): PointLight {
-  const light = new PointLight(
-    colorValue,
-    0,
-    options.range ?? 7,
-    options.decay ?? 2,
-  );
-  light.name = "lamp-light";
+  const light =
+    acquireLampLight() ?? new PointLight(colorValue, 0, options.range ?? 7, options.decay ?? 2);
+  light.name = LAMP_LIGHT_NAME;
+  light.color.set(colorValue);
+  light.intensity = 0;
+  light.distance = options.range ?? 7;
+  light.decay = options.decay ?? 2;
   light.castShadow = false;
   light.userData.lampStrength = options.strength ?? 1;
   light.position.set(x, y, z);

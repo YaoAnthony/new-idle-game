@@ -14,6 +14,7 @@ import {
 } from "./furnitureMath.js";
 import { hostGeometryOf, surfaceChildPose } from "./SurfacePlacement.js";
 import { Color, Mesh, Object3D, PointLight } from "three";
+import { releaseLampLightsIn } from "../Visual/lampPool.js";
 import { on } from "../../Game/EventBus";
 import { isLampOn, isSwitchableLamp } from "../../Game/State/lamps";
 import { getDefinition, getRoom, getWorld, groundHeightAt } from "../../Game/State/worldRuntime";
@@ -336,6 +337,8 @@ export class FurnitureView {
       if (alive.has(instanceId)) continue;
       // 被拿走的家具先把材质换回共享的那份，否则克隆出来的材质跟着走了
       clearFade(view);
+      // 灯也要还回池子：跟着死对象一起离开场景的话，点光总数又变了 → 全场重编
+      releaseLampLightsIn(view);
       view.removeFromParent();
       this.views.delete(instanceId);
       this.occluders.delete(instanceId);
@@ -397,7 +400,8 @@ export class FurnitureView {
     const definition = getDefinition(placed.furnitureId);
     if (!definition) return null;
 
-    const visual = buildItemVisual(definition.id);
+    // `lit`：只有真正摆下的家具留着配方里内嵌的灯（见 buildItemVisual 的注释）
+    const visual = buildItemVisual(definition.id, { lit: true });
     if (!visual) return null;
 
     if (placed.placement.kind === PlacementSurface.Surface) {
@@ -467,6 +471,7 @@ export class FurnitureView {
   dispose(): void {
     // 销毁时正淡到一半的家具挂着克隆材质，不换回来就是一笔泄漏
     for (const view of this.views.values()) clearFade(view);
+    for (const view of this.views.values()) releaseLampLightsIn(view);
     this.unsubscribe();
   }
 }

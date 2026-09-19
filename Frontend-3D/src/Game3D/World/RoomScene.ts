@@ -257,6 +257,7 @@ import { stepFade } from "../Engine/Fade.js";
 import { setOutlineVisible } from "../Engine/Outline.js";
 import { createRenderer, type RendererHandle } from "../Engine/Renderer.js";
 import { isLowPowerActive } from "../Engine/graphicsSettings.js";
+import { disposeLampPool, installLampPool, warmLampPoolWith } from "../Visual/lampPool.js";
 import { updateListener } from "../Engine/Soundscape.js";
 import { CharacterController } from "../Interaction/CharacterController.js";
 import { PlacementController } from "../Interaction/PlacementController.js";
@@ -501,6 +502,13 @@ export class RoomScene {
     private readonly container: HTMLElement,
     options: { seedFurniture?: boolean } = {},
   ) {
+    /*
+     * 灯光池要**在任何视觉对象造出来之前**装好：灯是从池子里借的，
+     * 池子没装的话它们各自 new 一盏，之后再摆灯就会一盏一次地重编全场材质
+     * （见 Visual/lampPool）。
+     */
+    installLampPool(this.scene);
+
     // 读档时屋里的东西来自存档，不能再铺一次房东留下的旧家具和纸箱
     if (options.seedFurniture !== false) {
       seedInitialFurniture();
@@ -914,6 +922,8 @@ export class RoomScene {
     );
 
     this.renderer = createRenderer(container, this.scene, this.rig.camera);
+    // 渲染器就位，灯光池从此可以在后台把扩容后的材质编好（见 Visual/lampPool）
+    warmLampPoolWith(this.renderer.renderer, this.scene, this.rig.camera);
     // 闪电要拿后处理的把手（bloom 档、耀斑），得等渲染器建好
     this.lightning = new LightningStorm(this.scene, this.lighting, this.outdoor, this.renderer.postFX);
     this.placement = new PlacementController(
@@ -4499,6 +4509,7 @@ export class RoomScene {
   dispose(): void {
     this.cancelAutoTour();
     this.detachInput();
+    disposeLampPool();
     setDebugProbe(null);
     for (const off of this.offEventListeners) off();
     this.placement.cancel();

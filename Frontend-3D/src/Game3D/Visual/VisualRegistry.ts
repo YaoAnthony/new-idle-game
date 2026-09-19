@@ -115,6 +115,7 @@ import {
 import { buildDumbbell, buildWorkbench } from "./recipes/workbench.js";
 import { buildPropBook, buildPropBucket, buildPropCup, buildPropHammer, buildPropUmbrella } from "./recipes/props.js";
 import { buildSandyRoadTile } from "./recipes/groundTile.js";
+import { releaseLampLightsIn } from "./lampPool.js";
 
 /**
  * visualId → 几何体。
@@ -297,7 +298,21 @@ export function buildVisual(visualId: string): Object3D | null {
  * 缩放也在这里应用：`visual.scale` 是"这东西画得偏大偏小"的唯一来源，
  * 各个视图再乘自己的场合系数（比如手持整体缩小）。
  */
-export function buildItemVisual(itemId: string): Object3D | null {
+/**
+ * 一件物品的模型。
+ *
+ * **默认不带灯**（`lit: true` 才留）。灯具的配方里内嵌着点光，而这个函数的模型
+ * 到处都在用：手上举着的、地上掉的、货架上摆的、布置模式的虚影。那些都不该照亮屋子，
+ * 更要紧的是场上点光的数量一变，three 就把全场材质重编一遍（见 Visual/lampPool）。
+ * 所以默认这里就把灯还回池子，只有**真正摆下的家具**（FurnitureView）要 `lit`。
+ *
+ * 默认关而不是逐个调用方自己记得删，是因为漏一处的代价很隐蔽：
+ * 那盏光会跟着被丢弃的模型一起离开场景，点光数又变了，卡顿原样回来。
+ */
+export function buildItemVisual(
+  itemId: string,
+  options: { lit?: boolean } = {},
+): Object3D | null {
   const visual = findItemDefinition(itemId)?.visual;
   if (!visual) {
     // 物品本身都查不到——这是个坏 id，不是缺模型，两件事分开报
@@ -307,6 +322,7 @@ export function buildItemVisual(itemId: string): Object3D | null {
 
   const object = buildVisual(visual.id) ?? placeholderFor(itemId, visual.id);
   if (visual.scale !== undefined) object.scale.multiplyScalar(visual.scale);
+  if (options.lit !== true) releaseLampLightsIn(object);
   return object;
 }
 

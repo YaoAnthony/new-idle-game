@@ -124,7 +124,10 @@ test("farmInteraction_图标_tools目录也按物品id取", () => {
 });
 
 test("farmInteraction_文案参数和时长", () => {
-  expect(tf("farm.hint.growing", { crop: "番茄", time: "1 小时 20 分" })).toBe("番茄 · 还要 1 小时 20 分");
+  // 气泡只报"是什么"：不写"还要"，一个会变小的时长自己就是倒计时
+  expect(tf("farm.hint.growing", { crop: "番茄", time: "1 小时 20 分" })).toBe("番茄 · 1 小时 20 分");
+  expect(tf("farm.hint.empty")).toBe("空耕地");
+  expect(tf("farm.hint.packed")).toBe("实土");
   expect(formatDuration(0)).toBe("不到 1 分钟");
   expect(formatDuration(30_000)).toBe("1 分钟");
   expect(formatDuration(45 * 60_000)).toBe("45 分钟");

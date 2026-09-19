@@ -47,13 +47,19 @@ const ZH: Record<string, string> = {
   "crop.tomato.desc": "红的、圆的、会一茬一茬结的果子。四格同时熟有机会并成一颗巨大的。",
   "hint.well": "井",
   "hint.well_fill": "装水",
-  "farm.hint.packed": "实土 · 用锄头翻一下",
-  "farm.hint.empty": "耕地 · 拿种子来种",
-  "farm.hint.thirsty": "{crop} · 需要浇水",
+  /*
+   * 田地气泡只说**这一格是什么**，不说该拿什么去做它（2026-09-19 用户：
+   * "谁不知道耕地是拿种子来种，你只需要显示一个空耕地就好了"）。
+   * 该不该动手由 F 角标回答——角标亮着就是现在能做，那是画面的事，不是文案的事。
+   * 留下来的两句带信息量：壶空了（背包里的事，看不见）、还要多久（数字自己会变）。
+   */
+  "farm.hint.packed": "实土",
+  "farm.hint.empty": "空耕地",
+  "farm.hint.thirsty": "{crop} · 缺水",
   "farm.hint.can_empty": "{crop} · 壶里没水了",
-  "farm.hint.growing": "{crop} · 还要 {time}",
-  "farm.hint.ripe": "{crop} · 可以收了",
-  "farm.hint.giant": "巨大{crop} · 一起收",
+  "farm.hint.growing": "{crop} · {time}",
+  "farm.hint.ripe": "{crop} · 熟了",
+  "farm.hint.giant": "巨大{crop}",
   "farm.toast.harvested": "收了 {count} 个{crop}、{seeds} 颗种子",
   "farm.toast.harvested_giant": "一颗巨大{crop}！{count} 个、{seeds} 颗种子",
   "farm.toast.bag_full": "背包满了，先腾个地方",

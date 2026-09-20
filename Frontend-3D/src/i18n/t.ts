@@ -355,7 +355,10 @@ const ZH: Record<string, string> = {
   "ui.shelf.forecast": "预计",
   "ui.shelf.title": "货架",
   "ui.consign.title": "寄售箱",
+  // 小票底下那一行原来是「明早到账」（等天亮自动结算）。2026-09-20 用户要**临时**
+  // 改成一颗能按的「立即出售」——过夜结算那条路没动，只是多一个当场卖的出口
   "ui.consign.forecast": "明早到账",
+  "ui.consign.sell_now": "立即出售",
   "ui.consign.pending": "待领",
   "ui.consign.claim": "领取",
   "ui.consign.vault_full": "金库满了",
@@ -1108,6 +1111,7 @@ const ZH: Record<string, string> = {
   "audio.storage_open": "开箱",
   "audio.chest_drop": "宝箱落地",
   "audio.chest_open": "宝箱开盖",
+  "audio.check_out": "收银",
 
   // 音乐（白噪音台上归一条推子；曲名来自文件名，不进词典）
   "audio.music": "音乐",

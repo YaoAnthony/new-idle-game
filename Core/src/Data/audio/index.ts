@@ -130,6 +130,17 @@ export const audioProfileDefinitions = [
     pitchVariance: 0.03,
   },
   {
+    /**
+     * 收银机的"叮"（寄售箱的「立即出售」按的那一下）。
+     * 钱货两清这件事在现实里就是这一声，界面上不用再写一句"已售出"。
+     */
+    id: "sfx_check_out",
+    busId: AudioBusId.Effects,
+    resourcePath: "/audio/action/check_out.wav",
+    localizationKey: "audio.check_out",
+    loop: false,
+  },
+  {
     id: "sfx_eat",
     busId: AudioBusId.Effects,
     resourcePath: "/audio/action/eat-apple.wav",

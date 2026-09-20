@@ -9,7 +9,7 @@ import {
   Inbox,
   Lock,
   Percent,
-  Sunrise,
+  ShoppingBag,
 } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { consignPriceOf, consignTuning, findItemDefinition } from "core";
@@ -39,7 +39,9 @@ import {
   claimBoxRevenue,
   consignPrice,
   previewConsignRevenue,
+  settleBox,
 } from "../../Game/Systems/consigning";
+import { playOneShot, preloadProfiles } from "../../Game3D/Engine/AudioEngine";
 import { t } from "../../i18n/t";
 import { Modal } from "../Modal/Modal";
 import { ChestSeal } from "../Modal/seals";
@@ -112,6 +114,8 @@ export function ConsignPanel() {
       setInstanceId(id);
       setSlots(getStorage(boxInventoryIdFor(id)));
       setBackpack(getInventory());
+      // 收银声开面板时就备好：`playOneShot` 是现用现下的，第一次按会先静一拍
+      void preloadProfiles(["sfx_check_out"]);
     });
     const offInventory = on("inventory_changed", () => setBackpack(getInventory()));
     // 抽屉三态里有一态取决于金库空位：面板开着的时候金库变了（领取、花钱），
@@ -194,6 +198,21 @@ export function ConsignPanel() {
       x: rect.left + rect.width / 2,
       y: rect.top + rect.height / 2,
     });
+  };
+
+  /**
+   * 立即出售：当场把箱里的货结掉，钱落进抽屉（**不自动入库**——
+   * 领钱那一下有金币飞进金库的演出，那是抽屉条那颗按钮的事，不抢它的）。
+   *
+   * 收银声在这里放：钱货两清这件事在现实里就是"叮"的一下，界面上因此
+   * 不用再写一句"已售出"。
+   */
+  const sellNow = (): void => {
+    if (!instanceId) return;
+    const sold = settleBox(instanceId);
+    if (sold.length === 0) return;
+    playOneShot("sfx_check_out", 0.8);
+    setDrawerTick((n) => n + 1);
   };
 
   const visible = slots.slice(0, capacity);
@@ -547,12 +566,36 @@ export function ConsignPanel() {
                   )}
                 </div>
 
-                <div className="mt-1.5 flex items-center gap-1.5 border-t-2 border-dashed border-[#E3AE90]/70 pt-1.5 text-[#8D6E63] short:mt-0 short:shrink-0 short:border-t-0 short:border-l-2 short:pl-3 short:pt-0">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-b from-[#FFCC80] to-[#FF9800] short:hidden">
-                    <Sunrise className="h-3.5 w-3.5 text-white" strokeWidth={2.5} aria-hidden />
+                {/*
+                  小票底下这一行原来是「明早到账」——一句预告，按不动。
+                  2026-09-20 用户要**临时**换成一颗能按的「立即出售」：当场成交，
+                  钱进抽屉，抽屉条那颗「领取」跟着亮起来（过夜自动结算那条路没动）。
+
+                  皮沿用抽屉条那颗按钮：白底 + 橙描边 + 3px 硬投影，按下去下沉 2px。
+                  圆形橙渐变徽章也留着，只把日出换成收银机——这行的位置没变、
+                  分量没变，变的只是"它现在能按"。
+                */}
+                <button
+                  type="button"
+                  disabled={discounted <= 0}
+                  onClick={sellNow}
+                  className={`mt-1.5 flex items-center gap-1.5 rounded-[10px] border-2 px-2 py-1 transition-transform short:mt-0 short:shrink-0 ${
+                    discounted > 0
+                      ? "cursor-pointer border-[#FF9800] bg-white text-[#8D6E63] shadow-[0_3px_0_#E65100] active:translate-y-[2px] active:shadow-none"
+                      : "cursor-not-allowed border-[#E9DAC4] bg-[#F5EDE0]/60 text-[#BCAAA4] shadow-[0_3px_0_#E0E0E0]"
+                  }`}
+                >
+                  <div
+                    className={`flex h-6 w-6 items-center justify-center rounded-full short:hidden ${
+                      discounted > 0
+                        ? "bg-gradient-to-b from-[#FFCC80] to-[#FF9800]"
+                        : "bg-gradient-to-b from-[#E0E0E0] to-[#BDBDBD]"
+                    }`}
+                  >
+                    <ShoppingBag className="h-3.5 w-3.5 text-white" strokeWidth={2.5} aria-hidden />
                   </div>
-                  <span className="whitespace-nowrap font-black">{t("ui.consign.forecast")}</span>
-                </div>
+                  <span className="whitespace-nowrap font-black">{t("ui.consign.sell_now")}</span>
+                </button>
               </div>
               </div>
             </div>

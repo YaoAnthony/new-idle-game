@@ -48,6 +48,14 @@ import { Object3D, PointLight, type Camera, type Scene, type WebGLRenderer } fro
  * `Lighting` 每次换时段都扫全场、把名字是 `lamp-light` 的点光按昼夜拨亮。
  * 所以停在池子里的那些**改名** `lamp-slot`，借出去时才改回来——否则一池子灯
  * 会在同一个坐标上一起亮，屋里凭空多一盏太阳。
+ *
+ * ---- 不只是灯具（2026-09-21）----
+ *
+ * 闪电落地那一盏也从这儿借。它和灯具的差别只有两处，所以没有另开一个池子：
+ * **名字**要传 `lightning-light`（叫 `lamp-light` 就会被 `Lighting.refreshLamps`
+ * 当成家具灯按昼夜拨亮度，把放电那一拍的强度抹掉），**灯泡参数**自己设
+ * （闪电是 40 米射程的蓝白光，灯具是 7 米暖光）。
+ * 借还的账本按 `userData.pooled` 记，不看名字，所以改名不影响归还。
  */
 
 /** 灯具内嵌点光的名字。Lighting / FogField / 开关都按它扫场景，别改 */
@@ -130,15 +138,21 @@ function scheduleGrow(): void {
 /**
  * 借一盏。池子没装（headless 用例、图标渲染那些没有场景的路径）就返回 null，
  * 调用方自己 `new` 一盏——那条路本来也没有"重编全场"的问题。
+ *
+ * `name` 决定借出去之后叫什么。默认是灯具那个名字；**不是灯具的借主必须传别的**，
+ * 否则 `Lighting.refreshLamps` 会按昼夜表拨它的亮度（见文件头）。
+ *
+ * 借到手的灯是**出厂状态**（白光、1 米、强度 0）：颜色、射程、衰减由借主自己设，
+ * 和 `lampLight()` 那边一样。
  */
-export function acquireLampLight(): PointLight | null {
+export function acquireLampLight(name: string = LAMP_LIGHT_NAME): PointLight | null {
   if (!home) return null;
   // 一个空位都没有还要借：只能当场扩（会卡一下）。正常情况下轮不到这里，
   // 上一次借走最后一个空位时就已经排了补货
   if (free.length === 0) grow();
   const light = free.pop();
   if (!light) return null;
-  light.name = LAMP_LIGHT_NAME;
+  light.name = name;
   if (free.length === 0) scheduleGrow();
   return light;
 }
@@ -162,15 +176,28 @@ function scheduleTrim(): void {
   }, TRIM_DELAY_MS);
 }
 
-/** 还一盏：重置成出厂状态、改回停车名、挂回池子 */
+/**
+ * 还一盏：重置成出厂状态、改回停车名、挂回池子。
+ *
+ * **颜色/射程/衰减也要还原**（2026-09-21 补）：以前只有灯具一个借主，而它每次
+ * 都把这三样重设一遍，所以留着上一任的值看不出问题。闪电（40 米蓝白）进来之后
+ * 就是真隐患了——借主忘了设射程，屋里那盏台灯会照出四十米。出厂值 = grow() 造的那套。
+ */
 function release(light: PointLight): void {
   light.intensity = 0;
+  light.color.set(0xffffff);
+  light.distance = 1;
+  light.decay = 2;
   light.userData.lampStrength = 1;
   light.userData.switchedOff = false;
   light.name = PARKED_NAME;
   light.position.set(0, 0, 0);
-  if (home) home.add(light);
-  else light.removeFromParent();
+  // 池子已经拆了（换图、退出游戏）：光从场景上摘掉就行，别再塞回空账本
+  if (!home) {
+    light.removeFromParent();
+    return;
+  }
+  home.add(light);
   if (!free.includes(light)) free.push(light);
   if (free.length > CHUNK * 2) scheduleTrim();
 }

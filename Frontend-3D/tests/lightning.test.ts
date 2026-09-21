@@ -1,7 +1,14 @@
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
-import { PerspectiveCamera, Scene } from "three";
+import { PerspectiveCamera, PointLight, Scene } from "three";
 
 import { on } from "../src/Game/EventBus";
+import {
+  acquireLampLight,
+  disposeLampPool,
+  installLampPool,
+  lampPoolStats,
+  releaseLampLightsIn,
+} from "../src/Game3D/Visual/lampPool";
 import { MAX_BOLT_POINTS, randomWalkBolt } from "../src/Game3D/Visual/lightningBolt";
 import { weatherVisualProfiles } from "../src/Game3D/Visual/weatherProfiles";
 import { LightningStorm } from "../src/Game3D/World/LightningStorm";
@@ -55,7 +62,16 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.useRealTimers();
+  disposeLampPool();
 });
+
+function countPointLights(scene: Scene): number {
+  let n = 0;
+  scene.traverse((node) => {
+    if (node instanceof PointLight) n += 1;
+  });
+  return n;
+}
 
 const tick = (storm: LightningStorm, seconds: number, dt = 1 / 60): void => {
   for (let t = 0; t < seconds; t += dt) storm.update(dt);
@@ -151,5 +167,56 @@ test("lightning_不是暴风雨不排节拍", () => {
   const storm = new LightningStorm(scene, lighting, sky, fx, seeded(1));
   vi.advanceTimersByTime(60_000);
   expect(storm.active).toBe(0);
+  storm.dispose();
+});
+
+/**
+ * 落地那盏光从灯光池借，不自己 new（2026-09-21）。
+ *
+ * three 把"场上有几盏点光"编进每个材质的着色器，数一变就要重编全场：
+ * 隔离量过，本场第一次变化 432 ms / 多编 10 个程序（软渲染），之后每次加撤
+ * 也要 6~26 ms 对着 3 ms 的空帧。所以这条盯的是**一道雷从头到尾，
+ * 场上的点光总数一动不动**。
+ */
+test("lightning_落地的光从池子借还_一道雷下来点光总数不变", () => {
+  const scene = new Scene();
+  installLampPool(scene);
+  /*
+   * 先借还一次把池子催起来。真游戏里 `warmLampPoolWith` 在渲染器就位时就备了货；
+   * 用例里不催的话，第一次借正好撞上"空池扩容"，那一下本来就该改变总数。
+   */
+  releaseLampLightsIn(acquireLampLight()!);
+  const baseline = countPointLights(scene);
+  const freeBefore = lampPoolStats().free;
+
+  const storm = new LightningStorm(scene, lighting, sky, fx, seeded(3));
+  storm.strike();
+  tick(storm, 0.8);
+  // 落地了：画布 + 一盏光挂在 lightning 下面，但场上的点光总数没变——是借的
+  expect(scene.getObjectByName("lightning")!.children).toHaveLength(2);
+  expect(countPointLights(scene)).toBe(baseline);
+  expect(lampPoolStats().free).toBe(freeBefore - 1);
+  // 名字不能是 lamp-light，否则 Lighting 会按昼夜表拨它的亮度
+  expect(scene.getObjectByName("lightning-light")).toBeTruthy();
+
+  // 演完收场：光还回池子（既没被摘走、也没留在场上发光）
+  tick(storm, 2.5);
+  expect(storm.active).toBe(0);
+  expect(scene.getObjectByName("lightning")!.children).toHaveLength(0);
+  expect(countPointLights(scene)).toBe(baseline);
+  expect(lampPoolStats().free).toBe(freeBefore);
+  expect(scene.getObjectByName("lightning-light")).toBeUndefined();
+
+  storm.dispose();
+});
+
+test("lightning_没装池子也能打_退回自己造一盏_收场时清干净", () => {
+  const scene = new Scene();
+  const storm = new LightningStorm(scene, lighting, sky, fx, seeded(3));
+  storm.strike();
+  tick(storm, 0.8);
+  expect(countPointLights(scene)).toBe(1);
+  tick(storm, 2.5);
+  expect(countPointLights(scene)).toBe(0);
   storm.dispose();
 });

@@ -4509,7 +4509,6 @@ export class RoomScene {
   dispose(): void {
     this.cancelAutoTour();
     this.detachInput();
-    disposeLampPool();
     setDebugProbe(null);
     for (const off of this.offEventListeners) off();
     this.placement.cancel();
@@ -4517,6 +4516,12 @@ export class RoomScene {
     this.dailyBoardAnimator.dispose();
     this.furnitureView.dispose();
     this.lightning.dispose();
+    /*
+     * 池子最后拆。**必须排在所有借主之后**——家具视图和闪电都在上面两行里把
+     * 借走的灯还回来，池子先没了的话它们还的那几盏就只能被摘掉，
+     * 下一张图重建时池子少几盏、第一次借又要扩容重编（2026-09-21 挪的）
+     */
+    disposeLampPool();
     this.outdoor.dispose();
     this.territoryView.dispose();
     this.buildingsView.dispose();

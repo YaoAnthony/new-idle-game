@@ -15,6 +15,7 @@ import {
 } from "three";
 
 import { emit, on } from "../../Game/EventBus";
+import { acquireLampLight, releaseLampLightsIn } from "../Visual/lampPool";
 import { getWeather } from "../../Game/State/weather";
 import { groundHeightAt } from "../../Game/State/worldRuntime";
 import { MAX_BOLT_POINTS, randomWalkBolt } from "../Visual/lightningBolt";
@@ -305,8 +306,25 @@ export class LightningStorm {
     mesh.frustumCulled = false;
     this.root.add(mesh);
 
-    const light = new PointLight(PALETTE.lightningGlow, 0, 40, 2);
-    light.name = "lightning-light";
+    /*
+     * 落点上方那盏光**从灯光池借**（2026-09-21），不自己 new。
+     *
+     * three 把"场上有几盏点光"编进每个材质的着色器，数一变就要重编全场。
+     * 自己 new 的话每道雷都是 +1 再 −1：实测（软渲染，隔离量的）本场第一次
+     * 变化要 432 ms、多编 10 个程序——**一场暴雨的第一道雷必卡一下**；
+     * 之后命中程序缓存，但每次加/撤仍要把全场材质重挂一遍，6~26 ms
+     * 对着 3 ms 的空帧，等于每道雷丢一两帧。借来的灯只是换个父节点，总数不变，
+     * 两笔都省了。池子没装（headless 用例）就退回自己造一盏。
+     *
+     * 名字必须是 lightning-light 不能是 lamp-light：后者会被 Lighting 按
+     * 昼夜表拨亮度，放电那一拍的强度会被抹掉（见 lampPool 文件头）。
+     */
+    const light = acquireLampLight("lightning-light") ?? new PointLight();
+    light.color.set(PALETTE.lightningGlow);
+    light.intensity = 0;
+    light.distance = 40;
+    light.decay = 2;
+    light.castShadow = false;
     light.position.set(s.x, s.ground + 1.5, s.z);
     this.root.add(light);
 
@@ -340,8 +358,19 @@ export class LightningStorm {
     s.mesh?.removeFromParent();
     s.mesh?.geometry.dispose();
     s.material?.dispose();
-    s.light?.removeFromParent();
-    s.light?.dispose();
+    /*
+     * 灯**还回池子**，不 dispose——池子里那盏还要给下一道雷、给下一盏台灯用，
+     * 而且它得留在场上（离场就又改变了点光总数，省下的那一笔白省）。
+     * 池子没装时借不到、这里也还不掉，`releaseLampLightsIn` 按 `userData.pooled`
+     * 认人，自己 new 的那盏不带这个旗，会原样留给下面两行收掉。
+     */
+    if (s.light) {
+      releaseLampLightsIn(s.light);
+      if (s.light.userData.pooled !== true) {
+        s.light.removeFromParent();
+        s.light.dispose();
+      }
+    }
   }
 
   dispose(): void {

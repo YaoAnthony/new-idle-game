@@ -38,8 +38,15 @@ test("heldTools_useFor_锄头只管翻地_壶管浇水和井_各不越界", () =
   const hoe = toolForItem("wooden_hoe")!;
   const can = toolForItem("watering_can")!;
   expect(hoe.useFor({ kind: "farm", action: "till" })).toBe("swing");
-  // 填平 2026-09-19 从 F 的判定表里去掉了（翻好的地不该连按两下就翻回去），
-  // 锄头因此也不再为它出动作
+  /*
+   * 填平 2026-09-19 从 F 的判定表里去掉了（翻好的地不该连按两下就翻回去），
+   * 锄头因此也不再为它出动作。
+   *
+   * `flatten` 已经不在提示的动作联合类型里了，所以这行要 @ts-expect-error。
+   * **留着而不是删掉**：填平这条路本身还在（`farming.ts` 的 `did: "flatten"`、
+   * `/farm flatten`），哪天它又接回 F 键，这条会先响。
+   */
+  // @ts-expect-error 运行时还可能传进来，见上
   expect(hoe.useFor({ kind: "farm", action: "flatten" })).toBeNull();
   expect(hoe.useFor({ kind: "farm", action: "water" })).toBeNull();
   expect(hoe.useFor({ kind: "farm", action: "sow" })).toBeNull();

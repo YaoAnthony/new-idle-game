@@ -206,7 +206,14 @@ export type StorySignalKind =
    * 一张信纸烧掉了（subject = letterId）。开场魔女的条子读完不是合上而是烧掉（用户 2026-09-16）：
    * 前端 NotePanel 演完火焰那一拍发；信封怎么处理（消耗、记旗子）由规则接。之后照旧发 letter_closed。
    */
-  | "letter_burned";
+  | "letter_burned"
+  /**
+   * 给活物装上了一块零件（subject = 零件名，见 `GolemPart`；居民系统 22）。
+   * State 层发的是 `resident_changed{reason:"part_attached"}`，story.ts 翻成这个。
+   */
+  | "resident_part_attached"
+  /** 零件装齐了（subject = definitionId）。石傀儡装上第二只手那一拍发——"阿咔咔咔"接它 */
+  | "resident_assembled";
 
 export type StorySignal = {
   kind: StorySignalKind;

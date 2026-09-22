@@ -41,4 +41,9 @@ export const chestExcludedItemIds: ReadonlySet<string> = new Set([
   "stove",
   "cardboard_box",
   "cardboard_stack",
+  // 石傀儡的零件（22）：它们是家具（要能摆在世界里当谜题道具），但箱子里开出第二颗头
+  // 是句胡话——他只有一个脖子。原来只有头、而且漏了；补手的时候一起点名
+  "golem_head",
+  "golem_arm_left",
+  "golem_arm_right",
 ]);

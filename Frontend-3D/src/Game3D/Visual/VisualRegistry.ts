@@ -8,7 +8,7 @@ import {
   buildMushroomLamp,
 } from "./recipes/ambience.js";
 import { buildCushion, buildWoodenBed } from "./recipes/bedroom.js";
-import { buildGolemHead, buildStoneGolem } from "./recipes/golem.js";
+import { buildGolemArmItem, buildGolemHead, buildStoneGolem } from "./recipes/golem.js";
 import {
   buildGardenBench,
   buildStreetLamp,
@@ -153,6 +153,8 @@ const REGISTRY: Record<string, VisualEntry> = {
   stove_default: { kind: "procedural", build: buildStove },
   stone_golem: { kind: "procedural", build: buildStoneGolem },
   golem_head: { kind: "procedural", build: buildGolemHead },
+  golem_arm_left: { kind: "procedural", build: () => buildGolemArmItem(-1) },
+  golem_arm_right: { kind: "procedural", build: () => buildGolemArmItem(1) },
   blueprint: { kind: "procedural", build: buildBlueprint },
   witch_letter: { kind: "procedural", build: buildWitchLetter },
   well_stone: { kind: "procedural", build: buildWell },

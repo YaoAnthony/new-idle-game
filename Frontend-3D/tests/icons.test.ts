@@ -44,6 +44,9 @@ test("成就里写成图标键的，都指得到图", () => {
 test("图鉴条目的图：缺的都在名单里，名单里的都还缺", () => {
   const PENDING_ICONS = [
     "items/furniture_news_printer",
+    // 22：石傀儡的两只手，还没画图
+    "items/golem_arm_left",
+    "items/golem_arm_right",
     "items/furniture_nightstand",
     "items/furniture_daily_board",
     "items/furniture_moon_lamp",

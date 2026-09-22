@@ -69,6 +69,9 @@ export const untradableItemIds: ReadonlySet<string> = new Set([
   "favor_token_fox_town_parcel",
   // 石傀儡的头。卖了他就永远醒不过来，而商人不卖回来——这是死锁
   "golem_head",
+  // 石傀儡的两只手（22）。卖了他就永远接不了工地，同一种死锁
+  "golem_arm_left",
+  "golem_arm_right",
   // 开场魔女的信。卖了开场那三行字就再也看不到，而商人不卖回来
   "witch_letter",
   // 每日任务机器。卖了每日任务就没了入口，同样买不回来
@@ -1894,6 +1897,58 @@ export const itemDefinitions = [
       blocksMovement: false,
       interactHint: {
         localizationKey: "hint.golem_head",
+        action: "pickup",
+        anchorHeight: 0.85,
+      },
+    },
+  },
+  /*
+   * 石傀儡的两只手（居民系统 22，2026-09-21）。用户定：他开局**没有手**，头 = 会说话、
+   * 手 = 能干活。两件而不是"一对"：零件表天生按 id 记，"把两只手给他"的仪式感也在。
+   *
+   * 和头同一个路数：家具类、可摆可捡、`golemPart` 认零件。眼下没有获得剧情（用户：先
+   * `/give`），但按家具做是为了以后剧情能把它们摆在世界里让人去找，不用回来改物品。
+   * 造型借傀儡身上那条手臂（`buildGolemArm`），装上去的和手里的一模一样。
+   */
+  {
+    id: "golem_arm_left",
+    localizationKey: "item.golem_arm_left",
+    category: ItemCategory.Furniture,
+    stackLimit: 1,
+    rarity: Rarity.Rare,
+    visual: { id: "golem_arm_left" },
+    golemPart: "arm_left",
+    placement: {
+      surface: PlacementSurface.Floor,
+      zones: ["indoor", "outdoor"],
+      footprint: { width: 1, height: 1 },
+      capabilities: [],
+      floorLayer: FloorLayer.Object,
+      blocksMovement: false,
+      interactHint: {
+        localizationKey: "hint.golem_arm_left",
+        action: "pickup",
+        anchorHeight: 0.85,
+      },
+    },
+  },
+  {
+    id: "golem_arm_right",
+    localizationKey: "item.golem_arm_right",
+    category: ItemCategory.Furniture,
+    stackLimit: 1,
+    rarity: Rarity.Rare,
+    visual: { id: "golem_arm_right" },
+    golemPart: "arm_right",
+    placement: {
+      surface: PlacementSurface.Floor,
+      zones: ["indoor", "outdoor"],
+      footprint: { width: 1, height: 1 },
+      capabilities: [],
+      floorLayer: FloorLayer.Object,
+      blocksMovement: false,
+      interactHint: {
+        localizationKey: "hint.golem_arm_right",
         action: "pickup",
         anchorHeight: 0.85,
       },

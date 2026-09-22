@@ -50,7 +50,7 @@ afterEach(() => {
 function awakeGolem() {
   seedInitialCreatures();
   const golem = getResidents().find((resident) => resident.role === CreatureRole.Worker)!;
-  golem.attachPart("head");
+  golem.assemble();
   golem.idleTimer = 0;
   return golem;
 }
@@ -207,7 +207,7 @@ test("skills_按F问技能_商人开交易_工头开建造_居民落回对话", 
 
   // seedInitialCreatures 在场上已有活物时不再种，所以这里直接召一尊
   const golem = spawnResident("resident-stone_golem", "stone_golem");
-  golem.attachPart("head");
+  golem.assemble();
   // 建造没解锁时他只会咔咔（对话）；解锁了才是建造面板（2026-09-16）
   restoreProgression({ events: {}, unlockedFeatureIds: [] });
   expect(golem.interact(PLAYER)).toEqual({ kind: "dialogue", dialogueId: "golem_first_talk" });

@@ -147,20 +147,13 @@ export function buildStoneGolem(): Object3D {
   // ---- 手臂：粗短方柱，肩上一块石头当关节 ----
   const arms: Object3D[] = [];
   for (const side of [-1, 1] as const) {
-    const pivot = new Object3D();
-    pivot.name = side < 0 ? "arm-left" : "arm-right";
+    const pivot = buildGolemArm(side);
     /*
      * 肩关节挂在胸那层的**外面**（胸半宽 0.67，肩心 0.86）：手臂整条
      * 落在躯干轮廓之外，剪影上才有两条竖线。第一版肩心 0.82 而躯干半宽
      * 0.75，手臂几乎贴着身子，远看就没有手臂。
      */
     pivot.position.set(side * 0.86, 1.62, 0);
-    pivot.add(
-      rock([0.4, 0.4, 0.44], [side * 0.04, 0, 0], side < 0 ? 11 : 12),
-      rock([0.32, 0.8, 0.36], [side * 0.08, -0.58, 0], side < 0 ? 13 : 14),
-      // 拳头：比小臂宽，砸下去才有分量。垂到胯那一层，是长臂的读法
-      rock([0.46, 0.42, 0.48], [side * 0.1, -1.14, 0], side < 0 ? 15 : 16),
-    );
     arms.push(pivot);
     body.add(pivot);
   }
@@ -351,6 +344,35 @@ export function buildStoneGolem(): Object3D {
  * 地上的物品被玩家捡走。同一个函数两处用，捡到手里的和装上去的
  * 长得一模一样——这是"这就是它的头"最省事的证明。
  */
+/**
+ * 石傀儡的一条手臂，**单独导出**（22）：和头一个道理——既装在肩上，也是件能捡能摆的物品。
+ * 原点在肩关节，手臂往下垂（拳头到 −1.35）；装到身上时 pivot 直接就是肩关节。
+ */
+export function buildGolemArm(side: -1 | 1): Object3D {
+  const pivot = new Object3D();
+  pivot.name = side < 0 ? "arm-left" : "arm-right";
+  pivot.add(
+    rock([0.4, 0.4, 0.44], [side * 0.04, 0, 0], side < 0 ? 11 : 12),
+    rock([0.32, 0.8, 0.36], [side * 0.08, -0.58, 0], side < 0 ? 13 : 14),
+    // 拳头：比小臂宽，砸下去才有分量。垂到胯那一层，是长臂的读法
+    rock([0.46, 0.42, 0.48], [side * 0.1, -1.14, 0], side < 0 ? 15 : 16),
+  );
+  return pivot;
+}
+
+/**
+ * 当**物品**时的手臂：拳头朝下立在地上（原点抬到拳头底），捡在手里、摆在地上都不穿地。
+ * 装上去的那条从 `buildGolemArm` 来，长得一模一样。
+ */
+export function buildGolemArmItem(side: -1 | 1): Object3D {
+  const root = new Object3D();
+  root.name = side < 0 ? "golem-arm-left" : "golem-arm-right";
+  const arm = buildGolemArm(side);
+  arm.position.y = 1.36;
+  root.add(arm);
+  return root;
+}
+
 export function buildGolemHead(): Object3D {
   const head = new Object3D();
   head.name = "golem-head";

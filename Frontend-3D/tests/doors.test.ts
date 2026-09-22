@@ -98,7 +98,7 @@ test("test_golem_approaching_front_door_opens_it_through_tick_doors", () => {
   // Arrange：装好头的石傀儡站在大门外两米——这是他去屋里干活的必经一步
   seedInitialCreatures();
   const golem = getResidents().find((resident) => resident.role === CreatureRole.Worker)!;
-  golem.attachPart("head");
+  golem.assemble();
   const door = frontDoor();
   door.open = false;
   golem.debugPlace(door.center.x, door.center.z + 2);

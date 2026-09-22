@@ -77,7 +77,8 @@ function workIntent(agent: ResidentAgent, instanceId: string, spot: { x: number;
 export const buildSkill: Skill = {
   id: "build",
   decide: ({ agent, current }) => {
-    if (agent.dormant) return null;
+    // 没头醒不了；醒了没手也不接活——手 = 能干活（22）。会说话、会游荡，就是不去工地
+    if (agent.dormant || !agent.assembled) return null;
     if (current?.skillId === "build") return null;
 
     const mine = listSites().find((site) => site.construction?.workerId === agent.residentId);

@@ -523,6 +523,16 @@ export function startStorySystem(emitGameStarted = true): () => void {
   // 田里并成了巨大果实（种植系统）：同一条理由——节拍器在 Systems/farmingRuntime，不 import 本模块
   const offGiant = on("farm_giant_grown", ({ cropId }) => signal("giant_crop_grown", cropId));
   const offMap = on("map_changed", ({ mapId }) => signal("map_entered", mapId));
+  /*
+   * 给活物装零件（22）：装上哪块发一条，装齐再发一条——"阿咔咔咔"接的是装齐那条。
+   * 零件名跟着事件来，齐不齐问活物本身；剧情层不反查零件表。
+   */
+  const offPart = on("resident_changed", ({ residentId, reason, part }) => {
+    if (reason !== "part_attached" || !part) return;
+    signal("resident_part_attached", part);
+    const resident = getResident(residentId);
+    if (resident?.assembled) signal("resident_assembled", resident.definitionId);
+  });
 
   detach = () => {
     off();
@@ -531,6 +541,7 @@ export function startStorySystem(emitGameStarted = true): () => void {
     offBuilt();
     offGiant();
     offMap();
+    offPart();
     blockingPanelOpen = false;
     detach = null;
   };

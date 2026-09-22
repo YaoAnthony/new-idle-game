@@ -338,7 +338,8 @@ export function seedInitialCreatures(): void {
     "stone_golem",
     // 房子东边那条带子（房子占 x −10..−1），面朝西——正对着走出大门的人
     { x: 1.5, z: 8, heading: -Math.PI / 2 },
-    { missingParts: ["head"] },
+    // 22：头在院子里等着找；两只手眼下没有获得剧情，先 /give（用户定）
+    { missingParts: ["head", "arm_left", "arm_right"] },
   );
 }
 

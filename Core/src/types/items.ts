@@ -31,6 +31,12 @@ export enum ItemCategory {
   Quest = "quest",
 }
 
+/**
+ * 石傀儡身上可拆的零件（居民系统 22）。头是唤醒零件（装上才醒），两只手是干活零件
+ * （装齐才接工地）——哪个管什么写在 `Golem` 子类的 `wakeParts` 上，这里只列有哪几块。
+ */
+export type GolemPart = "head" | "arm_left" | "arm_right";
+
 export type ToolType =
   | "camera"
   | "hoe"
@@ -121,7 +127,7 @@ export type ItemDefinition = {
    * 字段认，不写死 `golem_head` 这个 id——以后傀儡缺胳膊少腿了，
    * 加一件新物品就够，交互代码一行不用动。
    */
-  golemPart?: "head";
+  golemPart?: GolemPart;
 
   /**
    * 委托的信物（居民系统 05）："阿茜的小包"这类。**不可丢、不可上架、不可寄售**——

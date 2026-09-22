@@ -179,7 +179,12 @@ export type GameEvents = {
    */
   kitchen_changed: { instanceId: string; slotId: string };
   /** 宠物离散状态变化（出场 / 好感度） */
-  resident_changed: { residentId: string; reason: string };
+  resident_changed: {
+    residentId: string;
+    reason: string;
+    /** reason 是 part_attached 时：装上的是哪块（story.ts 翻成剧情信号要它） */
+    part?: string;
+  };
   /** 委托状态表变了（05）：日记本右页、"！"气泡、联机切片都读它 */
   favors_changed: { reason: string };
   /** 两位居民开聊 / 聊完（06）。调试和以后的表现层用 */

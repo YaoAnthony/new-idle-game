@@ -132,7 +132,7 @@ test("石傀儡一次只干一块：建 A 的时候 B 停在 0%", () => {
 
   seedInitialCreatures();
   const golem = getResidents().find((resident) => resident.role === CreatureRole.Worker)!;
-  golem.attachPart("head");
+  golem.assemble();
 
   // 推几十秒游戏时间，让他自己去找活
   for (let i = 0; i < 900; i += 1) golem.tick(1 / 30, { x: 0, z: 0 });
@@ -233,7 +233,7 @@ test("石傀儡已经站在工地跟前也会认领——升级金库卡在「�
   const id = site(SPOT_A.x, SPOT_A.z);
   seedInitialCreatures();
   const golem = getResidents().find((resident) => resident.role === CreatureRole.Worker)!;
-  golem.attachPart("head");
+  golem.assemble();
   // 把他直接放到工地旁边：技能会判"已经够得着"，Intent 里没有 walk_to
   golem.x = SPOT_A.x + 2.2;
   golem.z = SPOT_A.z;

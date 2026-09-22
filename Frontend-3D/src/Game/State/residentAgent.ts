@@ -143,6 +143,13 @@ export class ResidentAgent {
    * 基类只问"齐不齐"。
    */
   static parts: readonly string[] = [];
+  /**
+   * `parts` 里哪几块管**醒不醒**（居民系统 22）。null = 全部都要（原来的语义）。
+   *
+   * 石傀儡只有头管醒：没头是石像，没手是个会说话、不能干活的傀儡。
+   * "醒不醒"和"齐不齐"从此是两个问题：`dormant` 看这张表，`assembled` 看 `parts`。
+   */
+  static wakeParts: readonly string[] | null = null;
 
   // ---- 身份 ----
   readonly residentId: string;
@@ -775,19 +782,34 @@ export class ResidentAgent {
   }
 
   /**
-   * 零件缺着，动不了。和"睡着"是两回事：睡着的会自己醒，休眠的不会。
+   * 唤醒零件缺着，动不了。和"睡着"是两回事：睡着的会自己醒，休眠的不会。
    * 没声明零件的物种永远不休眠。
    */
   get dormant(): boolean {
-    return this.parts.some((part) => !this.attachedParts.has(part));
+    const wake = (this.constructor as typeof ResidentAgent).wakeParts ?? this.parts;
+    return wake.some((part) => !this.attachedParts.has(part));
   }
 
-  /** 装一个零件上去。装齐了就**自己醒过来** */
+  /** 零件全齐了。干活类技能看它（石傀儡没手不接工地），醒不醒看 `dormant` */
+  get assembled(): boolean {
+    return this.parts.every((part) => this.attachedParts.has(part));
+  }
+
+  /**
+   * 装一个零件上去。唤醒零件齐了就**自己醒过来**。
+   * `part` 跟着事件走：story.ts 据此翻成剧情信号（装上了哪块 / 装齐了），
+   * 不让剧情层反查零件表。
+   */
   attachPart(part: string): void {
     if (this.attachedParts.has(part)) return;
     this.attachedParts.add(part);
-    emit("resident_changed", { residentId: this.residentId, reason: "part_attached" });
+    emit("resident_changed", { residentId: this.residentId, reason: "part_attached", part });
     if (!this.dormant && this.state === "sleeping") this.wakeUp();
+  }
+
+  /** 一口气装齐（调试指令 / 测试用；剧情里零件是一块一块给的） */
+  assemble(): void {
+    for (const part of this.parts) this.attachPart(part);
   }
 
   // ---- 吃（地上捡的和玩家手递的都汇到这一条） ----

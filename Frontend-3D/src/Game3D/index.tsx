@@ -273,6 +273,7 @@ import { startSocialSystem } from "../Game/Systems/residents/social";
 import { startVisitSystem } from "../Game/Systems/residents/visits";
 import { setShopStockProbe } from "../Game/Systems/residents/spots";
 import { diagnoseSites } from "../Game/State/skills/build";
+import { golemStage } from "../Game/State/residents/golem";
 import { isRemoteWorldActive } from "../Game/Multiplayer/session";
 import { describeSoundscape, startSoundscape } from "./Engine/Soundscape";
 import { startMusicDirector } from "./Engine/MusicDirector";
@@ -288,6 +289,8 @@ import { toggleRainPanel } from "./Debug/rainPanel";
 /** /signal 的可选值。和 Core 的 StorySignalKind 一一对应 */
 const STORY_SIGNALS = [
   "game_started",
+  "resident_part_attached",
+  "resident_assembled",
   "backpack_opened",
   "furniture_placed",
   "craft_completed",
@@ -951,21 +954,28 @@ export function GameView({ loadedFromSave = false }: GameViewProps) {
       }),
       registerCommand({
         name: "golem",
-        usage: "golem",
+        usage: "golem [assemble]",
         description:
-          "石傀儡为什么不去建：他的状态 + 每块工地逐条报原因（有人建了 / 够得着 / 排不出路）",
-        handler: () => {
+          "石傀儡为什么不去建：他的形态 + 每块工地逐条报原因（有人建了 / 够得着 / 排不出路）；assemble = 一口气装齐零件",
+        arguments: [{ name: "assemble", suggest: () => asSuggestions(["assemble"]) }],
+        handler: (args) => {
           const golem = getResidents().find((resident) => resident.role === CreatureRole.Worker);
           if (!golem) return fail("场上没有工人");
+          if (args[0] === "assemble") {
+            golem.assemble();
+            return ok(`已装齐：${golemStage(golem)}`);
+          }
           return ok(
             JSON.stringify(
               {
                 /*
-                 * 三样先摆出来：**沉睡**（零件不全就永远不醒）、**状态**
+                 * 三样先摆出来：**形态**（没头不醒、没手不接活）、**状态**
                  * （work 说明他正在建）、**位置**。石傀儡不动的原因里，
                  * "他压根没启动"和"他去不了"是完全不同的两件事，
                  * 而从画面上看都是一尊站着的石像。
                  */
+                形态: golemStage(golem),
+                零件: [...golem.attachedParts],
                 沉睡: golem.dormant,
                 状态: golem.state,
                 位置: `${golem.x.toFixed(1)}, ${golem.z.toFixed(1)}`,

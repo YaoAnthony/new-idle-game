@@ -57,7 +57,7 @@ beforeEach(() => {
 function golem() {
   seedInitialCreatures();
   const found = getResidents().find((resident) => resident.role === CreatureRole.Worker)!;
-  found.attachPart("head");
+  found.assemble();
   return found;
 }
 

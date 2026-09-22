@@ -2484,7 +2484,7 @@ export class RoomScene {
       const target: HintTarget = {
         instanceId: resident.residentId,
         hint: canAttach
-          ? { localizationKey: "golem.hint.attach", action: "interact" }
+          ? { localizationKey: `golem.hint.attach.${heldPart}`, action: "interact" }
           : { localizationKey: "golem.hint.dormant" },
         world: new Vector3(resident.x, 1.5, resident.z),
       };
@@ -2509,11 +2509,17 @@ export class RoomScene {
         Math.hypot(resident.x - probeX, resident.z - probeZ) - resident.radius,
       );
       if (distance >= HINT_RADIUS) continue;
+      // 醒着但缺手（22）：手上拿着他缺的那只，F 是装上去，气泡跟着说
+      const canAttach = heldPart !== undefined && !resident.attachedParts.has(heldPart);
       const target: HintTarget = {
         instanceId: resident.residentId,
         // 建造没解锁时按 F 是和他"说话"（build 技能答对话），气泡也得说这个
         hint: {
-          localizationKey: isFeatureUnlocked(GOLEM_CONSTRUCTION_FEATURE) ? "golem.hint.build" : "golem.hint.talk",
+          localizationKey: canAttach
+            ? `golem.hint.attach.${heldPart}`
+            : isFeatureUnlocked(GOLEM_CONSTRUCTION_FEATURE)
+              ? "golem.hint.build"
+              : "golem.hint.talk",
           action: "interact",
         },
         world: new Vector3(resident.x, 1.5, resident.z),
@@ -3226,9 +3232,10 @@ export class RoomScene {
         if (resident && part && !resident.attachedParts.has(part)) {
           consumeSelectedOne();
           resident.attachPart(part);
+          // 头 = 醒来那一句；手 = 装上了哪只（22）。"阿咔咔咔"不在这儿说，那是剧情规则接装齐信号开的对话
           pushChatMessage({
             kind: ChatMessageKind.System,
-            text: t("golem.awakened"),
+            text: t(part === "head" ? "golem.awakened" : `golem.attached.${part}`),
           });
           return;
         }

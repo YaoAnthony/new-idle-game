@@ -1,6 +1,10 @@
 import { beforeEach, expect, test } from "vitest";
 import { CreatureRole, DEFAULT_MAP_ID, GOLEM_CONSTRUCTION_FEATURE, findItemDefinition, residentIdOf } from "core";
 import { restoreProgression, setEventStage, unlockFeature } from "../src/Game/Systems/events";
+import { on } from "../src/Game/EventBus";
+import { golemStage } from "../src/Game/State/residents/golem";
+import { buildSkill } from "../src/Game/State/skills/build";
+import { startStorySystem } from "../src/Game/Systems/story";
 
 import { hydrateGameSave, serializeGameSave } from "../src/Data/Save/serialize";
 import { clearAllFurniture, seedInitialFurniture } from "../src/Game/State/world/furniture";
@@ -158,4 +162,82 @@ test("老存档没有 attachedParts 字段：宠物按零件齐全算，不能�
 
   const cat = getResidents()[0];
   expect(cat.dormant, "宠物没有零件这回事，永远不该休眠").toBe(false);
+});
+
+// ---- 三形态（22）----
+
+test("开场三件都缺：没头没手，形态 headless", () => {
+  const golem = seedGolem();
+  expect([...golem.attachedParts]).toEqual([]);
+  expect(golemStage(golem)).toBe("headless");
+  expect(golem.dormant).toBe(true);
+});
+
+test("装上头就醒、能说话，但没手不算齐全、不接工地", () => {
+  restoreProgression({ events: {}, unlockedFeatureIds: [] });
+  const golem = seedGolem();
+  golem.attachPart("head");
+
+  expect(golem.dormant, "头是唯一的唤醒零件").toBe(false);
+  expect(golem.state).toBe("idle");
+  expect(golem.assembled).toBe(false);
+  expect(golemStage(golem)).toBe("armless");
+  // 会说话
+  expect(golem.interact({ x: golem.x + 1, z: golem.z })?.kind).toBe("dialogue");
+  // 不干活：build 技能一个 Intent 都不出（哪怕有工地也一样——decide 在看工地之前就退了）
+  expect(buildSkill.decide!({ agent: golem, player: { x: 0, z: 0 }, current: null })).toBeNull();
+});
+
+test("装齐两只手才算齐全：形态 complete、build 才肯看工地", () => {
+  const golem = seedGolem();
+  golem.attachPart("head");
+  golem.attachPart("arm_left");
+  expect(golemStage(golem)).toBe("armless");
+  golem.attachPart("arm_right");
+  expect(golem.assembled).toBe(true);
+  expect(golemStage(golem)).toBe("complete");
+});
+
+test("装零件发剧情信号：每块一条 part_attached，装齐那一拍再发 assembled", () => {
+  restoreProgression({ events: {}, unlockedFeatureIds: [] });
+  const stop = startStorySystem(false);
+  const seen: string[] = [];
+  const off = on("story_signal", ({ kind, subject }) => {
+    if (kind === "resident_part_attached" || kind === "resident_assembled") seen.push(`${kind}:${subject}`);
+  });
+  try {
+    const golem = seedGolem();
+    golem.attachPart("head");
+    golem.attachPart("arm_left");
+    expect(seen).toEqual(["resident_part_attached:head", "resident_part_attached:arm_left"]);
+    golem.attachPart("arm_right");
+    expect(seen.at(-2)).toBe("resident_part_attached:arm_right");
+    expect(seen.at(-1)).toBe("resident_assembled:stone_golem");
+    // 重复装不再发
+    golem.attachPart("arm_right");
+    expect(seen).toHaveLength(4);
+  } finally {
+    off();
+    stop();
+  }
+});
+
+test("两只手是零件物品：golemPart 认得、不可交易、不进开箱池", () => {
+  for (const part of ["arm_left", "arm_right"] as const) {
+    const definition = findItemDefinition(`golem_${part}`)!;
+    expect(definition.golemPart).toBe(part);
+    expect(definition.value, "零件不能卖：卖了他永远接不了工地").toBeUndefined();
+    expect(definition.placement?.interactHint?.action).toBe("pickup");
+  }
+});
+
+test("存档往返：只装了头的还是没手（形态 armless），零件表原样回来", () => {
+  const golem = seedGolem();
+  golem.attachPart("head");
+
+  hydrateGameSave(serializeGameSave());
+  const back = getResidents().find((resident) => resident.role === CreatureRole.Worker)!;
+  expect(golemStage(back)).toBe("armless");
+  expect(back.dormant).toBe(false);
+  expect(back.assembled).toBe(false);
 });

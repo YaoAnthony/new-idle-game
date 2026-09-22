@@ -116,7 +116,9 @@ export function residentPortrait(definitionId: string): string | null {
   let url: string | null = null;
   if (model) {
     // 石傀儡开局没头、头是装上去的：头像里当然要有头
-    (model.userData.setHeadAttached as ((attached: boolean) => void) | undefined)?.(true);
+    // 图鉴上是齐全的他（22：头 + 两只手）。没这个钩子的物种静默跳过
+    const setPart = model.userData.setPartAttached as ((part: string, on: boolean) => void) | undefined;
+    for (const part of ["head", "arm_left", "arm_right"]) setPart?.(part, true);
     url = snapshot(model, findHead(model));
   }
   residentCache.set(definitionId, url);

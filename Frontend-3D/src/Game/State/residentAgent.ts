@@ -776,8 +776,8 @@ export class ResidentAgent {
     emit("resident_changed", { residentId: this.residentId, reason: "wake" });
   }
 
-  /** 这种动物声明的零件表（子类的 static） */
-  private get parts(): readonly string[] {
+  /** 这种动物声明的零件表（子类的 static）。表现层按它逐块问"装了没有" */
+  get parts(): readonly string[] {
     return (this.constructor as typeof ResidentAgent).parts;
   }
 

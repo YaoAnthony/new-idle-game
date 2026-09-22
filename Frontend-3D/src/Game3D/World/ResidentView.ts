@@ -161,15 +161,17 @@ export class ResidentView {
       }
 
       /*
-       * 零件装没装上（石傀儡的头）。**模型自己认领这件事**：视图只把
-       * "装了没有"这个布尔递过去，不去翻子节点找那块头——翻子节点等于
+       * 零件装没装上（石傀儡的头和两只手，22）。**模型自己认领这件事**：视图只把
+       * 活物零件表里每一块"装了没有"递过去，不去翻子节点找那块头——翻子节点等于
        * 让这里记住"头在模型里叫什么名字"，换个模型就得回来改。
        * 没有这个钩子的物种（所有宠物）静默跳过。
        */
-      const setHead = view.userData.setHeadAttached as
-        | ((attached: boolean) => void)
+      const setPart = view.userData.setPartAttached as
+        | ((part: string, attached: boolean) => void)
         | undefined;
-      setHead?.(resident.attachedParts.has("head"));
+      if (setPart) {
+        for (const part of resident.parts) setPart(part, resident.attachedParts.has(part));
+      }
 
       /*
        * 藏起来（进了屋、钻了树洞）= 模型整个不画（居民系统 02）。

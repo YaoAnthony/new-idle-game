@@ -147,6 +147,14 @@ export function buildStoneGolem(): Object3D {
   // ---- 手臂：粗短方柱，肩上一块石头当关节 ----
   const arms: Object3D[] = [];
   for (const side of [-1, 1] as const) {
+    /*
+     * 肩窝（22）：胸那层侧面嵌一块深色的凹槽，**手装不装都在**——和脖子上的插槽口
+     * 同一个道理：没手的时候看得出"这儿该有条胳膊"，不然像模型少画了一半。
+     * 装上手之后被肩关节那块石头盖住。
+     */
+    body.add(
+      box([0.16, 0.36, 0.4], { color: STONE_DARK, position: [side * 0.64, 1.62, 0] }),
+    );
     const pivot = buildGolemArm(side);
     /*
      * 肩关节挂在胸那层的**外面**（胸半宽 0.67，肩心 0.86）：手臂整条
@@ -173,14 +181,34 @@ export function buildStoneGolem(): Object3D {
     rig.add(pivot);
   }
 
-  // ---- 装/摘头 ----
-  let headAttached = true;
-  root.userData.setHeadAttached = (attached: boolean): void => {
-    headAttached = attached;
-    head.visible = attached;
-    core.visible = attached;
+  // ---- 装/摘零件（22：头 + 两只手）----
+  const partNodes: Record<string, Object3D> = {
+    head,
+    arm_left: arms[0]!,
+    arm_right: arms[1]!,
   };
+  const attached = new Set(Object.keys(partNodes));
+  let headAttached = true;
+  /**
+   * 按零件名开关。ResidentView 把活物零件表逐个递进来，不用知道模型里哪块叫什么。
+   * 认不出的零件名不理（别的物种以后有自己的零件表）。
+   */
+  root.userData.setPartAttached = (part: string, on: boolean): void => {
+    const node = partNodes[part];
+    if (!node) return;
+    node.visible = on;
+    if (on) attached.add(part);
+    else attached.delete(part);
+    if (part === "head") {
+      headAttached = on;
+      core.visible = on;
+    }
+  };
+  root.userData.isPartAttached = (part: string): boolean => attached.has(part);
+  // 老钩子留着：只认头的调用方（测试）不用改
+  root.userData.setHeadAttached = (on: boolean): void => root.userData.setPartAttached("head", on);
   root.userData.isHeadAttached = (): boolean => headAttached;
+  const armOn = (i: number): boolean => attached.has(i === 0 ? "arm_left" : "arm_right");
 
   // ---- 动画 ----
   let elapsed = 0;
@@ -263,12 +291,13 @@ export function buildStoneGolem(): Object3D {
     if (working) workPhase += deltaSeconds * 2.6;
     else workPhase = 0;
 
-    // 手臂：坐着时垂在身侧微微内收；走路时和腿反相摆
+    // 手臂：坐着时垂在身侧微微内收；走路时和腿反相摆。**没装上的那条不动**（它也不显示）
     for (const [i, arm] of arms.entries()) {
       const side = i === 0 ? -1 : 1;
       // 坐着时手臂垂直挂着、略微外撇，像撑在地上
       arm.rotation.x = 0.05 * eased;
       arm.rotation.z = side * 0.2 * eased;
+      if (!armOn(i)) continue;
       if (!asleep && resident.moving) {
         arm.rotation.x += Math.sin(walkPhase + (side > 0 ? 0 : Math.PI)) * 0.38;
       }
@@ -283,13 +312,25 @@ export function buildStoneGolem(): Object3D {
       body.rotation.x += Math.abs(Math.sin(workPhase)) * 0.12;
     }
 
+    /*
+     * 是 / 不是（22）：**有手用手，没手用身子**。用户定的：没手的时候是非改用身体演。
+     *   no  = 右手举起（右手缺就举左手；都缺 → 上身往一侧歪一下再回正）
+     *   yes = 双手举起顿两下（缺一只就举那一只；都缺 → 上身往前点两下）
+     * 石头动起来该费劲：抬、停、放都慢，身子的版本也一样慢。
+     */
+    const gestureArms = arms.filter((_, i) => armOn(i));
+    // 身子版"不是"的歪度。下面走路 / 站定那段每帧会把 body.rotation.z 归零，所以攒着到最后再加
+    let bodyTilt = 0;
+
     // 不是：右臂抬到几乎竖直，顶上停一停，再放下
     if (gestureName === "no") {
       gestureElapsed += deltaSeconds;
       const t = Math.min(1, gestureElapsed / GESTURE_DURATION.no);
       const lift = t < 0.3 ? smooth(t / 0.3) : t < 0.7 ? 1 : 1 - smooth((t - 0.7) / 0.3);
-      const right = arms[1];
-      if (right) right.rotation.x -= 2.6 * lift;
+      const arm = armOn(1) ? arms[1] : armOn(0) ? arms[0] : undefined;
+      if (arm) arm.rotation.x -= 2.6 * lift;
+      // 没手：上身往右歪一下——"摇头"的石头版
+      else bodyTilt = -0.3 * lift;
       if (t >= 1) gestureName = null;
     }
 
@@ -300,7 +341,9 @@ export function buildStoneGolem(): Object3D {
       const lift = t < 0.25 ? smooth(t / 0.25) : t < 0.75 ? 1 : 1 - smooth((t - 0.75) / 0.25);
       // 顶上那半段顿两下：往上多抬 0.25 rad，身子跟着往上一提
       const pump = t >= 0.25 && t < 0.75 ? Math.max(0, Math.sin(((t - 0.25) / 0.5) * Math.PI * 2)) : 0;
-      for (const arm of arms) arm.rotation.x -= 2.6 * lift + 0.25 * pump;
+      for (const arm of gestureArms) arm.rotation.x -= 2.6 * lift + 0.25 * pump;
+      // 没手：上身往前点两下——"点头"的石头版。顿的节拍和举手那版一样
+      if (gestureArms.length === 0) body.rotation.x += 0.22 * pump + 0.06 * lift;
       body.position.y += 0.04 * pump;
       if (t >= 1) gestureName = null;
     }
@@ -326,6 +369,8 @@ export function buildStoneGolem(): Object3D {
       }
     }
 
+    body.rotation.z += bodyTilt;
+
     // 核心呼吸似的明暗：装了头才有
     if (headAttached) {
       const pulse = 0.75 + Math.sin(elapsed * 1.6) * 0.25;
@@ -339,11 +384,6 @@ export function buildStoneGolem(): Object3D {
   return root;
 }
 
-/**
- * 石傀儡的头，**单独导出**：它既要装在傀儡脖子上，也要能作为一件掉在
- * 地上的物品被玩家捡走。同一个函数两处用，捡到手里的和装上去的
- * 长得一模一样——这是"这就是它的头"最省事的证明。
- */
 /**
  * 石傀儡的一条手臂，**单独导出**（22）：和头一个道理——既装在肩上，也是件能捡能摆的物品。
  * 原点在肩关节，手臂往下垂（拳头到 −1.35）；装到身上时 pivot 直接就是肩关节。
@@ -373,6 +413,11 @@ export function buildGolemArmItem(side: -1 | 1): Object3D {
   return root;
 }
 
+/**
+ * 石傀儡的头，**单独导出**：它既要装在傀儡脖子上，也要能作为一件掉在
+ * 地上的物品被玩家捡走。同一个函数两处用，捡到手里的和装上去的
+ * 长得一模一样——这是"这就是它的头"最省事的证明。
+ */
 export function buildGolemHead(): Object3D {
   const head = new Object3D();
   head.name = "golem-head";

@@ -1496,6 +1496,21 @@ export class RoomScene {
   }
 
   /**
+   * 拿着图纸对石傀儡按 F（22）：建造还没解锁、他齐全 → 开"哇咔咔"那段，说完剧情规则解锁建造。
+   * 判据是"手上这件有 `blueprint` 块"，任意图纸都算，不点名 id；图纸不消耗（用户定）。
+   * 没手的他看不懂图纸——那时候照旧走选址，不拦。
+   */
+  private showBlueprintToGolem(): boolean {
+    if (this.interactTarget?.kind !== "resident") return false;
+    if (isFeatureUnlocked(GOLEM_CONSTRUCTION_FEATURE)) return false;
+    const resident = getResident(this.interactTarget.residentId);
+    if (!resident || resident.role !== CreatureRole.Worker || resident.dormant || !resident.assembled) return false;
+    const held = getSelectedStack();
+    if (!held || !findItemDefinition(held.itemId)?.blueprint) return false;
+    return startDialogue("golem_blueprint", resident.residentId);
+  }
+
+  /**
    * 执行自动生活的一步（走位层）。
    *
    * 离座三件套（cancelScriptedWalk / activity=null / standUp）和
@@ -2984,6 +2999,11 @@ export class RoomScene {
      * （见 syncHeldPreview），留着只会变成一条永远走不到的分支。
      */
     if (this.buildingPlacement.active) {
+      /*
+       * 唯一的例外（22，用户选的 a 方案）：拿着图纸站在石傀儡跟前、他齐全、建造还没解锁
+       * ——这一下是"给他看图纸"，不是选址。解锁之后不再拦：F 照旧是"就放这儿"。
+       */
+      if (this.showBlueprintToGolem()) return;
       this.buildingPlacement.commit();
       return;
     }

@@ -53,7 +53,7 @@ test("开场：别的活物先到场（旅行商人当天在家），石傀儡�
   expect(getResidents()).toHaveLength(2);
 });
 
-test("醒来后按F：建造没解锁只会咔咔_说过一遍只回省略号_解锁了才开建造面板", () => {
+test("醒来后按F：建造没解锁只会咔咔_说过一遍只回省略号_解锁了是咔咔问句", () => {
   restoreProgression({ events: {}, unlockedFeatureIds: [] });
   const golem = seedGolem();
   const player = { x: golem.x + 1, z: golem.z };
@@ -63,7 +63,7 @@ test("醒来后按F：建造没解锁只会咔咔_说过一遍只回省略号_�
   setEventStage("golem_intro", "talked", "completed");
   expect(golem.interact(player)).toEqual({ kind: "dialogue", dialogueId: "golem_silent" });
   unlockFeature(GOLEM_CONSTRUCTION_FEATURE);
-  expect(golem.interact(player)).toEqual({ kind: "build_shop" });
+  expect(golem.interact(player)).toEqual({ kind: "dialogue", dialogueId: "golem_ready" });
 });
 
 test("开场：石傀儡坐在院子里、没有头、而且叫不醒", () => {

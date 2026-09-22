@@ -222,6 +222,13 @@ function runEffect(effect: StoryEffect): void {
         durationMs: effect.durationMs ?? 6000,
       });
       break;
+    /*
+     * 建造面板（22）。选项发 dialogue_event 时对话还开着（choose 先发信号再收对话），
+     * 面板立刻开会叠在台词框上；错开一拍，等对话收了再开。
+     */
+    case "open_build_shop":
+      later(() => request("build_shop_open_requested", {}), 80);
+      break;
 
     // 好感唯一的加分口（04）。一天一次的节流、跨档信号都在 gainAffection 里
     case "adjust_affection":

@@ -208,11 +208,11 @@ test("skills_按F问技能_商人开交易_工头开建造_居民落回对话", 
   // seedInitialCreatures 在场上已有活物时不再种，所以这里直接召一尊
   const golem = spawnResident("resident-stone_golem", "stone_golem");
   golem.assemble();
-  // 建造没解锁时他只会咔咔（对话）；解锁了才是建造面板（2026-09-16）
+  // 建造没解锁时他只会咔咔（对话）；解锁了是「咔咔？」问句，选了才开面板（22）
   restoreProgression({ events: {}, unlockedFeatureIds: [] });
   expect(golem.interact(PLAYER)).toEqual({ kind: "dialogue", dialogueId: "golem_first_talk" });
   unlockFeature(GOLEM_CONSTRUCTION_FEATURE);
-  expect(golem.interact(PLAYER)).toEqual({ kind: "build_shop" });
+  expect(golem.interact(PLAYER)).toEqual({ kind: "dialogue", dialogueId: "golem_ready" });
   restoreProgression({ events: {}, unlockedFeatureIds: [] });
 
   const slime = parked("resident-a", "slime_neighbor");

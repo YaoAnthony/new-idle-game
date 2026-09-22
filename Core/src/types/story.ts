@@ -465,7 +465,9 @@ export type StoryEffect =
    */
   | { kind: "knock_at_front_door"; residentId: ResidentId; delayMs?: number; opensDoor?: boolean }
   /** 小鱼人说完"那我下次再来"（20）：敲门收场、拖车走回入口消失；今天记成见过他的日子，当天不再出摊 */
-  | { kind: "traveler_leave" };
+  | { kind: "traveler_leave" }
+  /** 开石傀儡的建造面板（22）：对话里选了「建点什么」。面板在对话收掉之后再开 */
+  | { kind: "open_build_shop" };
 
 export type StoryRuleId = string;
 

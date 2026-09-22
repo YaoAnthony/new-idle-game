@@ -6,10 +6,9 @@ import { GESTURES } from "../residents/gestures.js";
  *
  * 建造还没解锁（feature `golem_construction`）时，F 不开建造面板，而是这段：他只会"咔咔"。
  * 说完一遍（事件 `golem_intro` 到 talked）之后再按 F，他只回"...."（golem_silent）。
- * 什么时候能盖楼、他什么时候开口说人话，是后面的剧情（用户：我们后面慢慢安排）。
  *
  * 手势是**意思**，不写成字（用户 2026-09-16）：石傀儡举一只手 = 不是（`no`），举双手 = 是的（`yes`）。
- * "他举起了手"= n5 挂 `no`；"他看着你"= 对话本身就注视着你（21）。
+ * "他举起了手"= n5 挂 `no`；"他看着你"= 对话本身就注视着你（21）。没手的时候造型用身子演（22）。
  */
 const golemFirstTalk: DialogueDefinition = {
   id: "golem_first_talk",
@@ -39,4 +38,54 @@ const golemSilent: DialogueDefinition = {
   },
 };
 
-export const golemDialogues: DialogueDefinition[] = [golemFirstTalk, golemSilent];
+/*
+ * ==== 三形态（居民系统 22，2026-09-21，用户原话）====
+ * 把两只手给他 → "阿咔咔咔"；给他一张图纸 → "哇咔咔"，解锁建造；
+ * 解锁之后按 F → "咔咔？"，选「建点什么」开建造面板。
+ */
+
+/** 第二只手装上那一拍（剧情规则接 resident_assembled 开的）：他第一次举起双手 */
+const golemArms: DialogueDefinition = {
+  id: "golem_arms",
+  localizationKey: "dlg.golem_arms",
+  speakerNameKey: "pet.stone_golem",
+  entryNodeId: "n1",
+  nodes: {
+    n1: { nodeId: "n1", speaker: "npc", localizationKey: "dlg.golem_arms.n1", residentGesture: GESTURES.yes },
+  },
+};
+
+/** 拿着图纸按 F（建造未解锁、零件齐全）。说完 → 剧情规则解锁 golem_construction。图纸不消耗 */
+const golemBlueprint: DialogueDefinition = {
+  id: "golem_blueprint",
+  localizationKey: "dlg.golem_blueprint",
+  speakerNameKey: "pet.stone_golem",
+  entryNodeId: "n1",
+  nodes: {
+    n1: { nodeId: "n1", speaker: "npc", localizationKey: "dlg.golem_blueprint.n1", residentGesture: GESTURES.yes },
+  },
+};
+
+/**
+ * 建造解锁之后按 F：他问"咔咔？"，你选「建点什么」→ `dialogue_event golem_open_shop` → 开建造面板；
+ * 「没事」就走。面板不直接开：用户定的是先有这一问。
+ */
+const golemReady: DialogueDefinition = {
+  id: "golem_ready",
+  localizationKey: "dlg.golem_ready",
+  speakerNameKey: "pet.stone_golem",
+  entryNodeId: "n1",
+  nodes: {
+    n1: {
+      nodeId: "n1",
+      speaker: "npc",
+      localizationKey: "dlg.golem_ready.n1",
+      choices: [
+        { choiceId: "build", localizationKey: "dlg.golem_ready.build", emitEventId: "golem_open_shop" },
+        { choiceId: "nothing", localizationKey: "dlg.golem_ready.nothing" },
+      ],
+    },
+  },
+};
+
+export const golemDialogues: DialogueDefinition[] = [golemFirstTalk, golemSilent, golemArms, golemBlueprint, golemReady];

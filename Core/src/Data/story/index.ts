@@ -4,7 +4,7 @@ import { findLootTable } from "../loot/index.js";
 import { DEFAULT_MAP_ID } from "../../types/map.js";
 import { favorDefinitions, favorTuning } from "../residents/favors.js";
 import { visitTuning } from "../residents/visits.js";
-import { DAILY_LIFE_FEATURE, OPENING_BOXES_FEATURE } from "../features/index.js";
+import { DAILY_LIFE_FEATURE, GOLEM_CONSTRUCTION_FEATURE, OPENING_BOXES_FEATURE } from "../features/index.js";
 import { RESIDENT_FACT_KINDS, findResidentDefinition, residentIdOf } from "../residents/index.js";
 import { tripPool } from "../residents/trips.js";
 import { visitorTuning } from "../residents/visitors.js";
@@ -229,6 +229,27 @@ export const storyRules: StoryRule[] = [
     id: "golem_intro_talked",
     triggers: [{ signal: "dialogue_ended", subject: "golem_first_talk" }],
     effects: [{ kind: "set_event_stage", eventId: "golem_intro", stageId: "talked", complete: true }],
+  },
+  /*
+   * ==== 三形态（居民系统 22，2026-09-21 用户定）====
+   * 第二只手装上 → "阿咔咔咔"；拿着图纸找他说完 → 解锁建造；解锁后「建点什么」→ 开面板。
+   * 拿着图纸那一下由 RoomScene 直接开对话（那是按键的事），这里只接"说完了"。
+   */
+  {
+    id: "golem_arms_talk",
+    triggers: [{ signal: "resident_assembled", subject: "stone_golem" }],
+    effects: [{ kind: "start_dialogue", dialogueId: "golem_arms", residentId: residentIdOf("stone_golem"), delayMs: 600 }],
+  },
+  {
+    id: "golem_blueprint_unlocks_construction",
+    triggers: [{ signal: "dialogue_ended", subject: "golem_blueprint" }],
+    effects: [{ kind: "unlock_feature", featureId: GOLEM_CONSTRUCTION_FEATURE }],
+  },
+  {
+    id: "golem_open_shop",
+    once: false,
+    triggers: [{ signal: "dialogue_event", subject: "golem_open_shop" }],
+    effects: [{ kind: "open_build_shop" }],
   },
   {
     id: "traveler_intro_met",

@@ -100,12 +100,13 @@ export const buildSkill: Skill = {
     return null;
   },
   /*
-   * 按 F：建造解锁了才开面板。没解锁（开局就是）他只会"咔咔"——第一次是那段对话，
-   * 说过之后只回"...."（用户 2026-09-16 定；什么时候解锁是后面的剧情）。
+   * 按 F：建造解锁了是「咔咔？」+ 选项「建点什么」（选了才开面板，用户 2026-09-21 定：
+   * 先有这一问）。没解锁他只会"咔咔"——第一次是那段对话，说过之后只回"...."。
+   * 拿着图纸给他看那一下不在这里：那要抢在建筑选址前面，是 RoomScene 的按键顺序。
    */
   interact: ({ agent }) => {
     if (agent.dormant) return null;
-    if (isFeatureUnlocked(GOLEM_CONSTRUCTION_FEATURE)) return { kind: "build_shop" };
+    if (isFeatureUnlocked(GOLEM_CONSTRUCTION_FEATURE)) return { kind: "dialogue", dialogueId: "golem_ready" };
     return { kind: "dialogue", dialogueId: isEventCompleted("golem_intro") ? "golem_silent" : "golem_first_talk" };
   },
 };
